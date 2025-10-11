@@ -6,7 +6,8 @@ Allows dynamic creation and management of POVM packs.
 
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import Column, String, Text, DateTime, JSONB
+from sqlalchemy import Column, String, Text, DateTime
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from humanizer.database import Base

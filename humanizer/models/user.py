@@ -6,7 +6,8 @@ Tracks user patterns for adaptive interface.
 
 from datetime import datetime
 from uuid import uuid4
-from sqlalchemy import Column, DateTime, JSONB
+from sqlalchemy import Column, DateTime
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
 from humanizer.database import Base

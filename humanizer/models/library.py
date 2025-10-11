@@ -6,7 +6,8 @@ Stores ingested texts with embeddings for semantic search.
 
 from datetime import datetime
 from uuid import UUID, uuid4
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, JSONB
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 try:

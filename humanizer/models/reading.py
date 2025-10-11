@@ -10,7 +10,8 @@ These models track the quantum reading process:
 
 from datetime import datetime
 from uuid import UUID, uuid4
-from sqlalchemy import Column, String, Text, Float, Integer, DateTime, ForeignKey, JSONB
+from sqlalchemy import Column, String, Text, Float, Integer, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 try:

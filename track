@@ -1,0 +1,12 @@
+#!/bin/bash
+# Codebase Tracker - Convenient wrapper
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TRACKER="$SCRIPT_DIR/codebase_tracker.py"
+VENV="/Users/tem/archive/mcp-memory/mcp-memory-service/venv"
+
+# Activate venv for ChromaDB access
+source "$VENV/bin/activate"
+
+# Run tracker with all arguments
+python "$TRACKER" "$@"
