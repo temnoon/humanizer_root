@@ -1,0 +1,33 @@
+"""
+Configuration management using Pydantic Settings
+"""
+
+from pydantic_settings import BaseSettings
+
+
+class Settings(BaseSettings):
+    """Application settings."""
+
+    # Database
+    database_url: str = "postgresql+asyncpg://localhost/humanizer_dev"
+
+    # TRM
+    trm_rank: int = 64
+    embedding_model: str = "all-MiniLM-L6-v2"
+
+    # API
+    api_title: str = "Humanizer API"
+    api_version: str = "1.0.0"
+    api_port: int = 8000
+
+    # CORS
+    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+    }
+
+
+# Global settings instance
+settings = Settings()
