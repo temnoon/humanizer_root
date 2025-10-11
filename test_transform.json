@@ -1,0 +1,12 @@
+{
+  "text": "Quantum mechanics describes reality at the smallest scales.",
+  "povm_pack": "tone",
+  "target_stance": {
+    "analytical": 0.6,
+    "critical": 0.2,
+    "empathic": 0.1,
+    "playful": 0.05,
+    "neutral": 0.05
+  },
+  "max_iterations": 3
+}

@@ -1,0 +1,28 @@
+{
+  "name": "humanizer-frontend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "tsc --noEmit"
+  },
+  "description": "Humanizer - ChatGPT Archive & TRM Frontend",
+  "dependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "katex": "^0.16.23",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-math": "^6.0.0",
+    "typescript": "^5.5.3",
+    "vite": "^4.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.130",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1"
+  }
+}

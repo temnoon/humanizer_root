@@ -10,7 +10,17 @@ from contextlib import asynccontextmanager
 
 from humanizer.config import settings
 from humanizer.database import init_db
-from humanizer.api import reading_router, povm_router
+from humanizer.api import (
+    reading_router,
+    povm_router,
+    chatgpt_router,
+    aui_router,
+    media_router,
+    interest_router,
+    interest_list_router,
+    transform_router,
+    tools_router,
+)
 
 
 @asynccontextmanager
@@ -65,6 +75,13 @@ app.add_middleware(
 # Include routers
 app.include_router(reading_router)
 app.include_router(povm_router)
+app.include_router(chatgpt_router)
+app.include_router(aui_router)
+app.include_router(media_router)
+app.include_router(interest_router)
+app.include_router(interest_list_router)
+app.include_router(transform_router)
+app.include_router(tools_router)
 
 
 # Health check
@@ -86,7 +103,21 @@ async def root():
         "version": settings.api_version,
         "docs": "/docs",
         "health": "/health",
+        "gui": "/gui",
     }
+
+
+@app.get("/gui")
+async def gui():
+    """Serve the GUI HTML."""
+    from fastapi.responses import FileResponse
+    from pathlib import Path
+
+    gui_path = Path(__file__).parent.parent / "humanizer_gui.html"
+    if gui_path.exists():
+        return FileResponse(gui_path, media_type="text/html")
+    else:
+        return {"error": "GUI file not found", "path": str(gui_path)}
 
 
 if __name__ == "__main__":

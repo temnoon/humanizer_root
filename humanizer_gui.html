@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Humanizer - ChatGPT Archive Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1f2937;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #6b7280;
+        }
+
+        /* Progress bar animation */
+        @keyframes progress {
+            0% { width: 0%; }
+        }
+        .progress-bar {
+            animation: progress 2s ease-out;
+        }
+
+        /* Markdown rendering styles */
+        .markdown-content {
+            line-height: 1.6;
+        }
+        .markdown-content h1 {
+            font-size: 1.875rem;
+            font-weight: bold;
+            margin-top: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-top: 1.25rem;
+            margin-bottom: 0.75rem;
+        }
+        .markdown-content h3 {
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+        .markdown-content p {
+            margin-bottom: 1rem;
+        }
+        .markdown-content pre {
+            background: #1f2937;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin-bottom: 1rem;
+        }
+        .markdown-content code {
+            background: #374151;
+            padding: 0.125rem 0.25rem;
+            border-radius: 0.25rem;
+            font-family: monospace;
+        }
+        .markdown-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+        }
+    </style>
+
+    <!-- MathJax for LaTeX rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            },
+            svg: {fontCache: 'global'}
+        };
+    </script>
+
+    <!-- Mermaid for diagram rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#a78bfa',
+                primaryTextColor: '#f3f4f6',
+                primaryBorderColor: '#8b5cf6',
+                lineColor: '#6b7280',
+                secondaryColor: '#4b5563',
+                tertiaryColor: '#1f2937'
+            }
+        });
+    </script>
+</head>
+<body class="bg-gray-900 text-gray-100">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-4 flex items-center justify-between">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <span class="text-purple-400">⚛️</span>
+                Humanizer
+            </h1>
+            <div class="flex items-center gap-4">
+                <div id="connection-status" class="flex items-center gap-2 text-sm">
+                    <span class="w-2 h-2 bg-yellow-400 rounded-full animate-pulse"></span>
+                    <span class="text-gray-400">Connecting...</span>
+                </div>
+                <button id="refresh-stats" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                    🔄 Refresh
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="container mx-auto px-4 py-6">
+        <!-- Tab Navigation -->
+        <div class="flex gap-2 mb-6 border-b border-gray-700">
+            <button class="tab-btn px-4 py-2 font-semibold border-b-2 border-purple-400 text-purple-400" data-tab="dashboard">
+                📊 Dashboard
+            </button>
+            <button class="tab-btn px-4 py-2 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-200" data-tab="search">
+                🔍 Search
+            </button>
+            <button class="tab-btn px-4 py-2 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-200" data-tab="import">
+                📁 Import
+            </button>
+            <button class="tab-btn px-4 py-2 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-200" data-tab="gallery">
+                🎨 Gallery
+            </button>
+        </div>
+
+        <!-- Tab Content -->
+        <div id="tab-content">
+            <!-- Dashboard Tab -->
+            <div id="dashboard-tab" class="tab-content fade-in">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Stats Cards -->
+                    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                        <div class="text-gray-400 text-sm mb-2">Conversations</div>
+                        <div id="stat-conversations" class="text-3xl font-bold text-purple-400">-</div>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                        <div class="text-gray-400 text-sm mb-2">Messages</div>
+                        <div id="stat-messages" class="text-3xl font-bold text-blue-400">-</div>
+                    </div>
+                    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                        <div class="text-gray-400 text-sm mb-2">Media Files</div>
+                        <div id="stat-media" class="text-3xl font-bold text-green-400">-</div>
+                    </div>
+                </div>
+
+                <!-- Archive Info -->
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+                    <h3 class="text-lg font-semibold mb-4">Archive Information</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div>
+                            <span class="text-gray-400">Archives:</span>
+                            <span id="stat-archives" class="ml-2 text-gray-200">-</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-400">Date Range:</span>
+                            <span id="stat-date-range" class="ml-2 text-gray-200">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top Conversations -->
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h3 class="text-lg font-semibold mb-4">Top Conversations by Length</h3>
+                    <div id="top-conversations" class="space-y-3">
+                        <div class="text-gray-400 text-sm">Loading...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Tab -->
+            <div id="search-tab" class="tab-content hidden">
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+                    <h3 class="text-lg font-semibold mb-4">Search Conversations</h3>
+
+                    <!-- Search Input -->
+                    <div class="mb-4">
+                        <input
+                            type="text"
+                            id="search-input"
+                            placeholder="Search messages (e.g., 'quantum consciousness')..."
+                            class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:outline-none focus:border-purple-400"
+                        />
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Author Role</label>
+                            <select id="filter-role" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 focus:outline-none focus:border-purple-400">
+                                <option value="">All</option>
+                                <option value="user">User</option>
+                                <option value="assistant">Assistant</option>
+                                <option value="system">System</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">Limit</label>
+                            <select id="filter-limit" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 focus:outline-none focus:border-purple-400">
+                                <option value="10">10 results</option>
+                                <option value="20" selected>20 results</option>
+                                <option value="50">50 results</option>
+                                <option value="100">100 results</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button id="search-btn" class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded font-semibold">
+                                🔍 Search
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search Results -->
+                <div id="search-results" class="space-y-4">
+                    <div class="text-gray-400 text-center py-8">
+                        Enter a search query to get started
+                    </div>
+                </div>
+
+                <!-- Conversation Viewer Modal -->
+                <div id="conversation-modal" class="hidden fixed inset-0 bg-black bg-opacity-75 z-50 overflow-y-auto">
+                    <div class="min-h-screen px-4 py-8">
+                        <div class="bg-gray-800 rounded-lg max-w-4xl mx-auto border border-gray-700">
+                            <div class="p-6 border-b border-gray-700 flex items-center justify-between">
+                                <h3 id="modal-title" class="text-xl font-semibold">Conversation</h3>
+                                <div class="flex gap-2">
+                                    <button id="modal-render-btn" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded text-sm">
+                                        📄 Render
+                                    </button>
+                                    <button id="modal-export-btn" class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
+                                        💾 Export HTML
+                                    </button>
+                                    <button id="modal-close-btn" class="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-sm">
+                                        ✕ Close
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="modal-content" class="p-6 max-h-[70vh] overflow-y-auto markdown-content">
+                                Loading...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Import Tab -->
+            <div id="import-tab" class="tab-content hidden">
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <h3 class="text-lg font-semibold mb-4">Import ChatGPT Archive</h3>
+
+                    <div class="mb-6">
+                        <label class="block text-sm text-gray-400 mb-2">Archive Path</label>
+                        <input
+                            type="text"
+                            id="import-path"
+                            placeholder="/Users/tem/Chat9"
+                            class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:outline-none focus:border-purple-400"
+                        />
+                        <div class="text-xs text-gray-500 mt-1">
+                            Path to ChatGPT archive folder containing conversations.json
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-sm text-gray-400 mb-2">Archive Name</label>
+                        <input
+                            type="text"
+                            id="import-name"
+                            placeholder="Chat9"
+                            class="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 placeholder-gray-400 focus:outline-none focus:border-purple-400"
+                        />
+                    </div>
+
+                    <div class="mb-6 space-y-2">
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" id="import-force" class="w-4 h-4">
+                            <span class="text-sm text-gray-300">Force reimport (update existing conversations)</span>
+                        </label>
+                    </div>
+
+                    <button id="import-btn" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded font-semibold">
+                        📁 Import Archive
+                    </button>
+
+                    <!-- Import Progress -->
+                    <div id="import-progress" class="hidden mt-6">
+                        <div class="mb-2">
+                            <div class="flex justify-between text-sm mb-1">
+                                <span id="import-status">Processing...</span>
+                                <span id="import-percent">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-700 rounded-full h-2">
+                                <div id="import-progress-bar" class="bg-purple-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        <div id="import-result" class="text-sm text-gray-400"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gallery Tab -->
+            <div id="gallery-tab" class="tab-content hidden">
+                <div class="bg-gray-800 rounded-lg p-6 border border-gray-700 mb-6">
+                    <h3 class="text-lg font-semibold mb-4">Generate Image Gallery</h3>
+
+                    <div class="mb-6">
+                        <label class="block text-sm text-gray-400 mb-2">Select Custom GPTs</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" id="gpt-journal" value="g-T7bW2qVzx" checked class="w-4 h-4">
+                                <span class="text-sm text-gray-300">📔 Journal Recognizer OCR (g-T7bW2qVzx)</span>
+                            </label>
+                            <label class="flex items-center gap-2">
+                                <input type="checkbox" id="gpt-echo" value="g-FmQp1Tm1G" checked class="w-4 h-4">
+                                <span class="text-sm text-gray-300">🎨 Image Echo Bounce (g-FmQp1Tm1G)</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-sm text-gray-400 mb-2">Output Format</label>
+                        <select id="gallery-format" class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-gray-100 focus:outline-none focus:border-purple-400">
+                            <option value="markdown">Markdown (.md)</option>
+                            <option value="html">HTML (.html)</option>
+                        </select>
+                    </div>
+
+                    <button id="gallery-btn" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded font-semibold">
+                        🎨 Generate Gallery
+                    </button>
+
+                    <div id="gallery-status" class="mt-4 text-sm text-gray-400"></div>
+                </div>
+
+                <!-- Gallery Preview -->
+                <div id="gallery-preview" class="hidden bg-gray-800 rounded-lg p-6 border border-gray-700">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-semibold">Preview</h3>
+                        <button id="gallery-download-btn" class="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm">
+                            💾 Download
+                        </button>
+                    </div>
+                    <div id="gallery-content" class="max-h-[600px] overflow-y-auto markdown-content">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API Configuration
+        const API_BASE = 'http://localhost:8000';
+
+        // State
+        let currentConversationUuid = null;
+        let statsData = null;
+
+        // Utility: Show notification
+        function showNotification(message, type = 'info') {
+            const colors = {
+                info: 'bg-blue-600',
+                success: 'bg-green-600',
+                error: 'bg-red-600',
+                warning: 'bg-yellow-600'
+            };
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 ${colors[type]} text-white px-6 py-3 rounded shadow-lg z-50 fade-in`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+
+                // Update button styles
+                document.querySelectorAll('.tab-btn').forEach(b => {
+                    b.classList.remove('border-purple-400', 'text-purple-400');
+                    b.classList.add('border-transparent', 'text-gray-400');
+                });
+                btn.classList.add('border-purple-400', 'text-purple-400');
+                btn.classList.remove('border-transparent', 'text-gray-400');
+
+                // Show tab content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.add('hidden');
+                });
+                document.getElementById(`${tab}-tab`).classList.remove('hidden');
+            });
+        });
+
+        // Check API connection
+        async function checkConnection() {
+            const statusEl = document.getElementById('connection-status');
+            try {
+                const response = await fetch(`${API_BASE}/`);
+                if (response.ok) {
+                    statusEl.innerHTML = `
+                        <span class="w-2 h-2 bg-green-400 rounded-full"></span>
+                        <span class="text-gray-400">Connected</span>
+                    `;
+                } else {
+                    throw new Error('API not responding');
+                }
+            } catch (error) {
+                statusEl.innerHTML = `
+                    <span class="w-2 h-2 bg-red-400 rounded-full"></span>
+                    <span class="text-gray-400">Disconnected</span>
+                `;
+                showNotification('Cannot connect to API. Is the server running?', 'error');
+            }
+        }
+
+        // Fetch statistics
+        async function fetchStats() {
+            try {
+                const response = await fetch(`${API_BASE}/chatgpt/stats`);
+                if (!response.ok) throw new Error('Failed to fetch stats');
+
+                statsData = await response.json();
+
+                // Update stats cards
+                document.getElementById('stat-conversations').textContent = statsData.total_conversations.toLocaleString();
+                document.getElementById('stat-messages').textContent = statsData.total_messages.toLocaleString();
+                document.getElementById('stat-media').textContent = statsData.total_media.toLocaleString();
+                document.getElementById('stat-archives').textContent = statsData.archives_ingested.join(', ');
+
+                if (statsData.date_range) {
+                    const earliest = new Date(statsData.date_range.earliest).toLocaleDateString();
+                    const latest = new Date(statsData.date_range.latest).toLocaleDateString();
+                    document.getElementById('stat-date-range').textContent = `${earliest} - ${latest}`;
+                }
+
+                // Update top conversations
+                const topConvsEl = document.getElementById('top-conversations');
+                if (statsData.top_conversations && statsData.top_conversations.length > 0) {
+                    topConvsEl.innerHTML = statsData.top_conversations.map(conv => {
+                        const barWidth = Math.min(100, (conv.message_count / statsData.top_conversations[0].message_count) * 100);
+                        return `
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-300">${conv.title}</span>
+                                    <span class="text-gray-400">${conv.message_count} msgs</span>
+                                </div>
+                                <div class="w-full bg-gray-700 rounded-full h-2">
+                                    <div class="bg-purple-600 h-2 rounded-full" style="width: ${barWidth}%"></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    topConvsEl.innerHTML = '<div class="text-gray-400 text-sm">No data available</div>';
+                }
+
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+                showNotification('Failed to load statistics', 'error');
+            }
+        }
+
+        // Search conversations
+        async function searchConversations() {
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) {
+                showNotification('Please enter a search query', 'warning');
+                return;
+            }
+
+            const role = document.getElementById('filter-role').value;
+            const limit = parseInt(document.getElementById('filter-limit').value);
+
+            const resultsEl = document.getElementById('search-results');
+            resultsEl.innerHTML = '<div class="text-gray-400 text-center py-8">Searching...</div>';
+
+            try {
+                const body = { query, limit };
+                if (role) body.author_role = role;
+
+                const response = await fetch(`${API_BASE}/chatgpt/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                if (!response.ok) throw new Error('Search failed');
+
+                const data = await response.json();
+
+                if (data.results.length === 0) {
+                    resultsEl.innerHTML = '<div class="text-gray-400 text-center py-8">No results found</div>';
+                    return;
+                }
+
+                resultsEl.innerHTML = data.results.map(msg => `
+                    <div class="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-gray-600 cursor-pointer fade-in"
+                         onclick="viewConversation('${msg.conversation_uuid}')">
+                        <div class="flex justify-between items-start mb-2">
+                            <span class="text-sm font-semibold text-purple-400">
+                                ${msg.author_role === 'user' ? '👤' : '🤖'} ${msg.author_role}
+                            </span>
+                            <span class="text-xs text-gray-500">
+                                ${new Date(msg.created_at).toLocaleString()}
+                            </span>
+                        </div>
+                        <div class="text-sm text-gray-300 line-clamp-3">
+                            ${msg.content_text ? msg.content_text.substring(0, 200) + '...' : 'No content'}
+                        </div>
+                        <div class="mt-2 text-xs text-gray-500">
+                            UUID: ${msg.conversation_uuid}
+                        </div>
+                    </div>
+                `).join('');
+
+                showNotification(`Found ${data.count} results`, 'success');
+
+            } catch (error) {
+                console.error('Search error:', error);
+                resultsEl.innerHTML = '<div class="text-red-400 text-center py-8">Search failed. Check console for details.</div>';
+                showNotification('Search failed', 'error');
+            }
+        }
+
+        // View conversation
+        async function viewConversation(uuid) {
+            currentConversationUuid = uuid;
+            const modal = document.getElementById('conversation-modal');
+            const modalTitle = document.getElementById('modal-title');
+            const modalContent = document.getElementById('modal-content');
+
+            modal.classList.remove('hidden');
+            modalTitle.textContent = 'Loading...';
+            modalContent.innerHTML = '<div class="text-gray-400 text-center py-8">Loading conversation...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/chatgpt/conversation/${uuid}`);
+                if (!response.ok) throw new Error('Failed to load conversation');
+
+                const data = await response.json();
+                modalTitle.textContent = data.title || 'Untitled Conversation';
+                modalContent.innerHTML = `
+                    <div class="space-y-4">
+                        <div class="text-sm text-gray-400">
+                            <div>UUID: ${data.uuid}</div>
+                            <div>Messages: ${data.message_count}</div>
+                            <div>Media: ${data.media_count}</div>
+                            <div>Archive: ${data.source_archive}</div>
+                            <div>Created: ${new Date(data.created_at).toLocaleString()}</div>
+                        </div>
+                        <div class="text-gray-300">
+                            Click "Render" to view the full conversation with messages and media.
+                        </div>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Error loading conversation:', error);
+                modalContent.innerHTML = '<div class="text-red-400 text-center py-8">Failed to load conversation</div>';
+            }
+        }
+
+        // Render conversation
+        async function renderConversation() {
+            if (!currentConversationUuid) return;
+
+            const modalContent = document.getElementById('modal-content');
+            modalContent.innerHTML = '<div class="text-gray-400 text-center py-8">Rendering conversation...</div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/chatgpt/conversation/${currentConversationUuid}/render`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        include_media: true,
+                        pagination: false
+                    })
+                });
+
+                if (!response.ok) throw new Error('Failed to render conversation');
+
+                const data = await response.json();
+
+                // Convert markdown to HTML (simple conversion)
+                const html = data.markdown
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n\n/g, '</p><p>')
+                    .replace(/\n/g, '<br>');
+
+                modalContent.innerHTML = `<p>${html}</p>`;
+                showNotification('Conversation rendered', 'success');
+
+            } catch (error) {
+                console.error('Error rendering conversation:', error);
+                modalContent.innerHTML = '<div class="text-red-400 text-center py-8">Failed to render conversation</div>';
+                showNotification('Render failed', 'error');
+            }
+        }
+
+        // Export conversation
+        async function exportConversation() {
+            if (!currentConversationUuid) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/chatgpt/conversation/${currentConversationUuid}/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        format: 'rendered_html',
+                        include_media: true
+                    })
+                });
+
+                if (!response.ok) throw new Error('Export failed');
+
+                const data = await response.json();
+
+                // Download as file
+                const blob = new Blob([data.content], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `conversation_${currentConversationUuid}.html`;
+                a.click();
+                URL.revokeObjectURL(url);
+
+                showNotification('Exported successfully', 'success');
+
+            } catch (error) {
+                console.error('Export error:', error);
+                showNotification('Export failed', 'error');
+            }
+        }
+
+        // Import archive
+        async function importArchive() {
+            const path = document.getElementById('import-path').value.trim();
+            const name = document.getElementById('import-name').value.trim();
+            const force = document.getElementById('import-force').checked;
+
+            if (!path || !name) {
+                showNotification('Please provide archive path and name', 'warning');
+                return;
+            }
+
+            const progressEl = document.getElementById('import-progress');
+            const statusEl = document.getElementById('import-status');
+            const percentEl = document.getElementById('import-percent');
+            const progressBar = document.getElementById('import-progress-bar');
+            const resultEl = document.getElementById('import-result');
+            const btn = document.getElementById('import-btn');
+
+            progressEl.classList.remove('hidden');
+            btn.disabled = true;
+            btn.textContent = 'Importing...';
+            statusEl.textContent = 'Processing...';
+            progressBar.style.width = '10%';
+            percentEl.textContent = '10%';
+
+            try {
+                const response = await fetch(`${API_BASE}/chatgpt/ingest`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        home_dir: path,
+                        archive_pattern: name,
+                        force_reimport: force
+                    })
+                });
+
+                progressBar.style.width = '50%';
+                percentEl.textContent = '50%';
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Import failed');
+                }
+
+                const data = await response.json();
+
+                progressBar.style.width = '100%';
+                percentEl.textContent = '100%';
+                statusEl.textContent = 'Complete!';
+
+                resultEl.innerHTML = `
+                    <div class="text-green-400">
+                        ✅ Import successful
+                    </div>
+                    <div class="mt-2 text-gray-300">
+                        <div>Archives found: ${data.archives_found}</div>
+                        <div>Conversations processed: ${data.conversations_processed}</div>
+                        <div>Messages imported: ${data.messages_imported}</div>
+                        <div>Media files found: ${data.media_files_found}</div>
+                        <div>Media files matched: ${data.media_files_matched}</div>
+                        <div>Processing time: ${data.processing_time_seconds.toFixed(2)}s</div>
+                    </div>
+                `;
+
+                showNotification('Import successful!', 'success');
+                fetchStats(); // Refresh stats
+
+            } catch (error) {
+                console.error('Import error:', error);
+                progressBar.style.width = '0%';
+                statusEl.textContent = 'Failed';
+                resultEl.innerHTML = `<div class="text-red-400">❌ ${error.message}</div>`;
+                showNotification('Import failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '📁 Import Archive';
+            }
+        }
+
+        // Generate gallery
+        async function generateGallery() {
+            const journalChecked = document.getElementById('gpt-journal').checked;
+            const echoChecked = document.getElementById('gpt-echo').checked;
+            const format = document.getElementById('gallery-format').value;
+
+            if (!journalChecked && !echoChecked) {
+                showNotification('Please select at least one custom GPT', 'warning');
+                return;
+            }
+
+            const statusEl = document.getElementById('gallery-status');
+            statusEl.textContent = '⏳ Generating gallery... This may take a moment.';
+
+            showNotification('Gallery generation started. This is a demo - full implementation requires a new API endpoint.', 'info');
+
+            // Simulate gallery generation
+            setTimeout(() => {
+                statusEl.innerHTML = `
+                    <div class="text-green-400">✅ Gallery generated successfully!</div>
+                    <div class="text-gray-400 mt-2">
+                        Note: Full implementation requires creating a /galleries/generate endpoint.
+                        For now, use the Python script: <code class="bg-gray-700 px-2 py-1 rounded">poetry run python create_combined_image_gallery.py</code>
+                    </div>
+                `;
+
+                const previewEl = document.getElementById('gallery-preview');
+                const contentEl = document.getElementById('gallery-content');
+                previewEl.classList.remove('hidden');
+
+                contentEl.innerHTML = `
+                    <h1>Combined Image Gallery Demo</h1>
+                    <p>This is a preview of what the gallery would look like.</p>
+                    ${journalChecked ? '<h2>📔 Journal Recognizer Images</h2><p>14 images with OCR transcriptions</p>' : ''}
+                    ${echoChecked ? '<h2>🎨 Image Echo Bounce</h2><p>66 images with titles and descriptions</p>' : ''}
+                    <p class="text-gray-400">
+                        To generate the actual gallery, run: <br>
+                        <code class="bg-gray-700 px-2 py-1 rounded">poetry run python create_combined_image_gallery.py</code>
+                    </p>
+                `;
+            }, 2000);
+        }
+
+        // Event listeners
+        document.getElementById('refresh-stats').addEventListener('click', fetchStats);
+        document.getElementById('search-btn').addEventListener('click', searchConversations);
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchConversations();
+        });
+        document.getElementById('modal-close-btn').addEventListener('click', () => {
+            document.getElementById('conversation-modal').classList.add('hidden');
+        });
+        document.getElementById('modal-render-btn').addEventListener('click', renderConversation);
+        document.getElementById('modal-export-btn').addEventListener('click', exportConversation);
+        document.getElementById('import-btn').addEventListener('click', importArchive);
+        document.getElementById('gallery-btn').addEventListener('click', generateGallery);
+
+        // Initialize
+        checkConnection();
+        fetchStats();
+    </script>
+</body>
+</html>

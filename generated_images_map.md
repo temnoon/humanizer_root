@@ -1,0 +1,44 @@
+# Generated Images Mapping
+## DALL-E Images (161)
+- `file-MmcXqPmjoWYsoWvCnbLB2z`: /Users/tem/rho/var/media/chat7/dalle-generations/file-MmcXqPmjoWYsoWvCnbLB2z-114a0035-a46a-45df-a60f-83976cac57cc.webp
+- `file-aSF8xqEGVcwKUaU6TV6mw2CN`: /Users/tem/rho/var/media/chat7/dalle-generations/file-aSF8xqEGVcwKUaU6TV6mw2CN-31937afd-b983-4558-aeab-02c3db01bd90.webp
+- `file-aR2XSM5EtOfYWfvdX6WHdhXR`: /Users/tem/rho/var/media/chat7/dalle-generations/file-aR2XSM5EtOfYWfvdX6WHdhXR-49406bb2-c1ae-474a-ae3b-a8d922102e21.webp
+- `file-JBPxOlvMUFSXBamFSFQaBFgv`: /Users/tem/rho/var/media/chat7/dalle-generations/file-JBPxOlvMUFSXBamFSFQaBFgv-72e156df-7760-4532-8cec-1830036fa6a1.webp
+- `file-U3DLy602lxsG6UFvQnPqOacq`: /Users/tem/rho/var/media/chat7/dalle-generations/file-U3DLy602lxsG6UFvQnPqOacq-285ee0bf-6bc5-4457-a940-5dc0da36d0f1.webp
+- `file-cBKecNeEFLUeT5sk7FWCcNXT`: /Users/tem/rho/var/media/chat7/dalle-generations/file-cBKecNeEFLUeT5sk7FWCcNXT-8f7a200c-d3f1-4f85-89b1-2e67967e08dc.webp
+- `file-4c2JqFsm7PRgPxNF7w73X1`: /Users/tem/rho/var/media/chat7/dalle-generations/file-4c2JqFsm7PRgPxNF7w73X1-5c3f8883-4632-4606-a129-8bff1aadc94b.webp
+- `file-7LEKmhAkmK5zFM8rVqAPit`: /Users/tem/rho/var/media/chat7/dalle-generations/file-7LEKmhAkmK5zFM8rVqAPit-214b50fb-b42b-4d41-a6df-d501d2e90bf8.webp
+- `file-3Jd7hPMrUjMUPXZ3fACCue`: /Users/tem/rho/var/media/chat7/dalle-generations/file-3Jd7hPMrUjMUPXZ3fACCue-c1677185-a06e-467e-9ada-4fab187c3e56.webp
+- `file-vR7OyrXukASYysJRA8nFarGf`: /Users/tem/rho/var/media/chat7/dalle-generations/file-vR7OyrXukASYysJRA8nFarGf-2f0d4e2f-01d4-4faa-96b2-5b00f9fedf30.webp
+- `file-HqxGR5MpBhdirg6wf2dmRIs3`: /Users/tem/rho/var/media/chat7/dalle-generations/file-HqxGR5MpBhdirg6wf2dmRIs3-1951d109-33d8-46f3-ad89-130a3c5f2bd4.webp
+- `file-fTmqUF931uwtL5dWb0PmKiVi`: /Users/tem/rho/var/media/chat7/dalle-generations/file-fTmqUF931uwtL5dWb0PmKiVi-4029fbd6-c2ed-45f9-a102-6bf97dccc66d.webp
+- `file-J4UY0yQBtSrwnfJ0LHqPBK58`: /Users/tem/rho/var/media/chat7/dalle-generations/file-J4UY0yQBtSrwnfJ0LHqPBK58-b8f8f4d1-8a8f-45b3-8849-6285f37cc542.webp
+- `file-6vR1dGDMTHrfr8ndBklJt6VQ`: /Users/tem/rho/var/media/chat7/dalle-generations/file-6vR1dGDMTHrfr8ndBklJt6VQ-1dd1d2e1-e932-4795-8c70-9916cd491386.webp
+- `file-NHFDqwZpvCKej2hb3XlpzH1S`: /Users/tem/rho/var/media/chat7/dalle-generations/file-NHFDqwZpvCKej2hb3XlpzH1S-ee7245a6-768c-4f96-aaad-f9f2f08e896d.webp
+- `file-C8WHe6exB0PFQyD8jhRw1IV2`: /Users/tem/rho/var/media/chat7/dalle-generations/file-C8WHe6exB0PFQyD8jhRw1IV2-c15868e6-e088-4271-bb98-192fa6daac4d.webp
+- `file-I2mWtdd0rPZY7pYZg9r9KQoj`: /Users/tem/rho/var/media/chat7/dalle-generations/file-I2mWtdd0rPZY7pYZg9r9KQoj-2032667b-e874-4cdf-9008-db28c50680a5.webp
+- `file-beWF0H8sBCObLvYYfRyyYAE6`: /Users/tem/rho/var/media/chat7/dalle-generations/file-beWF0H8sBCObLvYYfRyyYAE6-ab288e79-8c41-4a43-a0e6-2dc8ee687ab4.webp
+- `file-YFT1nDj3rEPJhYVkLLx7Q5`: /Users/tem/rho/var/media/chat7/dalle-generations/file-YFT1nDj3rEPJhYVkLLx7Q5-57c67613-a92d-432a-9212-3bb7f29d47c0.webp
+- `file-6ySK6tjX4tRKQ6j9fG3JOKTf`: /Users/tem/rho/var/media/chat7/dalle-generations/file-6ySK6tjX4tRKQ6j9fG3JOKTf-c6ee7a80-c679-46c9-b761-4593192a907c.webp
+
+## Sediment Images (79)
+- `file-00000000f6605230a72c9fe4513d8ec2`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000f6605230a72c9fe4513d8ec2-f5a8b88c-cf9a-485b-9831-2954891846e1.png
+- `file-00000000928861f7aa5ca5fab8c2fb7b`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000928861f7aa5ca5fab8c2fb7b-37ca7c54-0bb0-4795-992e-65f705275243.png
+- `file-00000000ca6061f6af5ff18f5ccf0d22`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000ca6061f6af5ff18f5ccf0d22-d7a6ecae-b142-415b-b1cb-4fa25299acc5.png
+- `file-00000000df0861f8a393b1856a12bf16`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000df0861f8a393b1856a12bf16-5c7633bf-40af-4185-bf19-8f0f6d262465.png
+- `file-0000000055446230a3441eb1782007b1`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_0000000055446230a3441eb1782007b1-da7da8f7-124b-4521-9e28-300b41e550f3.png
+- `file-000000007cbc61f79c311839cd8f77ca`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_000000007cbc61f79c311839cd8f77ca-44e0d1be-c6a1-441c-90ee-3e9f7ef682c4.png
+- `file-00000000465061f9bab0c8489859ecad`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000465061f9bab0c8489859ecad-e413f6a6-d3b9-4e1d-86d8-4b706911018b.png
+- `file-00000000888051f7b8b893908ff5e5ab`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000888051f7b8b893908ff5e5ab-f2b685d8-c44a-4272-b8c9-8a68e4ab6883.png
+- `file-0000000097c051f78cfdf910f1455b10`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_0000000097c051f78cfdf910f1455b10-b132f9ac-4642-4e96-8fc8-015b0c216598.png
+- `file-00000000e51061fd8ab7bffe478787b8`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000e51061fd8ab7bffe478787b8-88596654-15ce-4302-a101-7d535d1e2fef.png
+- `file-000000006e5c61f5880544107a531651`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_000000006e5c61f5880544107a531651-4bff6a60-5789-433f-af2e-1534ebb1b7f9.png
+- `file-0000000090f851f7b4286fd05ca8f846`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_0000000090f851f7b4286fd05ca8f846-b0f76c93-3610-4272-8655-85a90c8cd2d3.png
+- `file-000000002ff861f786be5853293d87c7`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_000000002ff861f786be5853293d87c7-b57f0a9f-a2aa-472e-af69-c0994bb07942.png
+- `file-00000000704861f88c17df00f3004831`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000704861f88c17df00f3004831-c7ca5ee2-1b60-4527-951f-8310b5e16626.png
+- `file-00000000e5b85230bd68d4f0b3ae25ae`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000e5b85230bd68d4f0b3ae25ae-510bf04a-f696-4dca-9299-a5c0b2e57153.png
+- `file-00000000221461f792ae928d6ec27a75`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000221461f792ae928d6ec27a75-9bacef74-e479-40dc-a2a6-25456e81695e.png
+- `file-000000000d9851f8b06543d77beebf63`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_000000000d9851f8b06543d77beebf63-7bb18619-e173-4be2-a488-86b0921712ed.png
+- `file-000000006f1861f9902d06402cbd8916`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_000000006f1861f9902d06402cbd8916-5c7273ea-19c8-43c9-85dc-f1b638712dc5.png
+- `file-000000005e4c61f6bfa181ce04bcec48`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_000000005e4c61f6bfa181ce04bcec48-48a19ca9-a18f-4443-b817-90563be85c23.png
+- `file-00000000efb861f5a1de2674eb0a0425`: /Users/tem/rho/var/media/chat7/user-CD8AiHjX8v0DB1u99eW7z8n7/file_00000000efb861f5a1de2674eb0a0425-b032122e-dd09-4dd1-ac3c-6fb6c9537988.png

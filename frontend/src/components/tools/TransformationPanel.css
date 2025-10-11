@@ -1,0 +1,414 @@
+/* TransformationPanel - TRM vs LLM transformation comparison */
+
+.transformation-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Empty state */
+.panel-empty {
+  text-align: center;
+  padding: 32px 16px;
+}
+
+.panel-empty h3 {
+  font-size: 18px;
+  margin-bottom: 12px;
+  color: #2a2a2a;
+}
+
+.panel-empty p {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.empty-hint {
+  margin-top: 24px;
+  padding: 16px;
+  background: #f5f5f0;
+  border-radius: 8px;
+  text-align: left;
+}
+
+.empty-hint p {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #8b7355;
+}
+
+.empty-hint ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.empty-hint li {
+  font-size: 13px;
+  color: #666;
+  padding: 4px 0;
+  padding-left: 20px;
+  position: relative;
+}
+
+.empty-hint li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: #8b7355;
+}
+
+/* Panel header */
+.panel-header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e5e0;
+  margin-bottom: 16px;
+}
+
+.panel-header h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: #2a2a2a;
+}
+
+.content-info {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #666;
+}
+
+.content-length {
+  padding: 2px 8px;
+  background: #f5f5f0;
+  border-radius: 4px;
+}
+
+.content-source {
+  padding: 2px 8px;
+  background: #8b7355;
+  color: white;
+  border-radius: 4px;
+}
+
+/* Configuration */
+.transform-config {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.config-section label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #2a2a2a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.config-section select,
+.config-section input[type='number'] {
+  padding: 8px 12px;
+  border: 1px solid #e5e5e0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+}
+
+.config-section select:focus,
+.config-section input[type='number']:focus {
+  outline: none;
+  border-color: #8b7355;
+}
+
+/* Method selector */
+.method-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.method-btn {
+  flex: 1;
+  padding: 10px;
+  background: white;
+  border: 1px solid #e5e5e0;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2a2a2a;
+  transition: all 0.2s;
+}
+
+.method-btn:hover {
+  background: #fafaf8;
+  border-color: #8b7355;
+}
+
+.method-btn.active {
+  background: #8b7355;
+  color: white;
+  border-color: #8b7355;
+}
+
+/* Stance inputs */
+.stance-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.stance-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stance-input span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  min-width: 40px;
+}
+
+.stance-input input {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid #e5e5e0;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+/* Actions */
+.transform-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: #8b7355;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #6d5a42;
+}
+
+.btn-secondary {
+  background: white;
+  color: #8b7355;
+  border: 1px solid #8b7355;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #fafaf8;
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Results */
+.transform-results {
+  border-top: 1px solid #e5e5e0;
+  padding-top: 16px;
+}
+
+.transform-results h4 {
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: #2a2a2a;
+}
+
+.result-metrics {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.result-metrics span {
+  padding: 4px 8px;
+  background: #f5f5f0;
+  border-radius: 4px;
+  color: #666;
+}
+
+.result-text {
+  padding: 12px;
+  background: white;
+  border: 1px solid #e5e5e0;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #2a2a2a;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Comparison view */
+.comparison-view {
+  border-top: 1px solid #e5e5e0;
+  padding-top: 16px;
+}
+
+.comparison-view h4 {
+  font-size: 14px;
+  margin-bottom: 12px;
+  color: #2a2a2a;
+}
+
+.comparison-metrics {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.metric-card {
+  flex: 1;
+  padding: 12px;
+  border-radius: 6px;
+  border: 2px solid;
+}
+
+.metric-card.trm {
+  background: #e8f4f8;
+  border-color: #4a9ebb;
+}
+
+.metric-card.llm {
+  background: #f8e8f4;
+  border-color: #bb4a9e;
+}
+
+.metric-card h5 {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-card.trm h5 {
+  color: #4a9ebb;
+}
+
+.metric-card.llm h5 {
+  color: #bb4a9e;
+}
+
+.metric-card .metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: #666;
+}
+
+.comparison-results {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.result-column {
+  flex: 1;
+}
+
+.result-column h5 {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.result-column.trm h5 {
+  color: #4a9ebb;
+}
+
+.result-column.llm h5 {
+  color: #bb4a9e;
+}
+
+.result-column .result-text {
+  font-size: 13px;
+  line-height: 1.5;
+  max-height: 200px;
+}
+
+/* Convergence chart */
+.convergence-chart {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f5f5f0;
+  border-radius: 6px;
+}
+
+.convergence-chart h5 {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #2a2a2a;
+}
+
+.drift-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  height: 120px;
+}
+
+.drift-bar-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.drift-bar {
+  width: 100%;
+  background: linear-gradient(to top, #4a9ebb, #7bc4d9);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.3s ease;
+}
+
+.drift-label {
+  font-size: 10px;
+  color: #666;
+}
+
+/* Error state */
+.transform-error {
+  padding: 12px;
+  background: #ffe8e8;
+  border: 1px solid #ffcccc;
+  border-radius: 6px;
+  color: #cc0000;
+  font-size: 13px;
+}

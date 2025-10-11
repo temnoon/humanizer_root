@@ -10,7 +10,22 @@ from .reading import (
 )
 from .povm import POVMPack
 from .library import Book, Chunk
-from .user import UserPreferences
+from .user import UserPreferences, ToolUsage
+from .chatgpt import (
+    ChatGPTConversation,
+    ChatGPTMessage,
+    ChatGPTMedia,
+    ChatGPTProvenance,
+)
+from .interest import (
+    Interest,
+    InterestTag,
+)
+from .interest_list import (
+    InterestList,
+    InterestListItem,
+    InterestListBranch,
+)
 
 __all__ = [
     # Reading models
@@ -25,4 +40,17 @@ __all__ = [
     "Chunk",
     # User models
     "UserPreferences",
+    "ToolUsage",
+    # ChatGPT models
+    "ChatGPTConversation",
+    "ChatGPTMessage",
+    "ChatGPTMedia",
+    "ChatGPTProvenance",
+    # Interest models
+    "Interest",
+    "InterestTag",
+    # Interest List models
+    "InterestList",
+    "InterestListItem",
+    "InterestListBranch",
 ]

@@ -1,0 +1,999 @@
+/*
+ * ConversationViewer - Masterclass Reading Experience
+ *
+ * Design Principles:
+ * 1. Golden Ratio typography (1.618:1)
+ * 2. Comfortable for 40+ eyes (18-20px base)
+ * 3. Optimal line length (65-75 chars)
+ * 4. Generous whitespace
+ * 5. Beautiful, timeless aesthetic
+ */
+
+/* ============================================================================
+   Variables - Golden Ratio Scale
+   ============================================================================ */
+
+:root {
+  /* Golden Ratio: 1.618 */
+  --phi: 1.618;
+
+  /* Typography Scale (base 18px) */
+  --text-xs: 11px;      /* 18 / φ² */
+  --text-sm: 14px;      /* 18 / φ */
+  --text-base: 18px;    /* Base - comfortable for 40+ eyes */
+  --text-lg: 22px;      /* 18 * φ / 1.3 */
+  --text-xl: 29px;      /* 18 * φ */
+  --text-2xl: 47px;     /* 18 * φ² */
+
+  /* Spacing Scale (base 24px = 1.5rem) */
+  --space-xs: 6px;      /* 24 / φ² */
+  --space-sm: 9px;      /* 24 / φ */
+  --space-md: 15px;     /* 24 / φ */
+  --space-base: 24px;   /* Base unit */
+  --space-lg: 39px;     /* 24 * φ */
+  --space-xl: 63px;     /* 24 * φ² */
+  --space-2xl: 102px;   /* 24 * φ³ */
+
+  /* Reading Width (65-75 chars at 18px) */
+  --reading-width-narrow: 700px;
+  --reading-width-medium: 1240px;
+  --reading-width-wide: 1600px;
+  --reading-width-xwide: 100%;
+
+  /* Colors - Elegant, timeless */
+  --color-bg: #fafaf8;
+  --color-text: #2a2a2a;
+  --color-text-light: #6a6a6a;
+  --color-text-lighter: #9a9a9a;
+  --color-accent: #8b7355;
+  --color-accent-light: #a69080;
+  --color-border: #e8e8e6;
+  --color-border-dark: #d0d0ce;
+  --color-shadow: rgba(0, 0, 0, 0.05);
+  --color-shadow-strong: rgba(0, 0, 0, 0.1);
+
+  /* User/Assistant Colors */
+  --color-user: #3b5998;
+  --color-assistant: #8b7355;
+
+  /* Fonts */
+  --font-serif: 'Georgia', 'Cambria', 'Times New Roman', serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Courier New', monospace;
+}
+
+/* ============================================================================
+   Main Container
+   ============================================================================ */
+
+.conversation-viewer {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  font-family: var(--font-sans);
+  color: var(--color-text);
+}
+
+/* ============================================================================
+   Header - Navigation and Metadata
+   ============================================================================ */
+
+.conversation-header {
+  background: white;
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-lg) var(--space-xl);
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px var(--color-shadow);
+}
+
+.conversation-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-base);
+  margin-bottom: var(--space-md);
+}
+
+.conversation-title {
+  font-size: var(--text-2xl);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  margin: 0;
+  flex: 1;
+  font-family: var(--font-serif);
+}
+
+/* Navigation Controls */
+.message-navigation {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.nav-button {
+  padding: var(--space-sm) var(--space-md);
+  background: white;
+  border: 1px solid var(--color-border-dark);
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.nav-button:hover:not(:disabled) {
+  background: var(--color-bg);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px var(--color-shadow);
+}
+
+.nav-button:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.message-position {
+  font-size: var(--text-sm);
+  color: var(--color-text-light);
+  font-family: var(--font-mono);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg);
+  border-radius: 4px;
+}
+
+/* Metadata */
+.conversation-metadata {
+  display: flex;
+  gap: var(--space-lg);
+  font-size: var(--text-sm);
+  color: var(--color-text-light);
+}
+
+.metadata-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* View Mode Toggle */
+.view-mode-toggle {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.view-mode-button {
+  padding: var(--space-sm) var(--space-md);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  color: var(--color-text-light);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.view-mode-button.active {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: white;
+  font-weight: 500;
+}
+
+.view-mode-button:hover:not(.active) {
+  background: var(--color-bg);
+  border-color: var(--color-accent-light);
+  color: var(--color-accent);
+}
+
+/* Width Toggle */
+.width-toggle {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-sm);
+}
+
+.width-button {
+  padding: var(--space-xs) var(--space-sm);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: var(--text-xs);
+  color: var(--color-text-lighter);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.width-button.active {
+  background: var(--color-text-light);
+  border-color: var(--color-text-light);
+  color: white;
+  font-weight: 500;
+}
+
+.width-button:hover:not(.active) {
+  background: var(--color-bg);
+  border-color: var(--color-text-light);
+  color: var(--color-text-light);
+}
+
+/* ============================================================================
+   Messages Container - Reading Experience
+   ============================================================================ */
+
+.messages-container {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-xl) 0;
+}
+
+/* Center content with optimal reading width */
+.messages-wrapper {
+  margin: 0 auto;
+  padding: 0 var(--space-lg);
+}
+
+.messages-wrapper.width-narrow,
+.rendered-html.width-narrow {
+  max-width: var(--reading-width-narrow);
+}
+
+.messages-wrapper.width-medium,
+.rendered-html.width-medium {
+  max-width: var(--reading-width-medium);
+}
+
+.messages-wrapper.width-wide,
+.rendered-html.width-wide {
+  max-width: var(--reading-width-wide);
+}
+
+.messages-wrapper.width-xwide,
+.rendered-html.width-xwide {
+  max-width: var(--reading-width-xwide);
+}
+
+/* ============================================================================
+   Message Card - Beautiful Typography
+   ============================================================================ */
+
+.message-card {
+  margin-bottom: var(--space-xl);
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Message Header - Minimal, elegant */
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.role-icon {
+  font-size: var(--text-lg);
+}
+
+.role-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-light);
+  font-family: var(--font-sans);
+}
+
+.message-card.message-user .role-label {
+  color: var(--color-user);
+}
+
+.message-card.message-assistant .role-label {
+  color: var(--color-assistant);
+}
+
+.message-timestamp {
+  font-size: var(--text-xs);
+  color: var(--color-text-lighter);
+  margin-left: auto;
+  font-family: var(--font-mono);
+}
+
+/* ============================================================================
+   Message Content - Golden Ratio Typography
+   ============================================================================ */
+
+.message-content {
+  font-family: var(--font-serif);
+  font-size: var(--text-base);
+  line-height: var(--phi);
+  color: var(--color-text);
+  word-wrap: break-word;
+}
+
+/* Paragraphs - More breathing room */
+.message-content p {
+  margin: 0 0 var(--space-lg) 0;  /* Increased from space-base (24px) to space-lg (39px) */
+}
+
+.message-content p:last-child {
+  margin-bottom: 0;
+}
+
+/* Headings */
+.message-content h1,
+.message-content h2,
+.message-content h3,
+.message-content h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  margin: var(--space-lg) 0 var(--space-md) 0;
+  line-height: 1.3;
+}
+
+.message-content h1 {
+  font-size: var(--text-2xl);
+  border-bottom: 2px solid var(--color-border);
+  padding-bottom: var(--space-sm);
+}
+
+.message-content h2 {
+  font-size: var(--text-xl);
+}
+
+.message-content h3 {
+  font-size: var(--text-lg);
+  color: var(--color-accent);
+}
+
+.message-content h4 {
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+/* Lists - More breathing room */
+.message-content ul,
+.message-content ol {
+  margin: var(--space-lg) 0;  /* Increased from space-base (24px) to space-lg (39px) */
+  padding-left: var(--space-xl);  /* Increased from space-lg (39px) to space-xl (63px) */
+}
+
+.message-content li {
+  margin: var(--space-md) 0;  /* Increased from space-sm (9px) to space-md (15px) */
+  line-height: 1.8;  /* Increased from phi (1.618) to 1.8 for more space */
+  padding-left: var(--space-xs);  /* Added padding for visual separation */
+}
+
+/* Code */
+.message-content code {
+  font-family: var(--font-mono);
+  font-size: calc(var(--text-base) * 0.9);
+  background: var(--color-bg);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--color-accent);
+  border: 1px solid var(--color-border);
+}
+
+.message-content pre {
+  background: #2a2a2a;
+  color: #f0f0f0;
+  padding: var(--space-md);
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: var(--space-base) 0;
+  font-family: var(--font-mono);
+  font-size: calc(var(--text-base) * 0.85);
+  line-height: 1.5;
+}
+
+.message-content pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
+}
+
+/* Blockquotes */
+.message-content blockquote {
+  border-left: 4px solid var(--color-accent);
+  margin: var(--space-base) 0;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-bg);
+  font-style: italic;
+  color: var(--color-text-light);
+}
+
+/* Links */
+.message-content a {
+  color: var(--color-accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s ease;
+}
+
+.message-content a:hover {
+  border-bottom-color: var(--color-accent);
+}
+
+/* Tables */
+.message-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--space-base) 0;
+  font-size: calc(var(--text-base) * 0.95);
+}
+
+.message-content th,
+.message-content td {
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.message-content th {
+  background: var(--color-bg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+/* ============================================================================
+   LaTeX/Math Rendering (KaTeX)
+   ============================================================================ */
+
+/* Display Math - Centered, Larger, Emphasized */
+.message-content .katex-display {
+  display: block !important;  /* Force block display */
+  text-align: center !important;  /* Center the content */
+  margin: var(--space-xl) auto !important;  /* Large vertical spacing (63px) */
+  padding: var(--space-lg) 0;  /* Extra padding top/bottom (39px) */
+  font-size: calc(var(--text-base) * 1.3);  /* 30% larger than body text */
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;  /* Take full width to center properly */
+}
+
+/* Display Math - Add subtle background emphasis */
+.message-content .katex-display > .katex {
+  display: inline-block;  /* Allow centering */
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    rgba(139, 115, 85, 0.03) 50%,
+    transparent 100%
+  );
+  padding: var(--space-md) var(--space-lg);
+  border-radius: 8px;
+  text-align: center;
+}
+
+/* Inline Math - Seamless with text */
+.message-content .katex {
+  font-size: 1.05em;  /* Slightly larger for readability */
+  color: var(--color-text);
+}
+
+/* Math font consistency */
+.message-content .katex-mathml {
+  display: none;  /* Hide MathML fallback */
+}
+
+/* Scrollable math for very long equations */
+.message-content .katex-display > .katex > .katex-html {
+  display: inline-block;
+  max-width: 100%;
+  overflow-x: auto;
+  padding-bottom: 4px;  /* Space for scrollbar */
+}
+
+/* ============================================================================
+   Images - Beautiful Presentation
+   ============================================================================ */
+
+.message-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: var(--space-base) 0;
+  box-shadow: 0 4px 12px var(--color-shadow-strong);
+  transition: transform 0.2s ease;
+  cursor: pointer;
+}
+
+.message-image:hover {
+  transform: scale(1.02);
+}
+
+/* Image-only messages (attachments) */
+.message-card.message-attachment {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.message-card.message-attachment .message-content {
+  text-align: center;
+}
+
+/* ============================================================================
+   Hidden/System Messages
+   ============================================================================ */
+
+.message-hidden {
+  opacity: 0.5;
+  margin: var(--space-sm) 0;
+}
+
+.expand-button {
+  width: 100%;
+  padding: var(--space-sm);
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  color: var(--color-text-lighter);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.expand-button:hover {
+  background: var(--color-bg);
+  border-color: var(--color-accent-light);
+  color: var(--color-text);
+}
+
+.chevron {
+  margin-right: var(--space-xs);
+  transition: transform 0.2s ease;
+}
+
+.expand-button:hover .chevron {
+  transform: translateX(3px);
+}
+
+.collapse-button {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: var(--color-text-lighter);
+  transition: color 0.2s ease;
+}
+
+.collapse-button:hover {
+  color: var(--color-accent);
+}
+
+/* ============================================================================
+   Message Actions
+   ============================================================================ */
+
+.message-actions {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-border);
+}
+
+.action-button {
+  padding: var(--space-xs) var(--space-sm);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: var(--text-xs);
+  color: var(--color-text-light);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+}
+
+.action-button:hover {
+  background: var(--color-bg);
+  border-color: var(--color-accent-light);
+  color: var(--color-accent);
+}
+
+/* ============================================================================
+   Loading and Error States
+   ============================================================================ */
+
+.conversation-viewer-loading,
+.conversation-viewer-error,
+.conversation-viewer-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-2xl);
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--space-base);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.error-icon {
+  font-size: 48px;
+  margin-bottom: var(--space-base);
+}
+
+.error-text {
+  font-size: var(--text-base);
+  color: #c53030;
+  margin-bottom: var(--space-base);
+}
+
+.retry-button {
+  padding: var(--space-sm) var(--space-lg);
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+}
+
+.retry-button:hover {
+  background: var(--color-accent-light);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px var(--color-shadow-strong);
+}
+
+/* ============================================================================
+   Raw Views (Markdown, HTML, JSON)
+   ============================================================================ */
+
+.raw-view {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xl);
+  background: white;
+}
+
+.raw-view-header {
+  max-width: var(--reading-width-narrow);
+  margin: 0 auto var(--space-base) auto;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.copy-button {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+}
+
+.copy-button:hover {
+  background: var(--color-accent-light);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px var(--color-shadow);
+}
+
+/* Markdown View */
+.markdown-view .raw-content {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: #2a2a2a;
+  color: #f0f0f0;
+  padding: var(--space-lg);
+  border-radius: 8px;
+  max-width: var(--reading-width-narrow);
+  margin: 0 auto;
+}
+
+/* HTML View */
+.rendered-html {
+  max-width: var(--reading-width-narrow);
+  margin: 0 auto;
+  padding: 0 var(--space-lg);
+  font-family: var(--font-serif);
+  font-size: var(--text-base);
+  line-height: var(--phi);
+  color: var(--color-text);
+}
+
+/* HTML View - Same typography as message content */
+.rendered-html p {
+  margin: 0 0 var(--space-lg) 0;
+}
+
+.rendered-html ul,
+.rendered-html ol {
+  margin: var(--space-lg) 0;
+  padding-left: var(--space-xl);
+}
+
+.rendered-html li {
+  margin: var(--space-md) 0;
+  line-height: 1.8;
+  padding-left: var(--space-xs);
+}
+
+.rendered-html h1,
+.rendered-html h2,
+.rendered-html h3,
+.rendered-html h4 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--color-text);
+  margin: var(--space-lg) 0 var(--space-md) 0;
+  line-height: 1.3;
+}
+
+.rendered-html h1 {
+  font-size: var(--text-2xl);
+  border-bottom: 2px solid var(--color-border);
+  padding-bottom: var(--space-sm);
+}
+
+.rendered-html h2 {
+  font-size: var(--text-xl);
+}
+
+.rendered-html h3 {
+  font-size: var(--text-lg);
+  color: var(--color-accent);
+}
+
+/* HTML View - LaTeX Display Math */
+.rendered-html .katex-display {
+  display: block !important;
+  text-align: center !important;
+  margin: var(--space-xl) auto !important;
+  padding: var(--space-lg) 0;
+  font-size: calc(var(--text-base) * 1.3);
+  overflow-x: auto;
+  overflow-y: hidden;
+  width: 100%;
+}
+
+.rendered-html .katex-display > .katex {
+  display: inline-block;
+  background: linear-gradient(to bottom,
+    transparent 0%,
+    rgba(139, 115, 85, 0.03) 50%,
+    transparent 100%
+  );
+  padding: var(--space-md) var(--space-lg);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.rendered-html .katex {
+  font-size: 1.05em;
+  color: var(--color-text);
+}
+
+/* JSON View */
+.json-content {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  background: #2a2a2a;
+  color: #f0f0f0;
+  padding: var(--space-lg);
+  border-radius: 8px;
+  max-width: var(--reading-width-wide);
+  margin: 0 auto;
+}
+
+/* ============================================================================
+   Scrollbar Styling
+   ============================================================================ */
+
+.messages-container::-webkit-scrollbar,
+.raw-view::-webkit-scrollbar {
+  width: 12px;
+}
+
+.messages-container::-webkit-scrollbar-track,
+.raw-view::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+.messages-container::-webkit-scrollbar-thumb,
+.raw-view::-webkit-scrollbar-thumb {
+  background: var(--color-border-dark);
+  border-radius: 6px;
+  border: 3px solid var(--color-bg);
+}
+
+.messages-container::-webkit-scrollbar-thumb:hover,
+.raw-view::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-light);
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+
+@media (max-width: 900px) {
+  :root {
+    --text-base: 17px;
+    --reading-width-narrow: 600px;
+  }
+
+  .conversation-header {
+    padding: var(--space-md) var(--space-lg);
+  }
+
+  .conversation-title {
+    font-size: var(--text-xl);
+  }
+
+  .messages-container {
+    padding: var(--space-lg) 0;
+  }
+
+  .messages-wrapper {
+    padding: 0 var(--space-md);
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --text-base: 16px;
+    --reading-width-narrow: 100%;
+  }
+
+  .conversation-header {
+    padding: var(--space-md);
+  }
+
+  .conversation-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .message-navigation {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .conversation-metadata {
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .messages-wrapper {
+    padding: 0 var(--space-sm);
+  }
+}
+
+/* ============================================================================
+   Print Styles
+   ============================================================================ */
+
+@media print {
+  .conversation-header {
+    border-bottom: 2px solid black;
+    box-shadow: none;
+  }
+
+  .view-mode-toggle,
+  .message-navigation {
+    display: none;
+  }
+
+  .message-card {
+    page-break-inside: avoid;
+  }
+
+  .messages-container {
+    overflow: visible;
+  }
+}
+
+/* ============================================================================
+   Tools Integration
+   ============================================================================ */
+
+/* Use in Tools button (in header) */
+.tools-action {
+  margin-top: var(--space-md);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.use-in-tools-button {
+  padding: 10px 20px;
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.use-in-tools-button:hover {
+  background: #6d5a42;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(139, 115, 85, 0.3);
+}
+
+/* Use in Tools button (per message) */
+.message-use-tools {
+  margin-left: auto;
+  padding: 4px 8px;
+  background: transparent;
+  color: var(--color-accent);
+  border: 1px solid var(--color-accent);
+  border-radius: 4px;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+  opacity: 0.6;
+}
+
+.message-use-tools:hover {
+  opacity: 1;
+  background: var(--color-accent);
+  color: white;
+  transform: translateY(-1px);
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}

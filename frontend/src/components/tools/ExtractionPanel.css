@@ -1,0 +1,255 @@
+/* ExtractionPanel - Semantic search and information extraction */
+
+.extraction-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* Mode selection */
+.mode-selection {
+  margin-bottom: 16px;
+}
+
+.mode-selection label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2a2a2a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.mode-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: white;
+  border: 2px solid #e5e5e0;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+}
+
+.mode-button:hover {
+  border-color: #8b7355;
+  background: #fafaf8;
+}
+
+.mode-button.selected {
+  background: #8b7355;
+  color: white;
+  border-color: #8b7355;
+}
+
+.mode-icon {
+  font-size: 16px;
+}
+
+.mode-label {
+  font-weight: 500;
+}
+
+/* Options */
+.extraction-options {
+  margin-bottom: 16px;
+}
+
+.extraction-options label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2a2a2a;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.extraction-options input[type="number"] {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e5e5e0;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+/* Extract button */
+.btn-extract {
+  width: 100%;
+  padding: 12px;
+  background: #8b7355;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  margin-bottom: 16px;
+}
+
+.btn-extract:hover:not(:disabled) {
+  background: #6d5a42;
+}
+
+.btn-extract:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Results */
+.extraction-results {
+  border-top: 1px solid #e5e5e0;
+  padding-top: 16px;
+}
+
+.extraction-results h4 {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 12px;
+  color: #2a2a2a;
+}
+
+/* Semantic matches */
+.matches-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.match-card {
+  padding: 10px;
+  background: white;
+  border: 1px solid #e5e5e0;
+  border-radius: 6px;
+}
+
+.match-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.match-similarity {
+  font-size: 14px;
+  font-weight: 700;
+  color: #8b7355;
+}
+
+.match-source {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #f5f5f0;
+  border-radius: 3px;
+  color: #666;
+}
+
+.match-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #2a2a2a;
+  margin-bottom: 6px;
+}
+
+.match-title {
+  font-size: 11px;
+  color: #666;
+  font-style: italic;
+}
+
+/* Entities */
+.entities-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.entity-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: white;
+  border: 1px solid #e5e5e0;
+  border-radius: 6px;
+}
+
+.entity-text {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2a2a2a;
+}
+
+.entity-type {
+  font-size: 11px;
+  padding: 2px 6px;
+  background: #8b7355;
+  color: white;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.entity-confidence {
+  font-size: 11px;
+  color: #666;
+}
+
+/* Summary */
+.summary-text {
+  padding: 12px;
+  background: white;
+  border: 1px solid #e5e5e0;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #2a2a2a;
+}
+
+/* Keywords */
+.keywords-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.keyword-tag {
+  padding: 6px 12px;
+  background: #8b7355;
+  color: white;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Processing info */
+.processing-info {
+  margin-top: 16px;
+  padding: 8px;
+  background: #f5f5f0;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 11px;
+  color: #666;
+}
+
+/* Error */
+.extraction-error {
+  padding: 12px;
+  background: #ffe8e8;
+  border: 1px solid #ffcccc;
+  border-radius: 6px;
+  color: #cc0000;
+  font-size: 13px;
+  margin-bottom: 16px;
+}

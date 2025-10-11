@@ -1,0 +1,8 @@
+/* App Layout */
+
+.app-content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  height: calc(100vh - 60px); /* Subtract TopBar height */
+}
