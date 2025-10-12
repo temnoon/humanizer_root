@@ -17,7 +17,7 @@ from humanizer.database import get_session
 from humanizer.models.chatgpt import ChatGPTMedia
 from humanizer.models.schemas import MediaListResponse, MediaItemResponse
 
-router = APIRouter(prefix="/media", tags=["media"])
+router = APIRouter(prefix="/api/media", tags=["media"])
 
 
 @router.get("", response_model=MediaListResponse)

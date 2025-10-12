@@ -38,7 +38,7 @@ from humanizer.models.schemas import (
     ChatGPTExportResponse,
 )
 
-router = APIRouter(prefix="/chatgpt", tags=["chatgpt"])
+router = APIRouter(prefix="/api/chatgpt", tags=["chatgpt"])
 
 
 @router.post("/ingest", response_model=ChatGPTIngestResponse)
