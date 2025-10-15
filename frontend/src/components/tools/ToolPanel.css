@@ -3,8 +3,8 @@
 .tool-panel {
   display: flex;
   flex-direction: column;
-  background: #fafaf8;
-  border-left: 1px solid #e5e5e0;
+  background: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
   transition: width 0.3s ease;
   width: 400px;
   position: relative;
@@ -22,7 +22,7 @@
   transform: translateY(-50%);
   width: 24px;
   height: 48px;
-  background: #8b7355;
+  background: var(--accent-purple);
   color: white;
   border: none;
   border-radius: 4px 0 0 4px;
@@ -36,7 +36,7 @@
 }
 
 .tool-panel-toggle:hover {
-  background: #6d5a42;
+  background: var(--accent-purple);
 }
 
 /* Tool selector */
@@ -45,8 +45,8 @@
   flex-direction: column;
   gap: 4px;
   padding: 16px 12px;
-  background: #f5f5f0;
-  border-bottom: 1px solid #e5e5e0;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .tool-btn {
@@ -54,25 +54,25 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: white;
-  border: 1px solid #e5e5e0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
   font-size: 14px;
-  color: #2a2a2a;
+  color: var(--text-primary);
   transition: all 0.2s;
   text-align: left;
 }
 
 .tool-btn:hover {
-  background: #fafaf8;
-  border-color: #8b7355;
+  background: var(--bg-secondary);
+  border-color: var(--accent-purple);
 }
 
 .tool-btn.active {
-  background: #8b7355;
+  background: var(--accent-purple);
   color: white;
-  border-color: #8b7355;
+  border-color: var(--accent-purple);
 }
 
 /* Tool content area */
@@ -86,13 +86,13 @@
 .panel-placeholder {
   text-align: center;
   padding: 32px 16px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .panel-placeholder h3 {
   font-size: 18px;
   margin-bottom: 12px;
-  color: #2a2a2a;
+  color: var(--text-primary);
 }
 
 .panel-placeholder p {
@@ -103,8 +103,8 @@
 .panel-placeholder .hint {
   margin-top: 24px;
   padding: 12px;
-  background: #f5f5f0;
+  background: var(--bg-tertiary);
   border-radius: 6px;
   font-size: 13px;
-  color: #8b7355;
+  color: var(--accent-purple);
 }

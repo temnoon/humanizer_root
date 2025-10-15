@@ -1,0 +1,51 @@
+/* ThemeToggle - Unified theme switcher */
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.theme-toggle:hover {
+  background: var(--bg-secondary);
+  border-color: var(--accent-purple);
+  transform: translateY(-1px);
+}
+
+.theme-icon {
+  font-size: var(--text-base);
+  line-height: 1;
+}
+
+.theme-label {
+  font-weight: 500;
+}
+
+/* Compact version for TopBar */
+.theme-toggle.compact {
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-xs);
+}
+
+.theme-toggle.compact .theme-icon {
+  font-size: var(--text-sm);
+}
+
+.theme-toggle.compact .theme-label {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .theme-label {
+    display: none;
+  }
+}

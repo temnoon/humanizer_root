@@ -2,8 +2,11 @@ import { useState, useEffect } from 'react';
 import './Sidebar.css';
 import ConversationList from '../conversations/ConversationList';
 import MediaGallery from '../media/MediaGallery';
-
-type SidebarView = 'conversations' | 'readings' | 'media' | 'povms' | 'stats' | 'settings' | 'aui';
+import SemanticSearch from '../search/SemanticSearch';
+import PipelinePanel from '../pipeline/PipelinePanel';
+import InterestListPanel from '../interest/InterestListPanel';
+import { MediaItem } from '@/lib/api-client';
+import type { SidebarView } from '@/types/sidebar';
 
 interface SidebarProps {
   collapsed: boolean;
@@ -11,6 +14,7 @@ interface SidebarProps {
   onViewChange: (view: SidebarView) => void;
   selectedConversation?: string | null;
   onSelectConversation?: (uuid: string) => void;
+  onSelectMedia?: (media: MediaItem | null) => void;
 }
 
 interface SidebarIcon {
@@ -22,10 +26,13 @@ interface SidebarIcon {
 
 const sidebarIcons: SidebarIcon[] = [
   { id: 'conversations', icon: '💬', label: 'Conversations', ariaLabel: 'View conversations' },
+  { id: 'search', icon: '🔍', label: 'Search', ariaLabel: 'Semantic search' },
+  { id: 'lists', icon: '📋', label: 'Lists', ariaLabel: 'Interest lists' },
   { id: 'readings', icon: '📖', label: 'Readings', ariaLabel: 'View quantum readings' },
   { id: 'media', icon: '🖼️', label: 'Media', ariaLabel: 'View media library' },
   { id: 'povms', icon: '🎯', label: 'POVMs', ariaLabel: 'View POVM packs' },
   { id: 'stats', icon: '📊', label: 'Stats', ariaLabel: 'View statistics' },
+  { id: 'pipeline', icon: '⚡', label: 'Pipeline', ariaLabel: 'Manage embedding pipeline' },
   { id: 'settings', icon: '⚙️', label: 'Settings', ariaLabel: 'Open settings' },
   { id: 'aui', icon: '🤖', label: 'AUI', ariaLabel: 'Open AUI assistant' },
 ];
@@ -33,7 +40,7 @@ const sidebarIcons: SidebarIcon[] = [
 /**
  * Sidebar - Left navigation panel with icon-based view switching
  */
-export default function Sidebar({ collapsed, currentView, onViewChange, selectedConversation, onSelectConversation }: SidebarProps) {
+export default function Sidebar({ collapsed, currentView, onViewChange, selectedConversation, onSelectConversation, onSelectMedia }: SidebarProps) {
   const [isResizing, setIsResizing] = useState(false);
 
   // Load sidebar width from localStorage, default to 380px
@@ -102,14 +109,16 @@ export default function Sidebar({ collapsed, currentView, onViewChange, selected
 
           <div className="sidebar-body">
             {currentView === 'conversations' && <ConversationsView selectedConversation={selectedConversation} onSelectConversation={onSelectConversation} />}
+            {currentView === 'search' && <SearchView onSelectConversation={onSelectConversation} />}
+            {currentView === 'lists' && <ListsView onSelectConversation={onSelectConversation} />}
             {currentView === 'readings' && <ReadingsView />}
-            {currentView === 'media' && <MediaView />}
+            {currentView === 'media' && <MediaView onSelectMedia={onSelectMedia} />}
             {currentView === 'povms' && <POVMsView />}
             {currentView === 'stats' && <StatsView />}
+            {currentView === 'pipeline' && <PipelineView />}
             {currentView === 'settings' && <SettingsView />}
             {currentView === 'aui' && <AUIView />}
           </div>
-
           {/* Resize Handle */}
           <div
             className="resize-handle"
@@ -133,6 +142,26 @@ function ConversationsView({ selectedConversation, onSelectConversation }: { sel
   );
 }
 
+function SearchView({ onSelectConversation }: { onSelectConversation?: (uuid: string) => void }) {
+  return (
+    <SemanticSearch
+      onSelectConversation={onSelectConversation}
+    />
+  );
+}
+
+function ListsView({ onSelectConversation }: { onSelectConversation?: (uuid: string) => void }) {
+  const handleSelectItem = (itemType: string, itemUuid: string) => {
+    // For now, if it's a conversation, select it
+    if (itemType === 'conversation' && onSelectConversation) {
+      onSelectConversation(itemUuid);
+    }
+    // TODO: Handle other item types (messages, media, etc.)
+  };
+
+  return <InterestListPanel onSelectItem={handleSelectItem} />;
+}
+
 function ReadingsView() {
   return (
     <div className="view-placeholder">
@@ -142,8 +171,8 @@ function ReadingsView() {
   );
 }
 
-function MediaView() {
-  return <MediaGallery />;
+function MediaView({ onSelectMedia }: { onSelectMedia?: (media: MediaItem | null) => void }) {
+  return <MediaGallery onSelectMedia={onSelectMedia} />;
 }
 
 function POVMsView() {
@@ -162,6 +191,10 @@ function StatsView() {
       <p className="text-tertiary text-sm">Usage & AUI insights</p>
     </div>
   );
+}
+
+function PipelineView() {
+  return <PipelinePanel />;
 }
 
 function SettingsView() {

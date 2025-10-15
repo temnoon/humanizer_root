@@ -26,6 +26,13 @@ from .interest_list import (
     InterestListItem,
     InterestListBranch,
 )
+from .pipeline import PipelineJob
+from .transformation import (
+    Transformation,
+    TransformationType,
+    SourceType,
+)
+from .agent import AgentConversation
 
 __all__ = [
     # Reading models
@@ -53,4 +60,12 @@ __all__ = [
     "InterestList",
     "InterestListItem",
     "InterestListBranch",
+    # Pipeline models
+    "PipelineJob",
+    # Transformation models
+    "Transformation",
+    "TransformationType",
+    "SourceType",
+    # Agent models
+    "AgentConversation",
 ]

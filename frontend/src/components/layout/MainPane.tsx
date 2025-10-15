@@ -1,21 +1,54 @@
 import './MainPane.css';
 import MediaGallery from '../media/MediaGallery';
+import MediaViewer from '../media/MediaViewer';
 import ConversationViewer from '../conversations/ConversationViewer';
-import { SelectedContent } from '../../App';
-
-type SidebarView = 'conversations' | 'readings' | 'media' | 'povms' | 'stats' | 'settings' | 'aui';
+import PipelinePanel from '../pipeline/PipelinePanel';
+import TransformationSplitView from '../tools/TransformationSplitView';
+import { SelectedContent, TransformationResult } from '../../App';
+import { MediaItem } from '@/lib/api-client';
+import type { SidebarView } from '@/types/sidebar';
 
 interface MainPaneProps {
   currentView: SidebarView;
   selectedConversation?: string | null;
+  selectedMedia?: MediaItem | null;
+  transformationResult?: TransformationResult | null;
   onSelectContent?: (content: SelectedContent | null) => void;
+  onSelectConversation?: (conversationId: string | null) => void;
+  onSelectMedia?: (media: MediaItem | null) => void;
+  onClearMedia?: () => void;
+  onClearTransformation?: () => void;
 }
 
 /**
  * MainPane - Main content area
  * Displays content based on current sidebar view
  */
-export default function MainPane({ currentView, selectedConversation, onSelectContent }: MainPaneProps) {
+export default function MainPane({
+  currentView,
+  selectedConversation,
+  selectedMedia,
+  transformationResult,
+  onSelectContent,
+  onSelectConversation,
+  onSelectMedia,
+  onClearMedia,
+  onClearTransformation
+}: MainPaneProps) {
+  // Priority: Show transformation result if present
+  if (transformationResult && onClearTransformation) {
+    return (
+      <main className="main-pane">
+        <div className="main-pane-content">
+          <TransformationSplitView
+            result={transformationResult}
+            onClose={onClearTransformation}
+          />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="main-pane">
       <div className="main-pane-content">
@@ -30,9 +63,17 @@ export default function MainPane({ currentView, selectedConversation, onSelectCo
           )
         )}
         {currentView === 'readings' && <ReadingsContent />}
-        {currentView === 'media' && <MediaContent />}
+        {currentView === 'media' && (
+          <MediaContent
+            selectedMedia={selectedMedia}
+            onSelectMedia={onSelectMedia}
+            onClearMedia={onClearMedia}
+            onSelectConversation={onSelectConversation}
+          />
+        )}
         {currentView === 'povms' && <POVMsContent />}
         {currentView === 'stats' && <StatsContent />}
+        {currentView === 'pipeline' && <PipelinePanel />}
         {currentView === 'settings' && <SettingsContent />}
         {currentView === 'aui' && <AUIContent />}
       </div>
@@ -121,8 +162,30 @@ function ReadingsContent() {
   return <PlaceholderContent title="Quantum Readings" icon="📖" />;
 }
 
-function MediaContent() {
-  return <MediaGallery />;
+interface MediaContentProps {
+  selectedMedia?: MediaItem | null;
+  onSelectMedia?: (media: MediaItem | null) => void;
+  onClearMedia?: () => void;
+  onSelectConversation?: (conversationId: string | null) => void;
+}
+
+function MediaContent({ selectedMedia, onSelectMedia, onClearMedia, onSelectConversation }: MediaContentProps) {
+  // If media is selected, show the viewer in MainPane
+  if (selectedMedia) {
+    return (
+      <MediaViewer
+        selectedMedia={selectedMedia}
+        onClose={onClearMedia}
+        onNavigateToConversation={(conversationId) => {
+          onSelectConversation?.(conversationId);
+          onClearMedia?.(); // Clear media selection to show conversation
+        }}
+      />
+    );
+  }
+
+  // Otherwise show the gallery
+  return <MediaGallery onSelectMedia={onSelectMedia} />;
 }
 
 function POVMsContent() {

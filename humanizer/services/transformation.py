@@ -18,10 +18,12 @@ from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 import numpy as np
 from sentence_transformers import SentenceTransformer
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from humanizer.ml.density import construct_density_matrix, rho_distance, DensityMatrix
 from humanizer.ml.povm import get_all_packs, POVMPack
 from humanizer.ml.verification import verify_transformation
+from humanizer.models.transformation import Transformation, TransformationType, SourceType
 
 
 class TransformationService:
@@ -87,6 +89,9 @@ class TransformationService:
 
         povm_pack = self.povm_packs[povm_pack_name]
 
+        # Store for use in _generate_transformation_prompt
+        self._current_povm_pack_name = povm_pack_name
+
         # Track iteration states
         steps = []
         embedding_drift = []
@@ -151,7 +156,7 @@ class TransformationService:
 
         return {
             "method": "trm",
-            "text": current_text,
+            "transformed_text": current_text,
             "iterations": len(steps),
             "convergence_score": final_drift,
             "processing_time": processing_time,
@@ -191,7 +196,7 @@ class TransformationService:
 
         return {
             "method": "llm",
-            "text": transformed_text,
+            "transformed_text": transformed_text,
             "processing_time": processing_time,
         }
 
@@ -243,6 +248,55 @@ class TransformationService:
             rank=self.rank,
         )
 
+    def _get_axis_meaning(self, povm_pack_name: str, axis: str) -> str:
+        """
+        Get linguistic meaning of a POVM axis.
+
+        Args:
+            povm_pack_name: Name of POVM pack
+            axis: Axis name
+
+        Returns:
+            Concrete linguistic instruction
+        """
+        AXIS_MEANINGS = {
+            "tetralemma": {
+                "A": "Be definite - remove hedging ('could be argued', 'might'). Keep strong verbs if present ('marks', 'is'). Use direct statements. Keep words like 'shift', 'is a' if already present",
+                "¬A": "Be critical - use direct negations: 'isn't', 'not really', 'doesn't'. Add 'question whether' to challenge claims. Be skeptical and doubtful",
+                "both": "Embrace paradox - MUST use words 'both...and', 'paradox'. Show contradictions existing together",
+                "neither": "Be more transcendent - avoid binaries, use abstract language, philosophical framing",
+            },
+            "tone": {
+                "analytical": "Be analytical - use words like 'systematic', 'investigate', 'structures', 'analyze'. Logical and precise",
+                "critical": "Be more critical - question assumptions, point out problems, skeptical stance",
+                "empathic": "Be empathic - use 'we', 'you', 'understand'. Make it personal and relational",
+                "playful": "Be playful - use phrases 'like', 'imagine', 'think of it as'. Use metaphors and analogies to make it fun",
+                "neutral": "Be more neutral - third-person, balanced, objective presentation",
+            },
+            "ontology": {
+                "corporeal": "Focus on the physical - use sensory language, bodily descriptions, material details",
+                "subjective": "Be more subjective - use first-person, personal experiences, 'I feel/think'",
+                "objective": "Be more objective - use third-person, measurable facts, observer-independent language",
+                "mixed_frame": "Use multiple perspectives - switch viewpoints, acknowledge different frames",
+            },
+            "pragmatics": {
+                "clarity": "Be clear - remove ALL hedging ('could', 'might', 'possibly'). Use simple direct statements: 'X is a method' not 'X could be a method'. Short, simple, clear",
+                "coherence": "Improve flow - smooth transitions, logical connections, consistent reasoning",
+                "evidence": "Add evidence - use words 'studies', 'research', 'evidence'. Cite sources, use data, provide examples",
+                "charity": "Be more charitable - 'to be fair...', steelman arguments, acknowledge strengths",
+            },
+            "audience": {
+                "expert": "Write for experts - use technical philosophy terms: 'noetic', 'noematic', 'eidetic', 'transcendental'. Dense, assumes knowledge",
+                "general": "Write for general readers - replace jargon: 'elucidates'→'helps us understand', 'eidetic'→'essential', use 'how', 'what', 'why'",
+                "student": "Write for students - step-by-step, clear definitions, pedagogical approach",
+                "policy": "Write for policymakers - action-oriented, implications, concrete recommendations",
+                "editorial": "Write as editorial - strong voice, persuasive arguments, call to action",
+            },
+        }
+
+        meanings = AXIS_MEANINGS.get(povm_pack_name, {})
+        return meanings.get(axis, f"Adjust {axis} stance")
+
     def _generate_transformation_prompt(
         self,
         text: str,
@@ -253,7 +307,7 @@ class TransformationService:
         """
         Generate prompt for LLM transformation.
 
-        Instructs LLM to move text toward target stance.
+        Instructs LLM to move text toward target stance with concrete linguistic guidance.
 
         Args:
             text: Current text
@@ -270,34 +324,61 @@ class TransformationService:
             for axis in target_stance.keys()
         }
 
-        # Find axes that need to increase/decrease
-        increase = [k for k, v in deltas.items() if v > 0.05]
-        decrease = [k for k, v in deltas.items() if v < -0.05]
-
-        # Build directive
+        # Build contextualized directives
         directives = []
-        if increase:
-            directives.append(f"INCREASE: {', '.join(increase)}")
-        if decrease:
-            directives.append(f"DECREASE: {', '.join(decrease)}")
+        for axis, delta in sorted(deltas.items(), key=lambda x: abs(x[1]), reverse=True):
+            if abs(delta) > 0.05:  # Significant change needed
+                # Get povm_pack_name from current context
+                povm_pack_name = self._current_povm_pack_name if hasattr(self, '_current_povm_pack_name') else 'tetralemma'
+                meaning = self._get_axis_meaning(povm_pack_name, axis)
+                direction = "MORE" if delta > 0 else "LESS"
+                directives.append(f"• {direction} {axis}: {meaning} (shift: {delta:+.2f})")
 
-        directive_text = " | ".join(directives) if directives else "Maintain balance"
+        directive_text = "\n".join(directives) if directives else "Maintain current balance"
 
-        prompt = f"""Transform the following text according to these semantic directions:
+        prompt = f"""You are a precise text transformation specialist. Your ONLY job is to follow the directives below EXACTLY.
 
-{povm_description}
+=== DIRECTIVES (FOLLOW THESE PRECISELY) ===
+{directive_text}
 
-Current stance: {', '.join([f"{k}: {v:.2f}" for k, v in current_readings.items()])}
-Target stance:  {', '.join([f"{k}: {v:.2f}" for k, v in target_stance.items()])}
+=== CRITICAL RULES ===
+1. Return ONLY the transformed text - NO annotations, labels, or meta-commentary
+2. Do NOT include stance values like "(A: 0.70)" in your output
+3. Transform EVERY section - do NOT omit information
+4. USE THE EXACT WORDS suggested in the directives above (e.g., if it says "use 'helps us understand'", use those exact words)
+5. Follow the directives EXACTLY - they tell you what linguistic changes to make
+6. Do NOT make the text unnecessarily ornate or elaborate
+7. When simplifying: use SIMPLE everyday words (not fancy synonyms like 'reveals' or 'elucidate')
+8. When adding expertise: use PRECISE technical terminology (not verbose descriptions)
 
-Directive: {directive_text}
+=== WHAT TO AVOID (COMMON MISTAKES) ===
+✗ Using fancy words when simple ones work: "elucidate" → use "show" or "explain"
+✗ Adding unnecessary adjectives: "transformative metamorphosis" → use "change" or "shift"
+✗ Being overly verbose: "dissecting and elucidating the complex mechanisms" → use "analyzing how"
+✗ Wrong tone: "Yo ho ho! Strap in!" is not playful, it's juvenile
 
-Preserve the core meaning but adjust the semantic stance. Return ONLY the transformed text.
+=== EXAMPLE TRANSFORMATIONS ===
+General audience (simplify):
+  "Transcendental phenomenology elucidates the eidetic structures"
+  → "Phenomenology helps us understand the essential patterns"
 
-Text to transform:
+Expert audience (add precision):
+  "Phenomenology helps us understand consciousness"
+  → "Phenomenological reduction brackets the natural attitude to investigate noetic-noematic correlations"
+
+Analytical tone (systematic, precise):
+  "Husserl wanted to study how we think"
+  → "Husserl systematically investigated the structures of consciousness"
+
+Clarity (remove fluff):
+  "One might consider that, given various considerations, X could be Y"
+  → "X is Y" or "X seems to be Y"
+
+=== TEXT TO TRANSFORM ===
 {text}
 
-Transformed text:"""
+=== TRANSFORMED TEXT ===
+(Follow the directives above EXACTLY. No annotations, just the rewritten text):"""
 
         return prompt
 
@@ -306,6 +387,7 @@ Transformed text:"""
         original_text: str,
         prompt: str,
         iteration: int,
+        max_output_tokens: int = 4096,
     ) -> str:
         """
         Call LLM for text transformation using Ollama.
@@ -317,6 +399,7 @@ Transformed text:"""
             original_text: Original text
             prompt: Transformation prompt
             iteration: Current iteration number
+            max_output_tokens: Maximum output tokens (tier-based)
 
         Returns:
             Transformed text
@@ -330,7 +413,7 @@ Transformed text:"""
         model = "mistral:7b"  # Fast and good for transformations
 
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     ollama_url,
                     json={
@@ -339,7 +422,7 @@ Transformed text:"""
                         "stream": False,
                         "options": {
                             "temperature": 0.7,
-                            "num_predict": 256,  # Limit output length
+                            "num_predict": max_output_tokens,
                         },
                     },
                 )
@@ -462,3 +545,50 @@ Transformed text:"""
         similarity = np.dot(readings_vec, target_vec) / (norm_r * norm_t)
 
         return float(similarity)
+
+    async def save_transformation(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        source_text: str,
+        result_text: str,
+        transformation_type: TransformationType,
+        parameters: Dict,
+        metrics: Dict,
+        user_prompt: Optional[str] = None,
+        source_message_uuid: Optional[UUID] = None,
+    ) -> Transformation:
+        """
+        Save a transformation to the database.
+
+        Args:
+            db: Database session
+            user_id: User ID
+            source_text: Original text
+            result_text: Transformed text
+            transformation_type: Type of transformation
+            parameters: Transformation parameters
+            metrics: Transformation metrics
+            user_prompt: Optional user description of transformation intent
+            source_message_uuid: Optional UUID of source ChatGPT message
+
+        Returns:
+            Created Transformation record
+        """
+        transformation = Transformation(
+            user_id=user_id,
+            source_type='chatgpt_message' if source_message_uuid else 'custom',
+            source_uuid=source_message_uuid,
+            source_text=source_text,
+            transformation_type=transformation_type.value,
+            user_prompt=user_prompt,
+            parameters=parameters,
+            result_text=result_text,
+            metrics=metrics,
+        )
+
+        db.add(transformation)
+        await db.commit()
+        await db.refresh(transformation)
+
+        return transformation

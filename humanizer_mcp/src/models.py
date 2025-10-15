@@ -330,3 +330,79 @@ class ListArtifactsResponse(BaseModel):
 class GetArtifactResponse(BaseModel):
     """Response from get_artifact."""
     artifact: ArtifactModel
+
+
+# ============================================================================
+# EMBEDDING EXPLORER MODELS
+# ============================================================================
+
+class SemanticSearchRequest(BaseModel):
+    """Request for semantic search."""
+    query: str = Field(..., description="Search query")
+    k: int = Field(10, ge=1, le=100, description="Number of results")
+    min_similarity: float = Field(0.0, ge=0.0, le=1.0, description="Minimum similarity")
+
+
+class FindNeighborsRequest(BaseModel):
+    """Request to find neighbors of a message."""
+    message_uuid: str = Field(..., description="Message UUID")
+    k: int = Field(10, ge=1, le=100, description="Number of neighbors")
+    min_similarity: float = Field(0.0, ge=0.0, le=1.0, description="Minimum similarity")
+
+
+class ComputeDirectionRequest(BaseModel):
+    """Request to compute semantic direction."""
+    positive_query: str = Field(..., description="What we want more of")
+    negative_query: str = Field(..., description="What we want less of")
+
+
+class PerturbationRequest(BaseModel):
+    """Request for TRM perturbation analysis."""
+    text: str = Field(..., description="Text to analyze")
+    positive_query: Optional[str] = Field(None, description="Direction to move toward")
+    negative_query: Optional[str] = Field(None, description="Direction to move away from")
+    magnitude: float = Field(0.1, ge=0.0, le=1.0, description="Perturbation magnitude")
+    povm_pack: str = Field("tetralemma", description="POVM pack for measurements")
+
+
+class TrajectoryRequest(BaseModel):
+    """Request for trajectory exploration."""
+    text: str = Field(..., description="Starting text")
+    positive_query: str = Field(..., description="Direction to explore")
+    negative_query: str = Field(..., description="Opposite direction")
+    steps: int = Field(5, ge=1, le=20, description="Number of steps")
+    step_size: float = Field(0.05, ge=0.01, le=0.5, description="Step size")
+
+
+class ClustersRequest(BaseModel):
+    """Request for semantic clustering."""
+    n_samples: int = Field(1000, ge=100, le=10000, description="Number of messages to sample")
+    n_clusters: int = Field(5, ge=2, le=20, description="Number of clusters")
+
+
+# ============================================================================
+# CHATGPT CONVERSATION MODELS
+# ============================================================================
+
+class ListConversationsRequest(BaseModel):
+    """Request to list conversations."""
+    page: int = Field(1, ge=1, description="Page number")
+    page_size: int = Field(50, ge=1, le=200, description="Results per page")
+    search: Optional[str] = Field(None, description="Search query for titles")
+
+
+class GetConversationRequest(BaseModel):
+    """Request to get conversation details."""
+    conversation_uuid: str = Field(..., description="Conversation UUID")
+
+
+# ============================================================================
+# TRANSFORMATION MODELS
+# ============================================================================
+
+class TransformTextRequest(BaseModel):
+    """Request for text transformation."""
+    text: str = Field(..., description="Text to transform")
+    povm_pack: str = Field("tone", description="POVM pack to use")
+    target_stance: Optional[Dict[str, Any]] = Field(None, description="Target semantic coordinates")
+    max_iterations: int = Field(5, ge=1, le=10, description="Max transformation iterations")

@@ -43,7 +43,7 @@ from humanizer.models.schemas import (
     PaginatedInterestListsResponse,
 )
 
-router = APIRouter(prefix="/interest-lists", tags=["interest-lists"])
+router = APIRouter(prefix="/api/interest-lists", tags=["interest-lists"])
 
 
 # Helper to get user ID (for now, use a default user)

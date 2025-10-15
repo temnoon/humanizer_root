@@ -18,6 +18,7 @@ from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, func, and_, or_
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from humanizer.models.interest import Interest, InterestTag
@@ -98,7 +99,11 @@ class InterestTrackingService:
                 session.add(tag)
 
         await session.commit()
-        await session.refresh(interest)
+
+        # Eagerly load tags to avoid lazy-loading issues
+        stmt = select(Interest).where(Interest.id == interest.id).options(selectinload(Interest.tags))
+        result = await session.execute(stmt)
+        interest = result.scalar_one()
 
         return interest
 

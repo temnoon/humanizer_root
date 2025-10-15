@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector
 
 from humanizer.database import Base
 
@@ -69,6 +70,7 @@ class ChatGPTMessage(Base):
         content_text: Extracted text content (for search)
         content_parts: Original content.parts structure (JSONB)
         custom_metadata: ALL original message metadata
+        embedding: Semantic embedding vector (1024-dim from mxbai-embed-large)
         conversation: Parent ChatGPTConversation
     """
     __tablename__ = "chatgpt_messages"
@@ -80,6 +82,7 @@ class ChatGPTMessage(Base):
     content_text = Column(Text, nullable=True)  # Extracted text for search
     content_parts = Column(JSONB, nullable=True)  # Original parts structure
     custom_metadata = Column(JSONB, nullable=False)  # Full original JSON
+    embedding = Column(Vector(1024), nullable=True)  # Semantic embedding (mxbai-embed-large)
 
     # Relationships
     conversation = relationship("ChatGPTConversation", back_populates="messages")

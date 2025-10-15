@@ -20,6 +20,11 @@ from humanizer.api import (
     interest_list_router,
     transform_router,
     tools_router,
+    personify_router,
+    pipeline_router,
+    capture_router,
+    embedding_explorer_router,
+    agent_router,
 )
 
 
@@ -82,6 +87,11 @@ app.include_router(interest_router)
 app.include_router(interest_list_router)
 app.include_router(transform_router)
 app.include_router(tools_router)
+app.include_router(personify_router)
+app.include_router(pipeline_router)
+app.include_router(capture_router)
+app.include_router(embedding_explorer_router)
+app.include_router(agent_router)
 
 
 # Health check

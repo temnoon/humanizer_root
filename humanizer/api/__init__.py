@@ -11,6 +11,11 @@ from .interest import router as interest_router
 from .interest_list import router as interest_list_router
 from .transform import router as transform_router
 from .tools import router as tools_router
+from .personify import router as personify_router
+from .pipeline import router as pipeline_router
+from .capture import router as capture_router
+from .embedding_explorer import router as embedding_explorer_router
+from .agent import router as agent_router
 
 __all__ = [
     "reading_router",
@@ -22,4 +27,9 @@ __all__ = [
     "interest_list_router",
     "transform_router",
     "tools_router",
+    "personify_router",
+    "pipeline_router",
+    "capture_router",
+    "embedding_explorer_router",
+    "agent_router",
 ]

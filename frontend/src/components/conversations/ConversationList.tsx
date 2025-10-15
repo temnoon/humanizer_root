@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import api from '@/lib/api-client';
+import { cache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache';
+import SemanticSearch, { SearchResult } from '../search/SemanticSearch';
 import './ConversationList.css';
 
 interface Conversation {
@@ -17,68 +19,126 @@ interface ConversationListProps {
 
 type SortField = 'created_at' | 'title' | 'message_count';
 type SortOrder = 'asc' | 'desc';
+type SearchMode = 'title' | 'semantic';
 
 export default function ConversationList({ selectedConversation, onSelect }: ConversationListProps) {
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [allConversations, setAllConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadedCount, setLoadedCount] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [usingCache, setUsingCache] = useState(false);
 
   // Search and filter state
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchMode, setSearchMode] = useState<SearchMode>('title');
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [showSettings, setShowSettings] = useState(false);
 
+  // Load conversations on mount
   useEffect(() => {
     loadConversations();
-  }, [sortField, sortOrder]);
+  }, []);
 
-  // Debounce search query
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      loadConversations();
-    }, 300);
+  // Apply client-side filtering and sorting (memoized)
+  const filteredConversations = useMemo(() => {
+    let filtered = [...allConversations];
 
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((conv) =>
+        conv.title?.toLowerCase().includes(query)
+      );
+    }
 
-  const loadConversations = async () => {
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aVal: any;
+      let bVal: any;
+
+      switch (sortField) {
+        case 'created_at':
+          aVal = new Date(a.created_at || 0).getTime();
+          bVal = new Date(b.created_at || 0).getTime();
+          break;
+        case 'title':
+          aVal = (a.title || '').toLowerCase();
+          bVal = (b.title || '').toLowerCase();
+          break;
+        case 'message_count':
+          aVal = a.message_count;
+          bVal = b.message_count;
+          break;
+      }
+
+      if (sortOrder === 'asc') {
+        return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+      } else {
+        return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+      }
+    });
+
+    return filtered;
+  }, [allConversations, searchQuery, sortField, sortOrder]);
+
+  const loadConversations = async (forceRefresh = false) => {
     try {
       setLoading(true);
       setError(null);
+      setUsingCache(false);
 
-      // Build API options from current state
-      const options = {
-        search: searchQuery || undefined,
-        sortBy: sortField,
-        order: sortOrder,
-      };
+      // Try cache first (unless forced refresh)
+      if (!forceRefresh) {
+        const cached = cache.get<Conversation[]>(CACHE_KEYS.CONVERSATIONS_LIST);
+        if (cached) {
+          console.log('✅ Using cached conversations:', cached.length);
+          setAllConversations(cached);
+          setTotalCount(cached.length);
+          setLoadedCount(cached.length);
+          setUsingCache(true);
+          setLoading(false);
+          return;
+        }
+      }
 
-      // Load all conversations using the new list endpoint
-      const allConversations: Conversation[] = [];
+      // Cache miss or forced refresh - fetch from API
+      console.log('🌐 Fetching conversations from API...');
+
+      // Load all conversations (no search/sort on API - we'll do it client-side)
+      const fetchedConversations: Conversation[] = [];
       const pageSize = 100;
       let page = 1;
       let totalPages = 1;
 
       // Load first page to get total
-      const firstPage = await api.listConversations(page, pageSize, options);
+      const firstPage = await api.listConversations(page, pageSize, {
+        sortBy: 'created_at',
+        order: 'desc',
+      });
       setTotalCount(firstPage.total);
       totalPages = firstPage.total_pages;
 
       // Add conversations from first page
-      allConversations.push(...firstPage.conversations);
-      setLoadedCount(allConversations.length);
-      setConversations([...allConversations]);
+      fetchedConversations.push(...firstPage.conversations);
+      setLoadedCount(fetchedConversations.length);
+      setAllConversations([...fetchedConversations]);
 
       // Load remaining pages
       for (page = 2; page <= totalPages; page++) {
-        const result = await api.listConversations(page, pageSize, options);
-        allConversations.push(...result.conversations);
-        setLoadedCount(allConversations.length);
-        setConversations([...allConversations]);
+        const result = await api.listConversations(page, pageSize, {
+          sortBy: 'created_at',
+          order: 'desc',
+        });
+        fetchedConversations.push(...result.conversations);
+        setLoadedCount(fetchedConversations.length);
+        setAllConversations([...fetchedConversations]);
       }
+
+      // Cache the full list
+      cache.set(CACHE_KEYS.CONVERSATIONS_LIST, fetchedConversations, CACHE_TTL.MEDIUM);
+      console.log('💾 Cached', fetchedConversations.length, 'conversations');
 
       setLoading(false);
     } catch (err) {
@@ -110,6 +170,13 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
     });
   };
 
+  const handleSemanticSearchResult = (result: SearchResult) => {
+    // When a semantic search result is clicked, load that conversation
+    if (onSelect) {
+      onSelect(result.conversation_uuid);
+    }
+  };
+
   if (loading) {
     return (
       <div className="conversation-list-loading">
@@ -135,7 +202,7 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
       <div className="conversation-list-error">
         <p className="error-icon">⚠️</p>
         <p className="error-text">{error}</p>
-        <button className="retry-button" onClick={loadConversations}>
+        <button className="retry-button" onClick={() => loadConversations()}>
           Retry
         </button>
       </div>
@@ -145,22 +212,54 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
   return (
     <div className="conversation-list">
       <div className="conversation-list-header">
-        <div className="search-bar">
-          <input
-            type="text"
-            placeholder="Search conversations..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="search-input"
-          />
+        <div className="search-mode-toggle">
           <button
-            className="settings-button"
-            onClick={() => setShowSettings(!showSettings)}
-            title="Sort and filter options"
+            className={`mode-button ${searchMode === 'title' ? 'active' : ''}`}
+            onClick={() => setSearchMode('title')}
+            title="Search by title (fast)"
           >
-            ⚙️
+            📝 Title
+          </button>
+          <button
+            className={`mode-button ${searchMode === 'semantic' ? 'active' : ''}`}
+            onClick={() => setSearchMode('semantic')}
+            title="Semantic search (find by meaning)"
+          >
+            🧠 Semantic
           </button>
         </div>
+
+        {searchMode === 'title' ? (
+          <div className="search-bar">
+            <input
+              type="text"
+              placeholder="Search by title..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="search-input"
+            />
+            <button
+              className="refresh-button"
+              onClick={() => loadConversations(true)}
+              title="Refresh conversation list"
+            >
+              🔄
+            </button>
+            <button
+              className="settings-button"
+              onClick={() => setShowSettings(!showSettings)}
+              title="Sort and filter options"
+            >
+              ⚙️
+            </button>
+          </div>
+        ) : null}
+
+        {usingCache && (
+          <div className="cache-indicator">
+            ⚡ Loaded from cache
+          </div>
+        )}
 
         {showSettings && (
           <div className="settings-panel">
@@ -191,51 +290,62 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
           </div>
         )}
 
-        <p className="conversation-count">
-          {conversations.length} conversations
-        </p>
+        {searchMode === 'title' && (
+          <p className="conversation-count">
+            {filteredConversations.length} of {allConversations.length} conversations
+          </p>
+        )}
       </div>
 
-      <div className="conversation-flat-list">
-        {conversations.map((conv) => (
-          <button
-            key={conv.uuid}
-            className={`conversation-item ${
-              selectedConversation === conv.uuid ? 'selected' : ''
-            }`}
-            onClick={() => onSelect?.(conv.uuid)}
-            title={formatDateTime(conv.created_at)}
-          >
-            <div className="conversation-item-main">
-              <div className="conversation-item-title">
-                {conv.title || 'Untitled Conversation'}
+      {searchMode === 'title' ? (
+        <div className="conversation-flat-list">
+          {filteredConversations.map((conv) => (
+            <button
+              key={conv.uuid}
+              className={`conversation-item ${
+                selectedConversation === conv.uuid ? 'selected' : ''
+              }`}
+              onClick={() => onSelect?.(conv.uuid)}
+              title={formatDateTime(conv.created_at)}
+            >
+              <div className="conversation-item-main">
+                <div className="conversation-item-title">
+                  {conv.title || 'Untitled Conversation'}
+                </div>
+                <div className="conversation-item-meta">
+                  <span className="meta-messages" title="Number of messages">
+                    {conv.message_count} msgs
+                  </span>
+                  <span className="meta-date" title="Date created">
+                    {formatDate(conv.created_at)}
+                  </span>
+                </div>
               </div>
-              <div className="conversation-item-meta">
-                <span className="meta-messages" title="Number of messages">
-                  {conv.message_count} msgs
-                </span>
-                <span className="meta-date" title="Date created">
-                  {formatDate(conv.created_at)}
-                </span>
+              <div className="conversation-item-hover">
+                <div className="hover-detail">
+                  <span className="hover-label">Created:</span>
+                  <span className="hover-value">{formatDateTime(conv.created_at)}</span>
+                </div>
+                <div className="hover-detail">
+                  <span className="hover-label">Messages:</span>
+                  <span className="hover-value">{conv.message_count}</span>
+                </div>
+                <div className="hover-detail">
+                  <span className="hover-label">Archive:</span>
+                  <span className="hover-value">{conv.source_archive}</span>
+                </div>
               </div>
-            </div>
-            <div className="conversation-item-hover">
-              <div className="hover-detail">
-                <span className="hover-label">Created:</span>
-                <span className="hover-value">{formatDateTime(conv.created_at)}</span>
-              </div>
-              <div className="hover-detail">
-                <span className="hover-label">Messages:</span>
-                <span className="hover-value">{conv.message_count}</span>
-              </div>
-              <div className="hover-detail">
-                <span className="hover-label">Archive:</span>
-                <span className="hover-value">{conv.source_archive}</span>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="semantic-search-container">
+          <SemanticSearch
+            onSelectResult={handleSemanticSearchResult}
+            onSelectConversation={onSelect}
+          />
+        </div>
+      )}
     </div>
   );
 }

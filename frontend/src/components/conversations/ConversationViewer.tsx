@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 import api from '@/lib/api-client';
+import { useToast } from '@/contexts/ToastContext';
 import './ConversationViewer.css';
 
 interface ConversationViewerProps {
@@ -40,6 +41,14 @@ export default function ConversationViewer({ conversationId, onSelectContent }: 
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [widthMode, setWidthMode] = useState<WidthMode>('narrow');
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+
+  // Interest list dropdown state
+  const [showListDropdown, setShowListDropdown] = useState<string | null>(null);
+  const [availableLists, setAvailableLists] = useState<any[]>([]);
+  const [loadingLists, setLoadingLists] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const { showSuccess, showError } = useToast();
 
   useEffect(() => {
     loadConversation();
@@ -217,6 +226,96 @@ export default function ConversationViewer({ conversationId, onSelectContent }: 
     console.log('Edit message:', message);
   };
 
+  const handleStar = async (message: Message) => {
+    try {
+      await api.markInteresting({
+        interestType: 'message',
+        targetUuid: message.id,
+        momentText: `Starred message from conversation`,
+        salienceScore: 0.8,
+        targetMetadata: {
+          content_preview: message.content.substring(0, 200),
+          role: message.role,
+          conversation_id: conversationId,
+        },
+      });
+      showSuccess('Message starred!');
+    } catch (err) {
+      console.error('Failed to star message:', err);
+      showError('Failed to star message');
+    }
+  };
+
+  const handleFindSimilar = async (message: Message) => {
+    try {
+      // Use semantic search to find similar messages
+      const results = await api.semanticSearch(message.content, 10, 0.5);
+      console.log('Similar messages:', results);
+      // TODO: Show results in a modal or navigate to search view
+    } catch (err) {
+      console.error('Failed to find similar messages:', err);
+    }
+  };
+
+  const handleAddToList = async (message: Message) => {
+    // Toggle dropdown for this message
+    if (showListDropdown === message.id) {
+      setShowListDropdown(null);
+      return;
+    }
+
+    setShowListDropdown(message.id);
+
+    // Load available lists
+    if (availableLists.length === 0) {
+      setLoadingLists(true);
+      try {
+        const response = await api.getInterestLists();
+        setAvailableLists(response.lists || []);
+      } catch (err) {
+        console.error('Failed to load lists:', err);
+        showError('Failed to load interest lists');
+      } finally {
+        setLoadingLists(false);
+      }
+    }
+  };
+
+  const handleSelectList = async (message: Message, listId: string) => {
+    try {
+      await api.addToInterestList(listId, {
+        itemType: 'message',
+        itemUuid: message.id,
+        itemMetadata: {
+          content_preview: message.content.substring(0, 200),
+          role: message.role,
+          conversation_id: conversationId,
+        },
+      });
+
+      const list = availableLists.find((l) => l.id === listId);
+      showSuccess(`Added to "${list?.name || 'list'}"`);
+      setShowListDropdown(null);
+    } catch (err) {
+      console.error('Failed to add to list:', err);
+      showError('Failed to add to list');
+    }
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowListDropdown(null);
+      }
+    };
+
+    if (showListDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showListDropdown]);
+
   // Preprocess markdown to convert LaTeX delimiters for KaTeX
   // Pattern from working humanizer-agent implementation
   const preprocessLatex = (content: string): string => {
@@ -231,38 +330,15 @@ export default function ConversationViewer({ conversationId, onSelectContent }: 
       return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
     });
 
-    // STEP 1: Convert LaTeX display math \[ ... \] to $$...$$
-    // KaTeX/rehype-katex expect $$ delimiters for display math
+    // Convert LaTeX display math \[ ... \] to $$...$$
     processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (_match, math) => {
       return '\n\n$$' + math.trim() + '$$\n\n';
     });
 
-    // STEP 2: Convert LaTeX inline math \( ... \) to $...$
-    // KaTeX/rehype-katex expect $ delimiters for inline math
+    // Convert LaTeX inline math \( ... \) to $...$
     processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (_match, math) => {
       return '$' + math.trim() + '$';
     });
-
-    // STEP 3: Wrap bare subscripts/superscripts in $ delimiters
-    // Patterns like: ρ_i, E_i, x^2, p_i, |ψ_i⟩, etc.
-    // Match: letter/symbol followed by _ or ^ and one or more chars
-    processed = processed.replace(/([a-zA-ZρσψφθαβγδεζηικλμνξπτωΣΔΛΠΩ|⟨⟩])([_^])([a-zA-Z0-9ijk]+)/g,
-      (_match, base, op, subscript) => {
-        return `$${base}${op}{${subscript}}$`;
-      }
-    );
-
-    // STEP 4: Handle bra-ket notation: |ψ⟩, ⟨ψ|
-    processed = processed.replace(/\|([^|⟩\n]+)⟩/g, (_match, state) => {
-      return `$|${state}\\rangle$`;
-    });
-    processed = processed.replace(/⟨([^⟨|\n]+)\|/g, (_match, state) => {
-      return `$\\langle ${state}|$`;
-    });
-
-    // STEP 5: Clean up adjacent $ delimiters (merge them)
-    processed = processed.replace(/\$\s*\$/g, ' ');
-    processed = processed.replace(/\$([^\$\n]+)\$\s*\$([^\$\n]+)\$/g, '$$$1 $2$$');
 
     // Restore code blocks
     codeBlocks.forEach((block, i) => {
@@ -559,8 +635,61 @@ export default function ConversationViewer({ conversationId, onSelectContent }: 
 
                 <div className="message-actions">
                   <button
+                    className="action-button star-button"
+                    onClick={() => handleStar(msg)}
+                    title="Mark as interesting"
+                  >
+                    ⭐ Star
+                  </button>
+                  <button
+                    className="action-button similar-button"
+                    onClick={() => handleFindSimilar(msg)}
+                    title="Find similar messages"
+                  >
+                    🔍 Similar
+                  </button>
+                  <div className="list-button-container" style={{ position: 'relative' }}>
+                    <button
+                      className="action-button list-button"
+                      onClick={() => handleAddToList(msg)}
+                      title="Add to interest list"
+                    >
+                      📝 Add to List
+                    </button>
+
+                    {/* Dropdown for selecting list */}
+                    {showListDropdown === msg.id && (
+                      <div className="list-dropdown" ref={dropdownRef}>
+                        {loadingLists ? (
+                          <div className="list-dropdown-loading">Loading lists...</div>
+                        ) : availableLists.length === 0 ? (
+                          <div className="list-dropdown-empty">
+                            No lists yet. Create one in the sidebar!
+                          </div>
+                        ) : (
+                          <>
+                            <div className="list-dropdown-header">Add to list:</div>
+                            {availableLists.map((list) => (
+                              <button
+                                key={list.id}
+                                className="list-dropdown-item"
+                                onClick={() => handleSelectList(msg, list.id)}
+                              >
+                                <span className="list-name">{list.name}</span>
+                                {list.description && (
+                                  <span className="list-description">{list.description}</span>
+                                )}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <button
                     className="action-button edit-button"
                     onClick={() => handleEdit(msg)}
+                    title="Transform message"
                   >
                     ✏️ Edit
                   </button>

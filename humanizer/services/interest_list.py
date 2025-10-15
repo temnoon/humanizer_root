@@ -95,6 +95,11 @@ class InterestListService:
             InterestList or None if not found
         """
         stmt = select(InterestList).where(InterestList.id == list_id)
+
+        if include_items:
+            from sqlalchemy.orm import selectinload
+            stmt = stmt.options(selectinload(InterestList.items))
+
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 

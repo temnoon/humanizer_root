@@ -4,8 +4,10 @@ import TransformationPanel from './TransformationPanel';
 import AnalysisPanel from './AnalysisPanel';
 import ExtractionPanel from './ExtractionPanel';
 import ComparisonPanel from './ComparisonPanel';
+import TransformationHistory from './TransformationHistory';
+import type { TransformationResult } from '../../App';
 
-type ToolType = 'transform' | 'analyze' | 'extract' | 'compare';
+type ToolType = 'transform' | 'analyze' | 'extract' | 'compare' | 'history';
 
 interface ToolPanelProps {
   collapsed: boolean;
@@ -16,6 +18,7 @@ interface ToolPanelProps {
     sourceId?: string;
     messageId?: string;
   } | null;
+  onShowTransformation?: (result: TransformationResult) => void;
 }
 
 /**
@@ -27,7 +30,7 @@ interface ToolPanelProps {
  * - Information extraction
  * - Side-by-side comparison
  */
-export default function ToolPanel({ collapsed, onToggle, selectedContent }: ToolPanelProps) {
+export default function ToolPanel({ collapsed, onToggle, selectedContent, onShowTransformation }: ToolPanelProps) {
   const [activeTool, setActiveTool] = useState<ToolType | null>('transform');
 
   return (
@@ -69,14 +72,27 @@ export default function ToolPanel({ collapsed, onToggle, selectedContent }: Tool
             >
               ⚖️ Compare
             </button>
+            <button
+              className={`tool-btn ${activeTool === 'history' ? 'active' : ''}`}
+              onClick={() => setActiveTool('history')}
+              title="View transformation history"
+            >
+              📜 History
+            </button>
           </div>
 
           {/* Tool content */}
           <div className="tool-content">
-            {activeTool === 'transform' && <TransformationPanel selectedContent={selectedContent} />}
+            {activeTool === 'transform' && (
+              <TransformationPanel
+                selectedContent={selectedContent}
+                onShowTransformation={onShowTransformation}
+              />
+            )}
             {activeTool === 'analyze' && <AnalysisPanel selectedContent={selectedContent} />}
             {activeTool === 'extract' && <ExtractionPanel selectedContent={selectedContent} />}
             {activeTool === 'compare' && <ComparisonPanel selectedContent={selectedContent} />}
+            {activeTool === 'history' && <TransformationHistory />}
           </div>
         </>
       )}

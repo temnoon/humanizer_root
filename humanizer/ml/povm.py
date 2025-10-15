@@ -74,12 +74,12 @@ class POVMPack:
     rank: int
 
     def __post_init__(self):
-        """Validate POVM constraints."""
+        """Validate and normalize POVM constraints."""
         # Check all operators have same rank
         for op in self.operators:
             assert op.B.shape[0] == self.rank, f"All operators must have rank {self.rank}"
 
-        # Check Σ E_i = I
+        # Check and fix Σ E_i = I
         total = np.zeros((self.rank, self.rank))
         for op in self.operators:
             total += op.E
@@ -87,13 +87,29 @@ class POVMPack:
         identity = np.eye(self.rank)
         diff = np.linalg.norm(total - identity)
 
-        if diff > 0.1:  # Tolerance
-            print(f"⚠️  Warning: POVM '{self.name}' does not sum to identity (diff={diff:.4f})")
-            # Normalize to fix
-            scale = np.trace(total) / self.rank
-            for op in self.operators:
-                op.B = op.B / np.sqrt(scale)
-            print(f"   → Normalized operators")
+        if diff > 0.01:  # Tolerance (tighter than before)
+            # Need to normalize operators to satisfy POVM constraint
+            # Σ E_i should equal I, currently equals total
+            # Scale each B_i by sqrt(trace(I) / trace(total))
+
+            total_trace = np.trace(total)
+            identity_trace = self.rank  # trace(I) = rank
+
+            if total_trace > 0:
+                scale_factor = np.sqrt(identity_trace / total_trace)
+
+                for op in self.operators:
+                    op.B = op.B * scale_factor
+
+                # Verify fix
+                new_total = np.zeros((self.rank, self.rank))
+                for op in self.operators:
+                    new_total += op.E
+                new_diff = np.linalg.norm(new_total - identity)
+
+                # Only print if normalization significantly improved things
+                if diff > 0.1:
+                    print(f"✓ POVM '{self.name}' normalized: {diff:.4f} → {new_diff:.4f}")
 
     def measure(self, rho: DensityMatrix) -> Dict[str, float]:
         """
@@ -144,28 +160,36 @@ def create_random_povm_pack(
     n = len(axes)
 
     # Generate random PSD operators that sum to identity
-    # Strategy: Use Gram matrix decomposition
+    # Strategy: Use Gram matrix decomposition with proper normalization
     # 1. Generate random matrices B_i
     # 2. Compute E_i = B_i @ B_i^T
     # 3. Normalize so Σ E_i = I
 
-    operators = []
+    # First pass: generate random operators and compute total
+    temp_operators = []
     total = np.zeros((rank, rank))
 
     for axis in axes:
         # Random matrix (rank × rank)
-        B_i = np.random.randn(rank, rank) / np.sqrt(rank)
+        B_i = np.random.randn(rank, rank) / np.sqrt(rank * n)  # Scale by n to get closer to target
         E_i = B_i @ B_i.T
         total += E_i
+        temp_operators.append((axis, B_i))
 
-    # Normalize: want Σ E_i = I, so scale each E_i by (I / total)
-    # This means scaling each B_i by sqrt(I / total)
-    scale = np.trace(total) / rank
-    scale = np.sqrt(scale) if scale > 0 else 1.0
+    # Compute proper normalization factor
+    # We want Σ E_i = I, so we need to scale each B_i
+    # Since E_i = B_i @ B_i^T, scaling B by α gives E scaled by α²
+    # So if Σ E_i = total, we want each E scaled by I/total
+    # This means scaling each B by sqrt(I/total)
 
-    for axis in axes:
-        B_i = np.random.randn(rank, rank) / (np.sqrt(rank) * scale)
-        operators.append(POVMOperator(name=axis, B=B_i))
+    total_norm = np.linalg.norm(total)
+    identity_norm = np.linalg.norm(np.eye(rank))
+    scale_factor = np.sqrt(identity_norm / total_norm) if total_norm > 0 else 1.0
+
+    operators = []
+    for axis, B_i in temp_operators:
+        B_i_normalized = B_i * scale_factor
+        operators.append(POVMOperator(name=axis, B=B_i_normalized))
 
     return POVMPack(
         name=name,

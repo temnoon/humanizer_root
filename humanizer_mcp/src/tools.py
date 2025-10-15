@@ -4,7 +4,7 @@ import httpx
 from typing import Optional
 import json
 
-from src.config import HUMANIZER_API_BASE, HUMANIZER_API_TIMEOUT, DEFAULT_USER_ID
+from src.config import HUMANIZER_API_BASE_URL, REQUEST_TIMEOUT, DEFAULT_USER_ID
 from src.database import (
     add_interest_item,
     get_interest_list,
@@ -43,9 +43,9 @@ from src.models import (
 class HumanizerAPIClient:
     """Client for calling Humanizer API."""
 
-    def __init__(self, base_url: str = HUMANIZER_API_BASE):
+    def __init__(self, base_url: str = HUMANIZER_API_BASE_URL):
         self.base_url = base_url
-        self.timeout = HUMANIZER_API_TIMEOUT
+        self.timeout = REQUEST_TIMEOUT
 
     async def call_agent_tool(self, tool: str, parameters: dict) -> dict:
         """Call Humanizer agent tool via API."""
@@ -168,6 +168,151 @@ class HumanizerAPIClient:
         """Get artifact by ID."""
         async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
             response = await client.get(f"{self.base_url}/api/artifacts/{artifact_id}")
+            response.raise_for_status()
+            return response.json()
+
+    # ============================================================================
+    # EMBEDDING EXPLORER ENDPOINTS
+    # ============================================================================
+
+    async def semantic_search(self, query: str, k: int = 10, min_similarity: float = 0.0) -> dict:
+        """Semantic search across ChatGPT messages."""
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            response = await client.post(
+                f"{self.base_url}/api/explore/search",
+                json={"query": query, "k": k, "min_similarity": min_similarity}
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def find_neighbors(self, message_uuid: str, k: int = 10, min_similarity: float = 0.0) -> dict:
+        """Find messages similar to a specific message."""
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            response = await client.post(
+                f"{self.base_url}/api/explore/neighbors",
+                json={"message_uuid": message_uuid, "k": k, "min_similarity": min_similarity}
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def compute_semantic_direction(self, positive_query: str, negative_query: str) -> dict:
+        """Compute semantic direction between two concepts."""
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            response = await client.post(
+                f"{self.base_url}/api/explore/direction",
+                json={"positive_query": positive_query, "negative_query": negative_query}
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def analyze_trm_perturbation(
+        self,
+        text: str,
+        positive_query: str = None,
+        negative_query: str = None,
+        magnitude: float = 0.1,
+        povm_pack: str = "tetralemma"
+    ) -> dict:
+        """Analyze how density matrix changes when text is perturbed."""
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            payload = {"text": text, "magnitude": magnitude, "povm_pack": povm_pack}
+            if positive_query:
+                payload["positive_query"] = positive_query
+            if negative_query:
+                payload["negative_query"] = negative_query
+
+            response = await client.post(
+                f"{self.base_url}/api/explore/perturb",
+                json=payload
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def explore_semantic_trajectory(
+        self,
+        text: str,
+        positive_query: str,
+        negative_query: str,
+        steps: int = 5,
+        step_size: float = 0.05
+    ) -> dict:
+        """Explore semantic trajectory in embedding space."""
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            response = await client.post(
+                f"{self.base_url}/api/explore/trajectory",
+                json={
+                    "text": text,
+                    "positive_query": positive_query,
+                    "negative_query": negative_query,
+                    "steps": steps,
+                    "step_size": step_size
+                }
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def find_semantic_clusters(self, n_samples: int = 1000, n_clusters: int = 5) -> dict:
+        """Find semantic clusters in embedding space."""
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            response = await client.post(
+                f"{self.base_url}/api/explore/clusters",
+                json={"n_samples": n_samples, "n_clusters": n_clusters}
+            )
+            response.raise_for_status()
+            return response.json()
+
+    # ============================================================================
+    # CHATGPT CONVERSATION ENDPOINTS
+    # ============================================================================
+
+    async def list_conversations(self, page: int = 1, page_size: int = 50, search: str = None) -> dict:
+        """List ChatGPT conversations with pagination."""
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            params = {"page": page, "page_size": page_size}
+            if search:
+                params["search"] = search
+
+            response = await client.get(
+                f"{self.base_url}/api/chatgpt/conversations",
+                params=params
+            )
+            response.raise_for_status()
+            return response.json()
+
+    async def get_conversation(self, conversation_uuid: str) -> dict:
+        """Get full conversation details."""
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            response = await client.get(
+                f"{self.base_url}/api/chatgpt/conversation/{conversation_uuid}"
+            )
+            response.raise_for_status()
+            return response.json()
+
+    # ============================================================================
+    # TRANSFORMATION ENDPOINTS
+    # ============================================================================
+
+    async def transform_text(
+        self,
+        text: str,
+        povm_pack: str = "tone",
+        target_stance: dict = None,
+        max_iterations: int = 5
+    ) -> dict:
+        """Transform text using TRM iterative method."""
+        async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
+            payload = {
+                "text": text,
+                "povm_pack": povm_pack,
+                "max_iterations": max_iterations
+            }
+            if target_stance:
+                payload["target_stance"] = target_stance
+
+            response = await client.post(
+                f"{self.base_url}/transform/trm",
+                json=payload
+            )
             response.raise_for_status()
             return response.json()
 
@@ -494,6 +639,242 @@ async def get_artifact_tool(request: GetArtifactRequest) -> GetArtifactResponse:
         record_usage(
             DEFAULT_USER_ID,
             "get_artifact",
+            success=False,
+            metadata={"error": str(e)}
+        )
+        raise
+
+
+# ============================================================================
+# EMBEDDING EXPLORER TOOLS
+# ============================================================================
+
+async def semantic_search_tool(request: SearchRequest) -> dict:
+    """Semantic search across ChatGPT messages."""
+    client = HumanizerAPIClient()
+
+    try:
+        # Use SearchRequest (query + limit) and map to API
+        result = await client.semantic_search(
+            query=request.query,
+            k=request.limit,
+            min_similarity=0.0
+        )
+        record_usage(DEFAULT_USER_ID, "semantic_search", success=True)
+        return result
+
+    except Exception as e:
+        record_usage(
+            DEFAULT_USER_ID,
+            "semantic_search",
+            success=False,
+            metadata={"error": str(e)}
+        )
+        raise
+
+
+async def find_neighbors_tool(message_uuid: str, k: int = 10) -> dict:
+    """Find messages similar to a specific message."""
+    client = HumanizerAPIClient()
+
+    try:
+        result = await client.find_neighbors(message_uuid=message_uuid, k=k)
+        record_usage(DEFAULT_USER_ID, "find_neighbors", success=True)
+        return result
+
+    except Exception as e:
+        record_usage(
+            DEFAULT_USER_ID,
+            "find_neighbors",
+            success=False,
+            metadata={"error": str(e)}
+        )
+        raise
+
+
+async def compute_direction_tool(positive_query: str, negative_query: str) -> dict:
+    """Compute semantic direction between concepts."""
+    client = HumanizerAPIClient()
+
+    try:
+        result = await client.compute_semantic_direction(
+            positive_query=positive_query,
+            negative_query=negative_query
+        )
+        record_usage(DEFAULT_USER_ID, "compute_direction", success=True)
+        return result
+
+    except Exception as e:
+        record_usage(
+            DEFAULT_USER_ID,
+            "compute_direction",
+            success=False,
+            metadata={"error": str(e)}
+        )
+        raise
+
+
+async def analyze_perturbation_tool(
+    text: str,
+    positive_query: str = None,
+    negative_query: str = None,
+    magnitude: float = 0.1,
+    povm_pack: str = "tetralemma"
+) -> dict:
+    """Analyze TRM perturbation of text."""
+    client = HumanizerAPIClient()
+
+    try:
+        result = await client.analyze_trm_perturbation(
+            text=text,
+            positive_query=positive_query,
+            negative_query=negative_query,
+            magnitude=magnitude,
+            povm_pack=povm_pack
+        )
+        record_usage(DEFAULT_USER_ID, "analyze_perturbation", success=True)
+        return result
+
+    except Exception as e:
+        record_usage(
+            DEFAULT_USER_ID,
+            "analyze_perturbation",
+            success=False,
+            metadata={"error": str(e)}
+        )
+        raise
+
+
+async def explore_trajectory_tool(
+    text: str,
+    positive_query: str,
+    negative_query: str,
+    steps: int = 5,
+    step_size: float = 0.05
+) -> dict:
+    """Explore semantic trajectory."""
+    client = HumanizerAPIClient()
+
+    try:
+        result = await client.explore_semantic_trajectory(
+            text=text,
+            positive_query=positive_query,
+            negative_query=negative_query,
+            steps=steps,
+            step_size=step_size
+        )
+        record_usage(DEFAULT_USER_ID, "explore_trajectory", success=True)
+        return result
+
+    except Exception as e:
+        record_usage(
+            DEFAULT_USER_ID,
+            "explore_trajectory",
+            success=False,
+            metadata={"error": str(e)}
+        )
+        raise
+
+
+async def find_clusters_tool(n_samples: int = 1000, n_clusters: int = 5) -> dict:
+    """Find semantic clusters."""
+    client = HumanizerAPIClient()
+
+    try:
+        result = await client.find_semantic_clusters(
+            n_samples=n_samples,
+            n_clusters=n_clusters
+        )
+        record_usage(DEFAULT_USER_ID, "find_clusters", success=True)
+        return result
+
+    except Exception as e:
+        record_usage(
+            DEFAULT_USER_ID,
+            "find_clusters",
+            success=False,
+            metadata={"error": str(e)}
+        )
+        raise
+
+
+# ============================================================================
+# CHATGPT CONVERSATION TOOLS
+# ============================================================================
+
+async def list_conversations_tool(
+    page: int = 1,
+    page_size: int = 50,
+    search: str = None
+) -> dict:
+    """List ChatGPT conversations."""
+    client = HumanizerAPIClient()
+
+    try:
+        result = await client.list_conversations(
+            page=page,
+            page_size=page_size,
+            search=search
+        )
+        record_usage(DEFAULT_USER_ID, "list_conversations", success=True)
+        return result
+
+    except Exception as e:
+        record_usage(
+            DEFAULT_USER_ID,
+            "list_conversations",
+            success=False,
+            metadata={"error": str(e)}
+        )
+        raise
+
+
+async def get_conversation_tool(conversation_uuid: str) -> dict:
+    """Get conversation details."""
+    client = HumanizerAPIClient()
+
+    try:
+        result = await client.get_conversation(conversation_uuid=conversation_uuid)
+        record_usage(DEFAULT_USER_ID, "get_conversation", success=True)
+        return result
+
+    except Exception as e:
+        record_usage(
+            DEFAULT_USER_ID,
+            "get_conversation",
+            success=False,
+            metadata={"error": str(e)}
+        )
+        raise
+
+
+# ============================================================================
+# TRANSFORMATION TOOLS
+# ============================================================================
+
+async def transform_text_tool(
+    text: str,
+    povm_pack: str = "tone",
+    target_stance: dict = None,
+    max_iterations: int = 5
+) -> dict:
+    """Transform text using TRM."""
+    client = HumanizerAPIClient()
+
+    try:
+        result = await client.transform_text(
+            text=text,
+            povm_pack=povm_pack,
+            target_stance=target_stance,
+            max_iterations=max_iterations
+        )
+        record_usage(DEFAULT_USER_ID, "transform_text", success=True)
+        return result
+
+    except Exception as e:
+        record_usage(
+            DEFAULT_USER_ID,
+            "transform_text",
             success=False,
             metadata={"error": str(e)}
         )

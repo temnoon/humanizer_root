@@ -1402,3 +1402,115 @@ class SearchInterestsRequest(BaseModel):
             "limit": 50
         }
     }}
+
+
+# ========================================
+# Live Capture Schemas
+# ========================================
+
+class CaptureConversationRequest(BaseModel):
+    """Request to capture a live ChatGPT conversation."""
+    uuid: UUID = Field(..., description="ChatGPT conversation UUID")
+    title: Optional[str] = Field(None, description="Conversation title")
+    source_url: str = Field(..., description="ChatGPT conversation URL")
+    model_slug: Optional[str] = Field(None, description="Model used (e.g., 'gpt-4')")
+    created_at: Optional[datetime] = Field(None, description="When conversation was created")
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "uuid": "550e8400-e29b-41d4-a716-446655440000",
+            "title": "Discussion about TRM",
+            "source_url": "https://chatgpt.com/c/550e8400-e29b-41d4-a716-446655440000",
+            "model_slug": "gpt-4",
+            "created_at": "2025-10-11T20:00:00Z"
+        }
+    }}
+
+
+class CaptureConversationResponse(BaseModel):
+    """Response from capturing a conversation."""
+    conversation_id: str
+    status: str  # "created" or "updated"
+    message: str
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "conversation_id": "550e8400-e29b-41d4-a716-446655440000",
+            "status": "created",
+            "message": "Conversation created successfully"
+        }
+    }}
+
+
+class CaptureMessageRequest(BaseModel):
+    """Request to capture a message."""
+    uuid: UUID = Field(..., description="ChatGPT message UUID")
+    conversation_uuid: UUID = Field(..., description="Parent conversation UUID")
+    author_role: str = Field(..., description="Message author role (user, assistant, system)")
+    content_text: str = Field(..., description="Extracted text content")
+    content_parts: Optional[List[Dict]] = Field(default_factory=list, description="Content parts structure")
+    created_at: Optional[datetime] = Field(None, description="Message timestamp")
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "uuid": "660e8400-e29b-41d4-a716-446655440000",
+            "conversation_uuid": "550e8400-e29b-41d4-a716-446655440000",
+            "author_role": "user",
+            "content_text": "Can you explain TRM to me?",
+            "content_parts": [{"content_type": "text", "parts": ["Can you explain TRM to me?"]}],
+            "created_at": "2025-10-11T20:05:00Z"
+        }
+    }}
+
+
+class CaptureMessageResponse(BaseModel):
+    """Response from capturing a message."""
+    message_id: str
+    status: str  # "created" or "updated"
+    message: str
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "message_id": "660e8400-e29b-41d4-a716-446655440000",
+            "status": "created",
+            "message": "Message created successfully"
+        }
+    }}
+
+
+class CaptureMediaResponse(BaseModel):
+    """Response from capturing media."""
+    file_id: str
+    file_path: str
+    mime_type: str
+    status: str  # "uploaded"
+    message: str
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "file_id": "captured_20251011_200500_660e8400.png",
+            "file_path": "/Users/tem/humanizer_root/humanizer/media/captured/captured_20251011_200500_660e8400.png",
+            "mime_type": "image/png",
+            "status": "uploaded",
+            "message": "Media captured_20251011_200500_660e8400.png uploaded successfully"
+        }
+    }}
+
+
+class CaptureStatusResponse(BaseModel):
+    """Response with capture status for a conversation."""
+    conversation_id: str
+    exists: bool
+    message_count: int
+    media_count: int
+    last_captured: Optional[str] = None
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "conversation_id": "550e8400-e29b-41d4-a716-446655440000",
+            "exists": True,
+            "message_count": 15,
+            "media_count": 3,
+            "last_captured": "2025-10-11T20:30:00Z"
+        }
+    }}

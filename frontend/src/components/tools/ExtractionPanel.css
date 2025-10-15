@@ -15,7 +15,7 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #2a2a2a;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -32,8 +32,8 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: white;
-  border: 2px solid #e5e5e0;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
@@ -41,14 +41,14 @@
 }
 
 .mode-button:hover {
-  border-color: #8b7355;
-  background: #fafaf8;
+  border-color: var(--accent-purple);
+  background: var(--bg-secondary);
 }
 
 .mode-button.selected {
-  background: #8b7355;
+  background: var(--accent-purple);
   color: white;
-  border-color: #8b7355;
+  border-color: var(--accent-purple);
 }
 
 .mode-icon {
@@ -68,7 +68,7 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #2a2a2a;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -77,7 +77,7 @@
 .extraction-options input[type="number"] {
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid #e5e5e0;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
 }
@@ -86,7 +86,7 @@
 .btn-extract {
   width: 100%;
   padding: 12px;
-  background: #8b7355;
+  background: var(--accent-purple);
   color: white;
   border: none;
   border-radius: 6px;
@@ -98,7 +98,7 @@
 }
 
 .btn-extract:hover:not(:disabled) {
-  background: #6d5a42;
+  background: var(--accent-purple);
 }
 
 .btn-extract:disabled {
@@ -108,7 +108,7 @@
 
 /* Results */
 .extraction-results {
-  border-top: 1px solid #e5e5e0;
+  border-top: 1px solid var(--border-color);
   padding-top: 16px;
 }
 
@@ -116,7 +116,7 @@
   font-size: 13px;
   font-weight: 700;
   margin-bottom: 12px;
-  color: #2a2a2a;
+  color: var(--text-primary);
 }
 
 /* Semantic matches */
@@ -128,8 +128,8 @@
 
 .match-card {
   padding: 10px;
-  background: white;
-  border: 1px solid #e5e5e0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
 
@@ -142,27 +142,27 @@
 .match-similarity {
   font-size: 14px;
   font-weight: 700;
-  color: #8b7355;
+  color: var(--accent-purple);
 }
 
 .match-source {
   font-size: 11px;
   padding: 2px 6px;
-  background: #f5f5f0;
+  background: var(--bg-tertiary);
   border-radius: 3px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .match-text {
   font-size: 13px;
   line-height: 1.5;
-  color: #2a2a2a;
+  color: var(--text-primary);
   margin-bottom: 6px;
 }
 
 .match-title {
   font-size: 11px;
-  color: #666;
+  color: var(--text-secondary);
   font-style: italic;
 }
 
@@ -178,8 +178,8 @@
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
-  background: white;
-  border: 1px solid #e5e5e0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
 }
 
@@ -187,13 +187,13 @@
   flex: 1;
   font-size: 13px;
   font-weight: 600;
-  color: #2a2a2a;
+  color: var(--text-primary);
 }
 
 .entity-type {
   font-size: 11px;
   padding: 2px 6px;
-  background: #8b7355;
+  background: var(--accent-purple);
   color: white;
   border-radius: 3px;
   text-transform: uppercase;
@@ -202,18 +202,18 @@
 
 .entity-confidence {
   font-size: 11px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 /* Summary */
 .summary-text {
   padding: 12px;
-  background: white;
-  border: 1px solid #e5e5e0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   font-size: 14px;
   line-height: 1.6;
-  color: #2a2a2a;
+  color: var(--text-primary);
 }
 
 /* Keywords */
@@ -225,7 +225,7 @@
 
 .keyword-tag {
   padding: 6px 12px;
-  background: #8b7355;
+  background: var(--accent-purple);
   color: white;
   border-radius: 16px;
   font-size: 12px;
@@ -236,11 +236,11 @@
 .processing-info {
   margin-top: 16px;
   padding: 8px;
-  background: #f5f5f0;
+  background: var(--bg-tertiary);
   border-radius: 4px;
   text-align: center;
   font-size: 11px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 /* Error */

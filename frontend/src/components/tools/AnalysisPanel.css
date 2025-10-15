@@ -15,7 +15,7 @@
   display: block;
   font-size: 12px;
   font-weight: 600;
-  color: #2a2a2a;
+  color: var(--text-primary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 8px;
@@ -32,8 +32,8 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: white;
-  border: 2px solid #e5e5e0;
+  background: var(--bg-primary);
+  border: 2px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
@@ -41,14 +41,14 @@
 }
 
 .pack-button:hover {
-  border-color: #8b7355;
-  background: #fafaf8;
+  border-color: var(--accent-purple);
+  background: var(--bg-secondary);
 }
 
 .pack-button.selected {
-  background: #8b7355;
+  background: var(--accent-purple);
   color: white;
-  border-color: #8b7355;
+  border-color: var(--accent-purple);
 }
 
 .pack-icon {
@@ -63,7 +63,7 @@
 .btn-analyze {
   width: 100%;
   padding: 12px;
-  background: #8b7355;
+  background: var(--accent-purple);
   color: white;
   border: none;
   border-radius: 6px;
@@ -75,7 +75,7 @@
 }
 
 .btn-analyze:hover:not(:disabled) {
-  background: #6d5a42;
+  background: var(--accent-purple);
 }
 
 .btn-analyze:disabled {
@@ -85,7 +85,7 @@
 
 /* Results */
 .analysis-results {
-  border-top: 1px solid #e5e5e0;
+  border-top: 1px solid var(--border-color);
   padding-top: 16px;
 }
 
@@ -93,7 +93,7 @@
 .density-properties {
   margin-bottom: 20px;
   padding: 12px;
-  background: #f5f5f0;
+  background: var(--bg-tertiary);
   border-radius: 6px;
 }
 
@@ -101,7 +101,7 @@
   font-size: 13px;
   font-weight: 700;
   margin-bottom: 10px;
-  color: #2a2a2a;
+  color: var(--text-primary);
 }
 
 .properties-grid {
@@ -115,13 +115,13 @@
   flex-direction: column;
   align-items: center;
   padding: 8px;
-  background: white;
+  background: var(--bg-primary);
   border-radius: 4px;
 }
 
 .property-label {
   font-size: 11px;
-  color: #666;
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 4px;
@@ -130,7 +130,7 @@
 .property-value {
   font-size: 18px;
   font-weight: 700;
-  color: #8b7355;
+  color: var(--accent-purple);
 }
 
 /* POVM readings */
@@ -142,7 +142,7 @@
   font-size: 13px;
   font-weight: 700;
   margin-bottom: 10px;
-  color: #2a2a2a;
+  color: var(--text-primary);
   text-transform: capitalize;
 }
 
@@ -161,7 +161,7 @@
 .axis-label {
   font-size: 12px;
   font-weight: 500;
-  color: #666;
+  color: var(--text-secondary);
   min-width: 80px;
   text-align: right;
 }
@@ -170,7 +170,7 @@
   flex: 1;
   position: relative;
   height: 24px;
-  background: #f5f5f0;
+  background: var(--bg-tertiary);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -191,18 +191,18 @@
   transform: translateY(-50%);
   font-size: 11px;
   font-weight: 600;
-  color: #2a2a2a;
+  color: var(--text-primary);
 }
 
 /* Processing info */
 .processing-info {
   margin-top: 16px;
   padding: 8px;
-  background: #f5f5f0;
+  background: var(--bg-tertiary);
   border-radius: 4px;
   text-align: center;
   font-size: 11px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 /* Error */

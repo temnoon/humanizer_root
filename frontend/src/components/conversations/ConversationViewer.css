@@ -40,21 +40,21 @@
   --reading-width-wide: 1600px;
   --reading-width-xwide: 100%;
 
-  /* Colors - Elegant, timeless */
-  --color-bg: #fafaf8;
-  --color-text: #2a2a2a;
-  --color-text-light: #6a6a6a;
-  --color-text-lighter: #9a9a9a;
-  --color-accent: #8b7355;
-  --color-accent-light: #a69080;
-  --color-border: #e8e8e6;
-  --color-border-dark: #d0d0ce;
-  --color-shadow: rgba(0, 0, 0, 0.05);
-  --color-shadow-strong: rgba(0, 0, 0, 0.1);
+  /* Colors - Use global theme variables */
+  --color-bg: var(--bg-primary);
+  --color-text: var(--text-primary);
+  --color-text-light: var(--text-secondary);
+  --color-text-lighter: var(--text-tertiary);
+  --color-accent: var(--accent-purple);
+  --color-accent-light: var(--accent-purple);
+  --color-border: var(--border-color);
+  --color-border-dark: var(--border-color);
+  --color-shadow: var(--shadow-sm);
+  --color-shadow-strong: var(--shadow-md);
 
   /* User/Assistant Colors */
-  --color-user: #3b5998;
-  --color-assistant: #8b7355;
+  --color-user: var(--accent-blue);
+  --color-assistant: var(--accent-purple);
 
   /* Fonts */
   --font-serif: 'Georgia', 'Cambria', 'Times New Roman', serif;
@@ -80,7 +80,7 @@
    ============================================================================ */
 
 .conversation-header {
-  background: white;
+  background: var(--bg-primary);
   border-bottom: 1px solid var(--color-border);
   padding: var(--space-lg) var(--space-xl);
   flex-shrink: 0;
@@ -114,7 +114,7 @@
 
 .nav-button {
   padding: var(--space-sm) var(--space-md);
-  background: white;
+  background: var(--bg-primary);
   border: 1px solid var(--color-border-dark);
   border-radius: 6px;
   font-size: var(--text-sm);
@@ -185,7 +185,7 @@
 .view-mode-button.active {
   background: var(--color-accent);
   border-color: var(--color-accent);
-  color: white;
+  color: #ffffff;
   font-weight: 500;
 }
 
@@ -217,7 +217,7 @@
 .width-button.active {
   background: var(--color-text-light);
   border-color: var(--color-text-light);
-  color: white;
+  color: #ffffff;
   font-weight: 500;
 }
 
@@ -401,8 +401,8 @@
 }
 
 .message-content pre {
-  background: #2a2a2a;
-  color: #f0f0f0;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: var(--space-md);
   border-radius: 6px;
   overflow-x: auto;
@@ -410,6 +410,7 @@
   font-family: var(--font-mono);
   font-size: calc(var(--text-base) * 0.85);
   line-height: 1.5;
+  border: 1px solid var(--border-color);
 }
 
 .message-content pre code {
@@ -658,14 +659,14 @@
 
 .error-text {
   font-size: var(--text-base);
-  color: #c53030;
+  color: var(--accent-red);
   margin-bottom: var(--space-base);
 }
 
 .retry-button {
   padding: var(--space-sm) var(--space-lg);
   background: var(--color-accent);
-  color: white;
+  color: #ffffff;
   border: none;
   border-radius: 6px;
   font-weight: 500;
@@ -689,7 +690,7 @@
   flex: 1;
   overflow-y: auto;
   padding: var(--space-xl);
-  background: white;
+  background: var(--bg-primary);
 }
 
 .raw-view-header {
@@ -702,7 +703,7 @@
 .copy-button {
   padding: var(--space-sm) var(--space-md);
   background: var(--color-accent);
-  color: white;
+  color: #ffffff;
   border: none;
   border-radius: 6px;
   font-weight: 500;
@@ -725,8 +726,8 @@
   line-height: 1.6;
   white-space: pre-wrap;
   word-wrap: break-word;
-  background: #2a2a2a;
-  color: #f0f0f0;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: var(--space-lg);
   border-radius: 8px;
   max-width: var(--reading-width-narrow);
@@ -824,8 +825,8 @@
   line-height: 1.6;
   white-space: pre-wrap;
   word-wrap: break-word;
-  background: #2a2a2a;
-  color: #f0f0f0;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
   padding: var(--space-lg);
   border-radius: 8px;
   max-width: var(--reading-width-wide);
@@ -953,7 +954,7 @@
 .use-in-tools-button {
   padding: 10px 20px;
   background: var(--color-accent);
-  color: white;
+  color: #ffffff;
   border: none;
   border-radius: 6px;
   font-size: var(--text-sm);
@@ -966,7 +967,7 @@
 }
 
 .use-in-tools-button:hover {
-  background: #6d5a42;
+  background: var(--accent-purple);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(139, 115, 85, 0.3);
 }
@@ -988,7 +989,7 @@
 .message-use-tools:hover {
   opacity: 1;
   background: var(--color-accent);
-  color: white;
+  color: #ffffff;
   transform: translateY(-1px);
 }
 
@@ -996,4 +997,88 @@
   display: flex;
   align-items: center;
   gap: var(--space-sm);
+}
+/* ============================================================================
+   Interest List Dropdown
+   ============================================================================ */
+
+.list-button-container {
+  position: relative;
+  display: inline-block;
+}
+
+.list-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 250px;
+  max-width: 350px;
+  background: var(--bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  animation: dropdown-slide-in 0.2s ease-out;
+}
+
+@keyframes dropdown-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.list-dropdown-header {
+  padding: 12px 16px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-text);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.list-dropdown-loading,
+.list-dropdown-empty {
+  padding: 24px 16px;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--color-text-light);
+}
+
+.list-dropdown-item {
+  width: 100%;
+  padding: 12px 16px;
+  border: none;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.list-dropdown-item:hover {
+  background: var(--color-bg);
+}
+
+.list-dropdown-item:not(:last-child) {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.list-dropdown-item .list-name {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.list-dropdown-item .list-description {
+  font-size: var(--text-xs);
+  color: var(--color-text-light);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

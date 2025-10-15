@@ -18,7 +18,19 @@ from src.tools import (
     save_artifact_tool,
     search_artifacts_tool,
     list_artifacts_tool,
-    get_artifact_tool
+    get_artifact_tool,
+    # Embedding explorer tools
+    semantic_search_tool,
+    find_neighbors_tool,
+    compute_direction_tool,
+    analyze_perturbation_tool,
+    explore_trajectory_tool,
+    find_clusters_tool,
+    # ChatGPT conversation tools
+    list_conversations_tool,
+    get_conversation_tool,
+    # Transformation tools
+    transform_text_tool
 )
 from src.models import (
     ReadQuantumRequest,
@@ -29,7 +41,19 @@ from src.models import (
     SaveArtifactRequest,
     SearchArtifactsRequest,
     ListArtifactsRequest,
-    GetArtifactRequest
+    GetArtifactRequest,
+    # Embedding explorer models
+    SemanticSearchRequest,
+    FindNeighborsRequest,
+    ComputeDirectionRequest,
+    PerturbationRequest,
+    TrajectoryRequest,
+    ClustersRequest,
+    # ChatGPT conversation models
+    ListConversationsRequest,
+    GetConversationRequest,
+    # Transformation models
+    TransformTextRequest
 )
 
 # Create MCP server
@@ -240,7 +264,7 @@ async def list_tools() -> list[Tool]:
                     "auto_embed": {
                         "type": "boolean",
                         "description": "Auto-generate embedding for semantic search (default: true)",
-                        "default": true
+                        "default": True
                     }
                 },
                 "required": ["artifact_type", "operation", "content"]
@@ -312,6 +336,233 @@ async def list_tools() -> list[Tool]:
                 },
                 "required": ["artifact_id"]
             }
+        ),
+
+        # ================================================================
+        # EMBEDDING EXPLORER TOOLS
+        # ================================================================
+
+        Tool(
+            name="semantic_search",
+            description="Search ChatGPT conversations and messages using semantic similarity. Find content by meaning, not just keywords.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Search query text"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Number of results (default: 10, max: 100)",
+                        "default": 10
+                    }
+                },
+                "required": ["query"]
+            }
+        ),
+
+        Tool(
+            name="find_neighbors",
+            description="Find messages similar to a specific message. Explore connections in semantic space.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "message_uuid": {
+                        "type": "string",
+                        "description": "UUID of the message to find neighbors for"
+                    },
+                    "k": {
+                        "type": "integer",
+                        "description": "Number of neighbors (default: 10)",
+                        "default": 10
+                    }
+                },
+                "required": ["message_uuid"]
+            }
+        ),
+
+        Tool(
+            name="compute_direction",
+            description="Compute semantic direction vector between two concepts (e.g., 'formal' vs 'casual'). Used for semantic navigation.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "positive_query": {
+                        "type": "string",
+                        "description": "What we want more of (e.g., 'formal')"
+                    },
+                    "negative_query": {
+                        "type": "string",
+                        "description": "What we want less of (e.g., 'casual')"
+                    }
+                },
+                "required": ["positive_query", "negative_query"]
+            }
+        ),
+
+        Tool(
+            name="analyze_perturbation",
+            description="Analyze how TRM density matrix changes when text is perturbed in a semantic direction. Shows which POVM axes change most.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Text to analyze"
+                    },
+                    "positive_query": {
+                        "type": "string",
+                        "description": "Direction to move toward (optional)"
+                    },
+                    "negative_query": {
+                        "type": "string",
+                        "description": "Direction to move away from (optional)"
+                    },
+                    "magnitude": {
+                        "type": "number",
+                        "description": "Perturbation strength (0.0-1.0, default: 0.1)",
+                        "default": 0.1
+                    },
+                    "povm_pack": {
+                        "type": "string",
+                        "description": "POVM pack to use (default: tetralemma)",
+                        "enum": ["tetralemma", "tone", "ontology", "pragmatics", "audience"],
+                        "default": "tetralemma"
+                    }
+                },
+                "required": ["text"]
+            }
+        ),
+
+        Tool(
+            name="explore_trajectory",
+            description="Explore semantic trajectory - how TRM measurements change along a semantic path. Visualize semantic transformations.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Starting text"
+                    },
+                    "positive_query": {
+                        "type": "string",
+                        "description": "Direction to explore"
+                    },
+                    "negative_query": {
+                        "type": "string",
+                        "description": "Opposite direction"
+                    },
+                    "steps": {
+                        "type": "integer",
+                        "description": "Number of steps (default: 5)",
+                        "default": 5
+                    },
+                    "step_size": {
+                        "type": "number",
+                        "description": "Step size (default: 0.05)",
+                        "default": 0.05
+                    }
+                },
+                "required": ["text", "positive_query", "negative_query"]
+            }
+        ),
+
+        Tool(
+            name="find_clusters",
+            description="Find semantic clusters in embedding space. Discover conceptual groupings in your conversations.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "n_samples": {
+                        "type": "integer",
+                        "description": "Number of messages to sample (default: 1000)",
+                        "default": 1000
+                    },
+                    "n_clusters": {
+                        "type": "integer",
+                        "description": "Number of clusters (default: 5)",
+                        "default": 5
+                    }
+                }
+            }
+        ),
+
+        # ================================================================
+        # CHATGPT CONVERSATION TOOLS
+        # ================================================================
+
+        Tool(
+            name="list_conversations",
+            description="List all ChatGPT conversations with pagination and optional search. Browse conversation history.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "page": {
+                        "type": "integer",
+                        "description": "Page number (default: 1)",
+                        "default": 1
+                    },
+                    "page_size": {
+                        "type": "integer",
+                        "description": "Results per page (default: 50)",
+                        "default": 50
+                    },
+                    "search": {
+                        "type": "string",
+                        "description": "Search query for conversation titles (optional)"
+                    }
+                }
+            }
+        ),
+
+        Tool(
+            name="get_conversation",
+            description="Get full conversation details including all messages. View complete conversation history.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "conversation_uuid": {
+                        "type": "string",
+                        "description": "Conversation UUID"
+                    }
+                },
+                "required": ["conversation_uuid"]
+            }
+        ),
+
+        # ================================================================
+        # TRANSFORMATION TOOLS
+        # ================================================================
+
+        Tool(
+            name="transform_text",
+            description="Transform text using TRM iterative method. Change style, tone, or semantic properties with closed-loop feedback.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "Text to transform"
+                    },
+                    "povm_pack": {
+                        "type": "string",
+                        "description": "POVM pack to use (default: tone)",
+                        "enum": ["tetralemma", "tone", "ontology", "pragmatics", "audience"],
+                        "default": "tone"
+                    },
+                    "target_stance": {
+                        "type": "object",
+                        "description": "Target semantic coordinates (optional)"
+                    },
+                    "max_iterations": {
+                        "type": "integer",
+                        "description": "Max transformation iterations (default: 5)",
+                        "default": 5
+                    }
+                },
+                "required": ["text"]
+            }
         )
     ]
 
@@ -369,16 +620,84 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             request = GetArtifactRequest(**arguments)
             result = await get_artifact_tool(request)
 
+        # Embedding explorer tools
+        elif name == "semantic_search":
+            request = SearchRequest(**arguments)
+            result = await semantic_search_tool(request)
+
+        elif name == "find_neighbors":
+            message_uuid = arguments.get("message_uuid")
+            k = arguments.get("k", 10)
+            result = await find_neighbors_tool(message_uuid, k)
+
+        elif name == "compute_direction":
+            positive_query = arguments.get("positive_query")
+            negative_query = arguments.get("negative_query")
+            result = await compute_direction_tool(positive_query, negative_query)
+
+        elif name == "analyze_perturbation":
+            text = arguments.get("text")
+            positive_query = arguments.get("positive_query")
+            negative_query = arguments.get("negative_query")
+            magnitude = arguments.get("magnitude", 0.1)
+            povm_pack = arguments.get("povm_pack", "tetralemma")
+            result = await analyze_perturbation_tool(
+                text, positive_query, negative_query, magnitude, povm_pack
+            )
+
+        elif name == "explore_trajectory":
+            text = arguments.get("text")
+            positive_query = arguments.get("positive_query")
+            negative_query = arguments.get("negative_query")
+            steps = arguments.get("steps", 5)
+            step_size = arguments.get("step_size", 0.05)
+            result = await explore_trajectory_tool(
+                text, positive_query, negative_query, steps, step_size
+            )
+
+        elif name == "find_clusters":
+            n_samples = arguments.get("n_samples", 1000)
+            n_clusters = arguments.get("n_clusters", 5)
+            result = await find_clusters_tool(n_samples, n_clusters)
+
+        # ChatGPT conversation tools
+        elif name == "list_conversations":
+            page = arguments.get("page", 1)
+            page_size = arguments.get("page_size", 50)
+            search = arguments.get("search")
+            result = await list_conversations_tool(page, page_size, search)
+
+        elif name == "get_conversation":
+            conversation_uuid = arguments.get("conversation_uuid")
+            result = await get_conversation_tool(conversation_uuid)
+
+        # Transformation tools
+        elif name == "transform_text":
+            text = arguments.get("text")
+            povm_pack = arguments.get("povm_pack", "tone")
+            target_stance = arguments.get("target_stance")
+            max_iterations = arguments.get("max_iterations", 5)
+            result = await transform_text_tool(
+                text, povm_pack, target_stance, max_iterations
+            )
+
         else:
             return [TextContent(
                 type="text",
                 text=f"Unknown tool: {name}"
             )]
 
-        # Convert Pydantic model to JSON
+        # Convert result to JSON (handles both Pydantic models and dicts)
+        if hasattr(result, 'model_dump_json'):
+            # Pydantic model
+            result_json = result.model_dump_json(indent=2)
+        else:
+            # Plain dict
+            result_json = json.dumps(result, indent=2, default=str)
+
         return [TextContent(
             type="text",
-            text=result.model_dump_json(indent=2)
+            text=result_json
         )]
 
     except Exception as e:
