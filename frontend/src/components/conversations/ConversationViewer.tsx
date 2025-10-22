@@ -155,13 +155,23 @@ export default function ConversationViewer({ conversationId, onSelectContent }: 
     });
   };
 
-  const parseMarkdownToMessages = (markdown: string, _mediaRefs: any[]): Message[] => {
+  const parseMarkdownToMessages = (markdown: string, mediaRefs: any[]): Message[] => {
     // Parse markdown by looking for role indicators
     // Format is: 👤 **User** [timestamp] or 🤖 **Assistant** [timestamp]
     const messages: Message[] = [];
     const lines = markdown.split('\n');
     let currentMessage: Message | null = null;
     let currentContent: string[] = [];
+
+    // Build a map of file_ids from media_refs
+    const mediaMap = new Map();
+    if (mediaRefs && Array.isArray(mediaRefs)) {
+      for (const media of mediaRefs) {
+        if (media.file_id) {
+          mediaMap.set(media.file_id, media);
+        }
+      }
+    }
 
     for (const line of lines) {
       // Check for role indicators (emoji at start, then **Role**)
@@ -176,6 +186,7 @@ export default function ConversationViewer({ conversationId, onSelectContent }: 
           id: `msg-${messages.length}`,
           role: 'user',
           content: '',
+          images: [],
         };
         currentContent = [];
       } else if (line.match(/^🤖 \*\*Assistant\*\*/i) || line.match(/^\*\*Assistant\*\*/i)) {
@@ -189,6 +200,7 @@ export default function ConversationViewer({ conversationId, onSelectContent }: 
           id: `msg-${messages.length}`,
           role: 'assistant',
           content: '',
+          images: [],
         };
         currentContent = [];
       } else if (line.match(/^🔧 \*\*Tool\*\*/i) || line.match(/^\*\*Tool\*\*/i)) {
@@ -202,9 +214,20 @@ export default function ConversationViewer({ conversationId, onSelectContent }: 
           id: `msg-${messages.length}`,
           role: 'tool',
           content: '',
+          images: [],
         };
         currentContent = [];
       } else if (currentMessage) {
+        // Check for image markdown: ![alt](url) or ![Image](file-xxx)
+        const imageMatches = line.matchAll(/!\[.*?\]\((file-[^\)]+)\)/g);
+        for (const match of imageMatches) {
+          const fileId = match[1];
+          if (mediaMap.has(fileId)) {
+            currentMessage.images = currentMessage.images || [];
+            currentMessage.images.push({ file_id: fileId });
+          }
+        }
+
         // Only add content if we're in a message
         currentContent.push(line);
       }

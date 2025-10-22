@@ -9,8 +9,8 @@ Endpoints:
 from fastapi import APIRouter, HTTPException, status
 import numpy as np
 
-from humanizer.ml.povm import get_all_packs
-from humanizer.ml.density import construct_density_matrix
+from humanizer.core.trm.povm import get_all_packs
+from humanizer.core.trm.density import construct_density_matrix
 from humanizer.models.schemas import (
     POVMMeasureRequest,
     POVMMeasureResponse,

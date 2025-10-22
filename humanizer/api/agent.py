@@ -151,8 +151,9 @@ async def chat_with_agent(
         # Build conversation history for LLM
         history = conversation.get_conversation_history()
 
-        # Process message with agent
-        agent = AgentService()
+        # Process message with agent (using configured provider)
+        from humanizer.config import settings
+        agent = AgentService(provider_type=settings.aui_llm_provider)
         result = await agent.process_message(request.message, history)
 
         # Add user message

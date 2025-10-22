@@ -156,3 +156,81 @@
 .sidebar-content {
   animation: slideIn 0.3s ease-out;
 }
+
+/* Mobile Responsive (< 768px) */
+@media (max-width: 767px) {
+  /* Sidebar as drawer on mobile */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 56px; /* Below topbar */
+    bottom: 0;
+    z-index: 1000;
+    width: 280px;
+    transform: translateX(-100%);
+    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Show sidebar when not collapsed */
+  .sidebar:not(.collapsed) {
+    transform: translateX(0);
+  }
+
+  /* Collapsed state on mobile still hides it */
+  .sidebar.collapsed {
+    transform: translateX(-100%);
+    width: 280px; /* Keep full width, just hidden */
+  }
+
+  /* Sidebar content takes full width on mobile */
+  .sidebar-content {
+    min-width: 232px; /* 280px - 48px icon bar */
+    max-width: 232px;
+  }
+
+  /* Hide resize handle on mobile */
+  .resize-handle {
+    display: none;
+  }
+
+  /* Increase touch targets */
+  .sidebar-icon {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Overlay for mobile sidebar */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  top: 56px; /* Below topbar */
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.2s ease-out;
+}
+
+@media (max-width: 767px) {
+  .sidebar-overlay.show {
+    display: block;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Tablet: 768px - 1023px */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .sidebar-content {
+    min-width: 200px;
+    max-width: 400px;
+  }
+}

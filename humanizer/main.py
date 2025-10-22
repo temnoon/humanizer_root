@@ -10,6 +10,8 @@ from contextlib import asynccontextmanager
 
 from humanizer.config import settings
 from humanizer.database import init_db
+# Import all models to ensure they're registered with SQLAlchemy Base
+import humanizer.models  # noqa: F401
 from humanizer.api import (
     reading_router,
     povm_router,
@@ -25,6 +27,7 @@ from humanizer.api import (
     capture_router,
     embedding_explorer_router,
     agent_router,
+    documents_router,
 )
 
 
@@ -92,6 +95,7 @@ app.include_router(pipeline_router)
 app.include_router(capture_router)
 app.include_router(embedding_explorer_router)
 app.include_router(agent_router)
+app.include_router(documents_router)
 
 
 # Health check

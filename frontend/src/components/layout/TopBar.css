@@ -148,16 +148,81 @@
   transform: translateY(0);
 }
 
-@media (max-width: 768px) {
+/* Mobile: < 768px */
+@media (max-width: 767px) {
+  .top-bar {
+    height: 56px; /* Slightly shorter on mobile */
+    padding: 0 var(--spacing-sm);
+    gap: var(--spacing-sm);
+  }
+
+  .top-bar-left,
+  .top-bar-right {
+    gap: var(--spacing-sm);
+  }
+
+  /* Hide logo text, show only icon */
   .logo-text {
     display: none;
   }
 
+  /* Hide search bar on mobile by default */
+  .top-bar-center {
+    display: none;
+  }
+
+  /* Hide search shortcut */
   .search-shortcut {
     display: none;
   }
 
+  /* Make buttons larger for touch */
+  .sidebar-toggle,
+  .icon-button {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Compact AUI button - show only emoji */
+  .aui-button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 var(--spacing-sm);
+  }
+
   .aui-button-text {
     display: none;
+  }
+
+  /* AUI button emoji should be larger */
+  .aui-button span:first-child {
+    font-size: 20px;
+  }
+}
+
+/* Tablet: 768px - 1023px */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .top-bar {
+    padding: 0 var(--spacing-md);
+  }
+
+  /* Show logo text on tablet */
+  .logo-text {
+    display: block;
+  }
+
+  /* Show search but make it smaller */
+  .top-bar-center {
+    max-width: 400px;
+  }
+
+  /* Hide search shortcut on tablet */
+  .search-shortcut {
+    display: none;
+  }
+
+  /* Keep AUI button text visible on tablet */
+  .aui-button-text {
+    display: block;
   }
 }

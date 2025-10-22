@@ -2,7 +2,8 @@ import './MainPane.css';
 import MediaGallery from '../media/MediaGallery';
 import MediaViewer from '../media/MediaViewer';
 import ConversationViewer from '../conversations/ConversationViewer';
-import PipelinePanel from '../pipeline/PipelinePanel';
+import DocumentViewer from '../documents/DocumentViewer';
+import CombinedPipelinePanel from '../pipeline/CombinedPipelinePanel';
 import TransformationSplitView from '../tools/TransformationSplitView';
 import { SelectedContent, TransformationResult } from '../../App';
 import { MediaItem } from '@/lib/api-client';
@@ -11,12 +12,15 @@ import type { SidebarView } from '@/types/sidebar';
 interface MainPaneProps {
   currentView: SidebarView;
   selectedConversation?: string | null;
+  selectedDocument?: string | null;
   selectedMedia?: MediaItem | null;
   transformationResult?: TransformationResult | null;
   onSelectContent?: (content: SelectedContent | null) => void;
   onSelectConversation?: (conversationId: string | null) => void;
+  onSelectDocument?: (documentId: string | null) => void;
   onSelectMedia?: (media: MediaItem | null) => void;
   onClearMedia?: () => void;
+  onClearDocument?: () => void;
   onClearTransformation?: () => void;
 }
 
@@ -27,12 +31,15 @@ interface MainPaneProps {
 export default function MainPane({
   currentView,
   selectedConversation,
+  selectedDocument,
   selectedMedia,
   transformationResult,
   onSelectContent,
   onSelectConversation,
+  onSelectDocument: _onSelectDocument,
   onSelectMedia,
   onClearMedia,
+  onClearDocument: _onClearDocument,
   onClearTransformation
 }: MainPaneProps) {
   // Priority: Show transformation result if present
@@ -62,6 +69,16 @@ export default function MainPane({
             <WelcomeScreen />
           )
         )}
+        {currentView === 'documents' && (
+          selectedDocument ? (
+            <DocumentViewer
+              documentId={selectedDocument}
+              onSelectContent={onSelectContent}
+            />
+          ) : (
+            <PlaceholderContent title="Documents" icon="📚" description="Select a document to view" />
+          )
+        )}
         {currentView === 'readings' && <ReadingsContent />}
         {currentView === 'media' && (
           <MediaContent
@@ -73,7 +90,7 @@ export default function MainPane({
         )}
         {currentView === 'povms' && <POVMsContent />}
         {currentView === 'stats' && <StatsContent />}
-        {currentView === 'pipeline' && <PipelinePanel />}
+        {currentView === 'pipeline' && <CombinedPipelinePanel />}
         {currentView === 'settings' && <SettingsContent />}
         {currentView === 'aui' && <AUIContent />}
       </div>
@@ -204,12 +221,12 @@ function AUIContent() {
   return <PlaceholderContent title="AUI Assistant" icon="🤖" />;
 }
 
-function PlaceholderContent({ title, icon }: { title: string; icon: string }) {
+function PlaceholderContent({ title, icon, description }: { title: string; icon: string; description?: string }) {
   return (
     <div className="placeholder-content">
       <span className="placeholder-icon">{icon}</span>
       <h2>{title}</h2>
-      <p>Content coming soon...</p>
+      <p>{description || 'Content coming soon...'}</p>
     </div>
   );
 }

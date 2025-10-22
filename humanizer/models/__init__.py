@@ -33,6 +33,14 @@ from .transformation import (
     SourceType,
 )
 from .agent import AgentConversation
+from .document import (
+    Document,
+    DocumentChunk,
+    DocumentMedia,
+    IngestionBatch,
+    StorageStrategy,
+    EmbeddingStatus,
+)
 
 __all__ = [
     # Reading models
@@ -68,4 +76,11 @@ __all__ = [
     "SourceType",
     # Agent models
     "AgentConversation",
+    # Document models
+    "Document",
+    "DocumentChunk",
+    "DocumentMedia",
+    "IngestionBatch",
+    "StorageStrategy",
+    "EmbeddingStatus",
 ]

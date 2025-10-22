@@ -20,9 +20,9 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from humanizer.ml.density import construct_density_matrix, rho_distance, DensityMatrix
-from humanizer.ml.povm import get_all_packs, POVMPack
-from humanizer.ml.verification import verify_transformation
+from humanizer.core.trm.density import construct_density_matrix, rho_distance, DensityMatrix
+from humanizer.core.trm.povm import get_all_packs, POVMPack
+from humanizer.core.trm.verification import verify_transformation
 from humanizer.models.transformation import Transformation, TransformationType, SourceType
 
 

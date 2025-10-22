@@ -125,7 +125,7 @@ async def analyze_text(request: AnalyzeRequest) -> AnalyzeResponse:
         embedding = transformation_service.embed_text(request.text)
 
         # Construct density matrix
-        from humanizer.ml.density import construct_density_matrix
+        from humanizer.core.trm.density import construct_density_matrix
         rho = construct_density_matrix(embedding, rank=transformation_service.rank)
 
         # Measure with each POVM pack
@@ -278,7 +278,7 @@ async def compare_texts(request: CompareRequest) -> CompareResponse:
         embedding_dist = float(np.linalg.norm(embedding_a - embedding_b))
 
         # Construct density matrices
-        from humanizer.ml.density import construct_density_matrix
+        from humanizer.core.trm.density import construct_density_matrix
         rho_a = construct_density_matrix(embedding_a, rank=transformation_service.rank)
         rho_b = construct_density_matrix(embedding_b, rank=transformation_service.rank)
 

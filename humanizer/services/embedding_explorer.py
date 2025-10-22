@@ -19,8 +19,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from humanizer.models.chatgpt import ChatGPTMessage
 from humanizer.services.embedding import EmbeddingService
-from humanizer.ml.density import construct_density_matrix
-from humanizer.ml.povm import get_all_packs, apply_born_rule
+from humanizer.core.trm.density import construct_density_matrix
+from humanizer.core.trm.povm import get_all_packs, apply_born_rule
 
 
 class EmbeddingExplorer:

@@ -1196,6 +1196,7 @@ class InterestListResponse(BaseModel):
     parent_list_id: Optional[UUID] = None
     branched_at_position: Optional[int] = None
     items: List[InterestListItemResponse] = []
+    item_count: int = 0  # Computed field: len(items)
     progress_pct: float = 0.0
 
     model_config = {
@@ -1512,5 +1513,376 @@ class CaptureStatusResponse(BaseModel):
             "message_count": 15,
             "media_count": 3,
             "last_captured": "2025-10-11T20:30:00Z"
+        }
+    }}
+
+
+# ========================================
+# Document Ingestion Schemas
+# ========================================
+
+class DocumentIngestRequest(BaseModel):
+    """Request to ingest documents from directory."""
+    source_directory: str = Field(..., description="Directory containing files to ingest")
+    file_types: Optional[List[str]] = Field(
+        default=None,
+        description="Filter by file types: ['pdf', 'txt', 'md', 'image'] (None = all)"
+    )
+    storage_strategy: str = Field(
+        default="in_place",
+        description="Storage strategy: 'centralized' or 'in_place'"
+    )
+    centralized_base_path: Optional[str] = Field(
+        default=None,
+        description="Base path for centralized storage (e.g., ~/humanizer_media)"
+    )
+    recursive: bool = Field(
+        default=True,
+        description="Search subdirectories recursively"
+    )
+    force_reimport: bool = Field(
+        default=False,
+        description="Re-import files even if they already exist (by hash)"
+    )
+    generate_embeddings: bool = Field(
+        default=True,
+        description="Queue chunks for embedding generation"
+    )
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "source_directory": "/Users/tem/Documents/papers",
+            "file_types": ["pdf", "md"],
+            "storage_strategy": "in_place",
+            "recursive": True,
+            "force_reimport": False,
+            "generate_embeddings": True
+        }
+    }}
+
+
+class DocumentIngestResponse(BaseModel):
+    """Response from document ingestion."""
+    batch_id: str
+    total_files: int
+    successful: int
+    failed: int
+    skipped: int
+    processing_time_ms: int
+    errors: List[Dict[str, str]]
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "batch_id": "770e8400-e29b-41d4-a716-446655440000",
+            "total_files": 50,
+            "successful": 48,
+            "failed": 1,
+            "skipped": 1,
+            "processing_time_ms": 12500,
+            "errors": [{"file": "/path/to/corrupted.pdf", "error": "Failed to parse PDF"}]
+        }
+    }}
+
+
+class DocumentChunkResponse(BaseModel):
+    """Response for a document chunk."""
+    id: str
+    chunk_index: int
+    chunk_text: str
+    chunk_size: int
+    start_page: Optional[int] = None
+    end_page: Optional[int] = None
+    start_offset: Optional[int] = None
+    end_offset: Optional[int] = None
+    embedding_status: str
+    has_embedding: bool
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "id": "880e8400-e29b-41d4-a716-446655440000",
+                "chunk_index": 0,
+                "chunk_text": "Quantum mechanics reveals the probabilistic nature of reality...",
+                "chunk_size": 1024,
+                "start_page": 1,
+                "end_page": 2,
+                "start_offset": 0,
+                "end_offset": 1024,
+                "embedding_status": "completed",
+                "has_embedding": True
+            }
+        }
+    }
+
+
+class DocumentChunksListResponse(BaseModel):
+    """Response containing list of document chunks."""
+    chunks: List[DocumentChunkResponse]
+    total: int
+
+    model_config = {
+        "json_schema_extra": {
+            "example": {
+                "chunks": [
+                    {
+                        "id": "880e8400-e29b-41d4-a716-446655440000",
+                        "chunk_index": 0,
+                        "chunk_text": "Quantum mechanics reveals...",
+                        "chunk_size": 1024,
+                        "start_page": 1,
+                        "end_page": 2,
+                        "start_offset": 0,
+                        "end_offset": 1024,
+                        "embedding_status": "completed",
+                        "has_embedding": True
+                    }
+                ],
+                "total": 1
+            }
+        }
+    }
+
+
+class DocumentMediaResponse(BaseModel):
+    """Response for document media (images, etc.)."""
+    id: str
+    media_type: str
+    file_path: str
+    page_number: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "id": "990e8400-e29b-41d4-a716-446655440000",
+                "media_type": "image",
+                "file_path": "/path/to/image.png",
+                "page_number": 3,
+                "width": 800,
+                "height": 600
+            }
+        }
+    }
+
+
+class DocumentResponse(BaseModel):
+    """Response with full document details."""
+    id: str
+    filename: str
+    file_path: str
+    file_type: str
+    file_size: Optional[int] = None
+    mime_type: Optional[str] = None
+    file_hash: str
+    storage_strategy: str
+    title: Optional[str] = None
+    author: Optional[str] = None
+    page_count: Optional[int] = None
+    created_at: datetime
+    ingested_at: datetime
+    file_modified_at: Optional[datetime] = None
+    source_directory: Optional[str] = None
+    embedding_status: str
+    custom_metadata: Optional[Dict] = None
+    chunk_count: int = 0
+    media_count: int = 0
+    chunks: Optional[List[DocumentChunkResponse]] = None
+    media: Optional[List[DocumentMediaResponse]] = None
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "id": "aa0e8400-e29b-41d4-a716-446655440000",
+                "filename": "quantum_mechanics.pdf",
+                "file_path": "/Users/tem/Documents/quantum_mechanics.pdf",
+                "file_type": "pdf",
+                "file_size": 2048576,
+                "mime_type": "application/pdf",
+                "file_hash": "a1b2c3d4e5f6...",
+                "storage_strategy": "in_place",
+                "title": "Introduction to Quantum Mechanics",
+                "author": "Richard Feynman",
+                "page_count": 150,
+                "created_at": "2025-10-17T20:00:00Z",
+                "ingested_at": "2025-10-17T20:00:00Z",
+                "source_directory": "/Users/tem/Documents",
+                "embedding_status": "completed",
+                "chunk_count": 45,
+                "media_count": 12,
+                "chunks": [],
+                "media": []
+            }
+        }
+    }
+
+
+class DocumentListResponse(BaseModel):
+    """Paginated list of documents."""
+    documents: List[DocumentResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "documents": [],
+            "total": 150,
+            "page": 1,
+            "page_size": 50,
+            "total_pages": 3
+        }
+    }}
+
+
+class DocumentSearchRequest(BaseModel):
+    """Request to search documents."""
+    query: str = Field(..., description="Search query (semantic or text)", min_length=1)
+    file_types: Optional[List[str]] = Field(
+        default=None,
+        description="Filter by file types"
+    )
+    limit: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        description="Maximum results to return"
+    )
+    semantic: bool = Field(
+        default=True,
+        description="Use semantic search (vs text search)"
+    )
+    min_score: float = Field(
+        default=0.5,
+        ge=0.0,
+        le=1.0,
+        description="Minimum similarity score (for semantic search)"
+    )
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "query": "quantum entanglement experiments",
+            "file_types": ["pdf"],
+            "limit": 20,
+            "semantic": True,
+            "min_score": 0.7
+        }
+    }}
+
+
+class DocumentSearchResultItem(BaseModel):
+    """Single search result item."""
+    document_id: str
+    document_title: str
+    document_filename: str
+    chunk_id: Optional[str] = None
+    chunk_text: Optional[str] = None
+    chunk_index: Optional[int] = None
+    page_number: Optional[int] = None
+    score: float
+    highlight: Optional[str] = None
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "document_id": "aa0e8400-e29b-41d4-a716-446655440000",
+            "document_title": "Introduction to Quantum Mechanics",
+            "document_filename": "quantum_mechanics.pdf",
+            "chunk_id": "bb0e8400-e29b-41d4-a716-446655440000",
+            "chunk_text": "Quantum entanglement is a phenomenon where...",
+            "chunk_index": 12,
+            "page_number": 45,
+            "score": 0.89,
+            "highlight": "...entanglement is a phenomenon..."
+        }
+    }}
+
+
+class DocumentSearchResponse(BaseModel):
+    """Response from document search."""
+    results: List[DocumentSearchResultItem]
+    total: int
+    query: str
+    processing_time_ms: int
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "results": [],
+            "total": 15,
+            "query": "quantum entanglement",
+            "processing_time_ms": 125
+        }
+    }}
+
+
+class DocumentUpdateRequest(BaseModel):
+    """Request to update document metadata."""
+    title: Optional[str] = None
+    author: Optional[str] = None
+    custom_metadata: Optional[Dict] = None
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "title": "Updated Title",
+            "author": "Updated Author",
+            "custom_metadata": {"category": "physics", "tags": ["quantum", "mechanics"]}
+        }
+    }}
+
+
+class IngestionBatchResponse(BaseModel):
+    """Response with batch details."""
+    id: str
+    source_directory: str
+    batch_type: str
+    storage_strategy: str
+    total_files: int
+    successful: int
+    failed: int
+    skipped: int
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    processing_time_ms: Optional[int] = None
+    errors: List[Dict[str, str]]
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "id": "cc0e8400-e29b-41d4-a716-446655440000",
+                "source_directory": "/Users/tem/Documents",
+                "batch_type": "pdf,md",
+                "storage_strategy": "in_place",
+                "total_files": 50,
+                "successful": 48,
+                "failed": 1,
+                "skipped": 1,
+                "started_at": "2025-10-17T20:00:00Z",
+                "completed_at": "2025-10-17T20:05:30Z",
+                "processing_time_ms": 330000,
+                "errors": []
+            }
+        }
+    }
+
+
+class BatchListResponse(BaseModel):
+    """Paginated list of ingestion batches."""
+    batches: List[IngestionBatchResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "batches": [],
+            "total": 25,
+            "page": 1,
+            "page_size": 20,
+            "total_pages": 2
         }
     }}

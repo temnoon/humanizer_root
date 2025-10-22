@@ -106,6 +106,26 @@ export default function InterestListPanel({ onSelectItem }: InterestListPanelPro
     }
   };
 
+  const handleDeleteList = async (listId: string, listName: string) => {
+    if (!confirm(`Delete list "${listName}"? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await api.deleteInterestList(listId);
+      // Clear selection if deleting selected list
+      if (selectedListId === listId) {
+        setSelectedListId(null);
+        setListItems([]);
+      }
+      // Reload lists
+      loadLists();
+    } catch (err) {
+      console.error('Failed to delete list:', err);
+      alert(`Failed to delete list: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   if (loading) {
     return (
       <div className="interest-list-panel">
@@ -191,23 +211,36 @@ export default function InterestListPanel({ onSelectItem }: InterestListPanelPro
         ) : (
           lists.map((list) => (
             <div key={list.id} className="list-card">
-              <button
-                className={`list-header ${selectedListId === list.id ? 'expanded' : ''}`}
-                onClick={() => handleSelectList(list.id)}
-              >
-                <div className="list-info">
-                  <div className="list-name">{list.name}</div>
-                  <div className="list-meta">
-                    <span className="list-count">{list.item_count || 0} items</span>
-                    {list.progress_pct !== undefined && list.progress_pct > 0 && (
-                      <span className="list-progress">{list.progress_pct.toFixed(0)}%</span>
-                    )}
+              <div className="list-header-wrapper">
+                <button
+                  className={`list-header ${selectedListId === list.id ? 'expanded' : ''}`}
+                  onClick={() => handleSelectList(list.id)}
+                >
+                  <div className="list-info">
+                    <div className="list-name">{list.name}</div>
+                    <div className="list-meta">
+                      <span className="list-count">{list.item_count || 0} items</span>
+                      {list.progress_pct !== undefined && list.progress_pct > 0 && (
+                        <span className="list-progress">{list.progress_pct.toFixed(0)}%</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <span className="expand-icon">
-                  {selectedListId === list.id ? '▼' : '▶'}
-                </span>
-              </button>
+                  <span className="expand-icon">
+                    {selectedListId === list.id ? '▼' : '▶'}
+                  </span>
+                </button>
+                <button
+                  className="delete-list-button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteList(list.id, list.name);
+                  }}
+                  title="Delete list"
+                  aria-label={`Delete list ${list.name}`}
+                >
+                  🗑️
+                </button>
+              </div>
 
               {selectedListId === list.id && (
                 <div className="list-items">
@@ -227,7 +260,8 @@ export default function InterestListPanel({ onSelectItem }: InterestListPanelPro
                           {item.item_type === 'conversation' && '🗨️'}
                           {item.item_type === 'media' && '🖼️'}
                           {item.item_type === 'transformation' && '✨'}
-                          {!['message', 'conversation', 'media', 'transformation'].includes(
+                          {item.item_type === 'document' && '📚'}
+                          {!['message', 'conversation', 'media', 'transformation', 'document'].includes(
                             item.item_type
                           ) && '📄'}
                         </div>

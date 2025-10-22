@@ -20,6 +20,7 @@ from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, and_, or_, func
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from humanizer.models.interest_list import InterestList, InterestListItem, InterestListBranch
@@ -128,7 +129,7 @@ class InterestListService:
         Returns:
             List of InterestLists
         """
-        stmt = select(InterestList).where(InterestList.user_id == user_id)
+        stmt = select(InterestList).where(InterestList.user_id == user_id).options(joinedload(InterestList.items))
 
         if list_type:
             stmt = stmt.where(InterestList.list_type == list_type)
@@ -142,7 +143,7 @@ class InterestListService:
         stmt = stmt.order_by(InterestList.updated_at.desc()).limit(limit).offset(offset)
 
         result = await session.execute(stmt)
-        return list(result.scalars().all())
+        return list(result.unique().scalars().all())
 
     async def update_list(
         self,

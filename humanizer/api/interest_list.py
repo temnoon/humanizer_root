@@ -46,12 +46,25 @@ from humanizer.models.schemas import (
 router = APIRouter(prefix="/api/interest-lists", tags=["interest-lists"])
 
 
-# Helper to get user ID (for now, use a default user)
-# In production, this would come from authentication
-def get_user_id() -> UUID:
-    """Get current user ID. For now, returns a default user."""
-    # In production, get from auth token
-    # For now, use a consistent default
+# SINGLE-USER MODE: User authentication stub
+# TECHNICAL DEBT: See TECHNICAL_DEBT.md #DEBT-001
+def get_default_user_id() -> UUID:
+    """
+    Get default user ID for single-user local development mode.
+
+    TECHNICAL DEBT:
+    - Type: fallback
+    - Severity: 🔴 blocking for Cloud Archives
+    - This hardcoded UUID blocks multi-user support
+    - Acceptable for: Local Development MVP
+    - Must fix before: Cloud Archives deployment
+
+    Production TODO: Replace with actual authentication (JWT/session-based)
+    when implementing multi-user cloud deployment.
+
+    Returns:
+        UUID: Hardcoded default user UUID
+    """
     return UUID("00000000-0000-0000-0000-000000000001")
 
 
@@ -103,6 +116,7 @@ def to_list_response(interest_list) -> InterestListResponse:
         parent_list_id=interest_list.parent_list_id,
         branched_at_position=interest_list.branched_at_position,
         items=items,
+        item_count=len(items),  # Add computed count
         progress_pct=progress_pct,
     )
 
@@ -115,7 +129,7 @@ def to_list_response(interest_list) -> InterestListResponse:
 async def create_list(
     request: CreateInterestListRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     Create a new interest list.
@@ -158,7 +172,7 @@ async def list_lists(
     limit: int = Query(50, ge=1, le=200, description="Maximum results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     List interest lists for the current user.
@@ -305,7 +319,7 @@ async def add_item(
     list_id: UUID,
     request: AddItemToListRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     Add an item to an interest list.
@@ -517,7 +531,7 @@ async def branch_list(
     list_id: UUID,
     request: BranchListRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     Branch a list from a specific position.

@@ -4,13 +4,13 @@ Tests for TRM Core - Ensure quantum formalism is correct
 
 import numpy as np
 import pytest
-from humanizer.ml.density import construct_density_matrix, rho_distance, DensityMatrix
-from humanizer.ml.povm import (
+from humanizer.core.trm.density import construct_density_matrix, rho_distance, DensityMatrix
+from humanizer.core.trm.povm import (
     create_random_povm_pack,
     get_all_packs,
     apply_born_rule,
 )
-from humanizer.ml.verification import verify_transformation
+from humanizer.core.trm.verification import verify_transformation
 
 
 class TestDensityMatrix:
@@ -171,7 +171,7 @@ class TestPOVM:
 
     def test_tetralemma_pack(self):
         """Test tetralemma pack specifically."""
-        from humanizer.ml.povm import create_tetralemma_pack
+        from humanizer.core.trm.povm import create_tetralemma_pack
 
         pack = create_tetralemma_pack(rank=64)
 

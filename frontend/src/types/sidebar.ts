@@ -5,10 +5,13 @@ export type SidebarView =
   | 'conversations'
   | 'search'
   | 'lists'
+  | 'documents'
   | 'readings'
   | 'media'
   | 'povms'
   | 'stats'
   | 'pipeline'
   | 'settings'
-  | 'aui';
+  | 'aui'
+  | 'tools'
+  | 'interest';

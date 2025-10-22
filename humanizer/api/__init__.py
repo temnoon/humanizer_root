@@ -16,6 +16,7 @@ from .pipeline import router as pipeline_router
 from .capture import router as capture_router
 from .embedding_explorer import router as embedding_explorer_router
 from .agent import router as agent_router
+from .documents import router as documents_router
 
 __all__ = [
     "reading_router",
@@ -32,4 +33,5 @@ __all__ = [
     "capture_router",
     "embedding_explorer_router",
     "agent_router",
+    "documents_router",
 ]

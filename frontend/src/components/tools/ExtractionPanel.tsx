@@ -4,9 +4,10 @@ import './ExtractionPanel.css';
 interface ExtractionPanelProps {
   selectedContent?: {
     text: string;
-    source: 'conversation' | 'message' | 'custom';
+    source: 'conversation' | 'message' | 'document' | 'chunk' | 'custom';
     sourceId?: string;
     messageId?: string;
+    chunkId?: string;
   } | null;
 }
 

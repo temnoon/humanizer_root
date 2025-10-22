@@ -1,0 +1,13 @@
+Quantum Consciousness and the TRM Framework
+
+This is a test document for the Humanizer application. It explores how quantum mechanics can be applied to understanding consciousness and subjective experience.
+
+The Tetralemma Reading Method (TRM) uses density matrices and POVM operators to represent the measurement of semantic states. When we read text, we construct a quantum-like representation that captures the inherent ambiguity and mixed states present in language.
+
+Key concepts:
+- Density matrices (ρ) represent mixed quantum states
+- POVM operators allow for generalized measurements
+- The tetralemma provides four-fold logic: A, ¬A, both, neither
+- Verification loops ensure transformations move in the intended direction
+
+This framework bridges the gap between formal mathematical structures and lived subjective experience, making consciousness work computationally tractable while respecting its irreducible complexity.

@@ -1,0 +1,416 @@
+⏺User approved Claude's plan:
+  ⎿  AUI (Agentic User Interface) Development Plan
+
+     🎯 Scope & Vision
+
+     You want to develop a natural language interface where users can:
+     1. Ask questions when they don't know how to perform a task
+     2. Have the AUI execute tasks directly via:
+       - MCP tools (21 tools available)
+       - Direct API calls (62 endpoints)
+       - curl commands (if appropriate)
+     3. Have the AUI teach them how to do it manually in the GUI
+     4. Seamlessly couple with the existing GUI (light/dark theme, professional UX)
+
+     Why Claude Haiku 4.5?
+
+     Perfect fit for AUI:
+     - ✅ Fast (2x faster than Sonnet 4 for similar tasks)
+     - ✅ Cheap ($1/M input, $5/M output, 90% cheaper with caching)
+     - ✅ Extended thinking (reasoning at speed - first Haiku with this!)
+     - ✅ 73.3% SWE-bench (world-class coding performance)
+     - ✅ 200K context (can hold full conversation histories)
+     - ✅ 64K max output (up from 8K in Haiku 3.5)
+     - ✅ Safest model yet (lowest misaligned behavior rate)
+
+     Use Cases in AUI:
+     - Quick tool selection (reasoning about which tool to use)
+     - Parameter inference (smart defaults from context)
+     - GUI action generation (decide what to show user)
+     - Tutorial generation (create step-by-step guides)
+     - Error recovery (diagnose failures, suggest alternatives)
+
+     ---
+     📊 Current State Analysis
+
+     ✅ What Exists
+
+     Backend:
+     - ✅ AgentService (humanizer/services/agent.py) - 468 lines, 9 tools
+     - ✅ Agent API (humanizer/api/agent.py) - 386 lines, 5 endpoints
+     - ✅ AUI Service (humanizer/services/aui.py) - 487 lines, usage tracking
+     - ✅ AUI API (humanizer/api/aui.py) - 200 lines, preferences & recommendations
+     - ✅ Database models (AgentConversation, UserPreferences, ToolUsage)
+     - ✅ 62 API endpoints operational
+
+     Frontend:
+     - ✅ AgentPrompt component (frontend/src/components/agent/AgentPrompt.tsx)
+     - ✅ Cmd+K keyboard shortcut
+     - ✅ Basic conversation UI (chat bubbles, tool calls, GUI actions)
+     - ✅ Theme integration (light/dark modes)
+     - ✅ Toast notification system
+
+     MCP Server:
+     - ✅ 21 tools registered (humanizer_mcp/src/server.py)
+     - ✅ ChromaDB for session memory
+     - ✅ SQLite for interest tracking
+     - ✅ Direct API client integration
+
+     ⚠️ What Needs Work
+
+     Current Limitations:
+     1. LLM uses Mistral 7B (basic, unreliable tool calling)
+     2. No Claude integration (should use Haiku 4.5)
+     3. No GUI action execution (displays actions but doesn't open tabs)
+     4. No tutorial generation (doesn't teach manual workflows)
+     5. No multi-step reasoning (can't chain tools intelligently)
+     6. No conversation history UI (can't resume or browse sessions)
+     7. No MCP integration in AUI (agent can't call MCP tools)
+     8. No intelligent routing (doesn't know when to use MCP vs API vs GUI)
+
+     ---
+     🏗️ Full Implementation Plan
+
+     Phase 1: Claude Haiku 4.5 Integration (2-3 hours)
+
+     Goal: Replace Mistral with Claude Haiku 4.5 for superior reasoning
+
+     Tasks:
+     1. Add Anthropic SDK (30 min)
+       - poetry add anthropic
+       - Create ClaudeProvider class (similar to OllamaProvider)
+       - Support streaming for real-time responses
+       - Implement prompt caching (90% cost reduction)
+     2. Update AgentService (1 hour)
+       - Add provider abstraction (LLMProvider interface)
+       - Implement ClaudeProvider.chat() with tool use API
+       - Use native Anthropic tool calling (not JSON prompting)
+       - Support extended thinking mode for complex queries
+     3. Environment Configuration (30 min)
+       - Add ANTHROPIC_API_KEY to .env
+       - Add AUI_LLM_PROVIDER setting ("claude" or "ollama")
+       - Add CLAUDE_MODEL setting (default: "claude-haiku-4.5-20251015")
+       - Add caching configuration
+     4. Testing (1 hour)
+       - Test tool calling reliability (should be 95%+ accurate vs 30% with Mistral)
+       - Test multi-step reasoning ("Find similar messages, then add to list")
+       - Test error recovery ("That didn't work, try another approach")
+       - Compare speed/cost vs Ollama
+
+     Expected Improvement:
+     - Tool calling accuracy: 30% → 95%+
+     - Response time: 5-10s → 1-3s
+     - Multi-step success: 10% → 80%+
+     - Cost: ~$0.01 per conversation (with caching)
+
+     ---
+     Phase 2: MCP Integration in AUI (3-4 hours)
+
+     Goal: Allow AUI to call MCP tools alongside direct API calls
+
+     Tasks:
+     1. MCP Tool Registry (1 hour)
+       - Create MCPToolRegistry class
+       - Scan available MCP tools from humanizer_mcp/src/server.py
+       - Convert MCP tool schemas to Anthropic tool format
+       - Register 21 MCP tools + 9 existing API tools = 30 total tools
+     2. Intelligent Routing (1.5 hours)
+       - Create routing logic: when to use MCP vs API vs GUI
+       - MCP tools: Complex reasoning, quantum reading, interest tracking
+       - Direct API: Simple CRUD, search, transformations
+       - GUI actions: Visual tasks (open conversation, show results)
+       - Implement context-aware selection (user intent + current view)
+     3. MCP Execution Bridge (1 hour)
+       - Create MCPClient to call MCP server from backend
+       - Handle MCP <-> FastAPI communication
+       - Pass results back through agent flow
+       - Track MCP tool usage in AUI statistics
+     4. Hybrid Tool Calling (30 min)
+       - Allow chaining: MCP tool → API call → GUI action
+       - Example: "Find similar messages [MCP] → Add to list [API] → Show list [GUI]"
+       - Handle errors at each step with recovery
+
+     Expected Improvement:
+     - Available tools: 9 → 30
+     - Task completion rate: 60% → 85%+
+     - User needs to ask "how do I...": 50% → 20%
+
+     ---
+     Phase 3: GUI Action Execution (4-5 hours)
+
+     Goal: AUI can open tabs, navigate views, populate forms automatically
+
+     Tasks:
+     1. GUI Action System (2 hours)
+       - Create GUIActionExecutor in frontend
+       - Define action types:
+           - open_conversation(uuid) → Open in MainPane
+         - open_search_results(query, results) → Show search view
+         - open_transformation(config) → Pre-fill transformation panel
+         - open_interest_list(list_id) → Navigate to list
+         - highlight_message(message_id) → Scroll + flash highlight
+         - apply_filters(filters) → Update sidebar filters
+       - Wire into App.tsx state management
+     2. Action Dispatcher (1 hour)
+       - Parse gui_action from agent response
+       - Dispatch to appropriate component
+       - Handle action failure (fallback to manual instructions)
+       - Track action success for learning
+     3. Visual Feedback (1 hour)
+       - Show "AUI is opening..." toast
+       - Animate transitions (smooth scroll, fade in)
+       - Highlight new content (pulsing border)
+       - Show "Undo" button if user wants to revert
+     4. Action Templates (1 hour)
+       - Pre-built action recipes for common tasks
+       - "Show me conversations about X" → search + open first result
+       - "Transform this to be more formal" → populate panel + run
+       - "Find similar and add to my list" → chain 3 actions
+       - Store templates in database for learning
+
+     Expected Improvement:
+     - Manual steps required: 100% → 10%
+     - Time to complete task: 2-5 min → 10-30 sec
+     - User friction: High → Low
+
+     ---
+     Phase 4: Tutorial Generation (3-4 hours)
+
+     Goal: Teach users manual workflows so they learn the interface
+
+     Tasks:
+     1. Tutorial Engine (2 hours)
+       - Create TutorialGenerator class
+       - Use Claude Haiku to generate step-by-step guides
+       - Input: Task description + current GUI state
+       - Output: Numbered steps with screenshots/highlights
+       - Store tutorials in database (reuse for similar tasks)
+     2. Visual Guides (1.5 hours)
+       - Screenshot current view with arrows/annotations
+       - Use HTML canvas to draw guides
+       - Highlight clickable elements (pulsing glow)
+       - Show keyboard shortcuts (Cmd+K, Ctrl+F, etc.)
+       - Animated arrow pointing to next action
+     3. Tutorial UI (30 min)
+       - Show tutorial in sidebar overlay
+       - "Do it for me" vs "Show me how" buttons
+       - Step-by-step mode (user clicks Next)
+       - Practice mode (user performs actions, AUI validates)
+
+     Example Tutorial:
+     Task: "Find conversations about consciousness and add to a list"
+
+     Step 1: Press Cmd+F or click the search icon in the sidebar
+     [Screenshot with arrow pointing to search icon]
+
+     Step 2: Type "consciousness" and press Enter
+     [Screenshot of search box]
+
+     Step 3: Click the ⭐ button on any message to add to your interests
+     [Screenshot with message highlighted]
+
+     Alternative: Ask me "Find conversations about consciousness and add to a list"
+     and I'll do it automatically!
+
+     Expected Improvement:
+     - User learning curve: Weeks → Hours
+     - Repeat questions: 80% → 20%
+     - User autonomy: Low → High
+
+     ---
+     Phase 5: Conversation History & Context (2-3 hours)
+
+     Goal: Users can resume conversations, browse history, maintain context
+
+     Tasks:
+     1. History UI (1.5 hours)
+       - Add dropdown in AgentPrompt header
+       - List recent conversations (title, last message, timestamp)
+       - "New conversation" button
+       - Search/filter conversations
+       - Delete conversation button
+     2. Context Management (1 hour)
+       - Load full conversation history when resuming
+       - Smart context pruning (keep recent + important messages)
+       - Use prompt caching for conversation history (save 90% cost)
+       - Show token usage warning if context gets large
+     3. Cross-Session Memory (30 min)
+       - Remember user preferences across sessions
+       - "Last time you asked about X, you did Y"
+       - Suggest related past conversations
+       - "You explored this topic 3 days ago, want to continue?"
+
+     Expected Improvement:
+     - Context retention: 5 min → Permanent
+     - Repeat explanations: Often → Never
+     - User productivity: +40%
+
+     ---
+     Phase 6: Advanced Features (4-5 hours)
+
+     Goal: Multi-step reasoning, error recovery, learning loop
+
+     Tasks:
+     1. Multi-Step Planning (2 hours)
+       - Use Claude's extended thinking mode
+       - Break complex tasks into steps
+       - Show plan before execution ("I'm going to...")
+       - Allow user to approve/modify plan
+       - Execute steps sequentially with checkpoints
+     2. Error Recovery (1.5 hours)
+       - Detect tool failures
+       - Diagnose root cause (missing data, invalid params, etc.)
+       - Suggest alternatives ("Semantic search failed, try title search?")
+       - Learn from failures (track failure patterns)
+       - Show helpful error messages (not stack traces!)
+     3. Adaptive Learning (1.5 hours)
+       - Track which tools succeed for which tasks
+       - Learn user preferences (always use tone pack for transformations)
+       - Predict next action ("You usually add results to a list, want to do that?")
+       - Improve tool selection over time
+       - Surface learning insights ("I noticed you prefer X")
+
+     Expected Improvement:
+     - Complex task success: 40% → 90%+
+     - Recovery from errors: 10% → 80%
+     - Learning over time: None → Continuous
+
+     ---
+     📋 Technical Architecture
+
+     System Flow
+
+     User types in AgentPrompt (Cmd+K)
+       ↓
+     Frontend sends to POST /api/agent/chat
+       ↓
+     AgentService processes with ClaudeProvider (Haiku 4.5)
+       ↓
+     Claude selects tool(s) using extended thinking
+       ↓
+     Routing decision:
+       ├─ MCP tool → Call via MCPClient → MCP Server → Humanizer API
+       ├─ Direct API → Call API endpoint directly
+       └─ GUI action → Return action payload
+       ↓
+     Execute tool(s), gather results
+       ↓
+     Generate response + tutorial (if requested)
+       ↓
+     Return to frontend:
+       - Text response
+       - Tool calls (for transparency)
+       - GUI actions (to execute)
+       - Tutorial steps (if teaching mode)
+       ↓
+     Frontend:
+       - Display response in chat
+       - Execute GUI actions
+       - Show tutorial overlay (if present)
+       - Animate transitions
+       - Track success for AUI learning
+
+     Data Flow
+
+     AgentConversation (PostgreSQL)
+       - Full conversation history
+       - Messages with tool calls
+       - GUI actions performed
+       - Tutorial requests
+
+     UserPreferences (PostgreSQL)
+       - Tool usage statistics
+       - Learned patterns
+       - UI preferences
+
+     ToolUsage (PostgreSQL)
+       - Individual tool calls
+       - Success/failure rates
+       - Execution times
+       - Context at time of call
+
+     MCP Session Memory (ChromaDB in humanizer_mcp)
+       - Recent MCP tool calls
+       - Semantic context
+       - Cross-session patterns
+
+     ---
+     🎯 Success Metrics
+
+     After full implementation:
+
+     | Metric                | Before          | After                  | Improvement |
+     |-----------------------|-----------------|------------------------|-------------|
+     | Tool calling accuracy | 30%             | 95%+                   | 3.2x        |
+     | Available tools       | 9               | 30                     | 3.3x        |
+     | Task completion rate  | 60%             | 90%+                   | 1.5x        |
+     | Time to complete task | 2-5 min         | 10-30s                 | 6-15x       |
+     | Manual steps required | 100%            | 10%                    | 10x         |
+     | User learning curve   | Weeks           | Hours                  | 10x+        |
+     | Repeat questions      | 80%             | 20%                    | 4x          |
+     | Multi-step success    | 10%             | 90%+                   | 9x          |
+     | Error recovery        | 10%             | 80%                    | 8x          |
+     | Cost per conversation | ~$0.05 (Sonnet) | ~$0.01 (Haiku + cache) | 5x          |
+
+     ---
+     🚀 Recommended Implementation Order
+
+     Week 1: Core Intelligence (8-10 hours)
+     1. Phase 1: Claude Haiku 4.5 Integration (2-3h)
+     2. Phase 2: MCP Integration (3-4h)
+     3. Phase 5: Conversation History (2-3h)
+
+     Week 2: User Experience (7-9 hours)
+     4. Phase 3: GUI Action Execution (4-5h)
+     5. Phase 4: Tutorial Generation (3-4h)
+
+     Week 3: Advanced Features (4-5 hours)
+     6. Phase 6: Multi-step & Learning (4-5h)
+
+     Total Time: 19-24 hours (spread over 2-3 weeks)
+
+     ---
+     💡 Key Design Decisions
+
+     1. Claude Haiku 4.5 over Ollama/GPT
+       - Superior tool calling (native support, not JSON hacks)
+       - Extended thinking for complex queries
+       - Fast + cheap (perfect for high-frequency AUI)
+       - Best safety record (important for autonomous actions)
+     2. MCP + API Hybrid
+       - MCP for complex reasoning tasks (quantum reading, interest tracking)
+       - Direct API for simple CRUD (faster, less overhead)
+       - GUI actions for visual tasks (user needs to see results)
+     3. Teaching Over Doing
+       - Always offer tutorial alongside automation
+       - Users learn the interface through guided practice
+       - AUI becomes training wheels, not a crutch
+     4. Learning Loop
+       - Track every interaction (tool usage, success, context)
+       - Learn user preferences over time
+       - Surface insights ("I notice you always...")
+       - Improve recommendations continuously
+     5. Prompt Caching Strategy
+       - Cache conversation history (90% cost reduction)
+       - Cache tool definitions (reused every call)
+       - Cache user preferences (stable across session)
+       - Result: ~$0.01 per conversation vs $0.05 with Sonnet
+
+     ---
+     🎓 Philosophy
+
+     "Make Construction Visible"
+     - Don't hide how things work
+     - Show tool calls, explain reasoning
+     - Offer to teach manual method
+     - User learns interface while using it
+
+     "Consciousness Work, Not Just Features"
+     - Help user know their actual subjective self
+     - Track what they find interesting
+     - Surface patterns in their exploration
+     - AUI as mirror, not just assistant
+
+     This is NOT a chatbot. This is a co-pilot that teaches.
+
+     Ready to implement?

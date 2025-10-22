@@ -14,9 +14,10 @@ interface ToolPanelProps {
   onToggle: () => void;
   selectedContent?: {
     text: string;
-    source: 'conversation' | 'message' | 'custom';
+    source: 'conversation' | 'message' | 'document' | 'chunk' | 'custom';
     sourceId?: string;
     messageId?: string;
+    chunkId?: string;
   } | null;
   onShowTransformation?: (result: TransformationResult) => void;
 }

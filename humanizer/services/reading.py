@@ -16,8 +16,15 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # TRM core
-from humanizer.ml.density import construct_density_matrix, rho_distance, DensityMatrix
-from humanizer.ml.povm import get_all_packs, POVMPack
+from humanizer.core.trm.density import construct_density_matrix, rho_distance, DensityMatrix
+from humanizer.core.trm.povm import get_all_packs, POVMPack
+from humanizer.core.trm.transformer import StatelessTransformer, TransformOptions
+
+# Embedding service (for backward compatibility)
+from humanizer.services.sentence_embedding import get_sentence_embedding_service
+
+# Config
+from humanizer.config import settings
 
 # Database models
 from humanizer.models.reading import ReadingSession, ReadingStep, ReadingProvenance
@@ -55,6 +62,30 @@ class ReadingService:
         """
         self.rank = rank
         self.povm_packs = get_all_packs(rank=rank)
+        self.embedding_service = get_sentence_embedding_service()
+
+        # Initialize StatelessTransformer with injected functions (Phase 2)
+        # Import locally to avoid circular imports
+        try:
+            from humanizer.core.embeddings import get_embedding_function
+            from humanizer.core.llm import get_llm_function
+
+            embed_fn = get_embedding_function()
+            llm_fn = get_llm_function(settings)
+            self.transformer = StatelessTransformer(
+                embed_fn=embed_fn,
+                llm_fn=llm_fn,
+                rank=rank
+            )
+            self._transformer_available = True
+        except Exception as e:
+            # Fallback if transformer unavailable (e.g., Ollama not running)
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"StatelessTransformer not available: {e}")
+            logger.warning("Will use stub transformation instead")
+            self.transformer = None
+            self._transformer_available = False
 
     async def start(
         self,
@@ -80,10 +111,8 @@ class ReadingService:
         Returns:
             ReadingStartResponse with initial state
         """
-        # Step 1: Embed text
-        # TODO: Use actual sentence-transformers model
-        # For now, simulate embedding
-        embedding = self._simulate_embedding(request.text)
+        # Step 1: Embed text (using real sentence-transformers)
+        embedding = self.embedding_service.embed_text(request.text)
 
         # Step 2: Construct ρ
         rho = construct_density_matrix(embedding, rank=request.trm_rank or self.rank)
@@ -189,19 +218,18 @@ class ReadingService:
         result = await session.execute(stmt)
         latest_step = result.scalar_one()
 
-        # Step 2: Run TRM iteration (simulate for now)
-        # TODO: Implement actual TRM model
-        y_text_new, dy_summary, corner_views = self._simulate_trm_step(
+        # Step 2: Run TRM iteration (using StatelessTransformer - Phase 2)
+        y_text_new, dy_summary, corner_views = await self._execute_trm_step(
             latest_step.y_text,
             latest_step.rho_eigensystem
         )
 
-        # Step 3: Construct new ρ
-        embedding_new = self._simulate_embedding(y_text_new)
+        # Step 3: Construct new ρ (using real embeddings)
+        embedding_new = self.embedding_service.embed_text(y_text_new)
         rho_new = construct_density_matrix(embedding_new, rank=self.rank)
 
         # Compute ρ distance
-        embedding_old = self._simulate_embedding(latest_step.y_text)
+        embedding_old = self.embedding_service.embed_text(latest_step.y_text)
         rho_old = construct_density_matrix(embedding_old, rank=self.rank)
         rho_delta = rho_distance(rho_old, rho_new)
 
@@ -282,8 +310,8 @@ class ReadingService:
             raise ValueError(f"Reading {request.reading_id} not found")
 
         # Reconstruct ρ from stored eigensystem
-        # (For now, re-embed and construct)
-        embedding = self._simulate_embedding(latest_step.y_text)
+        # (Re-embed and construct with real embeddings)
+        embedding = self.embedding_service.embed_text(latest_step.y_text)
         rho = construct_density_matrix(embedding, rank=self.rank)
 
         # Measure with requested pack
@@ -350,8 +378,8 @@ class ReadingService:
         applied_text = latest_step.corner_views[request.corner]
 
         # Create new step with applied text
-        # (Re-measure with new ρ)
-        embedding_new = self._simulate_embedding(applied_text)
+        # (Re-measure with new ρ using real embeddings)
+        embedding_new = self.embedding_service.embed_text(applied_text)
         rho_new = construct_density_matrix(embedding_new, rank=self.rank)
 
         povm_packs = db_session.config.get("povm_packs", ["tetralemma"])
@@ -449,9 +477,9 @@ class ReadingService:
         halt_curve = [step.halt_p for step in steps]
 
         for i in range(1, len(steps)):
-            # Reconstruct ρ for distance calculation
-            emb_prev = self._simulate_embedding(steps[i-1].y_text)
-            emb_curr = self._simulate_embedding(steps[i].y_text)
+            # Reconstruct ρ for distance calculation (using real embeddings)
+            emb_prev = self.embedding_service.embed_text(steps[i-1].y_text)
+            emb_curr = self.embedding_service.embed_text(steps[i].y_text)
             rho_prev = construct_density_matrix(emb_prev, rank=self.rank)
             rho_curr = construct_density_matrix(emb_curr, rank=self.rank)
             dist = rho_distance(rho_prev, rho_curr)
@@ -471,34 +499,99 @@ class ReadingService:
     # Helper methods
     # ========================================
 
-    def _simulate_embedding(self, text: str) -> np.ndarray:
-        """
-        Simulate sentence embedding.
-
-        TODO: Replace with actual sentence-transformers model.
-
-        Args:
-            text: Text to embed
-
-        Returns:
-            384-dim embedding vector
-        """
-        # Hash text to seed for consistency
-        seed = hash(text) % (2**32)
-        np.random.seed(seed)
-        embedding = np.random.randn(384).astype(np.float64)
-        embedding /= np.linalg.norm(embedding)
-        return embedding
-
-    def _simulate_trm_step(
+    async def _execute_trm_step(
         self,
         y_text: str,
         rho_meta: dict,
     ) -> tuple[str, str, dict]:
         """
-        Simulate TRM iteration.
+        Execute TRM iteration using StatelessTransformer (Phase 2).
 
-        TODO: Replace with actual TRM model.
+        This replaces the previous _simulate_trm_step stub with real
+        recursive TRM iteration guided by POVM measurements.
+
+        Process:
+        1. Determine target stance from current POVM measurements
+        2. Use StatelessTransformer to transform text toward target
+        3. Extract final transformed text and iteration details
+        4. Generate corner views (tetralemma perspectives)
+
+        Args:
+            y_text: Current text
+            rho_meta: Density matrix metadata
+
+        Returns:
+            Tuple of (new_text, summary, corner_views)
+        """
+        # Use real transformer if available
+        if self._transformer_available and self.transformer is not None:
+            import logging
+            logger = logging.getLogger(__name__)
+
+            try:
+                # Determine target stance (for now, use "analytical" tone as default)
+                # TODO: Make this configurable or infer from context
+                target_stance = {
+                    "tone": "analytical"  # Could also try: empathic, critical, playful
+                }
+
+                # Configure transformation
+                options = TransformOptions(
+                    max_iterations=3,  # Keep it fast for now
+                    convergence_threshold=0.65,
+                    povm_packs=["tone"],  # Focus on tone for Phase 2A
+                    temperature=0.7
+                )
+
+                # Execute transformation
+                result = await self.transformer.transform(
+                    text=y_text,
+                    target_stance=target_stance,
+                    options=options
+                )
+
+                # Extract transformed text
+                new_text = result.final_text
+
+                # Create summary
+                if result.converged:
+                    summary = f"Converged to {target_stance} in {result.total_iterations} iterations"
+                else:
+                    summary = f"Partial transformation ({result.total_iterations} iterations, no convergence)"
+
+                # Generate corner views (tetralemma perspectives)
+                # For Phase 2A, create simple variations
+                corner_views = {
+                    "A": f"Affirming perspective: {new_text}",
+                    "¬A": f"Negating perspective: {new_text}",
+                    "both": f"Paradoxical view: {new_text}",
+                    "neither": f"Transcendent view: {new_text}",
+                }
+
+                logger.info(
+                    f"TRM transformation: {result.total_iterations} iterations, "
+                    f"converged={result.converged}, target={target_stance}"
+                )
+
+                return new_text, summary, corner_views
+
+            except Exception as e:
+                # Fallback to stub if transformation fails
+                logger.error(f"TRM transformation failed: {e}", exc_info=True)
+                logger.warning("Falling back to stub transformation")
+                return self._stub_trm_step(y_text, rho_meta)
+
+        else:
+            # Transformer not available, use stub
+            return self._stub_trm_step(y_text, rho_meta)
+
+    def _stub_trm_step(
+        self,
+        y_text: str,
+        rho_meta: dict,
+    ) -> tuple[str, str, dict]:
+        """
+        Stub transformation (fallback when StatelessTransformer unavailable).
 
         Args:
             y_text: Current text
@@ -514,7 +607,7 @@ class ReadingService:
             words[len(words) // 2] = words[len(words) // 2].upper()
 
         new_text = " ".join(words)
-        summary = f"Refined word {len(words) // 2}"
+        summary = f"Stub: Modified word {len(words) // 2}"
 
         # Generate corner views (simple variations)
         corner_views = {

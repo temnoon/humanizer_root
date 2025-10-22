@@ -40,13 +40,25 @@ from humanizer.models.schemas import (
 router = APIRouter(prefix="/api/interests", tags=["interests"])
 
 
-# Helper to get user ID (for now, use a default user)
-# In production, this would come from authentication
-def get_user_id() -> UUID:
-    """Get current user ID. For now, returns a default user."""
-    from uuid import uuid4
-    # In production, get from auth token
-    # For now, use a consistent default
+# SINGLE-USER MODE: User authentication stub
+# TECHNICAL DEBT: See TECHNICAL_DEBT.md #DEBT-001
+def get_default_user_id() -> UUID:
+    """
+    Get default user ID for single-user local development mode.
+
+    TECHNICAL DEBT:
+    - Type: fallback
+    - Severity: 🔴 blocking for Cloud Archives
+    - This hardcoded UUID blocks multi-user support
+    - Acceptable for: Local Development MVP
+    - Must fix before: Cloud Archives deployment
+
+    Production TODO: Replace with actual authentication (JWT/session-based)
+    when implementing multi-user cloud deployment.
+
+    Returns:
+        UUID: Hardcoded default user UUID
+    """
     return UUID("00000000-0000-0000-0000-000000000001")
 
 
@@ -54,7 +66,7 @@ def get_user_id() -> UUID:
 async def mark_interesting(
     request: MarkInterestingRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     Mark something as interesting - create a new moment (Now).
@@ -97,7 +109,7 @@ async def mark_interesting(
 @router.get("/current", response_model=InterestResponse)
 async def get_current_interest(
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     Get the current interest (the "Now" moment).
@@ -287,7 +299,7 @@ async def get_trajectory(
     max_depth: int = Query(50, ge=1, le=200, description="Maximum past interests to retrieve"),
     include_pruned: bool = Query(False, description="Include pruned interests?"),
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     Get the attention trajectory (Turing tape).
@@ -333,7 +345,7 @@ async def get_trajectory(
 async def search_interests(
     request: SearchInterestsRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     Search interests by text, type, value, tags.
@@ -379,7 +391,7 @@ async def search_interests(
 @router.get("/insights", response_model=InterestInsightsResponse)
 async def get_insights(
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     Get learning insights from interest history.
@@ -409,7 +421,7 @@ async def add_tags(
     interest_id: UUID,
     request: AddTagsRequest,
     session: AsyncSession = Depends(get_session),
-    user_id: UUID = Depends(get_user_id),
+    user_id: UUID = Depends(get_default_user_id),
 ):
     """
     Add tags to an interest.

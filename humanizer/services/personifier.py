@@ -130,7 +130,7 @@ class PersonifierService:
         all_readings = []
         for text in casual_texts:
             embedding = self.transformation_service.embed_text(text)
-            from humanizer.ml.density import construct_density_matrix
+            from humanizer.core.trm.density import construct_density_matrix
             rho = construct_density_matrix(embedding, rank=self.rank)
             readings = pack.measure(rho)
             all_readings.append(readings)
@@ -326,7 +326,7 @@ class PersonifierService:
         pack = self.transformation_service.povm_packs[povm_pack]
 
         trm_embedding = self.transformation_service.embed_text(trm_text)
-        from humanizer.ml.density import construct_density_matrix
+        from humanizer.core.trm.density import construct_density_matrix
         trm_rho = construct_density_matrix(trm_embedding, rank=self.rank)
         trm_readings = pack.measure(trm_rho)
 

@@ -1,5 +1,8 @@
 /* Humanizer - Global Styles with Theme Support */
 
+/* Import responsive breakpoints */
+@import './styles/breakpoints.css';
+
 :root {
   /* Colors - Dark Theme (default) */
   --bg-primary: #0a0e14;
@@ -11,6 +14,8 @@
   --text-tertiary: #6b7280;
 
   --accent-purple: #a78bfa;
+  --accent-purple-alpha-10: rgba(167, 139, 250, 0.1);
+  --accent-purple-alpha-20: rgba(167, 139, 250, 0.2);
   --accent-blue: #60a5fa;
   --accent-green: #34d399;
   --accent-yellow: #fbbf24;
@@ -189,4 +194,42 @@ img {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+/* ================================================================
+   GUI Action Animations (Phase 3 - AUI)
+   ================================================================ */
+
+.gui-action-highlight {
+  animation: gui-highlight 2s ease-out;
+}
+
+@keyframes gui-highlight {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-purple);
+    background-color: var(--accent-purple-alpha-10);
+  }
+  50% {
+    box-shadow: 0 0 20px 5px var(--accent-purple);
+    background-color: var(--accent-purple-alpha-20);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+    background-color: transparent;
+  }
+}
+
+.gui-action-animate {
+  animation: gui-slide-in 0.3s ease-out;
+}
+
+@keyframes gui-slide-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

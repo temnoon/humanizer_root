@@ -47,7 +47,9 @@ async def start_reading(
     Returns:
         ReadingStartResponse with reading_id, initial ρ state, and POVM readings
     """
-    # For now, use a fixed user ID (TODO: get from auth)
+    # SINGLE-USER MODE: Hardcoded user ID
+    # TECHNICAL DEBT: See TECHNICAL_DEBT.md #DEBT-001
+    # TODO: Get from auth token (JWT/session) for multi-user support
     user_id = UUID("00000000-0000-0000-0000-000000000001")
 
     service = ReadingService()

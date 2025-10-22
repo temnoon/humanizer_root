@@ -26,8 +26,8 @@
 
 /* Container */
 .agent-prompt-container {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   width: 90%;
@@ -55,7 +55,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--border-color);
 }
 
 .agent-prompt-title {
@@ -64,7 +64,7 @@
   gap: 10px;
   font-size: 16px;
   font-weight: 600;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
 }
 
 .agent-icon {
@@ -75,7 +75,7 @@
   background: none;
   border: none;
   font-size: 28px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
   cursor: pointer;
   padding: 0;
   width: 28px;
@@ -88,8 +88,128 @@
 }
 
 .agent-close-btn:hover {
-  background: var(--color-hover);
-  color: var(--color-text-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+/* Conversation Controls */
+.agent-conversation-controls {
+  display: flex;
+  gap: 8px;
+  margin: 0 auto;
+}
+
+.agent-conversation-btn,
+.agent-new-conversation-btn {
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.agent-conversation-btn:hover,
+.agent-new-conversation-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-blue);
+}
+
+/* Conversation List */
+.agent-conversation-list {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  max-height: 300px;
+  overflow-y: auto;
+  animation: slideDown 0.2s ease-out;
+}
+
+.agent-conversation-list-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+}
+
+.agent-conversation-list-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.agent-conversation-list-header button {
+  padding: 4px 12px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.agent-conversation-list-header button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.agent-conversation-list-items {
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-conversation-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 20px;
+  background: var(--bg-secondary);
+  border: none;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: left;
+}
+
+.agent-conversation-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.agent-conversation-item.active {
+  background: var(--accent-blue);
+  color: white;
+}
+
+.agent-conversation-item.active .agent-conversation-item-title,
+.agent-conversation-item.active .agent-conversation-item-meta {
+  color: white;
+}
+
+.agent-conversation-item-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.agent-conversation-item-meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.agent-conversation-empty {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 13px;
 }
 
 /* Messages */
@@ -105,11 +225,11 @@
 .agent-welcome {
   text-align: center;
   padding: 40px 20px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 .agent-welcome h3 {
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   margin-bottom: 16px;
   font-size: 18px;
 }
@@ -130,19 +250,19 @@
 
 .agent-welcome li {
   padding: 10px 16px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 13px;
   font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .agent-welcome li:hover {
-  background: var(--color-hover);
-  border-color: var(--color-primary);
+  background: var(--bg-tertiary);
+  border-color: var(--accent-blue);
 }
 
 /* Message */
@@ -181,14 +301,14 @@
 }
 
 .agent-message-text {
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   line-height: 1.5;
   font-size: 14px;
 }
 
 .agent-message-user .agent-message-text {
   padding: 12px 16px;
-  background: var(--color-primary);
+  background: var(--accent-blue);
   color: white;
   border-radius: 12px;
   border-bottom-right-radius: 4px;
@@ -196,15 +316,15 @@
 
 .agent-message-assistant .agent-message-text {
   padding: 12px 16px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   border-bottom-left-radius: 4px;
 }
 
 .agent-message-time {
   font-size: 11px;
-  color: var(--color-text-tertiary);
+  color: var(--text-tertiary);
   margin-top: 4px;
 }
 
@@ -214,8 +334,8 @@
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 12px;
 }
@@ -226,18 +346,18 @@
 
 .agent-tool-name {
   font-weight: 600;
-  color: var(--color-primary);
+  color: var(--accent-blue);
   font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
 }
 
 .agent-tool-params {
   display: block;
   padding: 8px;
-  background: var(--color-background);
+  background: var(--bg-secondary);
   border-radius: 4px;
   overflow-x: auto;
   font-size: 11px;
-  color: var(--color-text-secondary);
+  color: var(--text-secondary);
 }
 
 /* GUI Action */
@@ -246,7 +366,7 @@
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
-  background: var(--color-success);
+  background: var(--accent-green);
   color: white;
   border-radius: 6px;
   font-size: 12px;
@@ -266,7 +386,7 @@
 
 .agent-loading-dot {
   animation: loadingPulse 1.4s ease-in-out infinite;
-  color: var(--color-text-tertiary);
+  color: var(--text-tertiary);
 }
 
 .agent-loading-dot:nth-child(2) {
@@ -291,33 +411,33 @@
   display: flex;
   gap: 12px;
   padding: 16px 20px;
-  border-top: 1px solid var(--color-border);
+  border-top: 1px solid var(--border-color);
 }
 
 .agent-input {
   flex: 1;
   padding: 12px 16px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;
-  color: var(--color-text-primary);
+  color: var(--text-primary);
   outline: none;
   transition: all 0.15s;
 }
 
 .agent-input:focus {
-  border-color: var(--color-primary);
+  border-color: var(--accent-blue);
   box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
 }
 
 .agent-input::placeholder {
-  color: var(--color-text-tertiary);
+  color: var(--text-tertiary);
 }
 
 .agent-submit-btn {
   padding: 12px 24px;
-  background: var(--color-primary);
+  background: var(--accent-blue);
   color: white;
   border: none;
   border-radius: 8px;
@@ -328,7 +448,7 @@
 }
 
 .agent-submit-btn:hover:not(:disabled) {
-  background: var(--color-primary-hover);
+  background: var(--accent-blue-hover);
   transform: translateY(-1px);
 }
 
@@ -342,14 +462,14 @@
   padding: 12px 20px;
   text-align: center;
   font-size: 12px;
-  color: var(--color-text-tertiary);
-  border-top: 1px solid var(--color-border);
+  color: var(--text-tertiary);
+  border-top: 1px solid var(--border-color);
 }
 
 .agent-footer kbd {
   padding: 2px 6px;
-  background: var(--color-background);
-  border: 1px solid var(--color-border);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   border-radius: 4px;
   font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
   font-size: 11px;
@@ -365,10 +485,115 @@
 }
 
 .agent-messages::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: var(--border-color);
   border-radius: 4px;
 }
 
 .agent-messages::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-tertiary);
+  background: var(--text-tertiary);
+}
+
+/* Mobile: < 768px */
+@media (max-width: 767px) {
+  .agent-prompt-overlay {
+    padding-top: 0;
+    align-items: stretch;
+  }
+
+  .agent-prompt-container {
+    width: 100%;
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .agent-prompt-header {
+    padding: var(--spacing-md);
+    height: 56px;
+  }
+
+  .agent-prompt-title {
+    font-size: var(--font-base);
+  }
+
+  .agent-close-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .agent-conversation-controls {
+    flex-wrap: wrap;
+  }
+
+  .agent-conversation-btn,
+  .agent-new-conversation-btn {
+    min-height: 44px;
+  }
+
+  .agent-conversation-list {
+    max-height: 40vh;
+  }
+
+  .agent-messages {
+    padding: var(--spacing-md);
+  }
+
+  .agent-welcome {
+    padding: var(--spacing-lg);
+  }
+
+  .agent-welcome h3 {
+    font-size: var(--font-lg);
+  }
+
+  .agent-message {
+    gap: var(--spacing-sm);
+  }
+
+  .agent-message-role {
+    font-size: 20px;
+    width: 28px;
+    height: 28px;
+  }
+
+  .agent-message-text {
+    font-size: var(--font-base);
+  }
+
+  .agent-input-container {
+    padding: var(--spacing-md);
+    gap: var(--spacing-sm);
+  }
+
+  .agent-input {
+    font-size: var(--font-base);
+    min-height: 44px;
+  }
+
+  .agent-submit-btn {
+    min-height: 44px;
+    padding: 0 var(--spacing-lg);
+  }
+
+  .agent-footer {
+    padding: var(--spacing-sm);
+    font-size: var(--font-xs);
+  }
+}
+
+/* Tablet: 768px - 1023px */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .agent-prompt-overlay {
+    padding-top: 5vh;
+  }
+
+  .agent-prompt-container {
+    width: 95%;
+    max-width: 600px;
+  }
+
+  .agent-conversation-list {
+    max-height: 250px;
+  }
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, KeyboardEvent } from 'react';
 import './AgentPrompt.css';
+import { api } from '@/lib/api-client';
 
 export interface AgentMessage {
   role: 'user' | 'assistant';
@@ -19,6 +20,8 @@ interface AgentPromptProps {
   onSubmit: (message: string) => Promise<void>;
   messages: AgentMessage[];
   isLoading: boolean;
+  conversationId: string | null;
+  onConversationChange: (conversationId: string | null) => void;
 }
 
 export default function AgentPrompt({
@@ -26,18 +29,36 @@ export default function AgentPrompt({
   onClose,
   onSubmit,
   messages,
-  isLoading
+  isLoading,
+  conversationId,
+  onConversationChange
 }: AgentPromptProps) {
   const [input, setInput] = useState('');
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [showConversationList, setShowConversationList] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Focus input when opened
+  // Focus input and load conversations when opened
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
+    if (isOpen) {
+      if (inputRef.current) {
+        inputRef.current.focus();
+      }
+      loadConversations();
     }
   }, [isOpen]);
+
+  const loadConversations = async () => {
+    try {
+      const response = await api.getAgentConversations();
+      // API returns {conversations: [...], total: N}
+      setConversations(response.conversations || []);
+    } catch (error) {
+      console.error('Failed to load conversations:', error);
+      setConversations([]);
+    }
+  };
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -82,10 +103,61 @@ export default function AgentPrompt({
             <span className="agent-icon">🤖</span>
             <span>Agentic UI</span>
           </div>
+          <div className="agent-conversation-controls">
+            <button
+              className="agent-conversation-btn"
+              onClick={() => setShowConversationList(!showConversationList)}
+              title="View conversation history"
+            >
+              📚 {conversationId ? 'Switch' : 'History'} ({conversations.length})
+            </button>
+            {conversationId && (
+              <button
+                className="agent-new-conversation-btn"
+                onClick={() => onConversationChange(null)}
+                title="Start new conversation"
+              >
+                ➕ New
+              </button>
+            )}
+          </div>
           <button className="agent-close-btn" onClick={onClose}>
             ×
           </button>
         </div>
+
+        {/* Conversation List Dropdown */}
+        {showConversationList && (
+          <div className="agent-conversation-list">
+            <div className="agent-conversation-list-header">
+              <h4>Conversation History</h4>
+              <button onClick={() => setShowConversationList(false)}>Close</button>
+            </div>
+            <div className="agent-conversation-list-items">
+              {conversations.length === 0 ? (
+                <div className="agent-conversation-empty">No conversations yet</div>
+              ) : (
+                conversations.map((conv) => (
+                  <button
+                    key={conv.id}
+                    className={`agent-conversation-item ${conv.id === conversationId ? 'active' : ''}`}
+                    onClick={() => {
+                      onConversationChange(conv.id);
+                      setShowConversationList(false);
+                    }}
+                  >
+                    <div className="agent-conversation-item-title">
+                      {conv.title || `Conversation ${conv.id.slice(0, 8)}...`}
+                    </div>
+                    <div className="agent-conversation-item-meta">
+                      {conv.message_count} messages • {new Date(conv.created_at).toLocaleDateString()}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Messages */}
         <div className="agent-messages">
