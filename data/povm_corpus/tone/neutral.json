@@ -1,0 +1,29 @@
+{
+  "pack": "tone",
+  "axis": "neutral",
+  "description": "Objective, detached, without emotional coloring",
+  "examples": [
+    {
+      "text": "The temperature is 20 degrees Celsius.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "The object is located at position (x, y).",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "This is a description of the observed phenomenon.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

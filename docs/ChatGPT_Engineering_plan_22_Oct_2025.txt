@@ -1,0 +1,231 @@
+Awesome—this gives us all the philosophical lift we need. Here’s a succinct, engineering-ready build sheet you can hand to a coding assistant to ship a practical Narrative Transformation Engine (NTE) that honors your Subjective Narrative Theory (SNT) while avoiding the “decode modified embeddings back to text” trap.
+
+⸻
+
+Narrative Transformation Engine (NTE)
+
+Practical spec for Persona / Namespace / Style transformations with essence preservation
+
+0) Goal (one line)
+
+Transform input narratives along Persona (P), Namespace (N), and Style (S) while preserving narrative essence (entities/relations, event order, causal links) using a hybrid symbolic + LLM pipeline (not direct “embedding edit → decode”).
+
+⸻
+
+1) System architecture (high level)
+	1.	Ingest & Segment
+
+	•	Clean + split into scenes/paragraphs with dialogue awareness.
+
+	2.	Essence Extractor (EE)
+
+	•	Coref → canonical entity IDs.
+	•	SRL/frames → events with roles.
+	•	Temporal ordering → event sequence.
+	•	Relations graph (entity↔entity).
+	•	Causal graph (event↔event) via discourse cues + LLM tagging.
+	•	Output: EssenceGraph.
+
+	3.	State Tracker (SNT-lite)
+
+	•	Maintain a mean-field state vector e (document/scene embedding) + low-rank covariance Σ_k (uncertainty per facet).
+	•	Track per-scene deltas: Δe_scene.
+
+	4.	Axis Controllers
+
+	•	Persona: POV/tense/knowledge scope/reliability.
+	•	Namespace: entity/world mapping table (+ forbidden/required vocab).
+	•	Style: preset + sliders (verbosity/figurative/register) and optional adapter/LoRA.
+
+	5.	Planner
+
+	•	Convert EssenceGraph + AxisConfig → Content Plan (beats with role bindings, order, constraints).
+
+	6.	Constrained Generator
+
+	•	LLM decoding with:
+	•	Hard constraints: entity placeholders, required mentions, event order.
+	•	Soft controls: style prompt/prefix; logit biases from e (keep output near state).
+	•	Optional RAG for namespace/world details (scoped vector DB).
+
+	7.	Validator & Auto-Repair
+
+	•	Re-extract essence from the output -> preservation scores (R, E, C).
+	•	If below thresholds, tighten constraints or adjust axis knobs → re-decode.
+
+	8.	Trace & Provenance
+
+	•	Persist inputs/configs/scores; side-by-side diffs by axis; reproducible prompts.
+
+⸻
+
+2) Minimal data contracts (copy/paste)
+
+AxisConfig
+
+{
+  "persona": { "pov": "first|third_omniscient|third_limited", "tense": "past|present",
+               "knowledge_scope": "limited|omniscient", "reliability": 0.0 },
+  "namespace": { "entity_map": { "Alice": "Captain Rana" }, "world_preset": "scifi|medieval|custom",
+                 "required_terms": ["orbital"], "forbidden_terms": ["New York"] },
+  "style": { "preset": "minimal|formal|noir|hemingway",
+             "verbosity": 0.5, "figurative": 0.2, "rhythm": "neutral|staccato|lyrical" }
+}
+
+EssenceGraph (simplified)
+
+{
+  "entities":[{"id":"E1","name":"Alice","type":"person"}],
+  "events":[{"id":"EV1","frame":"Attempt",
+             "args":{"Agent":"E1","Goal":"E2"}, "time":"t1"}],
+  "relations":[{"subj":"E1","rel":"supports","obj":"E2"}],
+  "causality":[{"from":"EV1","to":"EV2","type":"enables"}]
+}
+
+PreservationScores
+
+{ "relations": 0.0, "events": 0.0, "causality": 0.0, "composite": 0.0 }
+
+
+⸻
+
+3) Core APIs
+
+POST /ingest           -> { docId, scenes[] }
+POST /essence/extract  -> { essence: EssenceGraph }
+POST /transform        -> { transformed, scores: PreservationScores, traceId }
+POST /evaluate         -> { scores: PreservationScores, diffs }
+GET  /trace/{traceId}  -> { prompts, constraints, decoder_params, scores }
+
+
+⸻
+
+4) Pragmatic defaults (libraries & choices)
+	•	Segmentation: spaCy sentencizer + dialogue heuristics.
+	•	Coref: fastcoref (or HF coref) to canonicalize names → placeholders <E1>.
+	•	SRL/Frames: AllenNLP SRL (PropBank) or model-assisted extraction with JSON tools.
+	•	Causality: cue phrases + LLM labeling into a DAG (keep minimal first).
+	•	Embeddings: sentence/paragraph embeddings (open-weights or vendor) in pgvector.
+	•	Store: Postgres (JSONB for graphs) + pgvector; Redis cache; R2/S3 for traces.
+	•	LLM: open source (e.g., Llama-3.1-8B/70B) or provider; wrap behind a uniform adapter.
+	•	RAG: per-project index of namespace/world snippets + style exemplars.
+	•	Constrained decoding:
+	•	Generate per-beat; enforce placeholders; forbid terms list; keep event order.
+	•	Logit bias from state vector e: bias words/phrases closer to e.
+	•	Optional prefix/prompt-tuning for style/persona (no fine-tune in MVP).
+
+⸻
+
+5) Learning the axis controllers (data-light)
+	•	Namespace (N): deterministic table + lexicon constraints. No ML needed to start.
+	•	Persona (P): small paired set (POV/tense/knowledge variants) → learn prompt templates + rule checks (pronoun/tense regex + SRL sanity).
+	•	Style (S): collect 5–10 short exemplars per preset; mine style tokens/phrases and rhythm stats; (optional) tiny LoRA later.
+
+Semi-orthogonality handling
+	•	Keep axis operations separate; when composing, enforce order N → P → S.
+	•	If interference detected (validator drop), project deltas with simple Gram–Schmidt on embedding diagnostics (approximate).
+
+⸻
+
+6) Validator & thresholds (the “essence contract”)
+	•	Relations (R): graph overlap F1 or edit distance ≤ ε.
+	•	Events (E): frame type + role binding match (macro-F1).
+	•	Causality (C): edge precision@k (preserve core edges).
+	•	Composite = mean(R,E,C).
+	•	Accept if composite ≥ 0.80 and each ≥ 0.70.
+	•	Auto-repair:
+	•	If R fails: strengthen placeholder/role constraints.
+	•	If E fails: generate per-event then stitch.
+	•	If C fails: add explicit connectives (“because/therefore”) for target beats.
+
+⸻
+
+7) Prompts (starter templates)
+
+Planner
+
+Given this EssenceGraph JSON, produce an ordered list of beats (id, event_frame, role_bindings, must_mention_entities, prohibited_terms). Do not add or remove events.
+
+Persona renderer
+
+Render these beats in {POV}, {tense}, {knowledge_scope} narrator with reliability target {reliability}. Keep entity placeholders untouched. Preserve event order.
+
+Style renderer
+
+Apply style {preset} (verbosity {v}, figurative {f}, rhythm {r}). Avoid {forbidden_terms}. Do not change placeholders or beat order.
+
+Namespace swap
+
+Replace placeholders using this entity_map. Do not invent new entities.
+
+⸻
+
+8) Tests & CI (must pass)
+	•	Unit:
+	•	Placeholder round-trip: names → <E#> → names.
+	•	Event order invariant through generator.
+	•	Pronoun & tense checks for Persona.
+	•	Property:
+	•	Namespace swaps don’t alter causal edge count.
+	•	Persona changes don’t alter role bindings.
+	•	Bench:
+	•	30–50 gold mini-stories with hand-labeled EssenceGraph + axis targets.
+	•	Track preservation scores; fail build on median drop.
+
+⸻
+
+9) Security / PII
+	•	Default store only graphs + hashes; raw text opt-in.
+	•	Namespace maps via placeholders first; restore at final step.
+	•	Redact PII in exports.
+
+⸻
+
+10) Phased delivery
+
+Phase A (MVP)
+	•	Ingest, Essence Extractor (coref+SRL), Namespace swap, Planner, Constrained Generator, Validator (R/E basic), traces.
+
+Phase B
+	•	Persona + Style controllers, logit bias from state vector, causal graph & C-score, auto-repair loop, small gold bench + CI.
+
+Phase C
+	•	RAG for world/style exemplars, optional LoRA for style, covariance-aware state tracker, authoring UI with P/N/S sliders.
+
+⸻
+
+11) Known issues & how we handle them
+	•	Nonlinearity of transformations → keep plan-then-generate with hard constraints; treat axis ops separately; composition order N→P→S.
+	•	Decoding from edited embeddings is unreliable → we don’t; embeddings steer retrieval and logits only.
+	•	Subjective variance → validator focuses on structural essence; allow stylistic freedom within thresholds.
+	•	Axis entanglement → projection + validator-guided repair; keep prompts modular.
+	•	Data scarcity → start rule/templated; learn small deltas from few parallel pairs later.
+
+⸻
+
+12) Tech skeleton (suggested)
+	•	Backend: FastAPI (Python).
+	•	DB: Postgres + pgvector; Redis; R2/S3 for artifacts.
+	•	NLP: spaCy, fastcoref, AllenNLP SRL (or equivalent).
+	•	Models: Llama-3.x via server; pluggable provider adapter.
+	•	Index: Qdrant/pgvector for RAG.
+	•	Ops: simple Docker compose; logs with structured traces.
+
+⸻
+
+13) Acceptance criteria (per axis)
+	•	Namespace: ≥95% role preservation; 0 forbidden leaks; causal edges unchanged.
+	•	Persona: target POV/tense achieved; ≥90% pronoun consistency; event roles unchanged.
+	•	Style: preset classifier ≥0.8; readability within ±10% of source; composite essence ≥0.80.
+
+⸻
+
+14) Developer notes (from SNT → practice)
+	•	Treat SNT state as e + Σ (low-rank) for now; use it to:
+	•	bias logits (keep text “near” intended meaning),
+	•	drive retrieval,
+	•	diagnose axis deltas (vector arithmetic for sanity checks),
+	•	never as the sole decoding substrate.
+	•	All axis changes must round-trip through Essence Extractor and pass validator; this is the non-negotiable “essence contract.”
+
+⸻

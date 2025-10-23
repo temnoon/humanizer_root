@@ -1,0 +1,29 @@
+{
+  "pack": "audience",
+  "axis": "student",
+  "description": "Educational, with explanations and examples",
+  "examples": [
+    {
+      "text": "Let's work through an example together.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "To understand this, consider the following practice problem.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "This exercise will help you learn the concept.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

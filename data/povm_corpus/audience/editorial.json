@@ -1,0 +1,29 @@
+{
+  "pack": "audience",
+  "axis": "editorial",
+  "description": "Opinion pieces with persuasive arguments",
+  "examples": [
+    {
+      "text": "We must take action now to address this crisis.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "It is imperative that society recognizes this issue.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "I believe strongly that this approach is fundamentally flawed.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

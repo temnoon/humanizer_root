@@ -1,0 +1,29 @@
+{
+  "pack": "pragmatics",
+  "axis": "evidence",
+  "description": "Grounded in data, citations, examples",
+  "examples": [
+    {
+      "text": "According to Smith (2020), the correlation is significant.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "The data shows a clear trend.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "Research demonstrates that this approach works.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

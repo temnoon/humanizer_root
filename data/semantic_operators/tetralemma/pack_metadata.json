@@ -1,0 +1,11 @@
+{
+  "name": "tetralemma",
+  "description": "Tetralemma POVM pack",
+  "rank": 64,
+  "operators": [
+    "A",
+    "\u00acA",
+    "both",
+    "neither"
+  ]
+}

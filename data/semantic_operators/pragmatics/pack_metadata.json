@@ -1,0 +1,11 @@
+{
+  "name": "pragmatics",
+  "description": "Pragmatics POVM pack",
+  "rank": 64,
+  "operators": [
+    "clarity",
+    "coherence",
+    "evidence",
+    "charity"
+  ]
+}

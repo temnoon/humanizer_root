@@ -1,0 +1,29 @@
+{
+  "pack": "tetralemma",
+  "axis": "both",
+  "description": "Paradoxical stance - acknowledges something is BOTH true and false",
+  "examples": [
+    {
+      "text": "Light is both a wave and a particle.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "This statement is both true and false depending on perspective.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "Quantum particles exist in superposition - both here and there.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

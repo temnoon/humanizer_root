@@ -1,0 +1,11 @@
+{
+  "name": "ontology",
+  "description": "Ontology POVM pack",
+  "rank": 64,
+  "operators": [
+    "corporeal",
+    "subjective",
+    "objective",
+    "mixed_frame"
+  ]
+}

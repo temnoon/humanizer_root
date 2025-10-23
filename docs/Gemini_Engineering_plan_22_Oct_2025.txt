@@ -1,0 +1,200 @@
+Here is a succinct, practical engineering plan based on the provided research, suitable for a 3rd-party coding assistant.
+
+Engineering Plan: Narrative Transformation Engine
+1. Project Goal
+
+The objective is to engineer a Narrative Transformation Engine. This system must represent the "subjective meaning-state" of a text and apply transformations to it (e.g., summarize, expand, change style), then generate new text from the transformed state.
+
+2. Core Technical Challenge
+
+The foundational "Subjective Narrative Theory" (SNT) proposes representing the narrative state using a high-dimensional quantum density matrix (ρ).
+
+The Problem: Maintaining and performing operations on a full N×N density matrix is computationally intractable. A single matrix multiplication is O(N 
+3
+ ), and storage is O(N 
+2
+ ). This is not feasible for a practical, real-time system.
+
+3. The Practical Solution: A Classical Approximation
+
+The most practical and efficient solution is to treat the quantum formalism as a theoretical justification for a set of classical, vector-based approximations. We will not build a literal quantum simulator.
+
+Instead, we will build a system around three standard NLP components:
+
+State Representation: A single vector embedding.
+
+State Transformation: Vector arithmetic.
+
+Text Generation: A steered Large Language Model (LLM).
+
+4. Step-by-Step Implementation
+
+Here is the 3-step engineering plan.
+
+Step 1: Represent the "Meaning-State" (Mean-Field Approximation)
+Instead of a full density matrix (ρ), we will represent the narrative state as its "center of mass"—a single, d-dimensional vector embedding (e).
+
+Action: Use a pre-trained sentence-transformer model (e.g., Sentence-BERT, SONAR, or a similar encoder) to get embeddings for text.
+
+State Definition: The "meaning-state" e 
+chunk
+​	
+  of a paragraph or scene is the average (or a learned aggregation) of its sentence embeddings.
+
+Narrative Update: As the system reads, the global narrative state e 
+narrative
+​	
+  is updated by aggregating the new sentence/chunk embeddings. This is the practical, O(d) version of the theoretical ρ 
+n+1
+​	
+ =Φ 
+s
+​	
+ (ρ 
+n
+​	
+ ) update.
+
+Step 2: Implement Narrative Transformations (Vector Arithmetic)
+Instead of complex "quantum channels" (Φ 
+T
+​	
+ ), transformations are modeled as simple vector addition. We will create a library of "transformation vectors" (v 
+T
+​	
+ ).
+
+Action: For each desired transformation (e.g., T = "summarize," "expand," "restyle to_noir"), we must learn a corresponding vector v 
+T
+​	
+ .
+
+How to Learn v 
+T
+​	
+ :
+
+Create a dataset of text pairs (e.g., (original_text, summarized_text)).
+
+Encode both: $e_{\text{original}} = \text{Encoder}(\text{original_text})$ and $e_{\text{summary}} = \text{Encoder}(\text{summarized_text})$.
+
+The transformation vector is the average difference: v 
+summarize
+​	
+ =mean(e 
+summary
+​	
+ −e 
+original
+​	
+ ) across the entire dataset.
+
+Applying a Transform: To transform a new, unseen chunk of text e 
+input
+​	
+ , you simply add the vector:
+
+e 
+target
+​	
+ =e 
+input
+​	
+ +v 
+summarize
+​	
+ 
+This new e 
+target
+​	
+  is the "post-transformation" meaning-state.
+
+Step 3: Generate Text from the Target State (LLM Steering)
+We now have a target embedding e 
+target
+​	
+  and need to generate text that "matches" it. This is a "vector-to-text" problem. We will use an LLM and guide its output.
+
+Method A: Retrieval-Augmented Generation (RAG) (Recommended Start)
+
+This is the most reliable method. The target vector e 
+target
+​	
+  is used as a query, not a direct generator.
+
+Create a Vector Database: Populate a vector store (using PostgreSQL/pgvector, ChromaDB, etc.) with a large corpus of text chunks (sentences, paragraphs) relevant to the desired domain, along with their embeddings.
+
+Query: Use the e 
+target
+​	
+  vector from Step 2 to perform a similarity search.
+
+Retrieve: Fetch the top-k most similar text chunks from the database.
+
+Generate: Feed these retrieved chunks into an LLM's prompt as context, along with the original text.
+
+Example Prompt:
+
+You are a narrative transformation engine. Rewrite the following text to be more concise and focused.
+
+Use the following key ideas as a guide:
+- [Retrieved chunk 1]
+- [Retrieved chunk 2]
+
+Original Text:
+[...original text goes here...]
+
+Transformed Text:
+Method B: Logit Biasing / Activation Steering (Advanced)
+
+This method directly "steers" the LLM's generation.
+
+Get LLM Embeddings: You need access to the LLM's own word embedding matrix W 
+e
+​	
+ .
+
+Calculate Bias: At each generation step, as the LLM is about to choose its next word, calculate the cosine similarity between your e 
+target
+​	
+  and the embedding for every word in the vocabulary: $\text{sim}(w) = \text{cosine_similarity}(e_{\text{target}}, W_e[w])$.
+
+Apply Bias: Add these similarity scores (multiplied by a "guidance" factor α) directly to the LLM's output logits before the softmax function.
+
+logits 
+new
+​	
+ =logits 
+LLM
+​	
+ +α⋅sim
+Result: The LLM will be more likely to pick words that are semantically close to your target state, effectively "steering" the generation to match e 
+target
+​	
+ . (This is also known as "activation engineering" if v 
+T
+​	
+  is added to internal hidden states).
+
+Summary: Practical Architecture
+
+Input Text → Encoder (LLM) → e 
+original
+​	
+ 
+
+e 
+original
+​	
+ +v 
+transform
+​	
+  → e 
+target
+​	
+ 
+
+e 
+target
+​	
+  → [Method A or B] → LLM Generator → Output Text

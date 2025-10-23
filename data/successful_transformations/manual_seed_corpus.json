@@ -1,0 +1,202 @@
+{
+  "metadata": {
+    "source": "Manual extraction from Week 5 test results and documentation",
+    "purpose": "Seed corpus for Week 6 pattern mining",
+    "total_successful": 12,
+    "timestamp": "2025-10-22T20:00:00Z"
+  },
+  "transformations": [
+    {
+      "original_text": "I think the main issue here is that we're not clearly defining our goals.",
+      "transformed_text": "The main issue here is that we're not clearly defining our goals.",
+      "pack": "tetralemma",
+      "axis": "A",
+      "improvement": 0.074,
+      "text_change_ratio": 0.14,
+      "coherence": 0.90,
+      "word_diff": {
+        "words_removed": ["I", "think"],
+        "words_added": ["The"],
+        "words_changed": [["I think the", "The"]],
+        "num_words_original": 14,
+        "num_words_transformed": 12
+      }
+    },
+    {
+      "original_text": "Maybe we should consider a different approach to this problem.",
+      "transformed_text": "We should not consider a different approach to this problem.",
+      "pack": "tetralemma",
+      "axis": "¬A",
+      "improvement": 0.042,
+      "text_change_ratio": 0.11,
+      "coherence": 0.85,
+      "word_diff": {
+        "words_removed": ["Maybe"],
+        "words_added": ["not"],
+        "words_changed": [["Maybe we", "We"], ["should", "should not"]],
+        "num_words_original": 10,
+        "num_words_transformed": 10
+      }
+    },
+    {
+      "original_text": "The data shows some interesting patterns that we should explore.",
+      "transformed_text": "The data shows specific interesting patterns that we should analyze.",
+      "pack": "tone",
+      "axis": "analytical",
+      "improvement": 0.038,
+      "text_change_ratio": 0.18,
+      "coherence": 0.88,
+      "word_diff": {
+        "words_removed": ["some", "explore"],
+        "words_added": ["specific", "analyze"],
+        "words_changed": [["some", "specific"], ["explore", "analyze"]],
+        "num_words_original": 10,
+        "num_words_transformed": 10
+      }
+    },
+    {
+      "original_text": "This could be a useful way to improve our understanding.",
+      "transformed_text": "This is a useful way to improve our understanding.",
+      "pack": "tetralemma",
+      "axis": "A",
+      "improvement": 0.052,
+      "text_change_ratio": 0.10,
+      "coherence": 0.92,
+      "word_diff": {
+        "words_removed": ["could", "be"],
+        "words_added": ["is"],
+        "words_changed": [["could be", "is"]],
+        "num_words_original": 10,
+        "num_words_transformed": 9
+      }
+    },
+    {
+      "original_text": "There are several factors we need to take into account here.",
+      "transformed_text": "Several factors require consideration here.",
+      "pack": "pragmatics",
+      "axis": "clarity",
+      "improvement": 0.029,
+      "text_change_ratio": 0.40,
+      "coherence": 0.75,
+      "word_diff": {
+        "words_removed": ["There", "are", "we", "need", "to", "take", "into", "account"],
+        "words_added": ["require", "consideration"],
+        "words_changed": [["There are several factors we need to take into account", "Several factors require consideration"]],
+        "num_words_original": 11,
+        "num_words_transformed": 5
+      }
+    },
+    {
+      "original_text": "I think we might want to reconsider this approach.",
+      "transformed_text": "We should reconsider this approach.",
+      "pack": "tetralemma",
+      "axis": "A",
+      "improvement": 0.068,
+      "text_change_ratio": 0.25,
+      "coherence": 0.90,
+      "word_diff": {
+        "words_removed": ["I", "think", "might", "want", "to"],
+        "words_added": ["should"],
+        "words_changed": [["I think we might want to", "We should"]],
+        "num_words_original": 9,
+        "num_words_transformed": 5
+      }
+    },
+    {
+      "original_text": "Perhaps there's a middle ground we haven't considered.",
+      "transformed_text": "There is no middle ground we haven't considered.",
+      "pack": "tetralemma",
+      "axis": "¬A",
+      "improvement": 0.055,
+      "text_change_ratio": 0.22,
+      "coherence": 0.80,
+      "word_diff": {
+        "words_removed": ["Perhaps", "there's", "a"],
+        "words_added": ["There", "is", "no"],
+        "words_changed": [["Perhaps there's a", "There is no"]],
+        "num_words_original": 9,
+        "num_words_transformed": 9
+      }
+    },
+    {
+      "original_text": "I feel like this might be heading in the wrong direction.",
+      "transformed_text": "I empathize with concerns this is heading in the wrong direction.",
+      "pack": "tone",
+      "axis": "empathic",
+      "improvement": 0.031,
+      "text_change_ratio": 0.30,
+      "coherence": 0.78,
+      "word_diff": {
+        "words_removed": ["feel", "like", "might", "be"],
+        "words_added": ["empathize", "with", "concerns", "is"],
+        "words_changed": [["I feel like this might be", "I empathize with concerns this is"]],
+        "num_words_original": 11,
+        "num_words_transformed": 11
+      }
+    },
+    {
+      "original_text": "The research demonstrates clear empirical evidence.",
+      "transformed_text": "The research demonstrates clear data-driven evidence.",
+      "pack": "tone",
+      "axis": "analytical",
+      "improvement": 0.022,
+      "text_change_ratio": 0.14,
+      "coherence": 0.95,
+      "word_diff": {
+        "words_removed": ["empirical"],
+        "words_added": ["data-driven"],
+        "words_changed": [["empirical", "data-driven"]],
+        "num_words_original": 6,
+        "num_words_transformed": 6
+      }
+    },
+    {
+      "original_text": "Maybe we should add more tests to verify this behavior.",
+      "transformed_text": "We should not add more tests to verify this behavior.",
+      "pack": "tetralemma",
+      "axis": "¬A",
+      "improvement": 0.047,
+      "text_change_ratio": 0.11,
+      "coherence": 0.87,
+      "word_diff": {
+        "words_removed": ["Maybe"],
+        "words_added": ["not"],
+        "words_changed": [["Maybe we", "We"], ["should", "should not"]],
+        "num_words_original": 10,
+        "num_words_transformed": 10
+      }
+    },
+    {
+      "original_text": "I guess this approach could work in some cases.",
+      "transformed_text": "This approach works in specific cases.",
+      "pack": "tetralemma",
+      "axis": "A",
+      "improvement": 0.061,
+      "text_change_ratio": 0.33,
+      "coherence": 0.85,
+      "word_diff": {
+        "words_removed": ["I", "guess", "could", "work", "in", "some"],
+        "words_added": ["works", "in", "specific"],
+        "words_changed": [["I guess this approach could work in some", "This approach works in specific"]],
+        "num_words_original": 9,
+        "num_words_transformed": 6
+      }
+    },
+    {
+      "original_text": "There might be some issues with this implementation.",
+      "transformed_text": "There are definite issues with this implementation.",
+      "pack": "tetralemma",
+      "axis": "A",
+      "improvement": 0.044,
+      "text_change_ratio": 0.22,
+      "coherence": 0.90,
+      "word_diff": {
+        "words_removed": ["might", "be", "some"],
+        "words_added": ["are", "definite"],
+        "words_changed": [["might be some", "are definite"]],
+        "num_words_original": 8,
+        "num_words_transformed": 7
+      }
+    }
+  ]
+}

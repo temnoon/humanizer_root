@@ -1,0 +1,29 @@
+{
+  "pack": "tetralemma",
+  "axis": "A",
+  "description": "Affirmative stance - clearly states something IS true",
+  "examples": [
+    {
+      "text": "The sky is blue.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "Water freezes at 0\u00b0C.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "Democracy is the best system of government.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

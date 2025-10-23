@@ -1,0 +1,29 @@
+{
+  "pack": "audience",
+  "axis": "policy",
+  "description": "Decision-oriented, actionable recommendations",
+  "examples": [
+    {
+      "text": "We recommend implementing the following policy changes.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "Decision-makers should prioritize resource allocation.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "The proposed action plan addresses three key areas.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

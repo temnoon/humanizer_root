@@ -1,0 +1,29 @@
+{
+  "pack": "tone",
+  "axis": "critical",
+  "description": "Evaluative stance that questions and challenges",
+  "examples": [
+    {
+      "text": "This approach fails to account for confounding variables.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "The argument rests on questionable assumptions.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "However, the methodology has significant limitations.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

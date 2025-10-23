@@ -1,0 +1,12 @@
+{
+  "name": "tone",
+  "description": "Tone POVM pack",
+  "rank": 64,
+  "operators": [
+    "analytical",
+    "critical",
+    "empathic",
+    "playful",
+    "neutral"
+  ]
+}

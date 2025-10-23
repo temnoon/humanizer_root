@@ -1,0 +1,29 @@
+{
+  "pack": "pragmatics",
+  "axis": "charity",
+  "description": "Generous interpretation, acknowledges nuance",
+  "examples": [
+    {
+      "text": "Perhaps there's another way to interpret this.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "This may be understandable given the context.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "One could argue that both perspectives have merit.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

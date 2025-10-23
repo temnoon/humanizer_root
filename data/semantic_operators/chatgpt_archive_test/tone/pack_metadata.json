@@ -1,0 +1,12 @@
+{
+  "name": "tone",
+  "description": "Tone pack learned from ChatGPT archive",
+  "rank": 64,
+  "operators": [
+    "playful",
+    "empathic",
+    "neutral",
+    "analytical",
+    "critical"
+  ]
+}

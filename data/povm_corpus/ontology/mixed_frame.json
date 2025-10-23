@@ -1,0 +1,29 @@
+{
+  "pack": "ontology",
+  "axis": "mixed_frame",
+  "description": "Intersubjective, relational, co-constructed reality",
+  "examples": [
+    {
+      "text": "We share an understanding of this situation.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "The meaning emerges between us in conversation.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "Our mutual recognition creates this reality.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

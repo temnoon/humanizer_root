@@ -1,0 +1,12 @@
+{
+  "name": "audience",
+  "description": "Audience POVM pack",
+  "rank": 64,
+  "operators": [
+    "expert",
+    "general",
+    "student",
+    "policy",
+    "editorial"
+  ]
+}

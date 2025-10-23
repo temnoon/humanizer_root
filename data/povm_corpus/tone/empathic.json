@@ -1,0 +1,29 @@
+{
+  "pack": "tone",
+  "axis": "empathic",
+  "description": "Understanding and validating emotional experience",
+  "examples": [
+    {
+      "text": "I understand how difficult this must be for you.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "Your feelings are completely valid and understandable.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "I appreciate the emotional weight of this situation.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

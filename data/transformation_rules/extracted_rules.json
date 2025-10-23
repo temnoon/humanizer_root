@@ -1,0 +1,439 @@
+{
+  "tetralemma/A": {
+    "substitutions": [
+      {
+        "from": "i think the",
+        "to": "the",
+        "count": 1,
+        "avg_improvement": 0.074,
+        "reliability": "medium"
+      },
+      {
+        "from": "i think we might want to",
+        "to": "we should",
+        "count": 1,
+        "avg_improvement": 0.068,
+        "reliability": "medium"
+      },
+      {
+        "from": "i guess this approach could work in some",
+        "to": "this approach works in specific",
+        "count": 1,
+        "avg_improvement": 0.061,
+        "reliability": "medium"
+      },
+      {
+        "from": "could be",
+        "to": "is",
+        "count": 1,
+        "avg_improvement": 0.052,
+        "reliability": "medium"
+      },
+      {
+        "from": "might be some",
+        "to": "are definite",
+        "count": 1,
+        "avg_improvement": 0.044,
+        "reliability": "medium"
+      }
+    ],
+    "removals": [
+      {
+        "word": "i",
+        "count": 3,
+        "avg_improvement": 0.06766666666666667,
+        "reliability": "high"
+      },
+      {
+        "word": "think",
+        "count": 2,
+        "avg_improvement": 0.07100000000000001,
+        "reliability": "high"
+      },
+      {
+        "word": "could",
+        "count": 2,
+        "avg_improvement": 0.056499999999999995,
+        "reliability": "high"
+      },
+      {
+        "word": "might",
+        "count": 2,
+        "avg_improvement": 0.056,
+        "reliability": "high"
+      },
+      {
+        "word": "some",
+        "count": 2,
+        "avg_improvement": 0.0525,
+        "reliability": "high"
+      },
+      {
+        "word": "be",
+        "count": 2,
+        "avg_improvement": 0.048,
+        "reliability": "high"
+      },
+      {
+        "word": "want",
+        "count": 1,
+        "avg_improvement": 0.068,
+        "reliability": "medium"
+      },
+      {
+        "word": "to",
+        "count": 1,
+        "avg_improvement": 0.068,
+        "reliability": "medium"
+      },
+      {
+        "word": "guess",
+        "count": 1,
+        "avg_improvement": 0.061,
+        "reliability": "medium"
+      },
+      {
+        "word": "work",
+        "count": 1,
+        "avg_improvement": 0.061,
+        "reliability": "medium"
+      },
+      {
+        "word": "in",
+        "count": 1,
+        "avg_improvement": 0.061,
+        "reliability": "medium"
+      }
+    ],
+    "additions": [
+      {
+        "word": "the",
+        "count": 1,
+        "avg_improvement": 0.074,
+        "reliability": "medium"
+      },
+      {
+        "word": "should",
+        "count": 1,
+        "avg_improvement": 0.068,
+        "reliability": "medium"
+      },
+      {
+        "word": "works",
+        "count": 1,
+        "avg_improvement": 0.061,
+        "reliability": "medium"
+      },
+      {
+        "word": "in",
+        "count": 1,
+        "avg_improvement": 0.061,
+        "reliability": "medium"
+      },
+      {
+        "word": "specific",
+        "count": 1,
+        "avg_improvement": 0.061,
+        "reliability": "medium"
+      },
+      {
+        "word": "is",
+        "count": 1,
+        "avg_improvement": 0.052,
+        "reliability": "medium"
+      },
+      {
+        "word": "are",
+        "count": 1,
+        "avg_improvement": 0.044,
+        "reliability": "medium"
+      },
+      {
+        "word": "definite",
+        "count": 1,
+        "avg_improvement": 0.044,
+        "reliability": "medium"
+      }
+    ]
+  },
+  "tetralemma/\u00acA": {
+    "substitutions": [
+      {
+        "from": "maybe we",
+        "to": "we",
+        "count": 2,
+        "avg_improvement": 0.0445,
+        "reliability": "high"
+      },
+      {
+        "from": "should",
+        "to": "should not",
+        "count": 2,
+        "avg_improvement": 0.0445,
+        "reliability": "high"
+      },
+      {
+        "from": "perhaps there's a",
+        "to": "there is no",
+        "count": 1,
+        "avg_improvement": 0.055,
+        "reliability": "medium"
+      }
+    ],
+    "removals": [
+      {
+        "word": "maybe",
+        "count": 2,
+        "avg_improvement": 0.0445,
+        "reliability": "high"
+      },
+      {
+        "word": "perhaps",
+        "count": 1,
+        "avg_improvement": 0.055,
+        "reliability": "medium"
+      },
+      {
+        "word": "there's",
+        "count": 1,
+        "avg_improvement": 0.055,
+        "reliability": "medium"
+      },
+      {
+        "word": "a",
+        "count": 1,
+        "avg_improvement": 0.055,
+        "reliability": "medium"
+      }
+    ],
+    "additions": [
+      {
+        "word": "not",
+        "count": 2,
+        "avg_improvement": 0.0445,
+        "reliability": "high"
+      },
+      {
+        "word": "there",
+        "count": 1,
+        "avg_improvement": 0.055,
+        "reliability": "medium"
+      },
+      {
+        "word": "is",
+        "count": 1,
+        "avg_improvement": 0.055,
+        "reliability": "medium"
+      },
+      {
+        "word": "no",
+        "count": 1,
+        "avg_improvement": 0.055,
+        "reliability": "medium"
+      }
+    ]
+  },
+  "tone/analytical": {
+    "substitutions": [
+      {
+        "from": "some",
+        "to": "specific",
+        "count": 1,
+        "avg_improvement": 0.038,
+        "reliability": "medium"
+      },
+      {
+        "from": "explore",
+        "to": "analyze",
+        "count": 1,
+        "avg_improvement": 0.038,
+        "reliability": "medium"
+      },
+      {
+        "from": "empirical",
+        "to": "data-driven",
+        "count": 1,
+        "avg_improvement": 0.022,
+        "reliability": "medium"
+      }
+    ],
+    "removals": [
+      {
+        "word": "some",
+        "count": 1,
+        "avg_improvement": 0.038,
+        "reliability": "medium"
+      },
+      {
+        "word": "explore",
+        "count": 1,
+        "avg_improvement": 0.038,
+        "reliability": "medium"
+      },
+      {
+        "word": "empirical",
+        "count": 1,
+        "avg_improvement": 0.022,
+        "reliability": "medium"
+      }
+    ],
+    "additions": [
+      {
+        "word": "specific",
+        "count": 1,
+        "avg_improvement": 0.038,
+        "reliability": "medium"
+      },
+      {
+        "word": "analyze",
+        "count": 1,
+        "avg_improvement": 0.038,
+        "reliability": "medium"
+      },
+      {
+        "word": "data-driven",
+        "count": 1,
+        "avg_improvement": 0.022,
+        "reliability": "medium"
+      }
+    ]
+  },
+  "pragmatics/clarity": {
+    "substitutions": [
+      {
+        "from": "there are several factors we need to take into account",
+        "to": "several factors require consideration",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      }
+    ],
+    "removals": [
+      {
+        "word": "there",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      },
+      {
+        "word": "are",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      },
+      {
+        "word": "we",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      },
+      {
+        "word": "need",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      },
+      {
+        "word": "to",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      },
+      {
+        "word": "take",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      },
+      {
+        "word": "into",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      },
+      {
+        "word": "account",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      }
+    ],
+    "additions": [
+      {
+        "word": "require",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      },
+      {
+        "word": "consideration",
+        "count": 1,
+        "avg_improvement": 0.029,
+        "reliability": "medium"
+      }
+    ]
+  },
+  "tone/empathic": {
+    "substitutions": [
+      {
+        "from": "i feel like this might be",
+        "to": "i empathize with concerns this is",
+        "count": 1,
+        "avg_improvement": 0.031,
+        "reliability": "medium"
+      }
+    ],
+    "removals": [
+      {
+        "word": "feel",
+        "count": 1,
+        "avg_improvement": 0.031,
+        "reliability": "medium"
+      },
+      {
+        "word": "like",
+        "count": 1,
+        "avg_improvement": 0.031,
+        "reliability": "medium"
+      },
+      {
+        "word": "might",
+        "count": 1,
+        "avg_improvement": 0.031,
+        "reliability": "medium"
+      },
+      {
+        "word": "be",
+        "count": 1,
+        "avg_improvement": 0.031,
+        "reliability": "medium"
+      }
+    ],
+    "additions": [
+      {
+        "word": "empathize",
+        "count": 1,
+        "avg_improvement": 0.031,
+        "reliability": "medium"
+      },
+      {
+        "word": "with",
+        "count": 1,
+        "avg_improvement": 0.031,
+        "reliability": "medium"
+      },
+      {
+        "word": "concerns",
+        "count": 1,
+        "avg_improvement": 0.031,
+        "reliability": "medium"
+      },
+      {
+        "word": "is",
+        "count": 1,
+        "avg_improvement": 0.031,
+        "reliability": "medium"
+      }
+    ]
+  }
+}

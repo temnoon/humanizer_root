@@ -1,0 +1,107 @@
+{
+  "strategy_name": "HybridStrategy",
+  "strategy_type": "hybrid",
+  "evaluated_at": "2025-10-22 17:04:30",
+  "total_samples": 30,
+  "overall_success_rate": 0.0,
+  "overall_avg_improvement": 0.010011939898926616,
+  "axis_results": [
+    {
+      "pack_name": "tone",
+      "axis_name": "analytical",
+      "n_samples": 10,
+      "success_rate": 0.0,
+      "avg_improvement": 0.021245970800519477,
+      "avg_improvement_success_only": 0.0,
+      "avg_text_change_ratio": 1.4523414597098807,
+      "avg_coherence": 0.20724516120339315,
+      "avg_execution_time_ms": 7334.48281288147,
+      "avg_rules_matched": 4.1,
+      "avg_rules_applied": null,
+      "total_cost_usd": 0.012903,
+      "failures_no_rules": 0,
+      "failures_no_improvement": 3,
+      "failures_too_much_change": 7,
+      "failures_low_coherence": 0,
+      "failures_error": 0
+    },
+    {
+      "pack_name": "tone",
+      "axis_name": "critical",
+      "n_samples": 10,
+      "success_rate": 0.0,
+      "avg_improvement": 0.0016189464818204297,
+      "avg_improvement_success_only": 0.0,
+      "avg_text_change_ratio": 1.3016071866729761,
+      "avg_coherence": 0.19984097715009322,
+      "avg_execution_time_ms": 6404.862570762634,
+      "avg_rules_matched": 3.7,
+      "avg_rules_applied": null,
+      "total_cost_usd": 0.012913749999999998,
+      "failures_no_rules": 0,
+      "failures_no_improvement": 6,
+      "failures_too_much_change": 4,
+      "failures_low_coherence": 0,
+      "failures_error": 0
+    },
+    {
+      "pack_name": "ontology",
+      "axis_name": "subjective",
+      "n_samples": 10,
+      "success_rate": 0.0,
+      "avg_improvement": 0.007170902414439945,
+      "avg_improvement_success_only": 0.0,
+      "avg_text_change_ratio": 1.482726191301706,
+      "avg_coherence": 0.2617863611019656,
+      "avg_execution_time_ms": 6508.059406280518,
+      "avg_rules_matched": 2.2,
+      "avg_rules_applied": null,
+      "total_cost_usd": 0.0129325,
+      "failures_no_rules": 0,
+      "failures_no_improvement": 6,
+      "failures_too_much_change": 4,
+      "failures_low_coherence": 0,
+      "failures_error": 0
+    }
+  ],
+  "best_axes": [
+    [
+      "tone",
+      "analytical",
+      0.0
+    ],
+    [
+      "tone",
+      "critical",
+      0.0
+    ],
+    [
+      "ontology",
+      "subjective",
+      0.0
+    ]
+  ],
+  "worst_axes": [
+    [
+      "tone",
+      "analytical",
+      0.0
+    ],
+    [
+      "tone",
+      "critical",
+      0.0
+    ],
+    [
+      "ontology",
+      "subjective",
+      0.0
+    ]
+  ],
+  "recommendations": [
+    "\ud83d\udd34 3 axes have <50% success rate: tone/analytical, tone/critical, ontology/subjective",
+    "\ud83d\udfe1 Low improvement (<0.05): tone/analytical, tone/critical, ontology/subjective",
+    "\ud83d\udfe1 Slow execution (>1s): tone/analytical, tone/critical, ontology/subjective",
+    "\ud83d\udfe1 Low coherence (<0.6): tone/analytical, tone/critical, ontology/subjective"
+  ]
+}

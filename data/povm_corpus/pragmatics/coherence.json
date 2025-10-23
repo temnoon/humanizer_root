@@ -1,0 +1,29 @@
+{
+  "pack": "pragmatics",
+  "axis": "coherence",
+  "description": "Logically connected, internally consistent",
+  "examples": [
+    {
+      "text": "Because X is true, therefore Y must follow.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "This implies that the conclusion is sound.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "The argument follows logically from the premises.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}

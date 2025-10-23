@@ -15,6 +15,9 @@ from dataclasses import dataclass
 from uuid import uuid4
 import numpy as np
 from numpy.typing import NDArray
+import json
+from pathlib import Path
+import random
 
 from humanizer.core.trm.density import construct_density_matrix
 from humanizer.core.trm.povm import get_all_packs
@@ -194,6 +197,41 @@ class StatelessTransformer:
             target_stance=target_stance
         )
 
+    def _load_corpus_examples(
+        self,
+        pack_name: str,
+        target_axis: str,
+        num_examples: int = 2
+    ) -> List[str]:
+        """
+        Load few-shot examples from corpus for the target axis.
+
+        Args:
+            pack_name: POVM pack name (e.g., "tone", "tetralemma")
+            target_axis: Target axis (e.g., "analytical", "A")
+            num_examples: Number of examples to load (default: 2)
+
+        Returns:
+            List of example texts
+        """
+        corpus_path = Path("data/povm_corpus") / pack_name / f"{target_axis}.json"
+
+        try:
+            if corpus_path.exists():
+                with open(corpus_path) as f:
+                    data = json.load(f)
+                    examples = data.get("examples", [])
+                    if examples:
+                        # Randomly sample up to num_examples
+                        sample_size = min(num_examples, len(examples))
+                        sampled = random.sample(examples, sample_size)
+                        return [ex["text"] for ex in sampled]
+        except Exception as e:
+            # Silently fail - few-shot is optional enhancement
+            pass
+
+        return []
+
     def _build_prompt(
         self,
         current_text: str,
@@ -204,15 +242,37 @@ class StatelessTransformer:
         """
         Build LLM prompt for transformation with chain-of-thought reasoning.
 
+        Week 5 improvements:
+        - Length constraints (±20% of original)
+        - Few-shot examples from corpus
+        - Self-critique instructions
+        - Specific quality criteria
+
         Vision alignment:
         - Shows construction (reveals process, not just result)
         - Tetralemma framing (explicit stance shift)
         - Makes user feel smart (transparent reasoning)
         """
         # Extract target from stance
+        pack_name = list(target_stance.keys())[0]
+        target_axis = target_stance[pack_name]
         target_desc = self._describe_target(target_stance)
         current_desc = self._describe_measurements(current_measurements)
         focus = self._get_transformation_focus(target_stance)
+
+        # Calculate length constraints
+        original_length = len(current_text)
+        min_length = int(original_length * 0.8)
+        max_length = int(original_length * 1.2)
+
+        # Load few-shot examples
+        examples = self._load_corpus_examples(pack_name, target_axis, num_examples=2)
+        examples_section = ""
+        if examples:
+            examples_section = "\nEXAMPLES OF TARGET STYLE:\n"
+            for i, example in enumerate(examples, 1):
+                examples_section += f"{i}. \"{example}\"\n"
+            examples_section += "\nUse these as inspiration for the target {target_axis} style.\n"
 
         # Build tetralemma framing explanation
         tetralemma_frame = self._build_tetralemma_frame(
@@ -221,33 +281,70 @@ class StatelessTransformer:
 
         # Iteration-specific guidance
         if iteration == 1:
-            iteration_guidance = "This is the first transformation. Be measured and precise."
+            iteration_guidance = "First transformation: Make clear shifts while staying natural."
         elif iteration == 2:
-            iteration_guidance = "Second iteration: strengthen the shift while maintaining naturalness."
+            iteration_guidance = "Second iteration: Strengthen the target stance, reduce hedging."
         else:
-            iteration_guidance = f"Iteration {iteration}: refine and polish. Be more concise and clear."
+            iteration_guidance = f"Iteration {iteration}: Final polish - be concise and precise."
 
-        prompt = f"""You are transforming text using quantum reading principles.
+        prompt = f"""Transform the text below using MINIMAL changes - preserve most words and structure.
 
-CURRENT: {current_text}
+=== ORIGINAL TEXT (DO NOT COMPLETELY REWRITE!) ===
+{current_text}
+
+Length: {original_length} characters
 Current stance: {current_desc}
 
-TARGET: {target_desc}
-Focus on: {focus}
+=== TARGET ===
+Shift toward: "{target_axis}"
+Focus: {focus}
+{examples_section}
 
-{tetralemma_frame}
+=== TRANSFORMATION RULES ===
 
-INSTRUCTIONS:
-Transform the text to shift toward the target stance while preserving core meaning.
-Think through these steps:
-1. What words/phrases signal the current stance?
-2. What replacements fit the target stance?
-3. Which structural patterns need to change?
-4. How to preserve meaning while shifting framing?
+**CRITICAL**: Make MINIMAL changes only! You are NOT rewriting - you are making subtle shifts.
+
+ALLOWED CHANGES (in order of preference):
+1. Replace 1-3 key words with "{target_axis}" equivalents
+2. Adjust hedging phrases ("I think" → remove, or "perhaps" → "evidence shows")
+3. Change 1-2 verbs to stronger/weaker forms
+4. Adjust tone markers without changing facts
+
+FORBIDDEN:
+✗ Complete rewrites or paraphrases
+✗ Changing the sentence structure completely
+✗ Adding or removing entire clauses
+✗ Changing length by more than 20%
+✗ Changing the core facts or meaning
+
+HARD CONSTRAINTS:
+• Output length: {min_length}-{max_length} characters (you have ±20% wiggle room, not more!)
+• Keep most of the original words (>60% should be identical)
+• Maintain sentence structure where possible
+• Natural flow (no awkward phrasing)
+
+PROCESS:
+1. Read the original carefully
+2. Identify 1-3 words/phrases that signal the current stance
+3. Replace ONLY those words with "{target_axis}" equivalents
+4. Check: is length within {min_length}-{max_length}? If not, adjust minimally
+5. Check: does it sound natural? If not, smooth out
 
 {iteration_guidance}
 
-Provide only the transformed text (no explanations or meta-commentary):"""
+EXAMPLES OF MINIMAL TRANSFORMATION:
+❌ BAD (complete rewrite): "I think X is the issue" → "Systematic analysis reveals comprehensive patterns"
+✓ GOOD (minimal change): "I think X is the issue" → "Analysis suggests X is the issue"  [changed 2 words]
+✓ GOOD (minimal change): "Maybe we should X" → "We should X"  [removed 1 word]
+✓ GOOD (minimal change): "The data shows X" → "The data demonstrates X"  [changed 1 word]
+
+NOW TRANSFORM THIS TEXT BY CHANGING ONLY 1-3 WORDS:
+"{current_text}"
+
+→
+
+OUTPUT:
+Return ONLY the transformed text. No quotes, no explanations, no meta-commentary."""
 
         return prompt
 

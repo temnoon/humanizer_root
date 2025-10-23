@@ -1,0 +1,29 @@
+{
+  "pack": "tetralemma",
+  "axis": "neither",
+  "description": "Neutral/transcendent stance - something is NEITHER true nor false",
+  "examples": [
+    {
+      "text": "The question of consciousness is neither purely physical nor purely mental.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "This is neither right nor wrong - it simply is.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    },
+    {
+      "text": "The nature of reality transcends binary categories.",
+      "source": "manual",
+      "source_id": null,
+      "quality_score": 1.0,
+      "notes": null
+    }
+  ],
+  "count": 3
+}
