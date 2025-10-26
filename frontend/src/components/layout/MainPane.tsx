@@ -5,6 +5,7 @@ import ConversationViewer from '../conversations/ConversationViewer';
 import DocumentViewer from '../documents/DocumentViewer';
 import CombinedPipelinePanel from '../pipeline/CombinedPipelinePanel';
 import TransformationSplitView from '../tools/TransformationSplitView';
+import ArchiveIngestionPanel from '../archives/ArchiveIngestionPanel';
 import { SelectedContent, TransformationResult } from '../../App';
 import { MediaItem } from '@/lib/api-client';
 import type { SidebarView } from '@/types/sidebar';
@@ -91,6 +92,7 @@ export default function MainPane({
         {currentView === 'povms' && <POVMsContent />}
         {currentView === 'stats' && <StatsContent />}
         {currentView === 'pipeline' && <CombinedPipelinePanel />}
+        {currentView === 'archives' && <ArchiveIngestionPanel />}
         {currentView === 'settings' && <SettingsContent />}
         {currentView === 'aui' && <AUIContent />}
       </div>

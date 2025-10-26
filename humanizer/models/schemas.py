@@ -1886,3 +1886,450 @@ class BatchListResponse(BaseModel):
             "total_pages": 2
         }
     }}
+
+
+# ========================================
+# Claude Archive Schemas
+# ========================================
+
+class ClaudeIngestRequest(BaseModel):
+    """Request to ingest Claude/Anthropic conversation archives."""
+    archive_path: str = Field(..., description="Path to zip file or extracted directory")
+    force_reimport: bool = Field(default=False, description="Re-import existing conversations")
+    import_projects: bool = Field(default=True, description="Import project definitions")
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "archive_path": "~/Downloads/data-2025-10-25-16-14-18-batch-0000.zip",
+            "force_reimport": False,
+            "import_projects": True
+        }
+    }}
+
+
+class ClaudeIngestResponse(BaseModel):
+    """Response from Claude archive ingestion."""
+    archives_found: int
+    conversations_processed: int
+    conversations_new: int
+    conversations_updated: int
+    messages_imported: int
+    projects_imported: int
+    media_files_found: int
+    media_files_matched: int
+    errors: List[str]
+    processing_time_seconds: float
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "archives_found": 1,
+            "conversations_processed": 357,
+            "conversations_new": 350,
+            "conversations_updated": 7,
+            "messages_imported": 4710,
+            "projects_imported": 3,
+            "media_files_found": 367,
+            "media_files_matched": 320,
+            "errors": [],
+            "processing_time_seconds": 45.2
+        }
+    }}
+
+
+class ClaudeMessageResponse(BaseModel):
+    """Claude message with metadata."""
+    uuid: UUID
+    sender: str  # 'human' or 'assistant'
+    text: Optional[str] = None
+    content_blocks: Optional[List[Dict[str, Any]]] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    has_attachments: bool = False
+    has_files: bool = False
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "uuid": "5833b5c7-d5e9-4a01-802c-02fe48a3017b",
+                "sender": "human",
+                "text": "Explain the concept of emptiness in Buddhist philosophy.",
+                "content_blocks": [],
+                "created_at": "2024-03-19T03:50:35.790022Z",
+                "updated_at": "2024-03-19T03:50:35.790022Z",
+                "has_attachments": False,
+                "has_files": False
+            }
+        }
+    }
+
+
+class ClaudeMediaResponse(BaseModel):
+    """Claude media file metadata."""
+    id: int
+    file_name: str
+    file_path: Optional[str] = None
+    file_type: Optional[str] = None
+    file_size: Optional[int] = None
+    has_extracted_content: bool = False
+    mime_type: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "id": 123,
+                "file_name": "image.jpg",
+                "file_path": "/tmp/3BD23C81-04E3-4078-8881-CFBDD4FD485D/image.jpg",
+                "file_type": "image",
+                "file_size": 245678,
+                "has_extracted_content": False,
+                "mime_type": "image/jpeg"
+            }
+        }
+    }
+
+
+class ClaudeConversationResponse(BaseModel):
+    """Claude conversation with messages and media."""
+    uuid: UUID
+    name: Optional[str] = None
+    summary: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    account_uuid: Optional[UUID] = None
+    project_uuid: Optional[UUID] = None
+    source_archive: str
+    message_count: int = 0
+    media_count: int = 0
+    messages: Optional[List[ClaudeMessageResponse]] = None
+    media: Optional[List[ClaudeMediaResponse]] = None
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "uuid": "061f8300-6dc2-43f4-95e9-982fa6033400",
+                "name": "The Foundational Emptiness of Existence",
+                "summary": "",
+                "created_at": "2024-03-19T03:15:01.767382Z",
+                "updated_at": "2024-03-19T03:50:35.790022Z",
+                "account_uuid": "a0eb8594-18fc-4a2d-b03d-fb4eac14b008",
+                "project_uuid": None,
+                "source_archive": "data-2025-10-25",
+                "message_count": 4,
+                "media_count": 0,
+                "messages": [],
+                "media": []
+            }
+        }
+    }
+
+
+class ClaudeConversationListResponse(BaseModel):
+    """Paginated list of Claude conversations."""
+    conversations: List[ClaudeConversationResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "conversations": [],
+            "total": 357,
+            "page": 1,
+            "page_size": 20,
+            "total_pages": 18
+        }
+    }}
+
+
+class ClaudeSearchRequest(BaseModel):
+    """Search Claude messages."""
+    query: str = Field(..., description="Search query", min_length=1)
+    sender: Optional[str] = Field(default=None, description="Filter by sender: human or assistant")
+    project_uuid: Optional[UUID] = Field(default=None, description="Filter by project")
+    start_date: Optional[datetime] = Field(default=None, description="Filter by date range start")
+    end_date: Optional[datetime] = Field(default=None, description="Filter by date range end")
+    limit: int = Field(default=20, ge=1, le=100, description="Max results")
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "query": "quantum mechanics",
+            "sender": "assistant",
+            "limit": 20
+        }
+    }}
+
+
+class ClaudeSearchResponse(BaseModel):
+    """Search results for Claude messages."""
+    results: List[Dict[str, Any]]  # Message + conversation metadata
+    total: int
+    query: str
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "results": [],
+            "total": 42,
+            "query": "quantum mechanics"
+        }
+    }}
+
+
+class ClaudeProjectResponse(BaseModel):
+    """Claude project with metadata."""
+    uuid: UUID
+    name: str
+    description: Optional[str] = None
+    is_private: bool
+    is_starter_project: bool
+    prompt_template: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    creator_uuid: Optional[UUID] = None
+    docs: Optional[List[Dict[str, Any]]] = None
+    conversation_count: int = 0
+
+    model_config = {
+        "from_attributes": True,
+        "json_schema_extra": {
+            "example": {
+                "uuid": "2fa15399-f1c9-4aee-8c8b-69af89d01558",
+                "name": "How to use Claude",
+                "description": "An example project",
+                "is_private": False,
+                "is_starter_project": True,
+                "prompt_template": "",
+                "created_at": "2024-06-25T16:47:59.667862Z",
+                "updated_at": "2024-06-25T16:47:59.667862Z",
+                "creator_uuid": "a0eb8594-18fc-4a2d-b03d-fb4eac14b008",
+                "docs": [],
+                "conversation_count": 5
+            }
+        }
+    }
+
+
+class ClaudeArchiveStatsResponse(BaseModel):
+    """Statistics about Claude archives."""
+    total_conversations: int
+    total_messages: int
+    total_media: int
+    total_projects: int
+    archives: List[Dict[str, Any]]  # Archive name + stats
+    date_range: Optional[Dict[str, datetime]] = None
+    top_conversations: List[Dict[str, Any]]  # Most active conversations
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "total_conversations": 357,
+            "total_messages": 4710,
+            "total_media": 367,
+            "total_projects": 3,
+            "archives": [
+                {"name": "data-2025-10-25", "conversations": 357, "messages": 4710}
+            ],
+            "date_range": {
+                "earliest": "2024-03-18T03:15:01.767382Z",
+                "latest": "2025-10-25T12:15:00.000000Z"
+            },
+            "top_conversations": []
+        }
+    }}
+
+
+class ClaudeEmbeddingGenerationRequest(BaseModel):
+    """Request to generate embeddings for Claude messages."""
+    batch_size: int = Field(default=1000, ge=1, le=10000, description="Number of messages to process per batch")
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "batch_size": 1000
+        }
+    }}
+
+
+class ClaudeEmbeddingGenerationResponse(BaseModel):
+    """Response from embedding generation."""
+    total_messages: int = Field(..., description="Total number of messages without embeddings")
+    processed: int = Field(..., description="Number of messages successfully processed")
+    failed: int = Field(..., description="Number of messages that failed")
+    processing_time_seconds: float = Field(..., description="Total processing time in seconds")
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "total_messages": 4710,
+            "processed": 4710,
+            "failed": 0,
+            "processing_time_seconds": 287.5
+        }
+    }}
+
+
+# ========================================
+# Unified Conversations Schemas
+# ========================================
+
+class UnifiedConversationResponse(BaseModel):
+    """A conversation from any source (ChatGPT or Claude)."""
+    uuid: UUID
+    title: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    source: str  # 'chatgpt' or 'claude'
+    source_archive: str
+    message_count: int
+    media_count: int
+    metadata: Dict[str, Any]
+
+    # Claude-specific fields (optional)
+    summary: Optional[str] = None
+    project_uuid: Optional[UUID] = None
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "uuid": "550e8400-e29b-41d4-a716-446655440000",
+            "title": "Quantum mechanics discussion",
+            "created_at": "2024-03-15T10:00:00Z",
+            "updated_at": "2024-03-15T11:30:00Z",
+            "source": "chatgpt",
+            "source_archive": "chat5",
+            "message_count": 12,
+            "media_count": 2,
+            "metadata": {}
+        }
+    }}
+
+
+class UnifiedConversationListResponse(BaseModel):
+    """Response from unified conversation list endpoint."""
+    conversations: List[UnifiedConversationResponse]
+    total: int
+    page: int
+    page_size: int
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "conversations": [
+                {
+                    "uuid": "550e8400-e29b-41d4-a716-446655440000",
+                    "title": "Quantum mechanics discussion",
+                    "created_at": "2024-03-15T10:00:00Z",
+                    "updated_at": "2024-03-15T11:30:00Z",
+                    "source": "chatgpt",
+                    "source_archive": "chat5",
+                    "message_count": 12,
+                    "media_count": 2,
+                    "metadata": {}
+                }
+            ],
+            "total": 2016,
+            "page": 1,
+            "page_size": 50
+        }
+    }}
+
+
+class UnifiedMessageResponse(BaseModel):
+    """A message from any source."""
+    uuid: UUID
+    created_at: Optional[datetime] = None
+    role: str  # ChatGPT: 'user'/'assistant'/'system', Claude: 'human'/'assistant'
+    text: Optional[str] = None
+
+    # Source-specific content
+    content: Optional[Any] = None  # ChatGPT: content_parts, Claude: content_blocks
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "uuid": "660e8400-e29b-41d4-a716-446655440000",
+            "created_at": "2024-03-15T10:05:00Z",
+            "role": "user",
+            "text": "Can you explain quantum mechanics?",
+            "content": ["Can you explain quantum mechanics?"]
+        }
+    }}
+
+
+class UnifiedConversationDetailResponse(BaseModel):
+    """Detailed conversation with messages."""
+    uuid: UUID
+    title: str
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    source: str
+    source_archive: str
+    metadata: Dict[str, Any]
+    messages: List[Dict[str, Any]]
+    media: List[Dict[str, Any]]
+
+    # Claude-specific
+    summary: Optional[str] = None
+    project_uuid: Optional[UUID] = None
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "uuid": "550e8400-e29b-41d4-a716-446655440000",
+            "title": "Quantum mechanics discussion",
+            "created_at": "2024-03-15T10:00:00Z",
+            "updated_at": "2024-03-15T11:30:00Z",
+            "source": "chatgpt",
+            "source_archive": "chat5",
+            "metadata": {},
+            "messages": [
+                {
+                    "uuid": "660e8400-e29b-41d4-a716-446655440000",
+                    "created_at": "2024-03-15T10:05:00Z",
+                    "role": "user",
+                    "text": "Can you explain quantum mechanics?",
+                    "content": ["Can you explain quantum mechanics?"]
+                }
+            ],
+            "media": []
+        }
+    }}
+
+
+class UnifiedSearchRequest(BaseModel):
+    """Request to search across all conversations."""
+    query: str = Field(..., description="Search query text", min_length=1)
+    source: Optional[str] = Field(
+        default=None,
+        description="Filter by source: 'chatgpt' or 'claude'"
+    )
+    limit: int = Field(default=50, ge=1, le=100)
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "query": "quantum consciousness",
+            "source": None,
+            "limit": 50
+        }
+    }}
+
+
+class UnifiedSearchResponse(BaseModel):
+    """Response from unified search."""
+    results: List[Dict[str, Any]]
+    count: int
+    query: str
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "results": [
+                {
+                    "message_uuid": "660e8400-e29b-41d4-a716-446655440000",
+                    "conversation_uuid": "550e8400-e29b-41d4-a716-446655440000",
+                    "conversation_title": "Quantum mechanics discussion",
+                    "created_at": "2024-03-15T10:05:00Z",
+                    "role": "user",
+                    "text": "Can you explain quantum consciousness?",
+                    "source": "chatgpt"
+                }
+            ],
+            "count": 15,
+            "query": "quantum consciousness"
+        }
+    }}

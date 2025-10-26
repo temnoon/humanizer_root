@@ -66,16 +66,74 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for full details.
 
 ## Installation
 
-### Prerequisites
+### Prerequisites (macOS Apple Silicon)
 
-- Python 3.11+
-- PostgreSQL 16+ with pgvector extension
-- Node.js 18+ (for frontend)
-- Poetry (Python package manager)
+Starting from a bare macOS system, you'll need:
+
+#### 1. **Xcode Command Line Tools**
+```bash
+xcode-select --install
+```
+
+#### 2. **Homebrew** (Package Manager)
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+#### 3. **Python 3.11+**
+```bash
+brew install python@3.11
+```
+
+#### 4. **Poetry** (Python Package Manager)
+```bash
+curl -sSL https://install.python-poetry.org | python3 -
+# Add to PATH (add to ~/.zshrc or ~/.bash_profile):
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+#### 5. **PostgreSQL 16+** with pgvector
+```bash
+brew install postgresql@16
+brew services start postgresql@16
+
+# Add to PATH:
+export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
+
+# Install pgvector extension
+brew install pgvector
+```
+
+#### 6. **Node.js 18+** (for frontend)
+```bash
+brew install node@18
+
+# Add to PATH:
+export PATH="/opt/homebrew/opt/node@18/bin:$PATH"
+```
+
+#### 7. **Ollama** (for local embeddings - optional)
+```bash
+brew install ollama
+ollama serve  # Run in background
+
+# Pull embedding model
+ollama pull mxbai-embed-large
+ollama pull nomic-embed-text
+```
+
+#### 8. **Git** (if not already installed)
+```bash
+brew install git
+```
 
 ### Setup
 
 ```bash
+# Clone repository
+git clone https://github.com/yourusername/humanizer_root.git
+cd humanizer_root
+
 # Install Python dependencies
 poetry install
 
@@ -86,25 +144,51 @@ psql humanizer_dev -c "CREATE EXTENSION vector;"
 # Run migrations
 poetry run alembic upgrade head
 
-# Start API server
-poetry run uvicorn humanizer.main:app --reload --port 8000
-
-# In another terminal: Start frontend
+# Install frontend dependencies
 cd frontend
 npm install
-npm run dev
+cd ..
 ```
 
 ### Environment Variables
 
-Create `.env`:
+Create `.env` in the project root:
 
 ```bash
+# Database
 DATABASE_URL=postgresql://localhost/humanizer_dev
+
+# Ollama (local embeddings)
 OLLAMA_BASE_URL=http://localhost:11434
-EMBEDDING_MODEL=all-MiniLM-L6-v2
+EMBEDDING_MODEL=mxbai-embed-large
+
+# OpenAI (optional - for GPT embeddings)
+# OPENAI_API_KEY=your-key-here
+
+# Anthropic (optional - for Claude API)
+# ANTHROPIC_API_KEY=your-key-here
+
+# TRM Model
 TRM_MODEL_PATH=./models/trm_model.pth
 ```
+
+### Running the Application
+
+```bash
+# Terminal 1: Start backend
+poetry run uvicorn humanizer.main:app --reload --port 8000
+
+# Terminal 2: Start frontend
+cd frontend
+npm run dev
+
+# Terminal 3 (optional): Start Ollama (if not running as service)
+ollama serve
+```
+
+Access the application at: **http://localhost:3001**
+
+API documentation at: **http://localhost:8000/docs**
 
 ---
 
@@ -263,14 +347,35 @@ Configure in `~/.claude.json`:
 
 ## Project Status
 
-**Phase**: Foundation → Implementation
+**Phase**: Foundation → Production
 
-- ✅ Architecture designed
-- ✅ Directory structure created
-- ⏳ TRM core (ρ, POVMs) - In progress
-- ⏳ API routes
-- ⏳ MCP integration
-- ⏳ Frontend GUI
+### Completed Features
+
+- ✅ **TRM Core** - Density matrices, POVM measurements, verification loop (Phase 0/1/1.5)
+- ✅ **ChatGPT Archive** - Full ingestion, 1,686 conversations, 47,699 messages
+- ✅ **Claude Archive** - Full ingestion, 357 conversations, 4,710 messages
+- ✅ **Unified Conversations** - Single interface for all conversation sources
+- ✅ **Media Library** - 811 images indexed with full metadata
+- ✅ **Semantic Search** - Embedding-based search across all archives
+- ✅ **API** - 65+ endpoints (conversations, embeddings, transformations, etc.)
+- ✅ **Frontend GUI** - React + TypeScript, tabbed interface, conversation viewer
+- ✅ **Transformation Tools** - Week 7 Hybrid Rules + GFS (50% success, 77.5% cost reduction)
+
+### In Progress
+
+- ⏳ **TRM Phase 2** - Replace simulation stubs with real recursive iteration
+- ⏳ **Claude Embeddings** - Generate embeddings for 4,710 messages
+- ⏳ **Performance Optimization** - Caching, lazy loading (60s → <5s load time)
+- ⏳ **MCP Integration** - Humanizer MCP server for Claude Code
+
+### Upcoming
+
+- 📋 **Advanced Search** - Filters, date ranges, multi-source queries
+- 📋 **Transformation UI** - Interactive TRM controls in main pane
+- 📋 **POVM Packs** - Custom measurement operators via GUI
+- 📋 **AUI Integration** - Adaptive recommendations based on usage
+
+**Current Stats**: 2,043 conversations | 52,409 messages | 811 media items
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for full implementation plan.
 

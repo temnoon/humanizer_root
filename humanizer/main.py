@@ -16,6 +16,9 @@ from humanizer.api import (
     reading_router,
     povm_router,
     chatgpt_router,
+    claude_router,
+    conversations_router,
+    embeddings_router,
     aui_router,
     media_router,
     interest_router,
@@ -84,6 +87,9 @@ app.add_middleware(
 app.include_router(reading_router)
 app.include_router(povm_router)
 app.include_router(chatgpt_router)
+app.include_router(claude_router)
+app.include_router(conversations_router)
+app.include_router(embeddings_router)
 app.include_router(aui_router)
 app.include_router(media_router)
 app.include_router(interest_router)

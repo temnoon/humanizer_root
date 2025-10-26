@@ -11,6 +11,7 @@ export type SidebarView =
   | 'povms'
   | 'stats'
   | 'pipeline'
+  | 'archives'
   | 'settings'
   | 'aui'
   | 'tools'

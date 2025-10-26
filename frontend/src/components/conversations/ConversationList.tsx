@@ -8,8 +8,11 @@ interface Conversation {
   uuid: string;
   title: string | null;
   created_at: string | null;
+  updated_at: string | null;
   message_count: number;
   source_archive: string;
+  source: 'chatgpt' | 'claude';  // NEW: Source identifier
+  summary?: string;  // Claude-specific
 }
 
 interface ConversationListProps {
@@ -17,9 +20,10 @@ interface ConversationListProps {
   onSelect?: (uuid: string) => void;
 }
 
-type SortField = 'created_at' | 'title' | 'message_count';
+type SortField = 'created_at' | 'updated_at' | 'title' | 'message_count';
 type SortOrder = 'asc' | 'desc';
 type SearchMode = 'title' | 'semantic';
+type SourceFilter = 'all' | 'chatgpt' | 'claude';
 
 export default function ConversationList({ selectedConversation, onSelect }: ConversationListProps) {
   const [allConversations, setAllConversations] = useState<Conversation[]>([]);
@@ -34,6 +38,7 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
   const [searchMode, setSearchMode] = useState<SearchMode>('title');
   const [sortField, setSortField] = useState<SortField>('created_at');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');  // NEW: Source filter
   const [showSettings, setShowSettings] = useState(false);
 
   // Load conversations on mount
@@ -44,6 +49,11 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
   // Apply client-side filtering and sorting (memoized)
   const filteredConversations = useMemo(() => {
     let filtered = [...allConversations];
+
+    // Apply source filter
+    if (sourceFilter !== 'all') {
+      filtered = filtered.filter((conv) => conv.source === sourceFilter);
+    }
 
     // Apply search filter
     if (searchQuery.trim()) {
@@ -63,6 +73,10 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
           aVal = new Date(a.created_at || 0).getTime();
           bVal = new Date(b.created_at || 0).getTime();
           break;
+        case 'updated_at':
+          aVal = new Date(a.updated_at || 0).getTime();
+          bVal = new Date(b.updated_at || 0).getTime();
+          break;
         case 'title':
           aVal = (a.title || '').toLowerCase();
           bVal = (b.title || '').toLowerCase();
@@ -81,7 +95,7 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
     });
 
     return filtered;
-  }, [allConversations, searchQuery, sortField, sortOrder]);
+  }, [allConversations, searchQuery, sortField, sortOrder, sourceFilter]);
 
   const loadConversations = async (forceRefresh = false) => {
     try {
@@ -104,21 +118,21 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
       }
 
       // Cache miss or forced refresh - fetch from API
-      console.log('🌐 Fetching conversations from API...');
+      console.log('🌐 Fetching conversations from unified API...');
 
-      // Load all conversations (no search/sort on API - we'll do it client-side)
+      // Load all conversations from unified endpoint
       const fetchedConversations: Conversation[] = [];
       const pageSize = 100;
       let page = 1;
       let totalPages = 1;
 
       // Load first page to get total
-      const firstPage = await api.listConversations(page, pageSize, {
-        sortBy: 'created_at',
-        order: 'desc',
+      const firstPage = await api.listUnifiedConversations(page, pageSize, {
+        sort_by: 'updated_at',
+        sort_desc: true,
       });
       setTotalCount(firstPage.total);
-      totalPages = firstPage.total_pages;
+      totalPages = Math.ceil(firstPage.total / pageSize);
 
       // Add conversations from first page
       fetchedConversations.push(...firstPage.conversations);
@@ -127,9 +141,9 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
 
       // Load remaining pages
       for (page = 2; page <= totalPages; page++) {
-        const result = await api.listConversations(page, pageSize, {
-          sortBy: 'created_at',
-          order: 'desc',
+        const result = await api.listUnifiedConversations(page, pageSize, {
+          sort_by: 'updated_at',
+          sort_desc: true,
         });
         fetchedConversations.push(...result.conversations);
         setLoadedCount(fetchedConversations.length);
@@ -168,6 +182,14 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
       hour: '2-digit',
       minute: '2-digit',
     });
+  };
+
+  const getSourceBadge = (source: 'chatgpt' | 'claude'): string => {
+    return source === 'chatgpt' ? '💬' : '🤖';
+  };
+
+  const getSourceName = (source: 'chatgpt' | 'claude'): string => {
+    return source === 'chatgpt' ? 'ChatGPT' : 'Claude';
   };
 
   const handleSemanticSearchResult = (result: SearchResult) => {
@@ -264,6 +286,19 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
         {showSettings && (
           <div className="settings-panel">
             <div className="setting-group">
+              <label className="setting-label">Source:</label>
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value as SourceFilter)}
+                className="setting-select"
+              >
+                <option value="all">All Sources</option>
+                <option value="chatgpt">💬 ChatGPT</option>
+                <option value="claude">🤖 Claude</option>
+              </select>
+            </div>
+
+            <div className="setting-group">
               <label className="setting-label">Sort by:</label>
               <select
                 value={sortField}
@@ -271,6 +306,7 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
                 className="setting-select"
               >
                 <option value="created_at">Date Created</option>
+                <option value="updated_at">Date Updated</option>
                 <option value="title">Title (A-Z)</option>
                 <option value="message_count"># Messages</option>
               </select>
@@ -310,6 +346,9 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
             >
               <div className="conversation-item-main">
                 <div className="conversation-item-title">
+                  <span className="source-badge" title={getSourceName(conv.source)}>
+                    {getSourceBadge(conv.source)}
+                  </span>
                   {conv.title || 'Untitled Conversation'}
                 </div>
                 <div className="conversation-item-meta">
@@ -322,6 +361,10 @@ export default function ConversationList({ selectedConversation, onSelect }: Con
                 </div>
               </div>
               <div className="conversation-item-hover">
+                <div className="hover-detail">
+                  <span className="hover-label">Source:</span>
+                  <span className="hover-value">{getSourceBadge(conv.source)} {getSourceName(conv.source)}</span>
+                </div>
                 <div className="hover-detail">
                   <span className="hover-label">Created:</span>
                   <span className="hover-value">{formatDateTime(conv.created_at)}</span>

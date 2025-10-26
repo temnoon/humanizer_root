@@ -5,6 +5,7 @@ import MediaGallery from '../media/MediaGallery';
 import SemanticSearch from '../search/SemanticSearch';
 import InterestListPanel from '../interest/InterestListPanel';
 import DocumentsPanel from '../documents/DocumentsPanel';
+import ArchiveIngestionPanel from '../archives/ArchiveIngestionPanel';
 import { MediaItem } from '@/lib/api-client';
 import type { SidebarView } from '@/types/sidebar';
 import { useBreakpoint } from '@/hooks/useBreakpoint';
@@ -38,6 +39,7 @@ const sidebarIcons: SidebarIcon[] = [
   { id: 'povms', icon: '🎯', label: 'POVMs', ariaLabel: 'View POVM packs' },
   { id: 'stats', icon: '📊', label: 'Stats', ariaLabel: 'View statistics' },
   { id: 'pipeline', icon: '⚡', label: 'Pipeline', ariaLabel: 'Manage embedding pipeline' },
+  { id: 'archives', icon: '📦', label: 'Archives', ariaLabel: 'Import conversation archives' },
   { id: 'settings', icon: '⚙️', label: 'Settings', ariaLabel: 'Open settings' },
   { id: 'aui', icon: '🤖', label: 'AUI', ariaLabel: 'Open AUI assistant' },
 ];
@@ -146,6 +148,7 @@ export default function Sidebar({ collapsed, onCollapsedChange, currentView, onV
               {currentView === 'povms' && <POVMsView />}
               {currentView === 'stats' && <StatsView />}
               {currentView === 'pipeline' && <PipelineView />}
+              {currentView === 'archives' && <ArchiveIngestionPanel />}
               {currentView === 'settings' && <SettingsView />}
               {currentView === 'aui' && <AUIView />}
             </div>
