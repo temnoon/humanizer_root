@@ -43,6 +43,33 @@ function stringToUint8Array(str: string): Uint8Array {
   return encoder.encode(str);
 }
 
+// Base64URL encoding (URL-safe base64 without padding)
+function uint8ArrayToBase64URL(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+}
+
+function base64URLToUint8Array(base64url: string): Uint8Array {
+  // Convert base64URL to standard base64
+  const base64 = base64url
+    .replace(/-/g, '+')
+    .replace(/_/g, '/');
+  // Add padding if needed
+  const padding = '='.repeat((4 - base64.length % 4) % 4);
+  const binaryString = atob(base64 + padding);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
 /**
  * POST /webauthn/register-challenge
  * Generate challenge for device registration
@@ -149,9 +176,9 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
 
     console.log('[WebAuthn] Credential extracted successfully');
 
-    // Store credential in database
-    const credentialId = uint8ArrayToBase64(credentialID);
-    const publicKey = uint8ArrayToBase64(credentialPublicKey);
+    // Store credential in database (use base64URL for v13 compatibility)
+    const credentialId = uint8ArrayToBase64URL(credentialID);
+    const publicKey = uint8ArrayToBase64URL(credentialPublicKey);
     const transports = credentialTransports
       ? JSON.stringify(credentialTransports)
       : null;
@@ -192,6 +219,7 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
 webauthnRoutes.post('/login-challenge', async (c) => {
   try {
     const { email } = await c.req.json<{ email: string }>();
+    console.log('[WebAuthn Login] Challenge requested for email:', email);
 
     if (!email) {
       return c.json({ error: 'Email is required' }, 400);
@@ -202,6 +230,8 @@ webauthnRoutes.post('/login-challenge', async (c) => {
       'SELECT id, email, role FROM users WHERE email = ?'
     ).bind(email).first();
 
+    console.log('[WebAuthn Login] User found:', !!userRow);
+
     if (!userRow) {
       return c.json({ error: 'User not found' }, 404);
     }
@@ -211,19 +241,40 @@ webauthnRoutes.post('/login-challenge', async (c) => {
       'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?'
     ).bind(userRow.id).all();
 
+    console.log('[WebAuthn Login] Credentials found:', creds.results.length);
+    console.log('[WebAuthn Login] First credential:', creds.results[0]);
+
     if (creds.results.length === 0) {
       return c.json({ error: 'No devices registered for this user' }, 404);
     }
 
+    console.log('[WebAuthn Login] Generating authentication options...');
+    console.log('[WebAuthn Login] credential_id type:', typeof creds.results[0].credential_id);
+    console.log('[WebAuthn Login] credential_id value:', JSON.stringify(creds.results[0].credential_id));
+
     const options = await generateAuthenticationOptions({
       rpID: RP_ID,
-      allowCredentials: creds.results.map((cred: any) => ({
-        id: base64ToUint8Array(cred.credential_id),
-        type: 'public-key' as const,
-        transports: cred.transports ? JSON.parse(cred.transports) : undefined,
-      })),
+      allowCredentials: creds.results.map((cred: any) => {
+        const credId = String(cred.credential_id);
+        console.log('[WebAuthn Login] Processing credential:', credId);
+
+        // Convert standard base64 to base64URL if needed (for backwards compatibility)
+        const base64URLId = credId.includes('+') || credId.includes('/') || credId.includes('=')
+          ? uint8ArrayToBase64URL(base64ToUint8Array(credId))
+          : credId;
+
+        console.log('[WebAuthn Login] Converted to base64URL:', base64URLId);
+
+        return {
+          id: base64URLId,  // v13 expects base64URL string, not Uint8Array
+          type: 'public-key' as const,
+          transports: cred.transports ? JSON.parse(cred.transports) : undefined,
+        };
+      }),
       userVerification: 'preferred',
     });
+
+    console.log('[WebAuthn Login] Authentication options generated successfully');
 
     // Store challenge in KV (expires in 5 minutes)
     await c.env.KV.put(
@@ -234,8 +285,13 @@ webauthnRoutes.post('/login-challenge', async (c) => {
 
     return c.json(options);
   } catch (error) {
-    console.error('Login challenge error:', error);
-    return c.json({ error: 'Failed to generate login challenge' }, 500);
+    console.error('[WebAuthn Login] Challenge error:', error);
+    console.error('[WebAuthn Login] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('[WebAuthn Login] Error message:', error instanceof Error ? error.message : String(error));
+    return c.json({
+      error: 'Failed to generate login challenge',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 

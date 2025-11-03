@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import MailingListModal from './MailingListModal';
-import WebAuthnLogin from './WebAuthnLogin';
 
 interface LandingTutorialProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -8,10 +7,9 @@ interface LandingTutorialProps {
   onWebAuthnLogin?: (token: string, user: any) => void;
 }
 
-export default function LandingTutorial({ onLogin, onWebAuthnLogin }: LandingTutorialProps) {
+export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
   const [showAuth, setShowAuth] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
-  const [isWebAuthn, setIsWebAuthn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -39,10 +37,7 @@ export default function LandingTutorial({ onLogin, onWebAuthnLogin }: LandingTut
         margin: '0 auto',
         paddingTop: 'var(--spacing-2xl)'
       }}>
-        {isWebAuthn && onWebAuthnLogin ? (
-          <WebAuthnLogin onSuccess={onWebAuthnLogin} />
-        ) : (
-          <div className="card">
+        <div className="card">
             <h2 style={{ marginBottom: 'var(--spacing-lg)', textAlign: 'center' }}>
               {isLogin ? 'Welcome Back' : 'Create Account'}
             </h2>
@@ -194,19 +189,6 @@ export default function LandingTutorial({ onLogin, onWebAuthnLogin }: LandingTut
             borderTop: '1px solid var(--border-color)',
             textAlign: 'center'
           }}>
-            {onWebAuthnLogin && isLogin && (
-              <button
-                onClick={() => setIsWebAuthn(true)}
-                style={{
-                  background: 'none',
-                  color: 'var(--accent-cyan)',
-                  fontSize: '0.875rem',
-                  marginBottom: 'var(--spacing-md)'
-                }}
-              >
-                Or use Touch ID / Security Key →
-              </button>
-            )}
             <div>
               <button
                 onClick={() => setShowAuth(false)}
@@ -221,25 +203,6 @@ export default function LandingTutorial({ onLogin, onWebAuthnLogin }: LandingTut
             </div>
           </div>
         </div>
-        )}
-
-        {isWebAuthn && (
-          <div style={{ marginTop: 'var(--spacing-md)', textAlign: 'center' }}>
-            <button
-              onClick={() => {
-                setIsWebAuthn(false);
-                setError(null);
-              }}
-              style={{
-                background: 'none',
-                color: 'var(--text-secondary)',
-                fontSize: '0.875rem'
-              }}
-            >
-              ← Back to password login
-            </button>
-          </div>
-        )}
       </div>
     );
   }
