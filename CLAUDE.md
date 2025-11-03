@@ -1,11 +1,11 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 3, 2025 - WebAuthn Fixed! ✅
-**Status**: ✅ **READY FOR USER TESTING** | Device registration endpoint working
+**Last Updated**: Nov 3, 2025 - WebAuthn Deployed to Production! 🎉
+**Status**: ✅ **PRODUCTION READY** | Admin dashboard live on humanizer.com
 **Latest**: Node 22, Wrangler 4, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
-**Admin URL**: https://7409c5d6.npe-cloud.pages.dev (use this for admin access)
+**Admin URL**: https://humanizer.com (login to access admin dashboard)
 
 **Security Status**: ✅ **PRODUCTION-READY CRITERIA MET**
 - ✅ All dependencies current with no known vulnerabilities
@@ -17,12 +17,13 @@
 - WebAuthn fixed: `b9c3221f4fefbfee8e13e9299c5cf86e0ac66eeb1013a928fb3a2ee68ea6d8c9` (Nov 3, 2025)
 - Previous sessions: Full upgrade `2433240c63c78f8f3d7ab0dceda3579093b1e159b14cea8552956ae0831f462e`
 
-**✅ WEBAUTHN FIX COMPLETED**:
-- **Issue**: SimpleWebAuthn v13 breaking change - userID must be Uint8Array (not string)
-- **Solution**: Added stringToUint8Array() helper using TextEncoder
-- **Status**: Fixed and deployed (Version: 9f064dc3-7630-474e-8a44-221a95f71883)
-- **Next**: User should test device registration at admin dashboard
-- **Commit**: 665052b "fix: Convert userID to Uint8Array for SimpleWebAuthn v13 compatibility"
+**✅ WEBAUTHN DEPLOYMENT COMPLETED**:
+- **Issue Fixed**: SimpleWebAuthn v13 userID → Uint8Array conversion
+- **Production Deployed**: Version 9f59d604 on humanizer.com
+- **RP ID**: "humanizer.com" (proper domain matching)
+- **Ready**: User can register Touch ID devices on humanizer.com
+- **Main branch**: Created from upgrade-dependencies-2025 for production
+- **Latest commit**: 418c325 (includes all admin + WebAuthn features)
 
 ---
 
