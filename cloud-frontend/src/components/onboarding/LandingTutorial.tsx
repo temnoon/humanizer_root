@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import MailingListModal from './MailingListModal';
 
 interface LandingTutorialProps {
   onLogin: (email: string, password: string) => Promise<void>;
@@ -12,6 +13,7 @@ export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showMailingListModal, setShowMailingListModal] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,11 +59,24 @@ export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
               <div style={{
                 fontSize: '0.875rem',
                 color: 'var(--text-secondary)',
-                lineHeight: 1.5
+                lineHeight: 1.5,
+                marginBottom: 'var(--spacing-md)'
               }}>
                 We are currently in the testing phase and not accepting new signups at this time.
                 The Narrative Projection Engine is being refined before public release.
               </div>
+              <button
+                onClick={() => setShowMailingListModal(true)}
+                className="btn"
+                style={{
+                  background: 'var(--accent-cyan)',
+                  color: 'white',
+                  padding: 'var(--spacing-sm) var(--spacing-md)',
+                  fontSize: '0.875rem',
+                }}
+              >
+                Join Our Mailing List
+              </button>
             </div>
           )}
 
@@ -361,6 +376,12 @@ export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
           Currently in testing phase • Limited access
         </p>
       </div>
+
+      {/* Mailing List Modal */}
+      <MailingListModal
+        isOpen={showMailingListModal}
+        onClose={() => setShowMailingListModal(false)}
+      />
     </div>
   );
 }

@@ -5,6 +5,8 @@ import { logger } from 'hono/logger';
 import authRoutes from './routes/auth';
 import transformationRoutes from './routes/transformations';
 import configRoutes from './routes/config';
+import mailingListRoutes from './routes/mailing-list';
+import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
 // Export Durable Object for maieutic sessions
@@ -52,6 +54,7 @@ app.get('/', (c) => {
 app.route('/auth', authRoutes);
 app.route('/transformations', transformationRoutes);
 app.route('/config', configRoutes);
+app.route('/mailing-list', mailingListRoutes);
 
 // 404 handler
 app.notFound((c) => {

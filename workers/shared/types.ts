@@ -160,6 +160,25 @@ export interface MaieuticRespondResponse {
   final_understanding?: string;
 }
 
+export interface MailingListSignupRequest {
+  name: string;
+  email: string;
+  interest_comment?: string;
+}
+
+export interface MailingListSignupResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface MailingListEntry {
+  id: number;
+  name: string;
+  email: string;
+  interest_comment?: string;
+  created_at: string;
+}
+
 // Cloudflare Workers bindings
 export interface Env {
   DB: any; // D1Database - only needed in Workers context
