@@ -1,6 +1,6 @@
 // Mailing list routes for NPE Workers API
 import { Hono } from 'hono';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requireAdmin } from '../middleware/auth';
 import type {
   Env,
   MailingListSignupRequest,
@@ -68,11 +68,11 @@ mailingListRoutes.post('/signup', async (c) => {
 
 /**
  * GET /mailing-list/export - Export all mailing list entries
- * Protected endpoint - requires authentication
+ * Protected endpoint - requires admin role
  */
-mailingListRoutes.get('/export', requireAuth(), async (c) => {
+mailingListRoutes.get('/export', requireAuth(), requireAdmin(), async (c) => {
   try {
-    // This endpoint should be protected by requireAuth middleware in main app
+    // This endpoint is protected by requireAuth and requireAdmin middleware
     const auth = c.get('auth');
 
     if (!auth) {
@@ -105,11 +105,11 @@ mailingListRoutes.get('/export', requireAuth(), async (c) => {
 
 /**
  * GET /mailing-list/export/csv - Export mailing list as CSV
- * Protected endpoint - requires authentication
+ * Protected endpoint - requires admin role
  */
-mailingListRoutes.get('/export/csv', requireAuth(), async (c) => {
+mailingListRoutes.get('/export/csv', requireAuth(), requireAdmin(), async (c) => {
   try {
-    // This endpoint should be protected by requireAuth middleware in main app
+    // This endpoint is protected by requireAuth and requireAdmin middleware
     const auth = c.get('auth');
 
     if (!auth) {

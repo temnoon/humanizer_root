@@ -1,10 +1,16 @@
 // Shared types between NPE Workers API and Cloud Frontend
 
+export type UserRole = 'admin' | 'premium' | 'pro' | 'member' | 'free';
+
 export interface User {
   id: string;
   email: string;
+  role: UserRole;
   created_at: number;
   last_login?: number;
+  monthly_transformations?: number;
+  monthly_tokens_used?: number;
+  last_reset_date?: number;
 }
 
 export interface NPEPersona {

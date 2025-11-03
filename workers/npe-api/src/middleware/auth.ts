@@ -1,11 +1,12 @@
 // Authentication middleware for Cloudflare Workers
 import { Context } from 'hono';
 import * as jose from 'jose';
-import type { Env } from '../../shared/types';
+import type { Env, UserRole } from '../../shared/types';
 
 export interface AuthContext {
   userId: string;
   email: string;
+  role: UserRole;
 }
 
 /**
@@ -31,11 +32,11 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 /**
  * Generate JWT token for user
  */
-export async function generateToken(userId: string, email: string, secret: string): Promise<string> {
+export async function generateToken(userId: string, email: string, role: UserRole, secret: string): Promise<string> {
   const encoder = new TextEncoder();
   const secretKey = encoder.encode(secret);
 
-  const jwt = await new jose.SignJWT({ userId, email })
+  const jwt = await new jose.SignJWT({ userId, email, role })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime('7d')
@@ -57,6 +58,7 @@ export async function verifyToken(token: string, secret: string): Promise<AuthCo
     return {
       userId: payload.userId as string,
       email: payload.email as string,
+      role: payload.role as UserRole,
     };
   } catch (error) {
     return null;
@@ -93,4 +95,27 @@ export function requireAuth() {
  */
 export function getAuthContext(c: Context): AuthContext {
   return c.get('auth') as AuthContext;
+}
+
+/**
+ * Hono middleware to require admin role
+ * MUST be used after requireAuth()
+ */
+export function requireAdmin() {
+  return async (c: Context<{ Bindings: Env }>, next: () => Promise<void>) => {
+    const auth = c.get('auth') as AuthContext;
+
+    if (!auth) {
+      return c.json({ error: 'Authentication required' }, 401);
+    }
+
+    if (auth.role !== 'admin') {
+      return c.json({
+        error: 'Admin access required',
+        message: 'This endpoint is restricted to administrators only'
+      }, 403);
+    }
+
+    await next();
+  };
 }

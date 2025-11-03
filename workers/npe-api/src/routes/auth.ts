@@ -30,7 +30,7 @@ authRoutes.post('/login', async (c) => {
 
     // Find user
     const userRow = await c.env.DB.prepare(
-      'SELECT id, email, password_hash, created_at FROM users WHERE email = ?'
+      'SELECT id, email, password_hash, role, created_at, monthly_transformations, monthly_tokens_used, last_reset_date FROM users WHERE email = ?'
     ).bind(email).first();
 
     if (!userRow) {
@@ -51,13 +51,22 @@ authRoutes.post('/login', async (c) => {
     ).bind(now, userRow.id).run();
 
     // Generate JWT token
-    const token = await generateToken(userRow.id as string, userRow.email as string, c.env.JWT_SECRET);
+    const token = await generateToken(
+      userRow.id as string,
+      userRow.email as string,
+      userRow.role as string,
+      c.env.JWT_SECRET
+    );
 
     const user: User = {
       id: userRow.id as string,
       email: userRow.email as string,
+      role: userRow.role as string,
       created_at: userRow.created_at as number,
       last_login: now,
+      monthly_transformations: userRow.monthly_transformations as number,
+      monthly_tokens_used: userRow.monthly_tokens_used as number,
+      last_reset_date: userRow.last_reset_date as number | undefined,
     };
 
     const response: AuthResponse = {
@@ -80,7 +89,7 @@ authRoutes.get('/me', async (c) => {
   const auth = c.get('auth');
 
   const userRow = await c.env.DB.prepare(
-    'SELECT id, email, created_at, last_login FROM users WHERE id = ?'
+    'SELECT id, email, role, created_at, last_login, monthly_transformations, monthly_tokens_used, last_reset_date FROM users WHERE id = ?'
   ).bind(auth.userId).first();
 
   if (!userRow) {
@@ -90,8 +99,12 @@ authRoutes.get('/me', async (c) => {
   const user: User = {
     id: userRow.id as string,
     email: userRow.email as string,
+    role: userRow.role as string,
     created_at: userRow.created_at as number,
     last_login: userRow.last_login as number | undefined,
+    monthly_transformations: userRow.monthly_transformations as number,
+    monthly_tokens_used: userRow.monthly_tokens_used as number,
+    last_reset_date: userRow.last_reset_date as number | undefined,
   };
 
   return c.json(user, 200);

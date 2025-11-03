@@ -64,6 +64,44 @@
 
 ---
 
+## 👥 TIERED USER SYSTEM
+
+**User Roles** (in order of privileges):
+1. **ADMIN** - Full system access, can export mailing lists, manage users
+2. **PREMIUM** - Unlimited transforms, unlimited tokens per transform, smart chunking
+3. **PRO** - 200 transforms/month, 8,000 tokens per transform
+4. **MEMBER** - 50 transforms/month, 2,000 tokens per transform
+5. **FREE** - 10 transforms/month, 500 tokens per transform
+
+**Access Control**:
+- **Admin-only endpoints**: Mailing list export, user management, system metrics
+- **Authenticated endpoints**: All transformation APIs, user profile
+- **Public endpoints**: Landing page, mailing list signup, login/register
+
+**Resource Quotas** (enforced per user tier):
+```
+Tier       | Transforms/Month | Tokens/Transform | Features
+-----------|------------------|------------------|------------------
+FREE       | 10               | 500              | Basic NPE
+MEMBER     | 50               | 2,000            | Basic NPE
+PRO        | 200              | 8,000            | Basic NPE
+PREMIUM    | Unlimited        | Unlimited        | Smart chunking
+ADMIN      | Unlimited        | Unlimited        | All + exports
+```
+
+**Important**:
+- Only ADMIN role can export mailing lists
+- Only ADMIN role can access system-level metrics
+- All other roles can only access their own content and public content
+- Usage tracking fields: `monthly_transformations`, `monthly_tokens_used`, `last_reset_date`
+
+**Current Users**:
+- demo@humanizer.com - ADMIN (test account)
+
+**See**: `/Users/tem/humanizer_root/What the Tiered System Actually Implements.me` for full architecture
+
+---
+
 ## 🚨 SESSION START PROTOCOL
 
 **At start of EVERY session**:
