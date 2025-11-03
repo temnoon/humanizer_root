@@ -19,6 +19,24 @@ const webauthnRoutes = new Hono<{ Bindings: Env }>();
 const RP_NAME = 'Narrative Projection Engine';
 const RP_ID = 'humanizer.com'; // Your domain
 
+// Helper functions for base64 encoding/decoding (Workers-compatible)
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 /**
  * POST /webauthn/register-challenge
  * Generate challenge for device registration
@@ -40,8 +58,8 @@ webauthnRoutes.post('/register-challenge', requireAuth(), requireAdmin(), async 
       userName: auth.email,
       attestationType: 'none',
       excludeCredentials: existingCreds.results.map((cred: any) => ({
-        id: Buffer.from(cred.credential_id, 'base64'),
-        type: 'public-key',
+        id: base64ToUint8Array(cred.credential_id),
+        type: 'public-key' as const,
         transports: cred.transports ? JSON.parse(cred.transports) : undefined,
       })),
       authenticatorSelection: {
@@ -102,8 +120,8 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
     const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
 
     // Store credential in database
-    const credentialId = Buffer.from(credentialID).toString('base64');
-    const publicKey = Buffer.from(credentialPublicKey).toString('base64');
+    const credentialId = uint8ArrayToBase64(credentialID);
+    const publicKey = uint8ArrayToBase64(credentialPublicKey);
     const transports = response.response.transports
       ? JSON.stringify(response.response.transports)
       : null;
@@ -165,8 +183,8 @@ webauthnRoutes.post('/login-challenge', async (c) => {
     const options = await generateAuthenticationOptions({
       rpID: RP_ID,
       allowCredentials: creds.results.map((cred: any) => ({
-        id: Buffer.from(cred.credential_id, 'base64'),
-        type: 'public-key',
+        id: base64ToUint8Array(cred.credential_id),
+        type: 'public-key' as const,
         transports: cred.transports ? JSON.parse(cred.transports) : undefined,
       })),
       userVerification: 'preferred',
@@ -218,7 +236,7 @@ webauthnRoutes.post('/login-verify', async (c) => {
     }
 
     // Find credential
-    const credId = Buffer.from(response.rawId, 'base64').toString('base64');
+    const credId = response.rawId; // This is already base64 from the client
     const credRow = await c.env.DB.prepare(
       'SELECT id, public_key, counter FROM webauthn_credentials WHERE credential_id = ? AND user_id = ?'
     ).bind(credId, userRow.id).first();
@@ -228,7 +246,7 @@ webauthnRoutes.post('/login-verify', async (c) => {
     }
 
     // Verify authentication
-    const publicKey = Uint8Array.from(Buffer.from(credRow.public_key as string, 'base64'));
+    const publicKey = base64ToUint8Array(credRow.public_key as string);
 
     const verification = await verifyAuthenticationResponse({
       response,
@@ -236,7 +254,7 @@ webauthnRoutes.post('/login-verify', async (c) => {
       expectedOrigin: `https://${RP_ID}`,
       expectedRPID: RP_ID,
       authenticator: {
-        credentialID: Buffer.from(credId, 'base64'),
+        credentialID: base64ToUint8Array(credId),
         credentialPublicKey: publicKey,
         counter: credRow.counter as number,
       },
