@@ -105,10 +105,15 @@ webauthnRoutes.post('/register-challenge', requireAuth(), requireAdmin(), async 
 webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c) => {
   try {
     const auth = c.get('auth');
+    console.log('[WebAuthn] Starting registration verification for user:', auth.userId);
+
     const { response, deviceName } = await c.req.json<{
       response: RegistrationResponseJSON;
       deviceName: string;
     }>();
+
+    console.log('[WebAuthn] Device name:', deviceName);
+    console.log('[WebAuthn] Response received:', JSON.stringify(response).substring(0, 200));
 
     if (!deviceName || deviceName.trim().length === 0) {
       return c.json({ error: 'Device name is required' }, 400);
@@ -116,9 +121,13 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
 
     // Get stored challenge
     const expectedChallenge = await c.env.KV.get(`webauthn:challenge:${auth.userId}`);
+    console.log('[WebAuthn] Expected challenge found:', !!expectedChallenge);
+
     if (!expectedChallenge) {
       return c.json({ error: 'Challenge expired or not found' }, 400);
     }
+
+    console.log('[WebAuthn] Calling verifyRegistrationResponse with origin:', `https://${RP_ID}`);
 
     // Verify registration
     const verification = await verifyRegistrationResponse({
@@ -128,17 +137,23 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
       expectedRPID: RP_ID,
     });
 
+    console.log('[WebAuthn] Verification result:', verification.verified);
+
     if (!verification.verified || !verification.registrationInfo) {
       return c.json({ error: 'Verification failed' }, 400);
     }
 
-    const { credentialID, credentialPublicKey, counter } = verification.registrationInfo;
+    // SimpleWebAuthn v13: credential data is now nested under 'credential' object
+    const { credential } = verification.registrationInfo;
+    const { id: credentialID, publicKey: credentialPublicKey, counter, transports: credentialTransports } = credential;
+
+    console.log('[WebAuthn] Credential extracted successfully');
 
     // Store credential in database
     const credentialId = uint8ArrayToBase64(credentialID);
     const publicKey = uint8ArrayToBase64(credentialPublicKey);
-    const transports = response.response.transports
-      ? JSON.stringify(response.response.transports)
+    const transports = credentialTransports
+      ? JSON.stringify(credentialTransports)
       : null;
 
     const id = crypto.randomUUID();
@@ -159,8 +174,13 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
       deviceName: deviceName.trim(),
     });
   } catch (error) {
-    console.error('Register verify error:', error);
-    return c.json({ error: 'Failed to verify registration' }, 500);
+    console.error('[WebAuthn] Register verify error:', error);
+    console.error('[WebAuthn] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('[WebAuthn] Error message:', error instanceof Error ? error.message : String(error));
+    return c.json({
+      error: 'Failed to verify registration',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 
