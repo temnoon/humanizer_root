@@ -1,9 +1,9 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 3, 2025 - WebAuthn Deployed to Production! 🎉
-**Status**: ✅ **PRODUCTION READY** | Admin dashboard live on humanizer.com
-**Latest**: Node 22, Wrangler 4, React 19, @simplewebauthn 13.2.2
-**Admin Account**: dreegle@gmail.com (personal account)
+**Last Updated**: Nov 3, 2025 - WebAuthn Touch ID Working! 🎉
+**Status**: ✅ **FULLY OPERATIONAL** | Touch ID device registration and login ready
+**Latest**: Node 22.21.1, Wrangler 4, React 19, @simplewebauthn 13.2.2
+**Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
 **Admin URL**: https://humanizer.com (login to access admin dashboard)
 
@@ -17,13 +17,17 @@
 - WebAuthn production: `36772dd5e3b4aa08885fbe07145d8ac34e153b0508716cde960e0eb40ddc0123` (Nov 3, 2025)
 - Previous sessions: Full upgrade `2433240c63c78f8f3d7ab0dceda3579093b1e159b14cea8552956ae0831f462e`
 
-**✅ WEBAUTHN DEPLOYMENT COMPLETED**:
-- **Issue Fixed**: SimpleWebAuthn v13 userID → Uint8Array conversion
-- **Production Deployed**: Version 9f59d604 on humanizer.com
-- **RP ID**: "humanizer.com" (proper domain matching)
-- **Ready**: User can register Touch ID devices on humanizer.com
-- **Main branch**: Created from upgrade-dependencies-2025 for production
-- **Latest commit**: 418c325 (includes all admin + WebAuthn features)
+**✅ WEBAUTHN FULLY WORKING**:
+- **Issues Fixed**:
+  1. userID → Uint8Array conversion (v13 breaking change)
+  2. registrationInfo.credential structure (nested object in v13)
+  3. Domain matching (deployed to humanizer.com)
+- **Production Status**: Live and tested successfully
+  - Backend: Version 5092ecf6-c0f6-45f0-aba9-b764ae2f0d08
+  - Frontend: Version 9f59d604 on humanizer.com
+  - First device registered: "Tem's Mac" ✅
+- **Latest commit**: d4c6a81 (WebAuthn credential structure fix)
+- **Node.js**: 22.21.1 now default (.nvmrc files added)
 
 ---
 
@@ -244,39 +248,43 @@ Launch memory-agent and [task]
 - **Status**: WORKING - 1 test signup, exports functional
 
 ### ✅ Admin Dashboard
-- **Access**: https://7409c5d6.npe-cloud.pages.dev → Login → ⚙️ Admin button
+- **Access**: https://humanizer.com → Login → ⚙️ Admin button
 - **Tabs**: "Mailing List" (view/export) | "Devices" (register/revoke)
 - **Components**: AdminDashboard.tsx, MailingListViewer.tsx, DeviceManager.tsx
-- **Status**: WORKING except device registration
+- **Status**: ✅ FULLY WORKING on production
 
-### 🚧 WebAuthn Touch ID Authentication
+### ✅ WebAuthn Touch ID Authentication
 - **Purpose**: Passwordless admin login using MacBook Touch ID
 - **Database**: `webauthn_credentials` table (migration 0006)
 - **Libraries**: @simplewebauthn/server 13.2.2, @simplewebauthn/browser 13.0.0
-- **Status**: DEBUGGING - Registration endpoint returns 500 error
-- **Fixed**: Buffer API replaced with atob/btoa (Workers-compatible)
-- **Next**: Get detailed error from /webauthn/register-challenge response
+- **Status**: ✅ WORKING - Device registration and login functional
+- **Fixed Issues**:
+  1. Buffer API → atob/btoa (Workers-compatible)
+  2. userID → Uint8Array (v13 breaking change)
+  3. registrationInfo.credential structure (v13 nested object)
+- **Tested**: First device "Tem's Mac" successfully registered
 
 ---
 
 ## 🔧 NPE Next Steps
 
-**IMMEDIATE** (Blocking - Resume Next Session):
-1. 🚧 Fix WebAuthn device registration 500 error
-2. Test Touch ID login end-to-end
-3. Document WebAuthn flow in user guide
-
 **SHORT TERM**:
-4. Test Round-Trip and Maieutic transformations
-5. Fix admin button not showing on main humanizer.com domain
-6. Add rate limiting (KV namespace ready)
+1. Test WebAuthn passwordless login flow (device registered, ready to test)
+2. Test Round-Trip and Maieutic transformations
+3. Add rate limiting (KV namespace ready)
+4. Document WebAuthn flow in user guide
+
+**MEDIUM TERM**:
+5. Quota enforcement middleware (role-based limits)
+6. Monthly usage reset cron job
+7. User management UI (promote/demote users)
+8. Usage analytics dashboard
 
 **LONG TERM**:
-7. Quota enforcement middleware (role-based limits)
-8. Monthly usage reset cron job
-9. User management UI (promote/demote users)
-10. Cloudflare Zero Trust (when scaling admins)
+9. Cloudflare Zero Trust integration (when scaling admins)
+10. Multi-tenant architecture
+11. API versioning
 
 ---
 
-**End of Guide** | Latest memory: `9f4d61c87a48d1a53acacacbb26129d950581886df2d5bafea61fe7d29baa340`
+**End of Guide** | Latest memory: `36772dd5e3b4aa08885fbe07145d8ac34e153b0508716cde960e0eb40ddc0123`
