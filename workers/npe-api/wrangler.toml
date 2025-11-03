@@ -1,0 +1,36 @@
+name = "npe-api"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "npe-production-db"
+database_id = "29127486-4246-44b2-a844-7bbeb44f75fb"
+
+# AI Model Binding
+[ai]
+binding = "AI"
+
+# KV for rate limiting and sessions
+[[kv_namespaces]]
+binding = "KV"
+id = "4c372f27384b40d1aa02aed7be7c8ccd"
+
+# Durable Objects for maieutic dialogue sessions
+[[durable_objects.bindings]]
+name = "MAIEUTIC_SESSION"
+class_name = "MaieuticSessionDO"
+script_name = "npe-api"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["MaieuticSessionDO"]
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"
+
+# Secrets (set via wrangler secret put)
+# JWT_SECRET - set via: wrangler secret put JWT_SECRET

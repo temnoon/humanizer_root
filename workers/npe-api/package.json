@@ -1,0 +1,23 @@
+{
+  "name": "npe-api-workers",
+  "version": "1.0.0",
+  "description": "Cloudflare Workers API for Narrative Projection Engine",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "db:create": "wrangler d1 create npe-db",
+    "db:migrate": "wrangler d1 migrations apply npe-db"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "jose": "^6.1.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "typescript": "^5.7.2",
+    "wrangler": "^4.45.3"
+  }
+}
