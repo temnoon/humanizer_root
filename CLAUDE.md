@@ -1,10 +1,11 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 3, 2025 - FULLY UPGRADED & SECURE ✅
-**Status**: 🔒 **TESTING MODE** | All dependencies current, 0 vulnerabilities
-**Latest**: Node 22, Wrangler 4, React 19, jose 6 - Full security upgrade complete
+**Last Updated**: Nov 3, 2025 - WebAuthn Implementation In Progress ⚠️
+**Status**: 🚧 **DEBUGGING** | WebAuthn device registration returning 500 error
+**Latest**: Node 22, Wrangler 4, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
+**Admin URL**: https://7409c5d6.npe-cloud.pages.dev (use this for admin access)
 
 **Security Status**: ✅ **PRODUCTION-READY CRITERIA MET**
 - ✅ All dependencies current with no known vulnerabilities
@@ -13,9 +14,15 @@
 - ✅ esbuild security vulnerability (GHSA-67mh-4wv8-2f99) FIXED
 
 **Memory IDs**:
-- Deployment success: `e9962eb11b1ec01abbf55439ccdf311e17f3c2e129572000e85222a3d43d2ac3`
-- Registration disabled: `5626607ca0777ee19790a8163163f128669efbd62ba76339af4895aa97c3a462`
-- Full upgrade complete: `2433240c63c78f8f3d7ab0dceda3579093b1e159b14cea8552956ae0831f462e`
+- WebAuthn session: `9f4d61c87a48d1a53acacacbb26129d950581886df2d5bafea61fe7d29baa340` (Nov 3, 2025)
+- Previous sessions: Full upgrade `2433240c63c78f8f3d7ab0dceda3579093b1e159b14cea8552956ae0831f462e`
+
+**⚠️ CURRENT DEBUGGING ISSUE**:
+- **Problem**: POST /webauthn/register-challenge returns HTTP 500
+- **Context**: User can access admin dashboard, login works, mailing list export works
+- **Status**: Enhanced error logging deployed (Version: 1fbc6c19-bcdf-4032-9607-8e40e52682bc)
+- **Next**: User checking DevTools Network Response for error details
+- **See**: WEBAUTHN_DEBUGGING_HANDOFF.md for full context
 
 ---
 
@@ -53,8 +60,10 @@
 - ✅ Phase 1: Infrastructure (D1, KV, Durable Objects, auth)
 - ✅ Phase 2: Services (Allegorical, Round-trip, Maieutic) - 1,125 lines
 - ✅ Phase 3: Frontend (React, forms, onboarding) - 1,773 lines
+- ✅ Phase 4: Mailing list feature (signup modal, admin exports)
+- ✅ Phase 5: Tiered user system (roles, quotas)
+- 🚧 Phase 6: WebAuthn Touch ID auth (DEBUGGING - 500 error on device registration)
 - ✅ Deployment (Cloudflare Workers + Pages, custom domains)
-- ✅ Testing (registration, login, allegorical transformation verified)
 
 **NPE Transformations**:
 1. **Allegorical**: 5-stage pipeline (Deconstruct → Map → Reconstruct → Stylize → Reflect)
@@ -225,17 +234,48 @@ Launch memory-agent and [task]
 
 ---
 
-## 🔧 NPE Next Steps
+## 🎯 NEW FEATURES (Nov 3 Session)
 
-1. ✅ ~~Deploy JWT fix~~ (COMPLETED)
-2. ✅ ~~Test registration end-to-end~~ (COMPLETED)
-3. ✅ ~~Test allegorical transformation~~ (COMPLETED)
-4. Test Round-Trip and Maieutic transformations
-5. Add rate limiting (KV namespace ready)
-6. Monitor with Cloudflare Analytics
-7. Phase 4: Local privacy enhancements (warnings, encryption, audit)
-8. User testing and feedback collection
+### ✅ Mailing List System
+- **Frontend**: Modal with name/email/interest form
+- **Backend**: POST /mailing-list/signup (public), GET /export, GET /export/csv (admin only)
+- **Database**: `mailing_list` table (migration 0003)
+- **Status**: WORKING - 1 test signup, exports functional
+
+### ✅ Admin Dashboard
+- **Access**: https://7409c5d6.npe-cloud.pages.dev → Login → ⚙️ Admin button
+- **Tabs**: "Mailing List" (view/export) | "Devices" (register/revoke)
+- **Components**: AdminDashboard.tsx, MailingListViewer.tsx, DeviceManager.tsx
+- **Status**: WORKING except device registration
+
+### 🚧 WebAuthn Touch ID Authentication
+- **Purpose**: Passwordless admin login using MacBook Touch ID
+- **Database**: `webauthn_credentials` table (migration 0006)
+- **Libraries**: @simplewebauthn/server 13.2.2, @simplewebauthn/browser 13.0.0
+- **Status**: DEBUGGING - Registration endpoint returns 500 error
+- **Fixed**: Buffer API replaced with atob/btoa (Workers-compatible)
+- **Next**: Get detailed error from /webauthn/register-challenge response
 
 ---
 
-**End of Guide** | Full context in memory ID `15e0f687c3e904eee81644763dc046ad19a92764234f01cea5ef488edfcf9f05`
+## 🔧 NPE Next Steps
+
+**IMMEDIATE** (Blocking - Resume Next Session):
+1. 🚧 Fix WebAuthn device registration 500 error
+2. Test Touch ID login end-to-end
+3. Document WebAuthn flow in user guide
+
+**SHORT TERM**:
+4. Test Round-Trip and Maieutic transformations
+5. Fix admin button not showing on main humanizer.com domain
+6. Add rate limiting (KV namespace ready)
+
+**LONG TERM**:
+7. Quota enforcement middleware (role-based limits)
+8. Monthly usage reset cron job
+9. User management UI (promote/demote users)
+10. Cloudflare Zero Trust (when scaling admins)
+
+---
+
+**End of Guide** | Latest memory: `9f4d61c87a48d1a53acacacbb26129d950581886df2d5bafea61fe7d29baa340`
