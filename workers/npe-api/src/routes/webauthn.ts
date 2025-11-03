@@ -37,6 +37,12 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
+// Convert string to Uint8Array for userID (SimpleWebAuthn v13+ requirement)
+function stringToUint8Array(str: string): Uint8Array {
+  const encoder = new TextEncoder();
+  return encoder.encode(str);
+}
+
 /**
  * POST /webauthn/register-challenge
  * Generate challenge for device registration
@@ -45,16 +51,19 @@ function uint8ArrayToBase64(bytes: Uint8Array): string {
 webauthnRoutes.post('/register-challenge', requireAuth(), requireAdmin(), async (c) => {
   try {
     const auth = c.get('auth');
+    console.log('[WebAuthn] Generating registration challenge for user:', auth.userId);
 
     // Get user's existing credentials
     const existingCreds = await c.env.DB.prepare(
       'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?'
     ).bind(auth.userId).all();
 
+    console.log('[WebAuthn] Existing credentials count:', existingCreds.results.length);
+
     const options = await generateRegistrationOptions({
       rpName: RP_NAME,
       rpID: RP_ID,
-      userID: auth.userId,
+      userID: stringToUint8Array(auth.userId), // SimpleWebAuthn v13+ requires Uint8Array
       userName: auth.email,
       attestationType: 'none',
       excludeCredentials: existingCreds.results.map((cred: any) => ({
@@ -75,10 +84,16 @@ webauthnRoutes.post('/register-challenge', requireAuth(), requireAdmin(), async 
       { expirationTtl: 300 }
     );
 
+    console.log('[WebAuthn] Challenge generated successfully');
     return c.json(options);
   } catch (error) {
-    console.error('Register challenge error:', error);
-    return c.json({ error: 'Failed to generate registration challenge' }, 500);
+    console.error('[WebAuthn] Register challenge error:', error);
+    console.error('[WebAuthn] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('[WebAuthn] Error message:', error instanceof Error ? error.message : String(error));
+    return c.json({
+      error: 'Failed to generate registration challenge',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 
