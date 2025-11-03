@@ -3,7 +3,8 @@
 **Last Updated**: Nov 3, 2025 - FULLY UPGRADED & SECURE ✅
 **Status**: 🔒 **TESTING MODE** | All dependencies current, 0 vulnerabilities
 **Latest**: Node 22, Wrangler 4, React 19, jose 6 - Full security upgrade complete
-**Test Account**: demo@humanizer.com (password: testpass123)
+**Admin Account**: dreegle@gmail.com (personal account)
+**Test Account**: demo@humanizer.com (password: testpass123, role: free)
 
 **Security Status**: ✅ **PRODUCTION-READY CRITERIA MET**
 - ✅ All dependencies current with no known vulnerabilities
@@ -96,7 +97,8 @@ ADMIN      | Unlimited        | Unlimited        | All + exports
 - Usage tracking fields: `monthly_transformations`, `monthly_tokens_used`, `last_reset_date`
 
 **Current Users**:
-- demo@humanizer.com - ADMIN (test account)
+- dreegle@gmail.com - ADMIN (personal account)
+- demo@humanizer.com - FREE (test account, password: testpass123)
 
 **See**: `/Users/tem/humanizer_root/What the Tiered System Actually Implements.me` for full architecture
 
