@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import MailingListModal from './MailingListModal';
+import WebAuthnLogin from './WebAuthnLogin';
 
 interface LandingTutorialProps {
   onLogin: (email: string, password: string) => Promise<void>;
   onRegister: (email: string, password: string) => Promise<void>; // Temporarily disabled
+  onWebAuthnLogin?: (token: string, user: any) => void;
 }
 
-export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
+export default function LandingTutorial({ onLogin, onWebAuthnLogin }: LandingTutorialProps) {
   const [showAuth, setShowAuth] = useState(false);
   const [isLogin, setIsLogin] = useState(true);
+  const [isWebAuthn, setIsWebAuthn] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -36,10 +39,13 @@ export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
         margin: '0 auto',
         paddingTop: 'var(--spacing-2xl)'
       }}>
-        <div className="card">
-          <h2 style={{ marginBottom: 'var(--spacing-lg)', textAlign: 'center' }}>
-            {isLogin ? 'Welcome Back' : 'Create Account'}
-          </h2>
+        {isWebAuthn && onWebAuthnLogin ? (
+          <WebAuthnLogin onSuccess={onWebAuthnLogin} />
+        ) : (
+          <div className="card">
+            <h2 style={{ marginBottom: 'var(--spacing-lg)', textAlign: 'center' }}>
+              {isLogin ? 'Welcome Back' : 'Create Account'}
+            </h2>
 
           {!isLogin && (
             <div style={{
@@ -182,19 +188,58 @@ export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
             </div>
           </form>
 
-          <div style={{ marginTop: 'var(--spacing-lg)', textAlign: 'center' }}>
+          <div style={{
+            marginTop: 'var(--spacing-lg)',
+            paddingTop: 'var(--spacing-lg)',
+            borderTop: '1px solid var(--border-color)',
+            textAlign: 'center'
+          }}>
+            {onWebAuthnLogin && isLogin && (
+              <button
+                onClick={() => setIsWebAuthn(true)}
+                style={{
+                  background: 'none',
+                  color: 'var(--accent-cyan)',
+                  fontSize: '0.875rem',
+                  marginBottom: 'var(--spacing-md)'
+                }}
+              >
+                Or use Touch ID / Security Key →
+              </button>
+            )}
+            <div>
+              <button
+                onClick={() => setShowAuth(false)}
+                style={{
+                  background: 'none',
+                  color: 'var(--text-secondary)',
+                  fontSize: '0.875rem'
+                }}
+              >
+                ← Back to tutorial
+              </button>
+            </div>
+          </div>
+        </div>
+        )}
+
+        {isWebAuthn && (
+          <div style={{ marginTop: 'var(--spacing-md)', textAlign: 'center' }}>
             <button
-              onClick={() => setShowAuth(false)}
+              onClick={() => {
+                setIsWebAuthn(false);
+                setError(null);
+              }}
               style={{
                 background: 'none',
                 color: 'var(--text-secondary)',
                 fontSize: '0.875rem'
               }}
             >
-              ← Back to tutorial
+              ← Back to password login
             </button>
           </div>
-        </div>
+        )}
       </div>
     );
   }

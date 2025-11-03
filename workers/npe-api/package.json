@@ -12,6 +12,8 @@
     "db:migrate": "wrangler d1 migrations apply npe-db"
   },
   "dependencies": {
+    "@simplewebauthn/server": "^13.2.2",
+    "@simplewebauthn/types": "^12.0.0",
     "hono": "^4.6.14",
     "jose": "^6.1.0"
   },

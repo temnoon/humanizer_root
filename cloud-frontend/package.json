@@ -10,6 +10,7 @@
     "deploy": "npm run build && wrangler pages deploy dist --project-name=npe-cloud"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.2.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

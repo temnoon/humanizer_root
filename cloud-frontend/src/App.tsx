@@ -5,9 +5,10 @@ import RoundTripForm from './components/transformations/RoundTripForm';
 import MaieuticForm from './components/transformations/MaieuticForm';
 import LandingTutorial from './components/onboarding/LandingTutorial';
 import HelpPanel from './components/help/HelpPanel';
+import AdminDashboard from './components/admin/AdminDashboard';
 import type { User } from '../../workers/shared/types';
 
-type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'help';
+type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'admin';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('landing');
@@ -52,6 +53,13 @@ function App() {
     } catch (error) {
       throw error;
     }
+  };
+
+  const handleWebAuthnLogin = (token: string, userData: User) => {
+    cloudAPI.setToken(token);
+    setUser(userData);
+    // If admin, go to admin dashboard; otherwise go to allegorical
+    setCurrentView(userData.role === 'admin' ? 'admin' : 'allegorical');
   };
 
   const handleLogout = () => {
@@ -131,25 +139,44 @@ function App() {
         }}>
           <div className="container" style={{
             display: 'flex',
-            gap: 'var(--spacing-sm)'
+            gap: 'var(--spacing-sm)',
+            justifyContent: 'space-between',
+            alignItems: 'center'
           }}>
-            {(['allegorical', 'round-trip', 'maieutic'] as View[]).map(view => (
+            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
+              {(['allegorical', 'round-trip', 'maieutic'] as View[]).map(view => (
+                <button
+                  key={view}
+                  className="btn"
+                  onClick={() => setCurrentView(view)}
+                  style={{
+                    padding: 'var(--spacing-xs) var(--spacing-md)',
+                    background: currentView === view ? 'var(--accent-purple)' : 'transparent',
+                    color: currentView === view ? 'white' : 'var(--text-secondary)',
+                    borderRadius: 'var(--radius-sm)'
+                  }}
+                >
+                  {view === 'allegorical' && '🎭 Allegorical'}
+                  {view === 'round-trip' && '🔄 Round-Trip'}
+                  {view === 'maieutic' && '🤔 Maieutic'}
+                </button>
+              ))}
+            </div>
+            {user.role === 'admin' && (
               <button
-                key={view}
                 className="btn"
-                onClick={() => setCurrentView(view)}
+                onClick={() => setCurrentView('admin')}
                 style={{
                   padding: 'var(--spacing-xs) var(--spacing-md)',
-                  background: currentView === view ? 'var(--accent-purple)' : 'transparent',
-                  color: currentView === view ? 'white' : 'var(--text-secondary)',
-                  borderRadius: 'var(--radius-sm)'
+                  background: currentView === 'admin' ? 'var(--accent-purple)' : 'transparent',
+                  color: currentView === 'admin' ? 'white' : 'var(--accent-purple)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: currentView === 'admin' ? 'none' : '1px solid var(--accent-purple)'
                 }}
               >
-                {view === 'allegorical' && '🎭 Allegorical'}
-                {view === 'round-trip' && '🔄 Round-Trip'}
-                {view === 'maieutic' && '🤔 Maieutic'}
+                ⚙️ Admin
               </button>
-            ))}
+            )}
           </div>
         </nav>
       )}
@@ -157,24 +184,33 @@ function App() {
       {/* Main Content */}
       <main style={{
         flex: 1,
-        padding: 'var(--spacing-xl) 0'
+        padding: currentView === 'admin' ? 0 : 'var(--spacing-xl) 0'
       }}>
-        <div className="container">
-          {showHelp ? (
-            <HelpPanel onClose={() => setShowHelp(false)} />
-          ) : currentView === 'landing' ? (
-            <LandingTutorial
-              onLogin={handleLogin}
-              onRegister={handleRegister}
-            />
-          ) : currentView === 'allegorical' ? (
-            <AllegoricalForm />
-          ) : currentView === 'round-trip' ? (
-            <RoundTripForm />
-          ) : currentView === 'maieutic' ? (
-            <MaieuticForm />
-          ) : null}
-        </div>
+        {currentView === 'admin' && user ? (
+          <AdminDashboard
+            token={cloudAPI.getToken() || ''}
+            userEmail={user.email}
+            onLogout={handleLogout}
+          />
+        ) : (
+          <div className="container">
+            {showHelp ? (
+              <HelpPanel onClose={() => setShowHelp(false)} />
+            ) : currentView === 'landing' ? (
+              <LandingTutorial
+                onLogin={handleLogin}
+                onRegister={handleRegister}
+                onWebAuthnLogin={handleWebAuthnLogin}
+              />
+            ) : currentView === 'allegorical' ? (
+              <AllegoricalForm />
+            ) : currentView === 'round-trip' ? (
+              <RoundTripForm />
+            ) : currentView === 'maieutic' ? (
+              <MaieuticForm />
+            ) : null}
+          </div>
+        )}
       </main>
 
       {/* Footer */}
