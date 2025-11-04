@@ -20,6 +20,12 @@
   --accent-red: #f87171;
   --accent-orange: #fb923c;
 
+  /* Quantum Reading highlights */
+  --highlight-current: rgba(167, 139, 250, 0.25);
+  --highlight-current-border: var(--accent-purple);
+  --highlight-completed: rgba(52, 211, 153, 0.1);
+  --highlight-hover: rgba(167, 139, 250, 0.15);
+
   --border-color: #374151;
 
   /* Typography */
@@ -73,6 +79,12 @@
   --accent-yellow: #d97706;
   --accent-red: #dc2626;
   --accent-orange: #ea580c;
+
+  /* Quantum Reading highlights */
+  --highlight-current: rgba(124, 58, 237, 0.15);
+  --highlight-current-border: var(--accent-purple);
+  --highlight-completed: rgba(5, 150, 105, 0.08);
+  --highlight-hover: rgba(124, 58, 237, 0.1);
 
   --border-color: #e5e7eb;
 

@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { cloudAPI } from '../lib/cloud-api-client';
 import { TetralemmaViz } from '../components/quantum/TetralemmaViz';
 import { DensityMatrixStats } from '../components/quantum/DensityMatrixStats';
+import { NarrativePane } from '../components/quantum/NarrativePane';
+import { MeasurementHistoryTable } from '../components/quantum/MeasurementHistoryTable';
 
 interface QuantumSession {
   session_id: string;
@@ -212,208 +214,198 @@ Try pasting a paragraph or two to see how the density matrix evolves!`}
           </div>
         )}
 
-        {/* Session Info */}
+        {/* Split-Pane Layout: Active Session */}
         {session && (
-          <div className="card" style={{
-            padding: 'var(--spacing-xl)',
-            boxShadow: 'var(--shadow-lg)',
-            marginBottom: 'var(--spacing-xl)'
-          }}>
+          <div>
+            {/* Session Header */}
             <div className="flex justify-between items-center" style={{
+              padding: 'var(--spacing-lg)',
+              background: 'var(--bg-secondary)',
+              borderRadius: 'var(--radius-lg)',
               marginBottom: 'var(--spacing-lg)',
               flexWrap: 'wrap',
               gap: 'var(--spacing-md)'
             }}>
               <div>
                 <h2 style={{
-                  fontSize: 'var(--text-2xl)',
+                  fontSize: 'var(--text-xl)',
                   fontWeight: 700,
                   color: 'var(--text-primary)',
-                  marginBottom: 'var(--spacing-sm)'
+                  marginBottom: 'var(--spacing-xs)'
                 }}>
                   Analysis Session
                 </h2>
-                <p style={{ color: 'var(--text-secondary)' }}>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
                   Progress: {currentSentenceIndex} / {session.total_sentences} sentences
                 </p>
               </div>
-              <button
-                onClick={handleReset}
-                className="btn"
-                style={{
-                  padding: 'var(--spacing-sm) var(--spacing-md)',
-                  background: 'var(--accent-red)',
-                  color: 'white'
-                }}
-              >
-                Reset
-              </button>
+              <div className="flex gap-sm">
+                {!isComplete && (
+                  <button
+                    onClick={handleNextSentence}
+                    disabled={processing}
+                    className="btn"
+                    style={{
+                      padding: 'var(--spacing-sm) var(--spacing-lg)',
+                      background: 'var(--accent-green)',
+                      color: 'white',
+                      fontWeight: 600,
+                      opacity: processing ? 0.5 : 1,
+                      cursor: processing ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {processing ? '⏳ Processing...' : '▶ Next Sentence'}
+                  </button>
+                )}
+                <button
+                  onClick={handleReset}
+                  className="btn"
+                  style={{
+                    padding: 'var(--spacing-sm) var(--spacing-lg)',
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)',
+                    border: '1px solid var(--border-color)'
+                  }}
+                >
+                  Reset
+                </button>
+              </div>
             </div>
 
-            {/* Initial State */}
-            {measurements.length === 0 && (
-              <div style={{
-                background: 'var(--accent-purple-alpha-10)',
-                border: '1px solid var(--accent-purple)',
-                borderRadius: 'var(--radius-md)',
-                padding: 'var(--spacing-md)',
-                marginBottom: 'var(--spacing-md)'
-              }}>
-                <h3 style={{
-                  color: 'var(--text-primary)',
-                  fontWeight: 600,
-                  marginBottom: 'var(--spacing-sm)'
-                }}>
-                  Initial State (ρ₀)
-                </h3>
-                <DensityMatrixStats
-                  purity={session.initial_rho.purity}
-                  entropy={session.initial_rho.entropy}
-                  topEigenvalues={session.initial_rho.top_eigenvalues}
-                  label="Maximally Mixed"
-                />
-                <p style={{
-                  color: 'var(--text-secondary)',
-                  fontSize: 'var(--text-sm)',
-                  marginTop: 'var(--spacing-sm)'
-                }}>
-                  Starting from complete uncertainty - a "blank slate" ready to form understanding
-                </p>
-              </div>
-            )}
-
-            {/* Progress Button */}
-            {!isComplete && (
-              <button
-                onClick={handleNextSentence}
-                disabled={processing}
-                className="btn"
-                style={{
-                  width: '100%',
-                  padding: 'var(--spacing-md)',
-                  background: 'var(--accent-green)',
-                  color: 'white',
-                  fontWeight: 600,
-                  opacity: processing ? 0.5 : 1,
-                  cursor: processing ? 'not-allowed' : 'pointer'
-                }}
-              >
-                {processing ? 'Processing...' : `Process Next Sentence (${currentSentenceIndex + 1})`}
-              </button>
-            )}
-
             {isComplete && (
-              <div className="success">
+              <div className="success" style={{ marginBottom: 'var(--spacing-lg)' }}>
                 <p className="text-center" style={{ fontWeight: 600 }}>
                   ✓ Analysis Complete! All {session.total_sentences} sentences processed.
                 </p>
               </div>
             )}
-          </div>
-        )}
 
-        {/* Measurements Display */}
-        {measurements.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-xl)' }}>
-            {measurements.map((measurement, index) => (
-              <div
-                key={index}
-                className="card"
-                style={{
-                  padding: 'var(--spacing-xl)',
-                  boxShadow: 'var(--shadow-lg)'
-                }}
-              >
-                {/* Sentence Header */}
-                <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-                  <div className="flex items-center justify-between" style={{
-                    marginBottom: 'var(--spacing-sm)',
-                    flexWrap: 'wrap',
-                    gap: 'var(--spacing-sm)'
-                  }}>
-                    <h3 style={{
-                      fontSize: 'var(--text-lg)',
-                      fontWeight: 600,
-                      color: 'var(--accent-purple)'
-                    }}>
-                      Sentence {measurement.sentence_index + 1}
-                    </h3>
-                    <span style={{
-                      fontSize: 'var(--text-sm)',
-                      color: 'var(--text-tertiary)'
-                    }}>
-                      Step {index + 1} of {session?.total_sentences}
-                    </span>
-                  </div>
-                  <p style={{
-                    color: 'var(--text-primary)',
-                    fontSize: 'var(--text-lg)',
-                    fontWeight: 500,
-                    fontStyle: 'italic',
-                    lineHeight: 1.6
-                  }}>
-                    "{measurement.sentence}"
-                  </p>
-                </div>
+            {/* Split Panes: Narrative + Analysis */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+              gap: 'var(--spacing-lg)',
+              alignItems: 'start'
+            }}>
+              {/* Left Pane: Narrative with highlighted sentences */}
+              <NarrativePane
+                sentences={session.sentences}
+                currentIndex={currentSentenceIndex}
+              />
 
-                {/* Tetralemma Measurement */}
-                <TetralemmaViz measurement={measurement.measurement} />
+              {/* Right Pane: Current Analysis + History */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 'var(--spacing-lg)',
+                height: '600px',
+                overflow: 'auto'
+              }}>
+                {/* Current Sentence Analysis */}
+                {measurements.length > 0 && (
+                  <div className="card" style={{
+                    padding: 'var(--spacing-lg)',
+                    boxShadow: 'var(--shadow-lg)'
+                  }}>
+                    <div style={{ marginBottom: 'var(--spacing-md)' }}>
+                      <h3 style={{
+                        fontSize: 'var(--text-lg)',
+                        fontWeight: 600,
+                        color: 'var(--accent-purple)',
+                        marginBottom: 'var(--spacing-xs)'
+                      }}>
+                        Current: Sentence {measurements[measurements.length - 1].sentence_index + 1}
+                      </h3>
+                      <p style={{
+                        color: 'var(--text-secondary)',
+                        fontSize: 'var(--text-sm)',
+                        fontStyle: 'italic'
+                      }}>
+                        "{measurements[measurements.length - 1].sentence}"
+                      </p>
+                    </div>
 
-                {/* Density Matrix Evolution */}
-                <div style={{
-                  marginTop: 'var(--spacing-xl)',
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                  gap: 'var(--spacing-md)'
-                }}>
-                  <div style={{
-                    background: 'var(--accent-purple-alpha-10)',
-                    border: '1px solid var(--accent-purple)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: 'var(--spacing-md)'
-                  }}>
-                    <h4 style={{
-                      color: 'var(--text-primary)',
-                      fontWeight: 600,
-                      marginBottom: 'var(--spacing-md)'
-                    }}>
-                      ρ Before
-                    </h4>
-                    <DensityMatrixStats
-                      purity={measurement.rho_before.purity}
-                      entropy={measurement.rho_before.entropy}
-                      topEigenvalues={measurement.rho_before.top_eigenvalues}
-                    />
-                  </div>
-                  <div style={{
-                    background: 'rgba(52, 211, 153, 0.1)',
-                    border: '1px solid var(--accent-green)',
-                    borderRadius: 'var(--radius-md)',
-                    padding: 'var(--spacing-md)'
-                  }}>
-                    <h4 style={{
-                      color: 'var(--text-primary)',
-                      fontWeight: 600,
-                      marginBottom: 'var(--spacing-md)'
-                    }}>
-                      ρ After
-                    </h4>
-                    <DensityMatrixStats
-                      purity={measurement.rho_after.purity}
-                      entropy={measurement.rho_after.entropy}
-                      topEigenvalues={measurement.rho_after.top_eigenvalues}
-                    />
-                    <div style={{
-                      marginTop: 'var(--spacing-sm)',
-                      color: 'var(--accent-green)',
-                      fontSize: 'var(--text-sm)'
-                    }}>
-                      Δ Purity: +{(measurement.rho_after.purity - measurement.rho_before.purity).toFixed(4)}
+                    <TetralemmaViz measurement={measurements[measurements.length - 1].measurement} />
+
+                    <div style={{ marginTop: 'var(--spacing-lg)' }}>
+                      <div style={{
+                        background: 'rgba(52, 211, 153, 0.1)',
+                        border: '1px solid var(--accent-green)',
+                        borderRadius: 'var(--radius-md)',
+                        padding: 'var(--spacing-md)'
+                      }}>
+                        <h4 style={{
+                          color: 'var(--text-primary)',
+                          fontWeight: 600,
+                          marginBottom: 'var(--spacing-md)',
+                          fontSize: 'var(--text-sm)'
+                        }}>
+                          Density Matrix (ρ)
+                        </h4>
+                        <DensityMatrixStats
+                          purity={measurements[measurements.length - 1].rho_after.purity}
+                          entropy={measurements[measurements.length - 1].rho_after.entropy}
+                          topEigenvalues={measurements[measurements.length - 1].rho_after.top_eigenvalues}
+                        />
+                        <div style={{
+                          marginTop: 'var(--spacing-sm)',
+                          color: 'var(--accent-green)',
+                          fontSize: 'var(--text-sm)'
+                        }}>
+                          Δ Purity: +{(
+                            measurements[measurements.length - 1].rho_after.purity -
+                            measurements[measurements.length - 1].rho_before.purity
+                          ).toFixed(4)}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+
+                {/* Initial State (before any measurements) */}
+                {measurements.length === 0 && (
+                  <div className="card" style={{
+                    padding: 'var(--spacing-lg)',
+                    boxShadow: 'var(--shadow-lg)'
+                  }}>
+                    <h3 style={{
+                      color: 'var(--text-primary)',
+                      fontWeight: 600,
+                      marginBottom: 'var(--spacing-md)',
+                      fontSize: 'var(--text-lg)'
+                    }}>
+                      Initial State (ρ₀)
+                    </h3>
+                    <DensityMatrixStats
+                      purity={session.initial_rho.purity}
+                      entropy={session.initial_rho.entropy}
+                      topEigenvalues={session.initial_rho.top_eigenvalues}
+                      label="Maximally Mixed"
+                    />
+                    <p style={{
+                      color: 'var(--text-secondary)',
+                      fontSize: 'var(--text-sm)',
+                      marginTop: 'var(--spacing-md)',
+                      fontStyle: 'italic'
+                    }}>
+                      Starting from complete uncertainty - a "blank slate" ready to form understanding
+                    </p>
+                  </div>
+                )}
+
+                {/* Measurement History Table */}
+                {measurements.length > 1 && (
+                  <div className="card" style={{
+                    padding: 'var(--spacing-lg)',
+                    boxShadow: 'var(--shadow-lg)'
+                  }}>
+                    <MeasurementHistoryTable
+                      measurements={measurements.slice(0, -1)}
+                    />
+                  </div>
+                )}
               </div>
-            ))}
+            </div>
           </div>
         )}
       </div>
