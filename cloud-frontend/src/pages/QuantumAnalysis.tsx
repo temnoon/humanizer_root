@@ -70,7 +70,7 @@ export default function QuantumAnalysis() {
     }
   };
 
-  const handleNextSentence = async () => {
+  const handleNextSentence = async (retryCount = 0) => {
     if (!session) return;
 
     setProcessing(true);
@@ -87,10 +87,26 @@ export default function QuantumAnalysis() {
         console.log('Quantum reading analysis complete!');
       }
     } catch (err) {
-      setError('Failed to process sentence');
-      console.error(err);
+      // Automatic retry logic for transient failures
+      if (retryCount < 2) {
+        console.log(`Retry attempt ${retryCount + 1}/2 after error:`, err);
+        setError(`Processing... (retry ${retryCount + 1}/2)`);
+
+        // Exponential backoff: 1s, then 2s
+        const delay = (retryCount + 1) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        // Retry
+        return handleNextSentence(retryCount + 1);
+      }
+
+      // All retries failed
+      setError('Failed to process sentence. Click "Next Sentence" to try again.');
+      console.error('Failed after 2 retries:', err);
     } finally {
-      setProcessing(false);
+      if (retryCount >= 2 || error === '') {
+        setProcessing(false);
+      }
     }
   };
 
@@ -114,7 +130,7 @@ export default function QuantumAnalysis() {
             return;
           }
           e.preventDefault();
-          handleNextSentence();
+          handleNextSentence(); // No parameter needed - defaults to 0
         }
       }
     };
@@ -288,13 +304,13 @@ Try pasting a paragraph or two to see how the density matrix evolves!`}
                     borderBottom: '1px solid var(--border-color)'
                   }}>
                     <button
-                      onClick={handleNextSentence}
+                      onClick={() => handleNextSentence()}
                       disabled={processing}
                       className="btn"
                       style={{
                         width: '100%',
                         padding: 'var(--spacing-md) var(--spacing-lg)',
-                        background: 'var(--accent-green)',
+                        background: error ? 'var(--accent-orange)' : 'var(--accent-green)',
                         color: 'white',
                         fontWeight: 600,
                         fontSize: 'var(--text-base)',
@@ -302,8 +318,25 @@ Try pasting a paragraph or two to see how the density matrix evolves!`}
                         cursor: processing ? 'not-allowed' : 'pointer'
                       }}
                     >
-                      {processing ? '⏳ Processing...' : '▶ Next Sentence (↓ or →)'}
+                      {processing
+                        ? (error.includes('retry') ? `⏳ ${error}` : '⏳ Processing...')
+                        : (error ? '⚠️ Try Again' : '▶ Next Sentence (↓ or →)')
+                      }
                     </button>
+                    {error && !processing && (
+                      <div style={{
+                        marginTop: 'var(--spacing-sm)',
+                        padding: 'var(--spacing-sm)',
+                        background: 'rgba(251, 146, 60, 0.1)',
+                        border: '1px solid var(--accent-orange)',
+                        borderRadius: 'var(--radius-sm)',
+                        color: 'var(--text-secondary)',
+                        fontSize: 'var(--text-sm)',
+                        textAlign: 'center'
+                      }}>
+                        {error}
+                      </div>
+                    )}
                   </div>
                 )}
                 {/* Current Sentence Analysis */}
