@@ -1,7 +1,7 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 3, 2025 - WebAuthn Touch ID Working! 🎉
-**Status**: ✅ **FULLY OPERATIONAL** | Touch ID device registration and login ready
+**Last Updated**: Nov 3, 2025 - Quantum Reading Analysis Live! ⚛️
+**Status**: ✅ **FULLY OPERATIONAL** | WebAuthn + Quantum Reading ready
 **Latest**: Node 22.21.1, Wrangler 4, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
@@ -14,6 +14,7 @@
 - ✅ esbuild security vulnerability (GHSA-67mh-4wv8-2f99) FIXED
 
 **Memory IDs**:
+- Quantum Reading MVP: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8` (Nov 3, 2025)
 - WebAuthn final: `b6901c31ee71a60cf0460083fad732e4c90d170a28d251dfa519e7fa5c3ccf79` (Nov 3, 2025)
 - Previous sessions: Full upgrade `2433240c63c78f8f3d7ab0dceda3579093b1e159b14cea8552956ae0831f462e`
 
@@ -67,13 +68,15 @@
 - ✅ Phase 3: Frontend (React, forms, onboarding) - 1,773 lines
 - ✅ Phase 4: Mailing list feature (signup modal, admin exports)
 - ✅ Phase 5: Tiered user system (roles, quotas)
-- 🚧 Phase 6: WebAuthn Touch ID auth (DEBUGGING - 500 error on device registration)
+- ✅ Phase 6: WebAuthn Touch ID auth (production ready)
+- ✅ Phase 7: Quantum Reading Analysis (density matrix evolution) - 1,900 lines
 - ✅ Deployment (Cloudflare Workers + Pages, custom domains)
 
-**NPE Transformations**:
+**NPE Features**:
 1. **Allegorical**: 5-stage pipeline (Deconstruct → Map → Reconstruct → Stylize → Reflect)
 2. **Round-Trip**: 18 languages, semantic drift analysis
 3. **Maieutic**: Socratic questioning, 5 depth levels (0-4)
+4. **Quantum Reading**: Sentence-by-sentence density matrix evolution with Tetralemma POVM
 
 **Config**: 5 personas × 6 namespaces × 5 styles = 150 allegorical combinations
 
@@ -152,15 +155,18 @@ This provides context from ChromaDB memory (~1,500 tokens vs reading full handof
 ├── cloud-frontend/         # NPE Cloud frontend (deployed to humanizer.com)
 │   └── src/
 │       ├── components/transformations/  # Allegorical, RoundTrip, Maieutic forms
+│       ├── components/quantum/          # TetralemmaViz, DensityMatrixStats
 │       ├── components/onboarding/       # LandingTutorial
 │       ├── components/help/             # HelpPanel
+│       ├── pages/                       # QuantumAnalysis
 │       └── lib/cloud-api-client.ts      # API client
 ├── workers/npe-api/        # NPE Workers API (deployed to api.humanizer.com)
 │   ├── src/
-│   │   ├── routes/         # auth, transformations, config
+│   │   ├── routes/         # auth, transformations, config, quantum-analysis
 │   │   ├── services/       # allegorical, round_trip, maieutic
-│   │   └── middleware/     # auth (⚠️ JWT fix here)
-│   └── migrations/         # D1 schema + seed data
+│   │   │   └── quantum-reading/  # density-matrix-simple, embeddings, povm-measurement
+│   │   └── middleware/     # auth
+│   └── migrations/         # D1 schema + seed data (incl. 0007_quantum_analysis)
 └── workers/shared/         # TypeScript types
 ```
 
@@ -264,27 +270,61 @@ Launch memory-agent and [task]
   3. registrationInfo.credential structure (v13 nested object)
 - **Tested**: First device "Tem's Mac" successfully registered
 
+### ✅ Quantum Reading Analysis
+- **Purpose**: Demonstrate how density matrix (ρ) evolves sentence-by-sentence through quantum measurement
+- **Database**: `quantum_analysis_sessions`, `quantum_measurements` tables (migration 0007)
+- **Backend**:
+  - Density matrix: 32×32 simplified (Workers-compatible, no mathjs)
+  - Embeddings: Workers AI `@cf/baai/bge-base-en-v1.5` (768d → 32d projection)
+  - POVM: Tetralemma measurement via `@cf/meta/llama-3.1-8b-instruct`
+- **Frontend**:
+  - Large textarea (300px min-height, improved padding)
+  - TetralemmaViz: 4-corner probability display (Literal/Metaphorical/Both/Neither)
+  - DensityMatrixStats: Purity, entropy, eigenvalues visualization
+  - Character/sentence counter
+- **Status**: ✅ WORKING - Full production deployment
+- **Backend Version**: c1f9d28b-4fbc-477f-a10e-81cab8bee1e5
+- **Frontend Version**: b24991d7
+- **Fixed Issues**:
+  1. mathjs eigs() incompatibility → pure JS implementation
+  2. Auth middleware error → requireAuth() instead of verifyToken
+  3. UI layout issues → min-h-[300px], proper padding, responsive design
+- **Cost**: ~$0.01-0.02 per 10-sentence analysis
+
 ---
 
 ## 🔧 NPE Next Steps
 
+**URGENT - UI/UX**:
+1. **Homepage Design Consistency**:
+   - Responsive design across all screen sizes (mobile, tablet, desktop)
+   - Light/dark mode consistency
+   - Proper padding and margins (match local app standards)
+   - Scrollable panes (like local app conversation view)
+   - Test on iOS, Android, various browsers
+2. **Quantum Reading Polish**:
+   - End-to-end testing with real narratives
+   - Mobile device testing
+   - Performance optimization for long texts
+
 **SHORT TERM**:
-1. Test WebAuthn passwordless login flow (device registered, ready to test)
-2. Test Round-Trip and Maieutic transformations
-3. Add rate limiting (KV namespace ready)
-4. Document WebAuthn flow in user guide
+3. Test Round-Trip and Maieutic transformations thoroughly
+4. Add rate limiting (KV namespace ready)
+5. Document all features (WebAuthn, Quantum Reading, Transformations)
 
 **MEDIUM TERM**:
-5. Quota enforcement middleware (role-based limits)
-6. Monthly usage reset cron job
-7. User management UI (promote/demote users)
-8. Usage analytics dashboard
+6. Quota enforcement middleware (role-based limits)
+7. Monthly usage reset cron job
+8. User management UI (promote/demote users)
+9. Usage analytics dashboard
+10. Additional POVM packs for Quantum Reading (Tone, Ontology, Pragmatics)
 
 **LONG TERM**:
-9. Cloudflare Zero Trust integration (when scaling admins)
-10. Multi-tenant architecture
-11. API versioning
+11. Cloudflare Zero Trust integration (when scaling admins)
+12. Multi-tenant architecture
+13. API versioning
+14. Context-specific POVM generation (LLM-analyzed narrative axes)
 
 ---
 
-**End of Guide** | Latest memory: `36772dd5e3b4aa08885fbe07145d8ac34e153b0508716cde960e0eb40ddc0123`
+**End of Guide** | Latest memory: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8`

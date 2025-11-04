@@ -7,6 +7,7 @@ import transformationRoutes from './routes/transformations';
 import configRoutes from './routes/config';
 import mailingListRoutes from './routes/mailing-list';
 import webauthnRoutes from './routes/webauthn';
+import { quantumAnalysisRoutes } from './routes/quantum-analysis';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -57,6 +58,7 @@ app.route('/transformations', transformationRoutes);
 app.route('/config', configRoutes);
 app.route('/mailing-list', mailingListRoutes);
 app.route('/webauthn', webauthnRoutes);
+app.route('/quantum-analysis', quantumAnalysisRoutes);
 
 // 404 handler
 app.notFound((c) => {
