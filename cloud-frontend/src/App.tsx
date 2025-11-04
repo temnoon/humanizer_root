@@ -6,15 +6,22 @@ import MaieuticForm from './components/transformations/MaieuticForm';
 import LandingTutorial from './components/onboarding/LandingTutorial';
 import HelpPanel from './components/help/HelpPanel';
 import AdminDashboard from './components/admin/AdminDashboard';
+import QuantumAnalysis from './pages/QuantumAnalysis';
 import type { User } from '../../workers/shared/types';
 
-type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'admin';
+type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'quantum-analysis' | 'admin';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('landing');
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // Check if user is logged in on mount
   useEffect(() => {
@@ -34,6 +41,10 @@ function App() {
 
     checkAuth();
   }, []);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  };
 
   const handleLogin = async (email: string, password: string) => {
     try {
@@ -70,11 +81,10 @@ function App() {
 
   if (isLoading) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
+      <div className="flex items-center" style={{
         justifyContent: 'center',
-        minHeight: '100vh'
+        minHeight: '100vh',
+        background: 'var(--bg-primary)'
       }}>
         <div className="loading" style={{ width: '2rem', height: '2rem' }}></div>
       </div>
@@ -87,29 +97,38 @@ function App() {
       <header style={{
         background: 'var(--bg-secondary)',
         borderBottom: '1px solid var(--border-color)',
-        padding: 'var(--spacing-md) var(--spacing-lg)'
+        padding: 'var(--spacing-md) var(--spacing-lg)',
+        flexShrink: 0
       }}>
-        <div className="container" style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
+        <div className="container flex items-center justify-between">
           <h1 style={{
-            fontSize: '1.5rem',
+            fontSize: 'var(--text-2xl)',
             margin: 0,
             background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))',
             WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
+            WebkitTextFillColor: 'transparent',
+            fontWeight: 700
           }}>
             Narrative Projection Engine
           </h1>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
+          <div className="flex items-center gap-md">
             {user && (
               <>
-                <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
+                <span style={{
+                  color: 'var(--text-secondary)',
+                  fontSize: 'var(--text-sm)'
+                }}>
                   {user.email}
                 </span>
+                <button
+                  className="btn btn-secondary"
+                  onClick={toggleTheme}
+                  style={{ padding: 'var(--spacing-xs) var(--spacing-md)' }}
+                  title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                >
+                  {theme === 'dark' ? '☀️' : '🌙'}
+                </button>
                 <button
                   className="btn btn-secondary"
                   onClick={() => setShowHelp(!showHelp)}
@@ -135,16 +154,15 @@ function App() {
         <nav style={{
           background: 'var(--bg-secondary)',
           borderBottom: '1px solid var(--border-color)',
-          padding: 'var(--spacing-sm) 0'
+          padding: 'var(--spacing-sm) 0',
+          flexShrink: 0
         }}>
-          <div className="container" style={{
-            display: 'flex',
+          <div className="container flex justify-between items-center" style={{
             gap: 'var(--spacing-sm)',
-            justifyContent: 'space-between',
-            alignItems: 'center'
+            flexWrap: 'wrap'
           }}>
-            <div style={{ display: 'flex', gap: 'var(--spacing-sm)' }}>
-              {(['allegorical', 'round-trip', 'maieutic'] as View[]).map(view => (
+            <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
+              {(['allegorical', 'round-trip', 'maieutic', 'quantum-analysis'] as View[]).map(view => (
                 <button
                   key={view}
                   className="btn"
@@ -153,12 +171,15 @@ function App() {
                     padding: 'var(--spacing-xs) var(--spacing-md)',
                     background: currentView === view ? 'var(--accent-purple)' : 'transparent',
                     color: currentView === view ? 'white' : 'var(--text-secondary)',
-                    borderRadius: 'var(--radius-sm)'
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: 'var(--text-sm)',
+                    transition: 'all 0.2s'
                   }}
                 >
                   {view === 'allegorical' && '🎭 Allegorical'}
                   {view === 'round-trip' && '🔄 Round-Trip'}
                   {view === 'maieutic' && '🤔 Maieutic'}
+                  {view === 'quantum-analysis' && '⚛️ Quantum Reading'}
                 </button>
               ))}
             </div>
@@ -171,7 +192,9 @@ function App() {
                   background: currentView === 'admin' ? 'var(--accent-purple)' : 'transparent',
                   color: currentView === 'admin' ? 'white' : 'var(--accent-purple)',
                   borderRadius: 'var(--radius-sm)',
-                  border: currentView === 'admin' ? 'none' : '1px solid var(--accent-purple)'
+                  border: currentView === 'admin' ? 'none' : '1px solid var(--accent-purple)',
+                  fontSize: 'var(--text-sm)',
+                  transition: 'all 0.2s'
                 }}
               >
                 ⚙️ Admin
@@ -182,18 +205,17 @@ function App() {
       )}
 
       {/* Main Content */}
-      <main style={{
-        flex: 1,
-        padding: currentView === 'admin' ? 0 : 'var(--spacing-xl) 0'
-      }}>
+      <main className="scrollable-pane">
         {currentView === 'admin' && user ? (
           <AdminDashboard
             token={cloudAPI.getToken() || ''}
             userEmail={user.email}
             onLogout={handleLogout}
           />
+        ) : currentView === 'quantum-analysis' ? (
+          <QuantumAnalysis />
         ) : (
-          <div className="container">
+          <div className="content-wrapper">
             {showHelp ? (
               <HelpPanel onClose={() => setShowHelp(false)} />
             ) : currentView === 'landing' ? (
@@ -220,7 +242,8 @@ function App() {
         padding: 'var(--spacing-lg)',
         textAlign: 'center',
         color: 'var(--text-tertiary)',
-        fontSize: '0.875rem'
+        fontSize: 'var(--text-sm)',
+        flexShrink: 0
       }}>
         <div className="container">
           <p style={{ margin: 0 }}>
