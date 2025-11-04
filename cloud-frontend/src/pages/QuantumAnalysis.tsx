@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { cloudAPI } from '../lib/cloud-api-client';
 import { TetralemmaViz } from '../components/quantum/TetralemmaViz';
 import { DensityMatrixStats } from '../components/quantum/DensityMatrixStats';
@@ -45,6 +45,9 @@ export default function QuantumAnalysis() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+
+  const currentSentenceIndex = measurements.length;
+  const isComplete = session && currentSentenceIndex >= session.total_sentences;
 
   const handleStartAnalysis = async () => {
     if (!text.trim()) {
@@ -96,10 +99,29 @@ export default function QuantumAnalysis() {
     setMeasurements([]);
     setText('');
     setError('');
+    setLoading(false);
+    setProcessing(false);
   };
 
-  const currentSentenceIndex = measurements.length;
-  const isComplete = session && currentSentenceIndex >= session.total_sentences;
+  // Keyboard shortcuts for next sentence
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only trigger if session is active, not complete, and not processing
+      if (session && !isComplete && !processing) {
+        if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'Enter') {
+          // Don't trigger if user is typing in textarea
+          if (document.activeElement?.tagName === 'TEXTAREA') {
+            return;
+          }
+          e.preventDefault();
+          handleNextSentence();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [session, isComplete, processing, handleNextSentence]);
 
   return (
     <div style={{
@@ -217,61 +239,6 @@ Try pasting a paragraph or two to see how the density matrix evolves!`}
         {/* Split-Pane Layout: Active Session */}
         {session && (
           <div>
-            {/* Session Header */}
-            <div className="flex justify-between items-center" style={{
-              padding: 'var(--spacing-lg)',
-              background: 'var(--bg-secondary)',
-              borderRadius: 'var(--radius-lg)',
-              marginBottom: 'var(--spacing-lg)',
-              flexWrap: 'wrap',
-              gap: 'var(--spacing-md)'
-            }}>
-              <div>
-                <h2 style={{
-                  fontSize: 'var(--text-xl)',
-                  fontWeight: 700,
-                  color: 'var(--text-primary)',
-                  marginBottom: 'var(--spacing-xs)'
-                }}>
-                  Analysis Session
-                </h2>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
-                  Progress: {currentSentenceIndex} / {session.total_sentences} sentences
-                </p>
-              </div>
-              <div className="flex gap-sm">
-                {!isComplete && (
-                  <button
-                    onClick={handleNextSentence}
-                    disabled={processing}
-                    className="btn"
-                    style={{
-                      padding: 'var(--spacing-sm) var(--spacing-lg)',
-                      background: 'var(--accent-green)',
-                      color: 'white',
-                      fontWeight: 600,
-                      opacity: processing ? 0.5 : 1,
-                      cursor: processing ? 'not-allowed' : 'pointer'
-                    }}
-                  >
-                    {processing ? '⏳ Processing...' : '▶ Next Sentence'}
-                  </button>
-                )}
-                <button
-                  onClick={handleReset}
-                  className="btn"
-                  style={{
-                    padding: 'var(--spacing-sm) var(--spacing-lg)',
-                    background: 'var(--bg-tertiary)',
-                    color: 'var(--text-primary)',
-                    border: '1px solid var(--border-color)'
-                  }}
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-
             {isComplete && (
               <div className="success" style={{ marginBottom: 'var(--spacing-lg)' }}>
                 <p className="text-center" style={{ fontWeight: 600 }}>
@@ -285,12 +252,16 @@ Try pasting a paragraph or two to see how the density matrix evolves!`}
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
               gap: 'var(--spacing-lg)',
-              alignItems: 'start'
+              alignItems: 'start',
+              height: 'calc(100vh - 300px)',
+              minHeight: '500px'
             }}>
               {/* Left Pane: Narrative with highlighted sentences */}
               <NarrativePane
                 sentences={session.sentences}
                 currentIndex={currentSentenceIndex}
+                totalSentences={session.total_sentences}
+                onReset={handleReset}
               />
 
               {/* Right Pane: Current Analysis + History */}
@@ -298,14 +269,47 @@ Try pasting a paragraph or two to see how the density matrix evolves!`}
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 'var(--spacing-lg)',
-                height: '600px',
-                overflow: 'auto'
+                height: '100%',
+                overflow: 'auto',
+                background: 'var(--bg-secondary)',
+                borderRadius: 'var(--radius-lg)',
+                border: '1px solid var(--border-color)',
+                padding: 'var(--spacing-lg)'
               }}>
+                {/* Next Sentence Button - Sticky at top */}
+                {!isComplete && (
+                  <div style={{
+                    position: 'sticky',
+                    top: 0,
+                    background: 'var(--bg-secondary)',
+                    paddingBottom: 'var(--spacing-md)',
+                    marginBottom: 'var(--spacing-md)',
+                    zIndex: 1,
+                    borderBottom: '1px solid var(--border-color)'
+                  }}>
+                    <button
+                      onClick={handleNextSentence}
+                      disabled={processing}
+                      className="btn"
+                      style={{
+                        width: '100%',
+                        padding: 'var(--spacing-md) var(--spacing-lg)',
+                        background: 'var(--accent-green)',
+                        color: 'white',
+                        fontWeight: 600,
+                        fontSize: 'var(--text-base)',
+                        opacity: processing ? 0.5 : 1,
+                        cursor: processing ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      {processing ? '⏳ Processing...' : '▶ Next Sentence (↓ or →)'}
+                    </button>
+                  </div>
+                )}
                 {/* Current Sentence Analysis */}
                 {measurements.length > 0 && (
-                  <div className="card" style={{
-                    padding: 'var(--spacing-lg)',
-                    boxShadow: 'var(--shadow-lg)'
+                  <div style={{
+                    padding: 'var(--spacing-md) 0'
                   }}>
                     <div style={{ marginBottom: 'var(--spacing-md)' }}>
                       <h3 style={{
@@ -364,9 +368,8 @@ Try pasting a paragraph or two to see how the density matrix evolves!`}
 
                 {/* Initial State (before any measurements) */}
                 {measurements.length === 0 && (
-                  <div className="card" style={{
-                    padding: 'var(--spacing-lg)',
-                    boxShadow: 'var(--shadow-lg)'
+                  <div style={{
+                    padding: 'var(--spacing-md) 0'
                   }}>
                     <h3 style={{
                       color: 'var(--text-primary)',
@@ -395,9 +398,11 @@ Try pasting a paragraph or two to see how the density matrix evolves!`}
 
                 {/* Measurement History Table */}
                 {measurements.length > 1 && (
-                  <div className="card" style={{
-                    padding: 'var(--spacing-lg)',
-                    boxShadow: 'var(--shadow-lg)'
+                  <div style={{
+                    padding: 'var(--spacing-md) 0',
+                    borderTop: '1px solid var(--border-color)',
+                    marginTop: 'var(--spacing-lg)',
+                    paddingTop: 'var(--spacing-lg)'
                   }}>
                     <MeasurementHistoryTable
                       measurements={measurements.slice(0, -1)}

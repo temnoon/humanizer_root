@@ -10,10 +10,12 @@
 interface NarrativePaneProps {
   sentences: string[];
   currentIndex: number;
+  totalSentences: number;
   onSentenceClick?: (index: number) => void;
+  onReset?: () => void;
 }
 
-export function NarrativePane({ sentences, currentIndex, onSentenceClick }: NarrativePaneProps) {
+export function NarrativePane({ sentences, currentIndex, totalSentences, onSentenceClick, onReset }: NarrativePaneProps) {
   return (
     <div style={{
       height: '100%',
@@ -23,19 +25,52 @@ export function NarrativePane({ sentences, currentIndex, onSentenceClick }: Narr
       borderRadius: 'var(--radius-lg)',
       border: '1px solid var(--border-color)'
     }}>
-      <h3 style={{
-        color: 'var(--text-primary)',
-        fontSize: 'var(--text-xl)',
-        fontWeight: 600,
-        marginBottom: 'var(--spacing-lg)',
+      <div style={{
         position: 'sticky',
         top: 0,
         background: 'var(--bg-secondary)',
-        paddingBottom: 'var(--spacing-sm)',
-        zIndex: 1
+        paddingBottom: 'var(--spacing-md)',
+        marginBottom: 'var(--spacing-lg)',
+        zIndex: 1,
+        borderBottom: '1px solid var(--border-color)'
       }}>
-        Narrative Text
-      </h3>
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 'var(--spacing-sm)'
+        }}>
+          <h3 style={{
+            color: 'var(--text-primary)',
+            fontSize: 'var(--text-lg)',
+            fontWeight: 600,
+            margin: 0
+          }}>
+            Narrative Text
+          </h3>
+          {onReset && (
+            <button
+              onClick={onReset}
+              className="btn"
+              style={{
+                padding: 'var(--spacing-xs) var(--spacing-md)',
+                background: 'var(--bg-tertiary)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
+                fontSize: 'var(--text-sm)'
+              }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+        <div style={{
+          color: 'var(--text-secondary)',
+          fontSize: 'var(--text-sm)'
+        }}>
+          Progress: {currentIndex} / {totalSentences} sentences
+        </div>
+      </div>
 
       <div style={{
         fontSize: 'var(--text-lg)',
