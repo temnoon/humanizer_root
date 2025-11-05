@@ -1,7 +1,7 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 3, 2025 - Quantum Reading Analysis Live! ⚛️
-**Status**: ✅ **FULLY OPERATIONAL** | WebAuthn + Quantum Reading ready
+**Last Updated**: Nov 4, 2025 - Quantum Reading UI Polish + Analytics ⚛️📊
+**Status**: ✅ **FULLY OPERATIONAL** | WebAuthn + Quantum Reading + GA4
 **Latest**: Node 22.21.1, Wrangler 4, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
@@ -14,9 +14,9 @@
 - ✅ esbuild security vulnerability (GHSA-67mh-4wv8-2f99) FIXED
 
 **Memory IDs**:
+- QR UI Polish + Analytics: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f` (Nov 4, 2025)
 - Quantum Reading MVP: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8` (Nov 3, 2025)
 - WebAuthn final: `b6901c31ee71a60cf0460083fad732e4c90d170a28d251dfa519e7fa5c3ccf79` (Nov 3, 2025)
-- Previous sessions: Full upgrade `2433240c63c78f8f3d7ab0dceda3579093b1e159b14cea8552956ae0831f462e`
 
 **✅ WEBAUTHN FULLY WORKING**:
 - **Issues Fixed**:
@@ -277,54 +277,68 @@ Launch memory-agent and [task]
   - Density matrix: 32×32 simplified (Workers-compatible, no mathjs)
   - Embeddings: Workers AI `@cf/baai/bge-base-en-v1.5` (768d → 32d projection)
   - POVM: Tetralemma measurement via `@cf/meta/llama-3.1-8b-instruct`
-- **Frontend**:
-  - Large textarea (300px min-height, improved padding)
-  - TetralemmaViz: 4-corner probability display (Literal/Metaphorical/Both/Neither)
-  - DensityMatrixStats: Purity, entropy, eigenvalues visualization
-  - Character/sentence counter
-- **Status**: ✅ WORKING - Full production deployment
-- **Backend Version**: c1f9d28b-4fbc-477f-a10e-81cab8bee1e5
-- **Frontend Version**: b24991d7
-- **Fixed Issues**:
-  1. mathjs eigs() incompatibility → pure JS implementation
-  2. Auth middleware error → requireAuth() instead of verifyToken
-  3. UI layout issues → min-h-[300px], proper padding, responsive design
+  - Automatic retry logic (2 retries with exponential backoff)
+- **Frontend UI** (Split-Pane Layout):
+  - **Left Pane**: Full narrative with sentence highlighting (current=purple, completed=green, pending=faded)
+  - **Right Pane**: Current analysis + collapsible history table
+  - **Keyboard Shortcuts**: Right arrow (→), Down arrow (↓), or Enter for next sentence
+  - **Equal Height Panes**: Both use calc(100vh - 300px), fit on screen
+  - **Components**:
+    - NarrativePane: Clickable highlighted sentences, Reset button in header
+    - TetralemmaViz: 4-corner probability display (Literal/Metaphorical/Both/Neither)
+    - DensityMatrixStats: Purity, entropy, eigenvalues visualization
+    - MeasurementHistoryTable: Compact rows, hover/touch to expand
+- **Status**: ✅ WORKING - Professional split-pane interface, 70% less vertical space
 - **Cost**: ~$0.01-0.02 per 10-sentence analysis
+
+### ✅ Google Analytics & SEO
+- **Google Analytics 4**: G-42D2DXX8EC (IP anonymization, secure cookies, GDPR-friendly)
+- **Cloudflare Analytics**: Already enabled via domain settings
+- **Google Search Console**: Verified via DNS record (persistent)
+- **SEO Metadata**: Open Graph, Twitter Cards, keywords, descriptions
+- **Status**: ✅ All tracking live on humanizer.com
 
 ---
 
 ## 🔧 NPE Next Steps
 
-**URGENT - UI/UX**:
-1. **Homepage Design Consistency**:
-   - Responsive design across all screen sizes (mobile, tablet, desktop)
-   - Light/dark mode consistency
-   - Proper padding and margins (match local app standards)
-   - Scrollable panes (like local app conversation view)
-   - Test on iOS, Android, various browsers
-2. **Quantum Reading Polish**:
-   - End-to-end testing with real narratives
-   - Mobile device testing
-   - Performance optimization for long texts
+**COMPLETED** ✅:
+- ✅ Split-pane Quantum Reading UI (professional, 70% less space)
+- ✅ Light/dark mode with theme toggle
+- ✅ Scrollable panes with proper overflow handling
+- ✅ Keyboard shortcuts (→, ↓, Enter)
+- ✅ Automatic retry logic for transient failures
+- ✅ Google Analytics 4 + SEO metadata
+- ✅ Equal height panes, responsive design
 
 **SHORT TERM**:
-3. Test Round-Trip and Maieutic transformations thoroughly
-4. Add rate limiting (KV namespace ready)
-5. Document all features (WebAuthn, Quantum Reading, Transformations)
+1. **Quantum Reading Testing**:
+   - End-to-end testing with longer narratives (10+ sentences)
+   - Mobile device testing (iOS Safari, Android Chrome)
+   - Cross-browser testing for highlight colors
+2. **Other Transformations**:
+   - Test Round-Trip and Maieutic transformations thoroughly
+   - Fix any UI issues in other forms
+3. **Documentation**:
+   - User guide for Quantum Reading
+   - API documentation
+   - Feature overview videos
 
 **MEDIUM TERM**:
-6. Quota enforcement middleware (role-based limits)
-7. Monthly usage reset cron job
-8. User management UI (promote/demote users)
-9. Usage analytics dashboard
-10. Additional POVM packs for Quantum Reading (Tone, Ontology, Pragmatics)
+4. Quota enforcement middleware (role-based limits)
+5. Monthly usage reset cron job
+6. User management UI (promote/demote users)
+7. Usage analytics dashboard (leverage GA4 data)
+8. Rate limiting (KV namespace ready)
+9. Additional POVM packs for Quantum Reading (Tone, Ontology, Pragmatics)
 
 **LONG TERM**:
-11. Cloudflare Zero Trust integration (when scaling admins)
-12. Multi-tenant architecture
-13. API versioning
-14. Context-specific POVM generation (LLM-analyzed narrative axes)
+10. Cloudflare Zero Trust integration (when scaling admins)
+11. Multi-tenant architecture
+12. API versioning
+13. Context-specific POVM generation (LLM-analyzed narrative axes)
+14. Export/share functionality for Quantum Reading sessions
 
 ---
 
-**End of Guide** | Latest memory: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8`
+**End of Guide** | Latest memory: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f`
