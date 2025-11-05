@@ -144,7 +144,8 @@ function App() {
             href="/"
             onClick={(e) => {
               e.preventDefault();
-              setCurrentView('landing');
+              // Navigate to appropriate home based on auth status
+              setCurrentView(user ? 'allegorical' : 'landing');
             }}
             style={{
               fontSize: 'var(--text-2xl)',
@@ -159,6 +160,7 @@ function App() {
             }}
             onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
             onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+            title={user ? 'Go to Allegorical Transform' : 'Go to Home'}
           >
             humanizer.com
           </a>
