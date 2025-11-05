@@ -16,12 +16,43 @@ function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    // Check localStorage first (user preference override)
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light' || savedTheme === 'dark') {
+      return savedTheme;
+    }
 
-  // Apply theme to document
+    // Fall back to system preference
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    return 'light';
+  });
+
+  // Apply theme to document and save preference
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // Listen for system theme changes (only if user hasn't manually set theme)
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    const handleChange = (e: MediaQueryListEvent) => {
+      // Only auto-update if user hasn't manually set a preference recently
+      const lastManualChange = localStorage.getItem('theme-manual-timestamp');
+      const oneHourAgo = Date.now() - (60 * 60 * 1000);
+
+      if (!lastManualChange || parseInt(lastManualChange) < oneHourAgo) {
+        setTheme(e.matches ? 'dark' : 'light');
+      }
+    };
+
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Check if user is logged in on mount
   useEffect(() => {
@@ -44,6 +75,8 @@ function App() {
 
   const toggleTheme = () => {
     setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+    // Mark as manual change to prevent auto-switching for 1 hour
+    localStorage.setItem('theme-manual-timestamp', Date.now().toString());
   };
 
   const handleLogin = async (email: string, password: string) => {
@@ -100,46 +133,80 @@ function App() {
         padding: 'var(--spacing-md) var(--spacing-lg)',
         flexShrink: 0
       }}>
-        <div className="container flex items-center justify-between">
-          <h1 style={{
-            fontSize: 'var(--text-2xl)',
-            margin: 0,
-            background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            fontWeight: 700
-          }}>
-            Narrative Projection Engine
-          </h1>
+        <div className="container" style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: 'var(--spacing-md)'
+        }}>
+          <a
+            href="/"
+            onClick={(e) => {
+              e.preventDefault();
+              setCurrentView('landing');
+            }}
+            style={{
+              fontSize: 'var(--text-2xl)',
+              margin: 0,
+              background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontWeight: 700,
+              textDecoration: 'none',
+              cursor: 'pointer',
+              transition: 'opacity 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+          >
+            humanizer.com
+          </a>
 
-          <div className="flex items-center gap-md">
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--spacing-sm)',
+            flexWrap: 'wrap'
+          }}>
             {user && (
               <>
                 <span style={{
                   color: 'var(--text-secondary)',
-                  fontSize: 'var(--text-sm)'
+                  fontSize: 'var(--text-sm)',
+                  whiteSpace: 'nowrap'
                 }}>
                   {user.email}
                 </span>
                 <button
                   className="btn btn-secondary"
                   onClick={toggleTheme}
-                  style={{ padding: 'var(--spacing-xs) var(--spacing-md)' }}
+                  style={{
+                    padding: 'var(--spacing-xs) var(--spacing-md)',
+                    whiteSpace: 'nowrap'
+                  }}
                   title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                  aria-label="Toggle theme"
                 >
                   {theme === 'dark' ? '☀️' : '🌙'}
                 </button>
                 <button
                   className="btn btn-secondary"
                   onClick={() => setShowHelp(!showHelp)}
-                  style={{ padding: 'var(--spacing-xs) var(--spacing-md)' }}
+                  style={{
+                    padding: 'var(--spacing-xs) var(--spacing-md)',
+                    whiteSpace: 'nowrap'
+                  }}
                 >
                   {showHelp ? 'Close Help' : 'Help'}
                 </button>
                 <button
                   className="btn btn-secondary"
                   onClick={handleLogout}
-                  style={{ padding: 'var(--spacing-xs) var(--spacing-md)' }}
+                  style={{
+                    padding: 'var(--spacing-xs) var(--spacing-md)',
+                    whiteSpace: 'nowrap'
+                  }}
                 >
                   Logout
                 </button>
