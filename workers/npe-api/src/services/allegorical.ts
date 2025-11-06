@@ -35,7 +35,6 @@ export interface AllegoricalResult {
  */
 export class AllegoricalProjectionService {
   private llmProvider: LLMProvider | null = null;
-  private maxTokens: number = 2048; // Default, will be calculated based on length preference
 
   constructor(
     private env: Env,
@@ -56,9 +55,6 @@ export class AllegoricalProjectionService {
 
     // Initialize LLM provider
     this.llmProvider = await createLLMProvider(this.modelId, this.env, this.userId);
-
-    // Calculate max_tokens based on input length and length preference
-    this.maxTokens = this.calculateMaxTokens(sourceText);
 
     // Stage 1: Deconstruct - Break down narrative into core elements
     const deconstructResult = await this.deconstruct(sourceText);
@@ -99,7 +95,13 @@ export class AllegoricalProjectionService {
         style: this.style.name,
         model: this.modelId,
         length_preference: this.lengthPreference,
-        max_tokens_used: this.maxTokens
+        stage_token_budgets: {
+          deconstruct: this.getStageTokenBudget(1),
+          map: this.getStageTokenBudget(2),
+          reconstruct: this.getStageTokenBudget(3),
+          stylize: this.getStageTokenBudget(4),
+          reflect: this.getStageTokenBudget(5)
+        }
       }),
       Date.now()
     ).run();
@@ -163,7 +165,7 @@ Identify and list:
 
 Provide a structured breakdown of these elements.`;
 
-    const result = await this.callLLM(systemPrompt, prompt);
+    const result = await this.callLLM(systemPrompt, prompt, 1);
 
     return {
       name: 'Deconstruct',
@@ -198,7 +200,7 @@ Create a mapping where:
 
 Provide the complete mapping in a structured format.`;
 
-    const result = await this.callLLM(systemPrompt, prompt);
+    const result = await this.callLLM(systemPrompt, prompt, 2);
 
     return {
       name: 'Map',
@@ -233,7 +235,7 @@ Create a complete narrative that:
 
 Write the reconstructed narrative.`;
 
-    const result = await this.callLLM(systemPrompt, prompt);
+    const result = await this.callLLM(systemPrompt, prompt, 3);
 
     return {
       name: 'Reconstruct',
@@ -269,7 +271,7 @@ Retell the complete narrative with:
 
 Write the stylized narrative.`;
 
-    const result = await this.callLLM(systemPrompt, prompt);
+    const result = await this.callLLM(systemPrompt, prompt, 4);
 
     return {
       name: 'Stylize',
@@ -305,7 +307,7 @@ Provide a reflection that:
 
 Write a thoughtful reflection (2-3 paragraphs).`;
 
-    const result = await this.callLLM(systemPrompt, prompt);
+    const result = await this.callLLM(systemPrompt, prompt, 5);
 
     return {
       name: 'Reflect',
@@ -316,42 +318,54 @@ Write a thoughtful reflection (2-3 paragraphs).`;
   }
 
   /**
-   * Calculate max_tokens based on input text length and length preference
+   * Get token budget for a specific stage with length preference applied
    *
-   * Token multipliers:
-   * - shorter: 0.5x input length
-   * - same: 1.0x input length
-   * - longer: 2.0x input length
-   * - much_longer: 3.0x input length
+   * Per-stage base budgets:
+   * - Stage 1 (Deconstruct): 800 tokens - Lists elements
+   * - Stage 2 (Map): 1000 tokens - Creates mappings
+   * - Stage 3 (Reconstruct): 2000 tokens - Full narrative
+   * - Stage 4 (Stylize): 2000 tokens - Full narrative with style
+   * - Stage 5 (Reflect): 1000 tokens - Meta-analysis
    *
-   * Capped at 8192 tokens maximum
+   * Length preference multipliers:
+   * - shorter: 0.5x base
+   * - same: 1.0x base
+   * - longer: 1.5x base
+   * - much_longer: 2.0x base
    */
-  private calculateMaxTokens(inputText: string): number {
-    // Estimate tokens: ~4 characters per token
-    const estimatedInputTokens = Math.ceil(inputText.length / 4);
+  private getStageTokenBudget(stage: number): number {
+    // Base budgets per stage (optimized for narrative flow)
+    const baseBudgets: Record<number, number> = {
+      1: 800,   // Deconstruct: List elements
+      2: 1000,  // Map: Create mappings
+      3: 2000,  // Reconstruct: Full narrative
+      4: 2000,  // Stylize: Full narrative with style
+      5: 1000   // Reflect: Meta-analysis
+    };
 
-    // Apply length multiplier
+    const base = baseBudgets[stage] || 1000;
+
+    // Apply length preference multiplier
     const multipliers: Record<LengthPreference, number> = {
       shorter: 0.5,
       same: 1.0,
-      longer: 2.0,
-      much_longer: 3.0
+      longer: 1.5,
+      much_longer: 2.0
     };
 
     const multiplier = multipliers[this.lengthPreference] || 1.0;
-    const calculatedTokens = Math.ceil(estimatedInputTokens * multiplier);
-
-    // Cap at 8192 tokens, minimum 256
-    return Math.max(256, Math.min(calculatedTokens, 8192));
+    return Math.ceil(base * multiplier);
   }
 
   /**
-   * Call LLM using the configured provider
+   * Call LLM using the configured provider with per-stage token budget
    */
-  private async callLLM(systemPrompt: string, userPrompt: string): Promise<string> {
+  private async callLLM(systemPrompt: string, userPrompt: string, stage: number): Promise<string> {
     if (!this.llmProvider) {
       throw new Error('LLM provider not initialized');
     }
+
+    const maxTokens = this.getStageTokenBudget(stage);
 
     try {
       const response = await this.llmProvider.call({
@@ -359,7 +373,7 @@ Write a thoughtful reflection (2-3 paragraphs).`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: this.maxTokens,
+        max_tokens: maxTokens,
         temperature: 0.7
       });
 

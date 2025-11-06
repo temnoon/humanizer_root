@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { cloudAPI, type ModelInfo } from '../../lib/cloud-api-client';
 import type { NPEPersona, NPENamespace, NPEStyle, AllegoricalProjectionResponse } from '../../../../workers/shared/types';
 
@@ -343,9 +345,11 @@ export default function AllegoricalForm() {
             <h4 style={{ color: 'var(--accent-cyan)', marginBottom: 'var(--spacing-md)' }}>
               Final Projection
             </h4>
-            <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
-              {result.final_projection}
-            </p>
+            <div style={{ lineHeight: 1.8 }} className="markdown-content">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {result.final_projection}
+              </ReactMarkdown>
+            </div>
           </div>
 
           {/* Transformation Stages */}
@@ -364,33 +368,41 @@ export default function AllegoricalForm() {
               {/* Stage 1: Deconstruct */}
               <div className="card">
                 <h5 style={{ color: 'var(--accent-yellow)' }}>Stage 1: Deconstruct</h5>
-                <p style={{ fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
-                  {result.stages.deconstruct}
-                </p>
+                <div style={{ fontSize: '0.875rem' }} className="markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {result.stages.deconstruct}
+                  </ReactMarkdown>
+                </div>
               </div>
 
               {/* Stage 2: Map */}
               <div className="card">
                 <h5 style={{ color: 'var(--accent-yellow)' }}>Stage 2: Map to {namespace}</h5>
-                <p style={{ fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
-                  {result.stages.map}
-                </p>
+                <div style={{ fontSize: '0.875rem' }} className="markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {result.stages.map}
+                  </ReactMarkdown>
+                </div>
               </div>
 
               {/* Stage 3: Reconstruct */}
               <div className="card">
                 <h5 style={{ color: 'var(--accent-yellow)' }}>Stage 3: Reconstruct</h5>
-                <p style={{ fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
-                  {result.stages.reconstruct}
-                </p>
+                <div style={{ fontSize: '0.875rem' }} className="markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {result.stages.reconstruct}
+                  </ReactMarkdown>
+                </div>
               </div>
 
               {/* Stage 4: Stylize */}
               <div className="card">
                 <h5 style={{ color: 'var(--accent-yellow)' }}>Stage 4: Stylize ({persona} / {style})</h5>
-                <p style={{ fontSize: '0.875rem', whiteSpace: 'pre-wrap' }}>
-                  {result.stages.stylize}
-                </p>
+                <div style={{ fontSize: '0.875rem' }} className="markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {result.stages.stylize}
+                  </ReactMarkdown>
+                </div>
               </div>
             </div>
           </details>
@@ -400,9 +412,11 @@ export default function AllegoricalForm() {
             <h4 style={{ color: 'var(--accent-purple)', marginBottom: 'var(--spacing-md)' }}>
               Reflection on Transformation
             </h4>
-            <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8, fontStyle: 'italic' }}>
-              {result.reflection}
-            </p>
+            <div style={{ lineHeight: 1.8, fontStyle: 'italic' }} className="markdown-content">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                {result.reflection}
+              </ReactMarkdown>
+            </div>
           </div>
         </div>
       )}
