@@ -199,6 +199,13 @@ export class CloudflareProvider implements LLMProvider {
       }
     }
 
+    // Clean up HTML tags that models sometimes mix with markdown
+    // Convert <br> tags to markdown line breaks (two spaces + newline)
+    cleaned = cleaned.replace(/<br\s*\/?>/gi, '  \n');
+
+    // Remove other common HTML tags (safer than allowing HTML rendering)
+    cleaned = cleaned.replace(/<\/?(?:p|div|span|strong|b|em|i|u)>/gi, '');
+
     return cleaned.trim();
   }
 
