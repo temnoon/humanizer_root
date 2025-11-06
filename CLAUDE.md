@@ -1,7 +1,8 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 4, 2025 - Quantum Reading UI Polish + Analytics ⚛️📊
+**Last Updated**: Nov 6, 2025 - Theme Detection + Allegorical Enhancements Planning 🌓🎨
 **Status**: ✅ **FULLY OPERATIONAL** | WebAuthn + Quantum Reading + GA4
+**Active Project**: 🚧 Allegorical Transform Enhancements (Model Selection + API Keys) - Phase 0 Complete
 **Latest**: Node 22.21.1, Wrangler 4, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
@@ -14,6 +15,7 @@
 - ✅ esbuild security vulnerability (GHSA-67mh-4wv8-2f99) FIXED
 
 **Memory IDs**:
+- Allegorical Enhancements Plan: `81d03cad3cb96dff6e0d6c7ed138ba6f0365b38154b195253945947f84f25dd3` (Nov 6, 2025) 🚧 ACTIVE
 - QR UI Polish + Analytics: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f` (Nov 4, 2025)
 - Quantum Reading MVP: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8` (Nov 3, 2025)
 - WebAuthn final: `b6901c31ee71a60cf0460083fad732e4c90d170a28d251dfa519e7fa5c3ccf79` (Nov 3, 2025)
@@ -233,6 +235,12 @@ Launch memory-agent and [task]
 
 ## 📖 Key Docs
 
+**🚧 ACTIVE PROJECT - Allegorical Enhancements**:
+- `Model_selection_API_key_implementation.txt` - **MASTER PLAN** (comprehensive design doc)
+- `ALLEGORICAL_ENHANCEMENTS_TODO.md` - **TODO LIST** (67 tasks, 6 phases)
+- `ALLEGORICAL_ENHANCEMENTS_HANDOFF.md` - **SESSION HANDOFF** (continuity guide)
+- ChromaDB Memory: `81d03cad...` - Failsafe documentation
+
 **NPE Deployment**:
 - `NPE_DEPLOYMENT_GUIDE.md` - Full deployment guide
 - `NPE_DEPLOYMENT_FIXES.md` - Package vulnerability fixes
@@ -298,20 +306,127 @@ Launch memory-agent and [task]
 - **SEO Metadata**: Open Graph, Twitter Cards, keywords, descriptions
 - **Status**: ✅ All tracking live on humanizer.com
 
+### ✅ UX Enhancements (Nov 6 Session)
+- **Automatic Theme Detection**: Detects system/browser preference on first load
+- **Theme Persistence**: Remembers manual overrides in localStorage
+- **Smart Auto-Switching**: Respects manual theme changes for 1 hour
+- **Responsive Header**: Flex-wrap layout prevents button overflow on mobile
+- **Context-Aware Home Link**: "humanizer.com" logo links to landing (logged out) or allegorical (logged in)
+- **Status**: ✅ Live on humanizer.com - commits 09dc45f, 7e2b39b
+
+---
+
+## 🚧 ACTIVE PROJECT: Allegorical Transform Enhancements
+
+**Start Date:** November 6, 2025
+**Status:** Phase 0 Complete (Planning) - Implementation Not Started
+**Estimated Duration:** 12-16 hours across 6 sessions
+
+### Project Goals
+1. **Length Control:** User-selectable output length (shorter/same/longer/much_longer) using token multipliers
+2. **Model Selection:** Choose from 10+ Cloudflare native models + external APIs (OpenAI, Anthropic, Google)
+3. **Secure API Storage:** AES-GCM encrypted API keys for PRO+ users
+
+### Scope & Decisions
+- **Service:** Allegorical Transform ONLY (Round-Trip, Maieutic, QR later)
+- **Access:** External API keys restricted to PRO, PREMIUM, ADMIN tiers
+- **Security:** Server Secret + User ID encryption (JWT_SECRET + user_id)
+- **Implementation:** Token multipliers (0.5x, 1x, 2x, 3x input length)
+
+### Implementation Phases (67 tasks)
+- **Phase 1:** Database Migration & Security (8 tasks) - Migration 0008, AES-GCM encryption utils
+- **Phase 2:** Backend API (10 tasks) - API key endpoints, model selection, allegorical updates
+- **Phase 3:** Frontend (8 tasks) - Length/model dropdowns, API key settings modal
+- **Phase 4:** LLM Providers (12 tasks) - OpenAI, Anthropic, Google, Cloudflare integrations
+- **Phase 5:** Testing (18 tasks) - Security, functionality, UI/UX validation
+- **Phase 6:** Deployment (11 tasks) - Production rollout and verification
+
+### Documentation
+- **Master Plan:** `/Users/tem/humanizer_root/Model_selection_API_key_implementation.txt`
+- **TODO List:** `/Users/tem/humanizer_root/ALLEGORICAL_ENHANCEMENTS_TODO.md`
+- **Handoff Doc:** `/Users/tem/humanizer_root/ALLEGORICAL_ENHANCEMENTS_HANDOFF.md`
+- **ChromaDB:** Memory ID `81d03cad3cb96dff6e0d6c7ed138ba6f0365b38154b195253945947f84f25dd3`
+
+### Current LLM Usage (Before Enhancement)
+- **All services use:** `@cf/meta/llama-3.1-8b-instruct` (8B params, hardcoded)
+  - Allegorical: 5 stages, max_tokens 2048, temp 0.7
+  - Round-Trip: Translation, max_tokens 2048, temp 0.3
+  - Maieutic: Questions, max_tokens 256, temp 0.8
+  - Quantum Reading: POVM, max_tokens 512, temp 0.3
+
+### New Models to Support (Cloudflare 2025)
+- Llama 3.1 8B (current baseline)
+- Llama 3.3 70B FP8 Fast (2-4x faster, better quality)
+- Llama 4 Scout 17B (newest, multimodal MoE)
+- GPT-OSS 20B (OpenAI open model)
+- Qwen 32B (reasoning)
+- DeepSeek R1 Distill 32B (chain-of-thought)
+
+### External APIs (PRO+ only)
+- **OpenAI:** gpt-4o, gpt-4o-mini
+- **Anthropic:** claude-3-5-sonnet, claude-3-5-haiku
+- **Google:** gemini-2.0-flash, gemini-1.5-pro
+
+### Security Architecture
+- **Encryption:** AES-GCM (256-bit) via Web Crypto API
+- **Key Derivation:** SHA-256(JWT_SECRET + user_id) - unique per user
+- **Storage Format:** `base64(iv):base64(encrypted_data)`
+- **Access Control:** PRO/PREMIUM/ADMIN tiers only
+- **Audit:** Never log keys, never expose in errors
+
+### Database Schema Changes (Migration 0008)
+```sql
+ALTER TABLE users ADD COLUMN openai_api_key_encrypted TEXT;
+ALTER TABLE users ADD COLUMN anthropic_api_key_encrypted TEXT;
+ALTER TABLE users ADD COLUMN google_api_key_encrypted TEXT;
+ALTER TABLE users ADD COLUMN preferred_model TEXT DEFAULT '@cf/meta/llama-3.1-8b-instruct';
+ALTER TABLE users ADD COLUMN preferred_length TEXT DEFAULT 'same'
+  CHECK(preferred_length IN ('shorter', 'same', 'longer', 'much_longer'));
+ALTER TABLE users ADD COLUMN api_keys_updated_at INTEGER;
+```
+
+### Next Session Start
+```bash
+# 1. Recall context from ChromaDB
+Launch memory-agent and recall "allegorical enhancements model selection API keys"
+
+# 2. Review handoff document
+cat /Users/tem/humanizer_root/ALLEGORICAL_ENHANCEMENTS_HANDOFF.md
+
+# 3. Check TODO list
+cat /Users/tem/humanizer_root/ALLEGORICAL_ENHANCEMENTS_TODO.md
+
+# 4. Begin Phase 1.1: Create migration 0008_api_keys_and_model_preferences.sql
+```
+
 ---
 
 ## 🔧 NPE Next Steps
 
 **COMPLETED** ✅:
 - ✅ Split-pane Quantum Reading UI (professional, 70% less space)
-- ✅ Light/dark mode with theme toggle
+- ✅ Light/dark mode with theme toggle + automatic detection
 - ✅ Scrollable panes with proper overflow handling
 - ✅ Keyboard shortcuts (→, ↓, Enter)
 - ✅ Automatic retry logic for transient failures
 - ✅ Google Analytics 4 + SEO metadata
 - ✅ Equal height panes, responsive design
+- ✅ Responsive header layout (mobile-friendly)
+- ✅ Context-aware home link (logged in/out states)
 
-**SHORT TERM**:
+**🚧 IN PROGRESS - Allegorical Enhancements**:
+1. **Phase 1:** Database Migration & Security (NOT STARTED)
+   - Create migration 0008 for API keys and preferences
+   - Implement AES-GCM encryption utilities
+2. **Phase 2:** Backend API endpoints and model routing (NOT STARTED)
+3. **Phase 3:** Frontend dropdowns and API key settings (NOT STARTED)
+4. **Phase 4:** LLM provider integrations (NOT STARTED)
+5. **Phase 5:** Security & functionality testing (NOT STARTED)
+6. **Phase 6:** Production deployment (NOT STARTED)
+
+**See:** `ALLEGORICAL_ENHANCEMENTS_HANDOFF.md` for detailed progress and next steps
+
+**SHORT TERM** (After Allegorical Enhancements):
 1. **Quantum Reading Testing**:
    - End-to-end testing with longer narratives (10+ sentences)
    - Mobile device testing (iOS Safari, Android Chrome)
@@ -341,4 +456,4 @@ Launch memory-agent and [task]
 
 ---
 
-**End of Guide** | Latest memory: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f`
+**End of Guide** | Latest memory: `81d03cad3cb96dff6e0d6c7ed138ba6f0365b38154b195253945947f84f25dd3`
