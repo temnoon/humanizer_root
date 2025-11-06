@@ -1,12 +1,19 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 6, 2025 - Theme Detection + Allegorical Enhancements Planning 🌓🎨
-**Status**: ✅ **FULLY OPERATIONAL** | WebAuthn + Quantum Reading + GA4
-**Active Project**: 🚧 Allegorical Transform Enhancements (Model Selection + API Keys) - Phase 0 Complete
+**Last Updated**: Nov 6, 2025 - Allegorical Enhancements Deployed (⚠️ 500 Error - Needs Debug)
+**Status**: ⚠️ **DEPLOYED BUT NOT WORKING** | 500 Error on Allegorical Transform
+**Active Project**: 🐛 Debug Allegorical Transform 500 Error (Phases 1-3 deployed, not functional)
 **Latest**: Node 22.21.1, Wrangler 4, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
 **Admin URL**: https://humanizer.com (login to access admin dashboard)
+
+**🚨 CRITICAL ISSUE - START NEXT SESSION HERE:**
+- **Error**: 500 on POST /transformations/allegorical
+- **Backend**: Deployed (Version 4ad33077) but failing
+- **Frontend**: Shows "Failed to load resource: the server responded with a status of 500"
+- **Likely Cause**: LLM provider integration issue in Workers environment
+- **Action**: Debug with `npx wrangler tail npe-api` and test endpoint
 
 **Security Status**: ✅ **PRODUCTION-READY CRITERIA MET**
 - ✅ All dependencies current with no known vulnerabilities
@@ -15,7 +22,9 @@
 - ✅ esbuild security vulnerability (GHSA-67mh-4wv8-2f99) FIXED
 
 **Memory IDs**:
-- Allegorical Enhancements Plan: `81d03cad3cb96dff6e0d6c7ed138ba6f0365b38154b195253945947f84f25dd3` (Nov 6, 2025) 🚧 ACTIVE
+- **🐛 Allegorical 500 Error Handoff**: `10de45bbefa0784b8677382b4106a2e91f592f6c5efdcea03e4727e2d94af9c4` (Nov 6, 2025) ⚠️ **START HERE**
+- Allegorical Phase 2 Complete: `d29c5c8d1f51a05ae1d7162ea7f4d898805f8ba53f7651536f8838fd31d4da12` (Nov 6, 2025)
+- Allegorical Enhancements Plan: `81d03cad3cb96dff6e0d6c7ed138ba6f0365b38154b195253945947f84f25dd3` (Nov 6, 2025)
 - QR UI Polish + Analytics: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f` (Nov 4, 2025)
 - Quantum Reading MVP: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8` (Nov 3, 2025)
 - WebAuthn final: `b6901c31ee71a60cf0460083fad732e4c90d170a28d251dfa519e7fa5c3ccf79` (Nov 3, 2025)
@@ -215,9 +224,10 @@ lsof -ti:3001 | xargs kill -9
 - **Messages**: 52,409
 
 **NPE Cloud (humanizer.com)**:
-- **Status**: Live and operational
+- **Status**: ⚠️ Deployed but 500 error on allegorical transform
+- **Backend Version**: 4ad33077-2c47-4017-ac80-da47ba0bf8ee
 - **Users**: 2 (test@test.com, demo@humanizer.com)
-- **Transformations tested**: Allegorical (working)
+- **Issue**: POST /transformations/allegorical returns 500 error
 
 ---
 
@@ -316,115 +326,106 @@ Launch memory-agent and [task]
 
 ---
 
-## 🚧 ACTIVE PROJECT: Allegorical Transform Enhancements
+## 🐛 ACTIVE PROJECT: Debug Allegorical Transform 500 Error
 
 **Start Date:** November 6, 2025
-**Status:** Phase 0 Complete (Planning) - Implementation Not Started
-**Estimated Duration:** 12-16 hours across 6 sessions
+**Status:** ⚠️ Phases 1-3 DEPLOYED but NOT WORKING (500 Error)
+**Completion:** 58% (23/67 tasks) - Core implementation done, debugging needed
 
-### Project Goals
-1. **Length Control:** User-selectable output length (shorter/same/longer/much_longer) using token multipliers
-2. **Model Selection:** Choose from 10+ Cloudflare native models + external APIs (OpenAI, Anthropic, Google)
-3. **Secure API Storage:** AES-GCM encrypted API keys for PRO+ users
+### 🚨 IMMEDIATE ISSUE
+**500 Error on POST /transformations/allegorical**
+- Backend deployed: Version 4ad33077-2c47-4017-ac80-da47ba0bf8ee
+- Frontend deployed: https://humanizer.com
+- Error: "Failed to load resource: the server responded with a status of 500"
+- **Root Cause Unknown** - Likely LLM provider integration issue in Workers
 
-### Scope & Decisions
-- **Service:** Allegorical Transform ONLY (Round-Trip, Maieutic, QR later)
-- **Access:** External API keys restricted to PRO, PREMIUM, ADMIN tiers
-- **Security:** Server Secret + User ID encryption (JWT_SECRET + user_id)
-- **Implementation:** Token multipliers (0.5x, 1x, 2x, 3x input length)
-
-### Implementation Phases (67 tasks)
-- **Phase 1:** Database Migration & Security (8 tasks) - Migration 0008, AES-GCM encryption utils
-- **Phase 2:** Backend API (10 tasks) - API key endpoints, model selection, allegorical updates
-- **Phase 3:** Frontend (8 tasks) - Length/model dropdowns, API key settings modal
-- **Phase 4:** LLM Providers (12 tasks) - OpenAI, Anthropic, Google, Cloudflare integrations
-- **Phase 5:** Testing (18 tasks) - Security, functionality, UI/UX validation
-- **Phase 6:** Deployment (11 tasks) - Production rollout and verification
-
-### Documentation
-- **Master Plan:** `/Users/tem/humanizer_root/Model_selection_API_key_implementation.txt`
-- **TODO List:** `/Users/tem/humanizer_root/ALLEGORICAL_ENHANCEMENTS_TODO.md`
-- **Handoff Doc:** `/Users/tem/humanizer_root/ALLEGORICAL_ENHANCEMENTS_HANDOFF.md`
-- **ChromaDB:** Memory ID `81d03cad3cb96dff6e0d6c7ed138ba6f0365b38154b195253945947f84f25dd3`
-
-### Current LLM Usage (Before Enhancement)
-- **All services use:** `@cf/meta/llama-3.1-8b-instruct` (8B params, hardcoded)
-  - Allegorical: 5 stages, max_tokens 2048, temp 0.7
-  - Round-Trip: Translation, max_tokens 2048, temp 0.3
-  - Maieutic: Questions, max_tokens 256, temp 0.8
-  - Quantum Reading: POVM, max_tokens 512, temp 0.3
-
-### New Models to Support (Cloudflare 2025)
-- Llama 3.1 8B (current baseline)
-- Llama 3.3 70B FP8 Fast (2-4x faster, better quality)
-- Llama 4 Scout 17B (newest, multimodal MoE)
-- GPT-OSS 20B (OpenAI open model)
-- Qwen 32B (reasoning)
-- DeepSeek R1 Distill 32B (chain-of-thought)
-
-### External APIs (PRO+ only)
-- **OpenAI:** gpt-4o, gpt-4o-mini
-- **Anthropic:** claude-3-5-sonnet, claude-3-5-haiku
-- **Google:** gemini-2.0-flash, gemini-1.5-pro
-
-### Security Architecture
-- **Encryption:** AES-GCM (256-bit) via Web Crypto API
-- **Key Derivation:** SHA-256(JWT_SECRET + user_id) - unique per user
-- **Storage Format:** `base64(iv):base64(encrypted_data)`
-- **Access Control:** PRO/PREMIUM/ADMIN tiers only
-- **Audit:** Never log keys, never expose in errors
-
-### Database Schema Changes (Migration 0008)
-```sql
-ALTER TABLE users ADD COLUMN openai_api_key_encrypted TEXT;
-ALTER TABLE users ADD COLUMN anthropic_api_key_encrypted TEXT;
-ALTER TABLE users ADD COLUMN google_api_key_encrypted TEXT;
-ALTER TABLE users ADD COLUMN preferred_model TEXT DEFAULT '@cf/meta/llama-3.1-8b-instruct';
-ALTER TABLE users ADD COLUMN preferred_length TEXT DEFAULT 'same'
-  CHECK(preferred_length IN ('shorter', 'same', 'longer', 'much_longer'));
-ALTER TABLE users ADD COLUMN api_keys_updated_at INTEGER;
-```
-
-### Next Session Start
+### Debugging Commands (START HERE)
 ```bash
-# 1. Recall context from ChromaDB
-Launch memory-agent and recall "allegorical enhancements model selection API keys"
+# 1. Recall session memory
+Launch memory-agent and recall "allegorical 500 error"
 
-# 2. Review handoff document
-cat /Users/tem/humanizer_root/ALLEGORICAL_ENHANCEMENTS_HANDOFF.md
+# 2. Check backend logs (CRITICAL)
+cd /Users/tem/humanizer_root/workers/npe-api
+source ~/.nvm/nvm.sh && nvm use 22
+npx wrangler tail npe-api
 
-# 3. Check TODO list
-cat /Users/tem/humanizer_root/ALLEGORICAL_ENHANCEMENTS_TODO.md
+# 3. Test endpoint directly
+curl -X POST https://api.humanizer.com/transformations/allegorical \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"text":"Test","persona":"neutral","namespace":"mythology","style":"standard"}'
 
-# 4. Begin Phase 1.1: Create migration 0008_api_keys_and_model_preferences.sql
+# 4. Check secrets are set
+npx wrangler secret list
 ```
+
+### Completed Phases (58%)
+- ✅ **Phase 1:** Database & Security (100%) - Migration 0008 applied to production
+- ✅ **Phase 2:** Backend API & LLM Providers (100%) - All endpoints deployed
+- ✅ **Phase 3:** Frontend (75%) - Model/length dropdowns working, API key UI optional
+- ⚠️ **Phase 4:** Testing (10%) - 500 error discovered
+- ⏳ **Phase 5:** Integration Testing (0%) - Blocked by 500 error
+- ⏳ **Phase 6:** Documentation (0%) - Pending fix
+
+### What Was Deployed
+**Backend (4 commits: 25f382f, 8686839, d60f628, 9b47dcf):**
+- Migration 0008: encrypted API key columns, model/length preferences
+- LLM providers: cloudflare.ts, openai.ts, anthropic.ts, google.ts
+- Routes: user-settings.ts (6 endpoints), config.ts (GET /config/models)
+- Updated: allegorical.ts with provider factory, length calculation
+- 1,780+ lines added
+
+**Frontend:**
+- Model selection dropdown (6 Cloudflare models + external if API keys configured)
+- Length preference dropdown (shorter/same/longer/much_longer)
+- API client updated with new methods
+- Built and deployed to production
+
+### Available Models (When Fixed)
+**Cloudflare (no API key needed):**
+- Llama 3.1 8B, Llama 3.3 70B, Llama 4 Scout 17B
+- GPT-OSS 20B, Qwen 32B, DeepSeek R1 32B
+
+**External (PRO+ with API keys):**
+- OpenAI: GPT-4o, GPT-4o-mini
+- Anthropic: Claude 3.5 Sonnet/Haiku
+- Google: Gemini 2.0 Flash, 1.5 Pro
+
+### Estimated Time to Fix
+- Debug + identify root cause: 1 hour
+- Fix implementation: 30 minutes - 1 hour
+- Test and verify: 30 minutes
+**Total:** 2-3 hours
+
+### Documentation Files
+- **Master Plan:** `Model_selection_API_key_implementation.txt`
+- **TODO List:** `ALLEGORICAL_ENHANCEMENTS_TODO.md`
+- **Handoff Doc:** `ALLEGORICAL_ENHANCEMENTS_HANDOFF.md`
+- **Session Memory:** ChromaDB ID `10de45bbefa0784b8677382b4106a2e91f592f6c5efdcea03e4727e2d94af9c4`
 
 ---
 
 ## 🔧 NPE Next Steps
 
 **COMPLETED** ✅:
-- ✅ Split-pane Quantum Reading UI (professional, 70% less space)
-- ✅ Light/dark mode with theme toggle + automatic detection
-- ✅ Scrollable panes with proper overflow handling
-- ✅ Keyboard shortcuts (→, ↓, Enter)
-- ✅ Automatic retry logic for transient failures
+- ✅ Allegorical Enhancements Phases 1-3 (deployed to production)
+- ✅ Database migration 0008 applied
+- ✅ LLM provider integrations created
+- ✅ Frontend model/length dropdowns
+- ✅ Split-pane Quantum Reading UI
+- ✅ Light/dark mode with theme toggle
+- ✅ WebAuthn Touch ID authentication
 - ✅ Google Analytics 4 + SEO metadata
-- ✅ Equal height panes, responsive design
-- ✅ Responsive header layout (mobile-friendly)
-- ✅ Context-aware home link (logged in/out states)
 
-**🚧 IN PROGRESS - Allegorical Enhancements**:
-1. **Phase 1:** Database Migration & Security (NOT STARTED)
-   - Create migration 0008 for API keys and preferences
-   - Implement AES-GCM encryption utilities
-2. **Phase 2:** Backend API endpoints and model routing (NOT STARTED)
-3. **Phase 3:** Frontend dropdowns and API key settings (NOT STARTED)
-4. **Phase 4:** LLM provider integrations (NOT STARTED)
-5. **Phase 5:** Security & functionality testing (NOT STARTED)
-6. **Phase 6:** Production deployment (NOT STARTED)
+**🚨 URGENT - Debug 500 Error**:
+1. **Immediate:** Check backend logs with `npx wrangler tail npe-api`
+2. **Identify:** Root cause of 500 error in allegorical transform
+3. **Fix:** LLM provider integration issue in Workers
+4. **Test:** Verify all 6 Cloudflare models work
+5. **Deploy:** Redeploy fixed backend
+6. **Verify:** Test end-to-end on production
 
-**See:** `ALLEGORICAL_ENHANCEMENTS_HANDOFF.md` for detailed progress and next steps
+**See:** Memory ID `10de45bbefa0784b8677382b4106a2e91f592f6c5efdcea03e4727e2d94af9c4` for debugging details
 
 **SHORT TERM** (After Allegorical Enhancements):
 1. **Quantum Reading Testing**:
