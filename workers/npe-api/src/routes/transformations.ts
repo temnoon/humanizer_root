@@ -26,7 +26,11 @@ const transformationRoutes = new Hono<{ Bindings: Env }>();
 transformationRoutes.post('/allegorical', requireAuth(), async (c) => {
   try {
     const auth = getAuthContext(c);
-    const { text, persona, namespace, style }: AllegoricalProjectionRequest = await c.req.json();
+    const body = await c.req.json() as AllegoricalProjectionRequest & {
+      model?: string;
+      length_preference?: 'shorter' | 'same' | 'longer' | 'much_longer';
+    };
+    const { text, persona, namespace, style, model, length_preference } = body;
 
     // Validate input
     if (!text || !persona || !namespace || !style) {
@@ -35,6 +39,24 @@ transformationRoutes.post('/allegorical', requireAuth(), async (c) => {
 
     if (text.length > 10000) {
       return c.json({ error: 'Text too long (max 10,000 characters)' }, 400);
+    }
+
+    // Fetch user preferences if model/length not specified
+    let selectedModel = model;
+    let selectedLength = length_preference;
+
+    if (!selectedModel || !selectedLength) {
+      const userPrefsRow = await c.env.DB.prepare(
+        'SELECT preferred_model, preferred_length FROM users WHERE id = ?'
+      ).bind(auth.userId).first();
+
+      if (userPrefsRow) {
+        selectedModel = selectedModel || (userPrefsRow.preferred_model as string) || '@cf/meta/llama-3.1-8b-instruct';
+        selectedLength = selectedLength || (userPrefsRow.preferred_length as any) || 'same';
+      } else {
+        selectedModel = selectedModel || '@cf/meta/llama-3.1-8b-instruct';
+        selectedLength = selectedLength || 'same';
+      }
     }
 
     // Fetch persona from database
@@ -83,11 +105,14 @@ transformationRoutes.post('/allegorical', requireAuth(), async (c) => {
         id: styleRow.id as number,
         name: styleRow.name as string,
         style_prompt: styleRow.style_prompt as string
-      }
+      },
+      auth.userId,
+      selectedModel,
+      selectedLength as 'shorter' | 'same' | 'longer' | 'much_longer'
     );
 
     // Run transformation
-    const result = await service.transform(text, auth.userId);
+    const result = await service.transform(text);
 
     const response: AllegoricalProjectionResponse = {
       transformation_id: result.transformation_id,

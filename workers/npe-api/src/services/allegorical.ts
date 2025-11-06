@@ -2,6 +2,9 @@
 // Adapted from LPE projection.py for Cloudflare Workers
 
 import type { Env, NPEPersona, NPENamespace, NPEStyle } from '../../shared/types';
+import { createLLMProvider, type LLMProvider } from './llm-providers';
+
+export type LengthPreference = 'shorter' | 'same' | 'longer' | 'much_longer';
 
 export interface AllegoricalStage {
   name: string;
@@ -31,19 +34,31 @@ export interface AllegoricalResult {
  * Based on LPE's TranslationChain approach with explicit multi-stage prompts
  */
 export class AllegoricalProjectionService {
+  private llmProvider: LLMProvider | null = null;
+  private maxTokens: number = 2048; // Default, will be calculated based on length preference
+
   constructor(
     private env: Env,
     private persona: NPEPersona,
     private namespace: NPENamespace,
-    private style: NPEStyle
+    private style: NPEStyle,
+    private userId: string,
+    private modelId: string = '@cf/meta/llama-3.1-8b-instruct',
+    private lengthPreference: LengthPreference = 'same'
   ) {}
 
   /**
    * Run the complete 5-stage allegorical transformation
    */
-  async transform(sourceText: string, userId: string): Promise<AllegoricalResult> {
+  async transform(sourceText: string): Promise<AllegoricalResult> {
     const startTime = Date.now();
     const stages: AllegoricalStage[] = [];
+
+    // Initialize LLM provider
+    this.llmProvider = await createLLMProvider(this.modelId, this.env, this.userId);
+
+    // Calculate max_tokens based on input length and length preference
+    this.maxTokens = this.calculateMaxTokens(sourceText);
 
     // Stage 1: Deconstruct - Break down narrative into core elements
     const deconstructResult = await this.deconstruct(sourceText);
@@ -75,13 +90,16 @@ export class AllegoricalProjectionService {
       VALUES (?, ?, 'allegorical', ?, ?, ?, ?)
     `).bind(
       transformationId,
-      userId,
+      this.userId,
       sourceText,
       stylizeResult.result,
       JSON.stringify({
         persona: this.persona.name,
         namespace: this.namespace.name,
-        style: this.style.name
+        style: this.style.name,
+        model: this.modelId,
+        length_preference: this.lengthPreference,
+        max_tokens_used: this.maxTokens
       }),
       Date.now()
     ).run();
@@ -298,23 +316,57 @@ Write a thoughtful reflection (2-3 paragraphs).`;
   }
 
   /**
-   * Call Cloudflare AI Workers LLM
+   * Calculate max_tokens based on input text length and length preference
+   *
+   * Token multipliers:
+   * - shorter: 0.5x input length
+   * - same: 1.0x input length
+   * - longer: 2.0x input length
+   * - much_longer: 3.0x input length
+   *
+   * Capped at 8192 tokens maximum
+   */
+  private calculateMaxTokens(inputText: string): number {
+    // Estimate tokens: ~4 characters per token
+    const estimatedInputTokens = Math.ceil(inputText.length / 4);
+
+    // Apply length multiplier
+    const multipliers: Record<LengthPreference, number> = {
+      shorter: 0.5,
+      same: 1.0,
+      longer: 2.0,
+      much_longer: 3.0
+    };
+
+    const multiplier = multipliers[this.lengthPreference] || 1.0;
+    const calculatedTokens = Math.ceil(estimatedInputTokens * multiplier);
+
+    // Cap at 8192 tokens, minimum 256
+    return Math.max(256, Math.min(calculatedTokens, 8192));
+  }
+
+  /**
+   * Call LLM using the configured provider
    */
   private async callLLM(systemPrompt: string, userPrompt: string): Promise<string> {
+    if (!this.llmProvider) {
+      throw new Error('LLM provider not initialized');
+    }
+
     try {
-      const response = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      const response = await this.llmProvider.call({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        max_tokens: 2048,
+        max_tokens: this.maxTokens,
         temperature: 0.7
       });
 
       return response.response || '';
     } catch (error) {
       console.error('LLM call failed:', error);
-      throw new Error('Failed to generate transformation stage');
+      throw new Error(`Failed to generate transformation stage: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }
