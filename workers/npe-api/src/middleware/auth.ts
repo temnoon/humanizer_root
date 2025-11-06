@@ -119,3 +119,27 @@ export function requireAdmin() {
     await next();
   };
 }
+
+/**
+ * Hono middleware to require PRO tier or higher (pro, premium, admin)
+ * MUST be used after requireAuth()
+ */
+export function requireProPlus() {
+  return async (c: Context<{ Bindings: Env }>, next: () => Promise<void>) => {
+    const auth = c.get('auth') as AuthContext;
+
+    if (!auth) {
+      return c.json({ error: 'Authentication required' }, 401);
+    }
+
+    const allowedRoles: UserRole[] = ['pro', 'premium', 'admin'];
+    if (!allowedRoles.includes(auth.role)) {
+      return c.json({
+        error: 'PRO subscription required',
+        message: 'External API keys are available to PRO, PREMIUM, and ADMIN users only'
+      }, 403);
+    }
+
+    await next();
+  };
+}
