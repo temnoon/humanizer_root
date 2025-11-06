@@ -5,7 +5,6 @@ import type {
   RegisterRequest,
   LoginRequest,
   AuthResponse,
-  AllegoricalProjectionRequest,
   AllegoricalProjectionResponse,
   RoundTripTranslationRequest,
   RoundTripTranslationResponse,
