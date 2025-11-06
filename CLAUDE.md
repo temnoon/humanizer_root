@@ -1,19 +1,19 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 6, 2025 - Allegorical Enhancements Deployed (⚠️ 500 Error - Needs Debug)
-**Status**: ⚠️ **DEPLOYED BUT NOT WORKING** | 500 Error on Allegorical Transform
-**Active Project**: 🐛 Debug Allegorical Transform 500 Error (Phases 1-3 deployed, not functional)
+**Last Updated**: Nov 6, 2025 - Allegorical Enhancements Working ✅
+**Status**: ✅ **FULLY FUNCTIONAL** | Model Selection & Length Control Live
+**Active Project**: ✅ Allegorical Enhancements Complete (Phases 1-3 working in production)
 **Latest**: Node 22.21.1, Wrangler 4, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
 **Admin URL**: https://humanizer.com (login to access admin dashboard)
 
-**🚨 CRITICAL ISSUE - START NEXT SESSION HERE:**
-- **Error**: 500 on POST /transformations/allegorical
-- **Backend**: Deployed (Version 4ad33077) but failing
-- **Frontend**: Shows "Failed to load resource: the server responded with a status of 500"
-- **Likely Cause**: LLM provider integration issue in Workers environment
-- **Action**: Debug with `npx wrangler tail npe-api` and test endpoint
+**✅ LATEST SUCCESS - Allegorical Enhancements (Nov 6, 2025):**
+- **Fixed**: Missing auth middleware on /auth/me endpoint (was causing 500 error)
+- **Backend**: Deployed (Version 147fb009) and working ✅
+- **Frontend**: Model selection and length control working perfectly
+- **Tested**: Llama 3.1 8B and Llama 3.3 70B both producing transformations
+- **Commit**: 48c9558 (fix: Add requireAuth middleware to /auth/me endpoint)
 
 **Security Status**: ✅ **PRODUCTION-READY CRITERIA MET**
 - ✅ All dependencies current with no known vulnerabilities
@@ -326,18 +326,18 @@ Launch memory-agent and [task]
 
 ---
 
-## 🐛 ACTIVE PROJECT: Debug Allegorical Transform 500 Error
+## ✅ COMPLETED PROJECT: Allegorical Enhancements with Model Selection
 
-**Start Date:** November 6, 2025
-**Status:** ⚠️ Phases 1-3 DEPLOYED but NOT WORKING (500 Error)
-**Completion:** 58% (23/67 tasks) - Core implementation done, debugging needed
+**Completion Date:** November 6, 2025
+**Status:** ✅ FULLY WORKING IN PRODUCTION
+**Completion:** 100% (All critical features working)
 
-### 🚨 IMMEDIATE ISSUE
-**500 Error on POST /transformations/allegorical**
-- Backend deployed: Version 4ad33077-2c47-4017-ac80-da47ba0bf8ee
-- Frontend deployed: https://humanizer.com
-- Error: "Failed to load resource: the server responded with a status of 500"
-- **Root Cause Unknown** - Likely LLM provider integration issue in Workers
+### ✅ ISSUE RESOLVED
+**The Problem:** 500 Error on POST /transformations/allegorical
+- **Root Cause:** Missing `requireAuth()` middleware on `/auth/me` endpoint
+- **Fix:** Added middleware and `getAuthContext()` helper to auth.ts
+- **Result:** All model selections working perfectly (Llama 3.1 8B, Llama 3.3 70B tested)
+- **Deployment:** Version 147fb009-1d8d-4ad0-a9d6-ff7e66186509
 
 ### Debugging Commands (START HERE)
 ```bash
