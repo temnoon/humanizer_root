@@ -168,7 +168,16 @@ export class CloudflareProvider implements LLMProvider {
     // Remove reasoning artifacts from models that use <think> tags
     // DeepSeek R1 and Qwen QwQ both output reasoning in <think></think> blocks
     if (this.modelId.includes('deepseek-r1') || this.modelId.includes('qwen')) {
-      cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      // First try to remove complete <think>...</think> blocks
+      cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/g, '');
+
+      // Fallback: If there's a closing </think> without opening tag (malformed),
+      // remove everything from the start up to and including the closing tag
+      if (cleaned.includes('</think>')) {
+        cleaned = cleaned.replace(/^[\s\S]*?<\/think>\s*/g, '');
+      }
+
+      cleaned = cleaned.trim();
     }
 
     // Remove thinking prefixes from GPT-OSS (and similar reasoning models)

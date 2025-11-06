@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cloudAPI, type ModelInfo } from '../../lib/cloud-api-client';
 import type { NPEPersona, NPENamespace, NPEStyle, AllegoricalProjectionResponse } from '../../../../workers/shared/types';
+import CopyButtons from '../CopyButtons';
 
 export default function AllegoricalForm() {
   const [text, setText] = useState('');
@@ -342,13 +343,16 @@ export default function AllegoricalForm() {
 
           {/* Final Projection */}
           <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
-            <h4 style={{ color: 'var(--accent-cyan)', marginBottom: 'var(--spacing-md)' }}>
+            <h4 style={{ color: 'var(--accent-cyan)', marginBottom: 'var(--spacing-sm)' }}>
               Final Projection
             </h4>
-            <div style={{ lineHeight: 1.8 }} className="markdown-content">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {result.final_projection}
-              </ReactMarkdown>
+            <div style={{ position: 'relative', maxHeight: '600px', overflowY: 'auto' }}>
+              <CopyButtons markdownContent={result.final_projection} />
+              <div style={{ lineHeight: 1.8, padding: 'var(--spacing-sm)' }} className="markdown-content">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {result.final_projection}
+                </ReactMarkdown>
+              </div>
             </div>
           </div>
 
@@ -367,41 +371,53 @@ export default function AllegoricalForm() {
             <div style={{ display: 'grid', gap: 'var(--spacing-md)' }}>
               {/* Stage 1: Deconstruct */}
               <div className="card">
-                <h5 style={{ color: 'var(--accent-yellow)' }}>Stage 1: Deconstruct</h5>
-                <div style={{ fontSize: '0.875rem' }} className="markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {result.stages.deconstruct}
-                  </ReactMarkdown>
+                <h5 style={{ color: 'var(--accent-yellow)', marginBottom: 'var(--spacing-sm)' }}>Stage 1: Deconstruct</h5>
+                <div style={{ position: 'relative', maxHeight: '400px', overflowY: 'auto' }}>
+                  <CopyButtons markdownContent={result.stages.deconstruct} />
+                  <div style={{ fontSize: '0.875rem', padding: 'var(--spacing-sm)' }} className="markdown-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {result.stages.deconstruct}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
 
               {/* Stage 2: Map */}
               <div className="card">
-                <h5 style={{ color: 'var(--accent-yellow)' }}>Stage 2: Map to {namespace}</h5>
-                <div style={{ fontSize: '0.875rem' }} className="markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {result.stages.map}
-                  </ReactMarkdown>
+                <h5 style={{ color: 'var(--accent-yellow)', marginBottom: 'var(--spacing-sm)' }}>Stage 2: Map to {namespace}</h5>
+                <div style={{ position: 'relative', maxHeight: '400px', overflowY: 'auto' }}>
+                  <CopyButtons markdownContent={result.stages.map} />
+                  <div style={{ fontSize: '0.875rem', padding: 'var(--spacing-sm)' }} className="markdown-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {result.stages.map}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
 
               {/* Stage 3: Reconstruct */}
               <div className="card">
-                <h5 style={{ color: 'var(--accent-yellow)' }}>Stage 3: Reconstruct</h5>
-                <div style={{ fontSize: '0.875rem' }} className="markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {result.stages.reconstruct}
-                  </ReactMarkdown>
+                <h5 style={{ color: 'var(--accent-yellow)', marginBottom: 'var(--spacing-sm)' }}>Stage 3: Reconstruct</h5>
+                <div style={{ position: 'relative', maxHeight: '400px', overflowY: 'auto' }}>
+                  <CopyButtons markdownContent={result.stages.reconstruct} />
+                  <div style={{ fontSize: '0.875rem', padding: 'var(--spacing-sm)' }} className="markdown-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {result.stages.reconstruct}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
 
               {/* Stage 4: Stylize */}
               <div className="card">
-                <h5 style={{ color: 'var(--accent-yellow)' }}>Stage 4: Stylize ({persona} / {style})</h5>
-                <div style={{ fontSize: '0.875rem' }} className="markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {result.stages.stylize}
-                  </ReactMarkdown>
+                <h5 style={{ color: 'var(--accent-yellow)', marginBottom: 'var(--spacing-sm)' }}>Stage 4: Stylize ({persona} / {style})</h5>
+                <div style={{ position: 'relative', maxHeight: '400px', overflowY: 'auto' }}>
+                  <CopyButtons markdownContent={result.stages.stylize} />
+                  <div style={{ fontSize: '0.875rem', padding: 'var(--spacing-sm)' }} className="markdown-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                      {result.stages.stylize}
+                    </ReactMarkdown>
+                  </div>
                 </div>
               </div>
             </div>
@@ -409,13 +425,16 @@ export default function AllegoricalForm() {
 
           {/* Reflection */}
           <div className="card">
-            <h4 style={{ color: 'var(--accent-purple)', marginBottom: 'var(--spacing-md)' }}>
+            <h4 style={{ color: 'var(--accent-purple)', marginBottom: 'var(--spacing-sm)' }}>
               Reflection on Transformation
             </h4>
-            <div style={{ lineHeight: 1.8, fontStyle: 'italic' }} className="markdown-content">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {result.reflection}
-              </ReactMarkdown>
+            <div style={{ position: 'relative', maxHeight: '500px', overflowY: 'auto' }}>
+              <CopyButtons markdownContent={result.reflection} />
+              <div style={{ lineHeight: 1.8, fontStyle: 'italic', padding: 'var(--spacing-sm)' }} className="markdown-content">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {result.reflection}
+                </ReactMarkdown>
+              </div>
             </div>
           </div>
         </div>
