@@ -1,24 +1,25 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 6, 2025 - Token Limits & Model Compatibility Issues
-**Status**: ⚠️ **PARTIALLY WORKING** | Auth Fixed, Token Limits Too Low
-**Active Project**: 🐛 Fix Token Allocation & GPT-OSS Model Compatibility
-**Latest**: Node 22.21.1, Wrangler 4, React 19, @simplewebauthn 13.2.2
+**Last Updated**: Nov 6, 2025 - Token Allocation & Model Compatibility FIXED
+**Status**: ✅ **WORKING** | Minor Polish Needed (Thinking Text, Markdown Rendering)
+**Active Project**: ✨ Polish GPT-OSS Output & Add Markdown Rendering
+**Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
 **Admin URL**: https://humanizer.com (login to access admin dashboard)
 
-**🐛 CURRENT ISSUES - Start Next Session Here:**
-1. **Token Limits Too Low** - Outputs truncating mid-sentence (285 tokens = incomplete narratives)
-2. **GPT-OSS 20B Model Error** - Wrong API format: expects 'input' or 'requests', gets 'messages'
+**✨ POLISH NEEDED - Start Next Session Here:**
+1. **Thinking Text Cleanup** - GPT-OSS 20B outputs reasoning text before actual content
+2. **Markdown Rendering** - Output displays raw markdown instead of rendered HTML (tables, headings, etc.)
 
-**✅ Completed This Session:**
-- Fixed auth middleware (commit 48c9558)
-- Updated all dependencies to latest (commit b2c85ad)
-- Node.js 22.21.1 set as default
-- Llama 3.1 8B & Llama 3.3 70B working (but truncated outputs)
+**✅ Completed This Session (Major Fixes):**
+- ✅ Per-stage token budgets (800-2000 tokens per stage, no more truncation!)
+- ✅ GPT-OSS 20B fully working (completion format + array extraction)
+- ✅ Llama 3.1 8B & 3.3 70B generating complete outputs
+- ✅ Model-agnostic LLM architecture (chat vs completion formats)
+- Backend: Version 6569b97f-ffa8-4929-9d1b-838eb1eb8934
 
-**Memory ID**: `50e2fd399a6d8c158a553b534cb1b8c90c252286cd1669f38d0269b719b39651`
+**Memory ID**: `f5a74570faf0f04d183f461c18a95f72dbd6c96fa6f3adcaa847c02b1796fb45`
 
 **Security Status**: ✅ **PRODUCTION-READY CRITERIA MET**
 - ✅ All dependencies current with no known vulnerabilities
@@ -27,7 +28,8 @@
 - ✅ esbuild security vulnerability (GHSA-67mh-4wv8-2f99) FIXED
 
 **Memory IDs**:
-- **🐛 Allegorical 500 Error Handoff**: `10de45bbefa0784b8677382b4106a2e91f592f6c5efdcea03e4727e2d94af9c4` (Nov 6, 2025) ⚠️ **START HERE**
+- **✅ Token Allocation & Model Compat Fixed**: `f5a74570faf0f04d183f461c18a95f72dbd6c96fa6f3adcaa847c02b1796fb45` (Nov 6, 2025) ⚡ **START HERE**
+- Allegorical 500 Error Handoff: `10de45bbefa0784b8677382b4106a2e91f592f6c5efdcea03e4727e2d94af9c4` (Nov 6, 2025)
 - Allegorical Phase 2 Complete: `d29c5c8d1f51a05ae1d7162ea7f4d898805f8ba53f7651536f8838fd31d4da12` (Nov 6, 2025)
 - Allegorical Enhancements Plan: `81d03cad3cb96dff6e0d6c7ed138ba6f0365b38154b195253945947f84f25dd3` (Nov 6, 2025)
 - QR UI Polish + Analytics: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f` (Nov 4, 2025)
