@@ -1,19 +1,24 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 6, 2025 - Allegorical Enhancements Working ✅
-**Status**: ✅ **FULLY FUNCTIONAL** | Model Selection & Length Control Live
-**Active Project**: ✅ Allegorical Enhancements Complete (Phases 1-3 working in production)
+**Last Updated**: Nov 6, 2025 - Token Limits & Model Compatibility Issues
+**Status**: ⚠️ **PARTIALLY WORKING** | Auth Fixed, Token Limits Too Low
+**Active Project**: 🐛 Fix Token Allocation & GPT-OSS Model Compatibility
 **Latest**: Node 22.21.1, Wrangler 4, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
 **Admin URL**: https://humanizer.com (login to access admin dashboard)
 
-**✅ LATEST SUCCESS - Allegorical Enhancements (Nov 6, 2025):**
-- **Fixed**: Missing auth middleware on /auth/me endpoint (was causing 500 error)
-- **Backend**: Deployed (Version 147fb009) and working ✅
-- **Frontend**: Model selection and length control working perfectly
-- **Tested**: Llama 3.1 8B and Llama 3.3 70B both producing transformations
-- **Commit**: 48c9558 (fix: Add requireAuth middleware to /auth/me endpoint)
+**🐛 CURRENT ISSUES - Start Next Session Here:**
+1. **Token Limits Too Low** - Outputs truncating mid-sentence (285 tokens = incomplete narratives)
+2. **GPT-OSS 20B Model Error** - Wrong API format: expects 'input' or 'requests', gets 'messages'
+
+**✅ Completed This Session:**
+- Fixed auth middleware (commit 48c9558)
+- Updated all dependencies to latest (commit b2c85ad)
+- Node.js 22.21.1 set as default
+- Llama 3.1 8B & Llama 3.3 70B working (but truncated outputs)
+
+**Memory ID**: `50e2fd399a6d8c158a553b534cb1b8c90c252286cd1669f38d0269b719b39651`
 
 **Security Status**: ✅ **PRODUCTION-READY CRITERIA MET**
 - ✅ All dependencies current with no known vulnerabilities
