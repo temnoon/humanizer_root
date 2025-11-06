@@ -1,6 +1,6 @@
 // Authentication routes for NPE Workers API
 import { Hono } from 'hono';
-import { hashPassword, verifyPassword, generateToken } from '../middleware/auth';
+import { hashPassword, verifyPassword, generateToken, requireAuth, getAuthContext } from '../middleware/auth';
 import type { Env, RegisterRequest, LoginRequest, AuthResponse, User } from '../../shared/types';
 
 const authRoutes = new Hono<{ Bindings: Env }>();
@@ -84,9 +84,8 @@ authRoutes.post('/login', async (c) => {
 /**
  * GET /auth/me - Get current user info (requires auth)
  */
-authRoutes.get('/me', async (c) => {
-  // This will be protected by requireAuth middleware in main app
-  const auth = c.get('auth');
+authRoutes.get('/me', requireAuth(), async (c) => {
+  const auth = getAuthContext(c);
 
   const userRow = await c.env.DB.prepare(
     'SELECT id, email, role, created_at, last_login, monthly_transformations, monthly_tokens_used, last_reset_date FROM users WHERE id = ?'
