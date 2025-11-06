@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { cloudAPI } from '../../lib/cloud-api-client';
+import { cloudAPI, type ModelInfo } from '../../lib/cloud-api-client';
 import type { NPEPersona, NPENamespace, NPEStyle, AllegoricalProjectionResponse } from '../../../../workers/shared/types';
 
 export default function AllegoricalForm() {
@@ -7,10 +7,13 @@ export default function AllegoricalForm() {
   const [persona, setPersona] = useState('');
   const [namespace, setNamespace] = useState('');
   const [style, setStyle] = useState('');
+  const [model, setModel] = useState('');
+  const [lengthPreference, setLengthPreference] = useState<'shorter' | 'same' | 'longer' | 'much_longer'>('same');
 
   const [personas, setPersonas] = useState<NPEPersona[]>([]);
   const [namespaces, setNamespaces] = useState<NPENamespace[]>([]);
   const [styles, setStyles] = useState<NPEStyle[]>([]);
+  const [models, setModels] = useState<ModelInfo[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,20 +23,23 @@ export default function AllegoricalForm() {
   useEffect(() => {
     const loadConfig = async () => {
       try {
-        const [personasData, namespacesData, stylesData] = await Promise.all([
+        const [personasData, namespacesData, stylesData, modelsData] = await Promise.all([
           cloudAPI.getPersonas(),
           cloudAPI.getNamespaces(),
-          cloudAPI.getStyles()
+          cloudAPI.getStyles(),
+          cloudAPI.getAvailableModels()
         ]);
 
         setPersonas(personasData);
         setNamespaces(namespacesData);
         setStyles(stylesData);
+        setModels(modelsData);
 
         // Set defaults
         if (personasData.length > 0) setPersona(personasData[0].name);
         if (namespacesData.length > 0) setNamespace(namespacesData[0].name);
         if (stylesData.length > 0) setStyle(stylesData[0].name);
+        if (modelsData.length > 0) setModel(modelsData[0].id);
       } catch (err) {
         setError('Failed to load configuration');
       }
@@ -49,7 +55,14 @@ export default function AllegoricalForm() {
     setIsLoading(true);
 
     try {
-      const response = await cloudAPI.createAllegoricalProjection(text, persona, namespace, style);
+      const response = await cloudAPI.createAllegoricalProjection(
+        text,
+        persona,
+        namespace,
+        style,
+        model,
+        lengthPreference
+      );
       setResult(response);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create projection');
@@ -60,6 +73,7 @@ export default function AllegoricalForm() {
 
   const selectedPersona = personas.find(p => p.name === persona);
   const selectedNamespace = namespaces.find(n => n.name === namespace);
+  const selectedModel = models.find(m => m.id === model);
 
   return (
     <div>
@@ -210,6 +224,82 @@ export default function AllegoricalForm() {
                 <option key={s.id} value={s.name}>{s.name}</option>
               ))}
             </select>
+          </div>
+
+          {/* Model Selection */}
+          <div>
+            <label style={{
+              display: 'block',
+              marginBottom: 'var(--spacing-sm)',
+              fontWeight: 500
+            }}>
+              Model
+            </label>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              style={{
+                width: '100%',
+                padding: 'var(--spacing-sm) var(--spacing-md)',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              {models.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.name} {m.requires_api_key && '(API key required)'}
+                </option>
+              ))}
+            </select>
+            {selectedModel && (
+              <div style={{
+                fontSize: '0.875rem',
+                color: 'var(--text-secondary)',
+                marginTop: 'var(--spacing-xs)'
+              }}>
+                {selectedModel.description}
+              </div>
+            )}
+          </div>
+
+          {/* Length Preference */}
+          <div>
+            <label style={{
+              display: 'block',
+              marginBottom: 'var(--spacing-sm)',
+              fontWeight: 500
+            }}>
+              Output Length
+            </label>
+            <select
+              value={lengthPreference}
+              onChange={(e) => setLengthPreference(e.target.value as any)}
+              style={{
+                width: '100%',
+                padding: 'var(--spacing-sm) var(--spacing-md)',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              <option value="shorter">Shorter (50% of input)</option>
+              <option value="same">Same length (100%)</option>
+              <option value="longer">Longer (200%)</option>
+              <option value="much_longer">Much longer (300%)</option>
+            </select>
+            <div style={{
+              fontSize: '0.875rem',
+              color: 'var(--text-tertiary)',
+              marginTop: 'var(--spacing-xs)'
+            }}>
+              {lengthPreference === 'shorter' && '50% of input length - concise version'}
+              {lengthPreference === 'same' && '100% of input length - similar size'}
+              {lengthPreference === 'longer' && '200% of input length - expanded version'}
+              {lengthPreference === 'much_longer' && '300% of input length - detailed version'}
+            </div>
           </div>
         </div>
 
