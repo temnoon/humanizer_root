@@ -165,8 +165,9 @@ export class CloudflareProvider implements LLMProvider {
   private cleanResponse(response: string): string {
     let cleaned = response;
 
-    // Remove reasoning artifacts from DeepSeek R1
-    if (this.modelId.includes('deepseek-r1')) {
+    // Remove reasoning artifacts from models that use <think> tags
+    // DeepSeek R1 and Qwen QwQ both output reasoning in <think></think> blocks
+    if (this.modelId.includes('deepseek-r1') || this.modelId.includes('qwen')) {
       cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
     }
 
