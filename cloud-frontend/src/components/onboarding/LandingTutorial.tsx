@@ -381,7 +381,19 @@ export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
           fontSize: '0.875rem',
           marginTop: 'var(--spacing-md)'
         }}>
-          Currently in testing phase • Limited access
+          Currently in testing phase • Limited access •{' '}
+          <button
+            onClick={() => setShowMailingListModal(true)}
+            style={{
+              background: 'none',
+              color: 'var(--accent-cyan)',
+              fontSize: '0.875rem',
+              textDecoration: 'underline',
+              padding: 0
+            }}
+          >
+            Join our mailing list
+          </button>
         </p>
       </div>
 
