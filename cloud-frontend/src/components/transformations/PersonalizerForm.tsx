@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { cloudAPI } from '../../lib/cloud-api-client';
+import { cloudAPI, type ModelInfo } from '../../lib/cloud-api-client';
 import type { PersonalPersona, PersonalStyle, PersonalizerTransformResponse } from '../../../../workers/shared/types';
 import CopyButtons from '../CopyButtons';
 
@@ -9,9 +9,11 @@ export default function PersonalizerForm() {
   const [text, setText] = useState('');
   const [personaId, setPersonaId] = useState<number | undefined>();
   const [styleId, setStyleId] = useState<number | undefined>();
+  const [model, setModel] = useState('');
 
   const [personas, setPersonas] = useState<PersonalPersona[]>([]);
   const [styles, setStyles] = useState<PersonalStyle[]>([]);
+  const [models, setModels] = useState<ModelInfo[]>([]);
   const [hasNoPersonas, setHasNoPersonas] = useState(false);
   const [totalSamples, setTotalSamples] = useState(0);
   const [totalWords, setTotalWords] = useState(0);
@@ -21,18 +23,20 @@ export default function PersonalizerForm() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<PersonalizerTransformResponse | null>(null);
 
-  // Load personas and styles on mount
+  // Load personas, styles, and models on mount
   useEffect(() => {
     const loadVoices = async () => {
       try {
-        const [personasData, stylesData, samplesData] = await Promise.all([
+        const [personasData, stylesData, samplesData, modelsData] = await Promise.all([
           cloudAPI.getPersonalPersonas(),
           cloudAPI.getPersonalStyles(),
-          cloudAPI.getWritingSamples()
+          cloudAPI.getWritingSamples(),
+          cloudAPI.getAvailableModels()
         ]);
 
         setPersonas(personasData);
         setStyles(stylesData);
+        setModels(modelsData);
 
         // Calculate total samples and words
         setTotalSamples(samplesData.length);
@@ -49,6 +53,10 @@ export default function PersonalizerForm() {
 
         if (stylesData.length > 0) {
           setStyleId(stylesData[0].id);
+        }
+
+        if (modelsData.length > 0) {
+          setModel(modelsData[0].id);
         }
       } catch (err) {
         setError('Failed to load voices. You may need to upload writing samples first.');
@@ -101,7 +109,8 @@ export default function PersonalizerForm() {
       const response = await cloudAPI.transformWithPersonalizer(
         text,
         personaId,
-        styleId
+        styleId,
+        model
       );
       setResult(response);
     } catch (err) {
@@ -310,6 +319,44 @@ export default function PersonalizerForm() {
                 {selectedStyle.tone_markers && selectedStyle.tone_markers.length > 0 && (
                   <> • {selectedStyle.tone_markers.join(', ')}</>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Model Selection */}
+          <div>
+            <label style={{
+              display: 'block',
+              marginBottom: 'var(--spacing-sm)',
+              fontWeight: 500
+            }}>
+              Model
+            </label>
+            <select
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              style={{
+                width: '100%',
+                padding: 'var(--spacing-sm) var(--spacing-md)',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: 'var(--radius-md)',
+                color: 'var(--text-primary)'
+              }}
+            >
+              {models.map(m => (
+                <option key={m.id} value={m.id}>
+                  {m.name} {m.requires_api_key && '(API key required)'}
+                </option>
+              ))}
+            </select>
+            {models.find(m => m.id === model) && (
+              <div style={{
+                fontSize: '0.875rem',
+                color: 'var(--text-secondary)',
+                marginTop: 'var(--spacing-xs)'
+              }}>
+                {models.find(m => m.id === model)?.description}
               </div>
             )}
           </div>
