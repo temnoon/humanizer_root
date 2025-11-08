@@ -9,6 +9,9 @@ import mailingListRoutes from './routes/mailing-list';
 import webauthnRoutes from './routes/webauthn';
 import userSettingsRoutes from './routes/user-settings';
 import { quantumAnalysisRoutes } from './routes/quantum-analysis';
+import writingSamplesRoutes from './routes/writing-samples';
+import personalPersonasRoutes from './routes/personal-personas';
+import personalStylesRoutes from './routes/personal-styles';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -61,6 +64,11 @@ app.route('/mailing-list', mailingListRoutes);
 app.route('/webauthn', webauthnRoutes);
 app.route('/user', userSettingsRoutes);
 app.route('/quantum-analysis', quantumAnalysisRoutes);
+
+// Personalizer routes
+app.route('/personal/samples', writingSamplesRoutes);
+app.route('/personal/personas', personalPersonasRoutes);
+app.route('/personal/styles', personalStylesRoutes);
 
 // 404 handler
 app.notFound((c) => {
