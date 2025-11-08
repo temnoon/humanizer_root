@@ -52,23 +52,82 @@ mailingListRoutes.post('/signup', async (c) => {
       'INSERT INTO mailing_list (name, email, interest_comment) VALUES (?, ?, ?)'
     ).bind(name, email, interest_comment || null).run();
 
-    // Send webhook notification (async, don't block response)
-    const notificationPromise = (async () => {
+    // Send admin notification email (async, don't block response)
+    const adminNotificationPromise = (async () => {
       try {
-        const topic = c.env.NTFY_TOPIC || 'npe-signups-secret-2024';
-        const message = `🎉 New NPE Signup!\n\nName: ${name}\nEmail: ${email}\nInterest: ${interest_comment || 'Not specified'}`;
+        const adminEmail = c.env.ADMIN_EMAIL || 'dreegle@gmail.com';
 
-        await fetch(`https://ntfy.sh/${topic}`, {
+        await fetch('https://api.mailchannels.net/tx/v1/send', {
           method: 'POST',
           headers: {
-            'Title': 'NPE Mailing List Signup',
-            'Priority': 'high',
-            'Tags': 'tada,email'
+            'Content-Type': 'application/json'
           },
-          body: message
+          body: JSON.stringify({
+            personalizations: [
+              {
+                to: [{ email: adminEmail, name: 'NPE Admin' }]
+              }
+            ],
+            from: {
+              email: 'notifications@humanizer.com',
+              name: 'NPE Notifications'
+            },
+            subject: `🎉 New Mailing List Signup: ${name}`,
+            content: [
+              {
+                type: 'text/plain',
+                value: `New NPE Mailing List Signup\n\nName: ${name}\nEmail: ${email}\nInterest: ${interest_comment || 'Not specified'}\n\nSigned up at: ${new Date().toISOString()}`
+              },
+              {
+                type: 'text/html',
+                value: `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+    .header h1 { margin: 0; font-size: 20px; }
+    .content { background: #f9fafb; padding: 20px; border-radius: 8px; }
+    .field { margin-bottom: 15px; }
+    .field strong { display: block; color: #667eea; margin-bottom: 5px; }
+    .footer { margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🎉 New Mailing List Signup</h1>
+  </div>
+  <div class="content">
+    <div class="field">
+      <strong>Name</strong>
+      ${name}
+    </div>
+    <div class="field">
+      <strong>Email</strong>
+      ${email}
+    </div>
+    <div class="field">
+      <strong>Interest</strong>
+      ${interest_comment || 'Not specified'}
+    </div>
+    <div class="field">
+      <strong>Signed up at</strong>
+      ${new Date().toISOString()}
+    </div>
+  </div>
+  <div class="footer">
+    <p>NPE Mailing List Notifications<br><a href="https://humanizer.com/admin">View Admin Dashboard</a></p>
+  </div>
+</body>
+</html>
+`
+              }
+            ]
+          })
         });
       } catch (err) {
-        console.error('Failed to send webhook notification:', err);
+        console.error('Failed to send admin notification:', err);
       }
     })();
 
@@ -147,7 +206,7 @@ mailingListRoutes.post('/signup', async (c) => {
     })();
 
     // Wait for both (but don't fail if they error - we already logged them)
-    await Promise.allSettled([notificationPromise, emailPromise]);
+    await Promise.allSettled([adminNotificationPromise, emailPromise]);
 
     return c.json({
       success: true,
