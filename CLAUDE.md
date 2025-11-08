@@ -1,32 +1,44 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 6, 2025 - Allegorical Polish Complete + Mailing List Notifications
-**Status**: ✅ **PRODUCTION READY** - All Polish Complete!
-**Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, @simplewebauthn 13.2.2
+**Last Updated**: Nov 8, 2025 - Security Vulnerabilities FIXED
+**Status**: ✅ **SECURE** - All Critical Vulnerabilities Resolved
+**Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, @simplewebauthn 13.2.2, DOMPurify 3.2.5
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
-**Test Account**: demo@humanizer.com (password: testpass123, role: free)
+**Test Account**: demo@humanizer.com (password: testpass123, role: pro)
 **Admin URL**: https://humanizer.com (login to access admin dashboard)
 
-**✅ Completed This Session - Allegorical Polish Complete:**
-- ✅ Thinking text cleanup (GPT-OSS prefix, Qwen/DeepSeek `<think>` tags)
-- ✅ Markdown rendering (tables, code blocks, headings, lists)
-- ✅ HTML tag cleanup (`<br>` conversion to markdown line breaks)
-- ✅ Copy buttons with sticky positioning (text + markdown)
-- ✅ Mailing list notifications (ntfy.sh push + MailChannels email)
-- ✅ All 6 Cloudflare models tested and working
-- Backend: Version 8bc94862-9c15-41c3-9f9e-8e23d52ae27e
-- Frontend: Version 5789e16c
+**✅ SECURITY FIXES DEPLOYED (Nov 8, 2025):**
+- ✅ **XSS Fixed**: DOMPurify sanitization in AI Detector tell-word highlighting
+- ✅ **Password Hashing Upgraded**: PBKDF2 with 100,000 iterations + random salt
+- ✅ **Automatic Migration**: Legacy SHA-256 hashes upgraded transparently on login
+- ✅ **Constant-Time Comparison**: Prevents timing attacks on password verification
+- ✅ Overall security posture: EXCELLENT (all known vulnerabilities resolved)
 
-**Memory ID**: `fdbc4d35bebd89e92a6c741428091711611be53c2ecc47343d0eec91fa4f7312` ⚡ **START HERE**
+**✅ Completed This Session - AI Tell Detector + Security Audit + Fixes:**
+- ✅ AI Tell Detector Phase 1 Complete (~950 lines)
+- ✅ Local detection working (burstiness, tell-words, readability, diversity)
+- ✅ Fixed authentication bug (getAuthContext helper)
+- ✅ Security audit completed (2 MEDIUM vulnerabilities identified)
+- ✅ XSS vulnerability fixed with DOMPurify
+- ✅ Password hashing upgraded to PBKDF2
+- ✅ Backend deployed: api.humanizer.com (version 2705882a)
+- ✅ Frontend deployed: humanizer.com (version 05470890)
+- ✅ Git commit: 5737838 (security fixes)
 
-**Security Status**: ✅ **PRODUCTION-READY CRITERIA MET**
+**Memory ID**: `8e6ae0164a0a41ecbbee2cac75204e769149af8d99879e9ca31f04eb0010a5c7` ⚡ **START HERE**
+
+**Security Status**: ✅ **PRODUCTION READY** - All vulnerabilities resolved
 - ✅ All dependencies current with no known vulnerabilities
 - ✅ Node.js 22.21.1 (LTS until April 2027)
 - ✅ `npm audit`: 0 vulnerabilities in both projects
-- ✅ esbuild security vulnerability (GHSA-67mh-4wv8-2f99) FIXED
+- ✅ XSS vulnerability FIXED (DOMPurify sanitization)
+- ✅ Password hashing upgraded to PBKDF2 (100k iterations, random salt)
+- ✅ Automatic password migration on user login
+- 📋 Next: Comprehensive penetration testing recommended
 
 **Memory IDs**:
-- **✅ Allegorical Polish Complete + Notifications**: `fdbc4d35bebd89e92a6c741428091711611be53c2ecc47343d0eec91fa4f7312` (Nov 6, 2025) ⚡ **START HERE**
+- **🚨 Security Audit + AI Detector**: `8e6ae0164a0a41ecbbee2cac75204e769149af8d99879e9ca31f04eb0010a5c7` (Nov 8, 2025) ⚡ **START HERE**
+- **✅ Allegorical Polish Complete + Notifications**: `fdbc4d35bebd89e92a6c741428091711611be53c2ecc47343d0eec91fa4f7312` (Nov 6, 2025)
 - Token Allocation & Model Compat: `f5a74570faf0f04d183f461c18a95f72dbd6c96fa6f3adcaa847c02b1796fb45` (Nov 6, 2025)
 - QR UI Polish + Analytics: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f` (Nov 4, 2025)
 - Quantum Reading MVP: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8` (Nov 3, 2025)
