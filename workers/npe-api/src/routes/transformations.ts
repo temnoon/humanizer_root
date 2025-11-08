@@ -1,9 +1,11 @@
 // Transformation routes for NPE Workers API
 import { Hono } from 'hono';
-import { requireAuth, getAuthContext } from '../middleware/auth';
+import { requireAuth, getAuthContext, requireProPlus } from '../middleware/auth';
 import { AllegoricalProjectionService } from '../services/allegorical';
 import { RoundTripTranslationService } from '../services/round_trip';
 import { MaieuticDialogueService } from '../services/maieutic';
+import { transformWithPersonalizer, getTransformationHistory } from '../services/personalizer';
+import { checkQuota, updateUsage } from '../middleware/tier-check';
 import type {
   Env,
   AllegoricalProjectionRequest,
@@ -274,6 +276,125 @@ transformationRoutes.get('/maieutic/:sessionId', requireAuth(), async (c) => {
     return c.json(state, 200);
   } catch (error) {
     console.error('Maieutic get state error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+/**
+ * POST /transformations/personalizer - Transform text using discovered personas/styles
+ * Requires PRO+ tier
+ *
+ * Transform text to express content through user's authentic discovered voices
+ */
+transformationRoutes.post('/personalizer', requireAuth(), requireProPlus(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const { text, persona_id, style_id, model } = await c.req.json();
+
+    // Validate input
+    if (!text || text.trim().length === 0) {
+      return c.json({ error: 'Missing required field: text' }, 400);
+    }
+
+    if (text.length > 5000) {
+      return c.json({ error: 'Text too long (max 5,000 characters)' }, 400);
+    }
+
+    // At least one of persona_id or style_id must be provided
+    if (!persona_id && !style_id) {
+      return c.json({ error: 'Must provide at least one of: persona_id or style_id' }, 400);
+    }
+
+    // Estimate tokens for quota check
+    const estimatedTokens = Math.ceil(text.length / 4) * 3; // Input + output + prompt
+
+    // Check quota
+    try {
+      await checkQuota(c.env, auth.userId, auth.role, estimatedTokens);
+    } catch (error) {
+      if (error instanceof Error) {
+        return c.json({ error: error.message }, 429);
+      }
+      throw error;
+    }
+
+    // Use user's preferred model if not specified
+    let selectedModel = model;
+    if (!selectedModel) {
+      const userPrefs = await c.env.DB.prepare(
+        'SELECT preferred_model FROM users WHERE id = ?'
+      ).bind(auth.userId).first();
+
+      selectedModel = (userPrefs?.preferred_model as string) || '@cf/meta/llama-3.1-8b-instruct';
+    }
+
+    // Transform text
+    const result = await transformWithPersonalizer(
+      c.env,
+      auth.userId,
+      text,
+      persona_id,
+      style_id,
+      selectedModel
+    );
+
+    // Update usage
+    await updateUsage(c.env, auth.userId, result.tokensUsed);
+
+    return c.json({
+      transformation_id: result.transformationId,
+      output_text: result.outputText,
+      semantic_similarity: result.semanticSimilarity,
+      tokens_used: result.tokensUsed,
+      model_used: result.modelUsed
+    }, 200);
+  } catch (error) {
+    console.error('Personalizer transformation error:', error);
+
+    // Handle specific errors
+    if (error instanceof Error) {
+      if (error.message.includes('not found') || error.message.includes('does not belong')) {
+        return c.json({ error: error.message }, 404);
+      }
+      if (error.message.includes('empty output')) {
+        return c.json({ error: error.message }, 500);
+      }
+    }
+
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+/**
+ * GET /transformations/personalizer/history - Get transformation history
+ * Requires PRO+ tier
+ *
+ * Retrieve user's personalizer transformation history
+ */
+transformationRoutes.get('/personalizer/history', requireAuth(), requireProPlus(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const limit = parseInt(c.req.query('limit') || '10', 10);
+    const offset = parseInt(c.req.query('offset') || '0', 10);
+
+    // Validate pagination params
+    if (limit < 1 || limit > 100) {
+      return c.json({ error: 'Limit must be between 1 and 100' }, 400);
+    }
+
+    if (offset < 0) {
+      return c.json({ error: 'Offset must be non-negative' }, 400);
+    }
+
+    const history = await getTransformationHistory(c.env, auth.userId, limit, offset);
+
+    return c.json({
+      transformations: history,
+      limit,
+      offset
+    }, 200);
+  } catch (error) {
+    console.error('Get personalizer history error:', error);
     return c.json({ error: 'Internal server error' }, 500);
   }
 });

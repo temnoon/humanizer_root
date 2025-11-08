@@ -1,7 +1,7 @@
 # Personalizer Feature - Implementation Handoff
 
 **Started:** January 8, 2025
-**Status:** Phase 2 Complete (Discovery & Management)
+**Status:** Phase 3 Complete (Transformation Backend)
 **Philosophy:** Enhance human expression, NOT hide AI writing
 **Tier Requirement:** PRO+ only
 **Last Updated:** 2025-11-08
@@ -139,29 +139,103 @@ The Personalizer learns from users' authentic writing to express content through
 
 ---
 
-## 🔄 Next Steps (Phase 3 & 4)
+### Phase 3: Transformation Backend ✅ (2025-11-08)
 
-### Immediate Next (Phase 3: Transformation)
+#### Personalizer Transformation Service
+**Location:** `/workers/npe-api/src/services/personalizer.ts`
 
-#### 1. Personalizer Service
-**Create:** `/workers/npe-api/src/services/personalizer.ts`
+**Features Implemented:**
+- ✅ Transform text using persona + style
+- ✅ Load persona's example texts + embedding signature
+- ✅ Load style's linguistic properties
+- ✅ Generate embeddings for input text
+- ✅ Construct LLM prompt with persona & style
+- ✅ Workers AI transformation (@cf/meta/llama-3.1-8b-instruct)
+- ✅ Calculate semantic similarity (input vs output)
+- ✅ Save to personalizer_transformations table
+- ✅ Return transformed text + similarity score
+- ✅ Transformation history retrieval
 
-**Purpose:** Transform text using persona + style
-
-**Algorithm:**
+**Functions:**
+```typescript
+transformWithPersonalizer(env, userId, inputText, personaId?, styleId?, model?)
+getTransformationHistory(env, userId, limit, offset)
+cosineSimilarity(a, b)
+generateEmbedding(env, text)
 ```
-1. Load selected persona's example texts + embedding signature
-2. Load selected style's linguistic properties
-3. Generate embeddings for input text
-4. Construct LLM prompt:
-   - Show persona description & examples
-   - Show style characteristics
-   - Input text to transform
-5. Use Workers AI to transform
-6. Calculate semantic similarity (input vs output embeddings)
-7. Save to personalizer_transformations
-8. Return transformed text + similarity score
+
+#### Tier Validation Middleware
+**Location:** `/workers/npe-api/src/middleware/tier-check.ts`
+
+**Features Implemented:**
+- ✅ `requireProPlus()` - Middleware for PRO+ tier enforcement
+- ✅ `checkQuota()` - Validates user quotas (transformations + tokens)
+- ✅ `updateUsage()` - Updates monthly usage counters
+- ✅ Automatic monthly reset logic
+- ✅ Role-based quota limits (FREE/MEMBER/PRO/PREMIUM/ADMIN)
+
+**Quota Tiers:**
+- FREE: 10 transformations/month, 5,000 tokens
+- MEMBER: 50 transformations/month, 100,000 tokens
+- PRO: 200 transformations/month, 1,600,000 tokens
+- PREMIUM/ADMIN: Unlimited
+
+#### Transformation Endpoints
+**Location:** `/workers/npe-api/src/routes/transformations.ts`
+
+**Endpoints Implemented:**
+- ✅ `POST /transformations/personalizer` - Transform text with persona/style
+- ✅ `GET /transformations/personalizer/history` - Retrieve transformation history
+
+**POST /transformations/personalizer:**
+```json
+Request: {
+  "text": "string",
+  "persona_id": number (optional),
+  "style_id": number (optional),
+  "model": "string (optional)"
+}
+
+Response: {
+  "transformation_id": number,
+  "output_text": "string",
+  "semantic_similarity": number (0.0-1.0),
+  "tokens_used": number,
+  "model_used": "string"
+}
 ```
+
+**GET /transformations/personalizer/history:**
+- Pagination: `?limit=10&offset=0`
+- Returns full transformation history with persona/style names
+- Includes input, output, similarity, tokens, timestamps
+
+#### Production Testing Results
+**Backend Version:** `95582455-cb03-4eca-88ac-5fbcd284e105`
+**Test User:** `demo@humanizer.com` (upgraded to PRO tier)
+
+**Test 1: Persona Only**
+- Input: "The future of technology is bright."
+- Persona: Voice 1 (casual, conversational)
+- Output: "I was thinking about the future of tech the other day, and it's pretty lit..."
+- Semantic Similarity: 84.6%
+- Tokens Used: 487
+- Status: ✅ Working perfectly
+
+**Test 2: Persona + Style**
+- Input: "Artificial intelligence represents a paradigm shift in computing..."
+- Persona: Voice 1, Style: Style 1
+- Output: "So yeah, like I was thinking about AI the other day, and it's kinda wild..."
+- Semantic Similarity: 80.1%
+- Tokens Used: 701
+- Status: ✅ Working perfectly
+
+**Test 3: History Retrieval**
+- Retrieved 2 transformations with full metadata
+- Persona/style names joined correctly
+- Status: ✅ Working perfectly
+
+#### Key Implementation Details
 
 **Prompt Template:**
 ```
@@ -173,8 +247,8 @@ PERSONA: {name} - {description}
 {example_text_3}
 
 STYLE CHARACTERISTICS:
-- Formality: {formality_score}/1.0
-- Complexity: {complexity_score}/1.0
+- Formality: {formality_score}%
+- Complexity: {complexity_score}%
 - Avg sentence length: {avg_sentence_length} words
 - Tone markers: {tone_markers}
 
@@ -188,40 +262,21 @@ This is about authentic expression, NOT hiding authorship.
 OUTPUT:
 ```
 
-#### 2. Transformation Endpoint
-**Create:** `POST /transformations/personalizer`
-
-**Request:**
-```typescript
-{
-  text: string,
-  persona_id?: number,
-  style_id?: number
-}
-```
-
-**Response:**
-```typescript
-{
-  transformation_id: number,
-  output_text: string,
-  semantic_similarity: 0.96,
-  tokens_used: 450,
-  model_used: "@cf/meta/llama-3.1-8b-instruct"
-}
-```
-
-**Validations:**
-- User must be PRO+ tier
-- Check quota (tokens + transformations)
-- Persona/style must belong to user
-- Text length limits
+**Validation:**
+- ✅ PRO+ tier requirement enforced
+- ✅ At least one of persona_id or style_id required
+- ✅ Quota checking (transformations + tokens)
+- ✅ Text length limit (5,000 characters)
+- ✅ Persona/style ownership validation
+- ✅ Usage tracking (monthly counters)
 
 ---
 
-### Phase 4: Frontend
+## 🔄 Next Steps (Phase 4)
 
-#### 3. Personalizer Tab Component
+### Phase 4: Frontend UI (Not Started)
+
+#### 1. Personalizer Tab Component
 **Create:** `/cloud-frontend/src/components/transformations/PersonalizerForm.tsx`
 
 **Layout:**
@@ -256,7 +311,7 @@ Similarity: 96% | Tokens: 450
 - Similarity score display
 - Copy buttons (like Allegorical)
 
-#### 4. Voice Management UI
+#### 2. Voice Management UI
 **Create:** `/cloud-frontend/src/components/personalizer/VoiceManager.tsx`
 
 **Sections:**
@@ -291,7 +346,7 @@ Total: 12 samples | 15,420 words
 [+ Create Custom Persona]
 ```
 
-#### 5. Sample Upload Modal
+#### 3. Sample Upload Modal
 **Create:** `/cloud-frontend/src/components/personalizer/SampleUploadModal.tsx`
 
 **Fields:**
@@ -303,52 +358,34 @@ Total: 12 samples | 15,420 words
 
 ---
 
-## Integration Points
+## ✅ Completed Integration Points
 
-### 1. Route Registration
+### 1. Route Registration (✅ Complete)
 **File:** `/workers/npe-api/src/index.ts`
 
-**Add:**
+**Status:** Already registered in production
 ```typescript
-import writingSamplesRoutes from './routes/writing-samples';
-import personalPersonasRoutes from './routes/personal-personas';
-import personalStylesRoutes from './routes/personal-styles';
-
 app.route('/personal/samples', writingSamplesRoutes);
 app.route('/personal/personas', personalPersonasRoutes);
 app.route('/personal/styles', personalStylesRoutes);
+app.route('/transformations', transformationRoutes); // includes /personalizer
 ```
 
-### 2. Frontend Navigation
-**File:** `/cloud-frontend/src/App.tsx` or main nav
+### 2. Tier Validation (✅ Complete)
+**File:** `/workers/npe-api/src/middleware/tier-check.ts`
 
-**Add:**
-- "Personalizer" tab (4th transformation type)
-- "Manage Voices" link in settings/profile
+**Status:** Implemented and deployed
+- `requireProPlus()` middleware created
+- `checkQuota()` function for usage validation
+- `updateUsage()` function for tracking
+- Applied to all Personalizer transformation endpoints
 
-### 3. Tier Validation
-**File:** `/workers/npe-api/src/middleware/tier-check.ts` (create if needed)
+### 3. Frontend Navigation (⏳ Phase 4)
+**File:** `/cloud-frontend/src/App.tsx`
 
-**Function:**
-```typescript
-export function requireProPlus() {
-  return async (c: Context, next: Next) => {
-    const auth = c.get('auth');
-    if (!auth) return c.json({ error: 'Unauthorized' }, 401);
-
-    if (!['pro', 'premium', 'admin'].includes(auth.user.role)) {
-      return c.json({
-        error: 'Personalizer requires PRO or higher tier',
-        upgrade_url: '/pricing'
-      }, 403);
-    }
-
-    await next();
-  };
-}
-```
-
-**Apply to all Personalizer routes**
+**TODO:**
+- Add "Personalizer" tab (4th transformation type)
+- Add "Manage Voices" link in settings/profile
 
 ---
 
