@@ -3,10 +3,29 @@
 
 import { Hono } from 'hono';
 import type { Env } from '../../shared/types';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, getAuthContext } from '../middleware/auth';
 import { detectAI, explainResult, HybridDetectionResult } from '../services/ai-detection/hybrid-orchestrator';
 
 const app = new Hono<{ Bindings: Env }>();
+
+// Test endpoint
+app.get('/test', (c) => {
+  console.log('[AI Detection] Test endpoint hit');
+  return c.json({ message: 'AI Detection routes loaded successfully' });
+});
+
+// Simple test endpoint without auth
+app.post('/test-detect', async (c) => {
+  console.log('[AI Detection] Test detect endpoint hit');
+  try {
+    const body = await c.req.json();
+    console.log('[AI Detection] Body:', body);
+    return c.json({ message: 'Test detect successful', received: body });
+  } catch (err) {
+    console.error('[AI Detection] Test error:', err);
+    return c.json({ error: String(err) }, 500);
+  }
+});
 
 /**
  * POST /ai-detection/detect
@@ -42,17 +61,20 @@ const app = new Hono<{ Bindings: Env }>();
  *   message?: string         // Optional info message
  * }
  */
-app.post('/detect', requireAuth, async (c) => {
+app.post('/detect', requireAuth(), async (c) => {
+  console.log('[AI Detection Route] Handler called');
   try {
     // Get user info from auth context
-    const user = c.get('user');
-    if (!user) {
+    const auth = getAuthContext(c);
+    console.log('[AI Detection Route] User:', auth.email, auth.role);
+    if (!auth) {
       return c.json({ error: 'Authentication required' }, 401);
     }
 
     // Parse request body
     const body = await c.req.json();
     const { text, useAPI = false } = body;
+    console.log('[AI Detection Route] Request body parsed, text length:', text?.length);
 
     // Validate input
     if (!text || typeof text !== 'string') {
@@ -72,12 +94,16 @@ app.post('/detect', requireAuth, async (c) => {
     // Get GPTZero API key from environment (optional)
     const apiKey = c.env.GPTZERO_API_KEY;
 
+    console.log('[AI Detection] Starting detection, words:', words.length, 'useAPI:', useAPI, 'tier:', auth.role);
+
     // Run detection
     const result: HybridDetectionResult = await detectAI(trimmedText, {
       useAPI: useAPI === true,
-      userTier: user.role,
+      userTier: auth.role,
       apiKey: apiKey
     });
+
+    console.log('[AI Detection] Result:', result.verdict, result.confidence, result.method);
 
     // Format response with detailed breakdown
     const response = {
@@ -123,20 +149,20 @@ app.post('/detect', requireAuth, async (c) => {
  *   canUseAPI: boolean        // True if user has PRO+ tier and API key available
  * }
  */
-app.get('/status', requireAuth, async (c) => {
+app.get('/status', requireAuth(), async (c) => {
   try {
-    const user = c.get('user');
-    if (!user) {
+    const auth = getAuthContext(c);
+    if (!auth) {
       return c.json({ error: 'Authentication required' }, 401);
     }
 
     const hasAPIKey = Boolean(c.env.GPTZERO_API_KEY);
-    const isProPlus = user.role === 'pro' || user.role === 'premium' || user.role === 'admin';
+    const isProPlus = auth.role === 'pro' || auth.role === 'premium' || auth.role === 'admin';
 
     return c.json({
       localDetection: true,
       apiDetection: hasAPIKey,
-      userTier: user.role,
+      userTier: auth.role,
       canUseAPI: hasAPIKey && isProPlus
     });
   } catch (error) {
@@ -159,7 +185,7 @@ app.get('/status', requireAuth, async (c) => {
  *   }>
  * }
  */
-app.get('/tell-words', requireAuth, async (c) => {
+app.get('/tell-words', requireAuth(), async (c) => {
   try {
     // Import tell-words dynamically to get categories
     const { AI_TELL_WORDS } = await import('../services/ai-detection/tell-words');

@@ -75,9 +75,13 @@ export default function AIDetectorPanel() {
     setResult(null);
 
     try {
+      console.log('[AI Detector] Starting detection, text length:', text.length, 'words:', words.length);
+      console.log('[AI Detector] useAPI:', useAPI);
       const detectionResult = await cloudAPI.detectAI(text, useAPI);
+      console.log('[AI Detector] Result:', detectionResult);
       setResult(detectionResult);
     } catch (err: any) {
+      console.error('[AI Detector] Error:', err);
       setError(err.message || 'Failed to detect AI content');
     } finally {
       setLoading(false);
