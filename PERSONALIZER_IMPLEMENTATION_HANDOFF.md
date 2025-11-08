@@ -1,9 +1,10 @@
 # Personalizer Feature - Implementation Handoff
 
 **Started:** January 8, 2025
-**Status:** Phase 1 Complete (Foundation)
+**Status:** Phase 2 Complete (Discovery & Management)
 **Philosophy:** Enhance human expression, NOT hide AI writing
 **Tier Requirement:** PRO+ only
+**Last Updated:** 2025-11-08
 
 ---
 
@@ -20,9 +21,11 @@ The Personalizer learns from users' authentic writing to express content through
 
 ---
 
-## ✅ Completed (Phase 1)
+## ✅ Completed (Phase 1 & 2)
 
-### Database Schema (Migration 0009)
+### Phase 1: Database Foundation ✅ (2025-01-08)
+
+#### Database Schema (Migration 0009)
 **Tables Created:**
 - `writing_samples` - User's uploaded writing samples
 - `personal_personas` - Discovered/custom personas
@@ -31,7 +34,7 @@ The Personalizer learns from users' authentic writing to express content through
 
 **Applied to production:** ✅ 2025-01-08
 
-### TypeScript Types
+#### TypeScript Types
 **Location:** `/workers/shared/types.ts`
 
 **Added Types:**
@@ -40,7 +43,7 @@ The Personalizer learns from users' authentic writing to express content through
 - Request/Response types for all APIs
 - Added `'personalizer'` to `TransformationType`
 
-### Writing Samples API
+#### Writing Samples API
 **Location:** `/workers/npe-api/src/routes/writing-samples.ts`
 
 **Endpoints Implemented:**
@@ -57,105 +60,90 @@ The Personalizer learns from users' authentic writing to express content through
 
 ---
 
-## 🔄 In Progress / Next Steps
+### Phase 2: Discovery & Management ✅ (2025-11-08)
 
-### Immediate Next (Phase 2)
+#### Persona Management API
+**Location:** `/workers/npe-api/src/routes/personal-personas.ts`
 
-#### 1. Persona Management API
-**Create:** `/workers/npe-api/src/routes/personal-personas.ts`
+**Endpoints Implemented:**
+- `GET /personal/personas` - List user's personas (discovered + custom)
+- `GET /personal/personas/:id` - Get specific persona
+- `POST /personal/personas` - Create custom persona
+- `PUT /personal/personas/:id` - Update persona name/description
+- `DELETE /personal/personas/:id` - Delete persona
+- `POST /personal/personas/discover-voices` - Analyze samples and discover voices
 
-**Endpoints Needed:**
-```typescript
-GET /personal/personas - List user's personas (discovered + custom)
-POST /personal/personas - Create custom persona
-PUT /personal/personas/:id - Update persona name/description
-DELETE /personal/personas/:id - Delete persona
-```
+**Features:**
+- Auto-discovered vs custom personas flagged
+- Embedding signatures stored
+- Example texts for each persona
+- Duplicate name prevention
+- User ownership validation
 
-**Key Features:**
-- Badge auto-discovered personas
-- Allow editing descriptions but preserve embeddings
-- Validate user ownership
-- Return example texts with each persona
+#### Style Management API
+**Location:** `/workers/npe-api/src/routes/personal-styles.ts`
 
-#### 2. Style Management API
-**Create:** `/workers/npe-api/src/routes/personal-styles.ts`
+**Endpoints Implemented:**
+- `GET /personal/styles` - List user's styles (discovered + custom)
+- `GET /personal/styles/:id` - Get specific style
+- `POST /personal/styles` - Create custom style
+- `PUT /personal/styles/:id` - Update style properties
+- `DELETE /personal/styles/:id` - Delete style
 
-**Endpoints Needed:**
-```typescript
-GET /personal/styles - List user's styles (discovered + custom)
-POST /personal/styles - Create custom style
-PUT /personal/styles/:id - Update style properties
-DELETE /personal/styles/:id - Delete style
-```
-
-**Key Features:**
-- Formality/complexity scores (0.0-1.0)
+**Features:**
+- Formality/complexity scores (0.0-1.0 range)
+- Average sentence length tracking
+- Vocabulary diversity (type-token ratio)
 - Tone markers array
-- Example texts
-- Validate user ownership
+- Score validation
 
-#### 3. Voice Discovery Service
-**Create:** `/workers/npe-api/src/services/voice-discovery.ts`
+#### Voice Discovery Engine
+**Location:** `/workers/npe-api/src/services/voice-discovery.ts`
 
-**Purpose:** Analyze writing samples to discover personas & styles
+**Algorithm Implementation:**
+- ✅ K-means clustering (3-7 clusters)
+- ✅ Silhouette score optimization (finds best k)
+- ✅ Text chunking (500-word segments)
+- ✅ Workers AI embeddings (@cf/baai/bge-base-en-v1.5, 768d)
+- ✅ Linguistic feature extraction:
+  - Formality score (based on word length)
+  - Complexity score (based on sentence length)
+  - Vocabulary diversity (type-token ratio)
+  - Average sentence length
+  - Tone markers detection (academic/casual/formal)
+- ✅ LLM persona descriptions (@cf/meta/llama-3.1-8b-instruct)
+- ✅ Representative embedding calculation (cluster centroids)
+- ✅ Example text selection (3 per cluster)
 
-**Algorithm:**
-```
-1. Retrieve all user's writing samples
-2. Chunk into 500-word segments
-3. Generate embeddings (@cf/baai/bge-base-en-v1.5)
-4. Cluster into k groups (k=3-7, use silhouette score to find optimal)
-5. For each cluster:
-   a. Extract linguistic features:
-      - Avg sentence length
-      - Vocabulary diversity (type-token ratio)
-      - Formality score (latinate words, passive voice, etc.)
-      - Complexity score (avg word length, subordinate clauses)
-   b. Generate persona description via LLM:
-      "Analyze these writing samples and describe the voice/persona in 1-2 sentences"
-   c. Select 3 representative examples
-6. Save to personal_personas and personal_styles tables
-```
+**Requirements:**
+- Minimum 5,000 words across all samples
+- Returns discovered personas + styles
 
-**Dependencies:**
-- Workers AI embeddings binding
-- K-means clustering (implement simple version)
-- LLM for description generation
+#### Production Testing Results
+**Backend Version:** `eb99da1f-6ab4-4b33-a9e1-5ae9cc5da5ee`
+**Test User:** `demo@humanizer.com`
 
-#### 4. Discovery Endpoint
-**Create:** `POST /personal/discover-voices` in persona routes
+**Test Data:**
+- Sample 1: 129 words (analytical/formal style)
+- Sample 2: 5,800 words (casual/conversational style)
+- Total: 5,929 words analyzed
 
-**Request:**
-```typescript
-{
-  min_clusters?: 3,
-  max_clusters?: 7
-}
-```
-
-**Response:**
-```typescript
-{
-  personas_discovered: 5,
-  styles_discovered: 5,
-  personas: PersonalPersona[],
-  styles: PersonalStyle[],
-  total_words_analyzed: 15420
-}
-```
-
-**Flow:**
-1. Check if user has enough samples (min 5,000 words)
-2. Run voice discovery algorithm
-3. Save discovered personas/styles
-4. Return results
+**Discovery Results:**
+- ✅ 2 personas discovered successfully
+- ✅ 2 styles discovered successfully
+- ✅ Voice 1: "Casual, conversational, slightly introspective"
+- ✅ Voice 2: "Introspective, analytical, thoughtful"
+- ✅ Distinct formality scores (57% vs different)
+- ✅ Complexity scores calculated correctly
+- ✅ Example texts selected for each voice
 
 ---
 
-### Phase 3: Transformation
+## 🔄 Next Steps (Phase 3 & 4)
 
-#### 5. Personalizer Service
+### Immediate Next (Phase 3: Transformation)
+
+#### 1. Personalizer Service
 **Create:** `/workers/npe-api/src/services/personalizer.ts`
 
 **Purpose:** Transform text using persona + style
@@ -200,7 +188,7 @@ This is about authentic expression, NOT hiding authorship.
 OUTPUT:
 ```
 
-#### 6. Transformation Endpoint
+#### 2. Transformation Endpoint
 **Create:** `POST /transformations/personalizer`
 
 **Request:**
@@ -233,7 +221,7 @@ OUTPUT:
 
 ### Phase 4: Frontend
 
-#### 7. Personalizer Tab Component
+#### 3. Personalizer Tab Component
 **Create:** `/cloud-frontend/src/components/transformations/PersonalizerForm.tsx`
 
 **Layout:**
@@ -268,7 +256,7 @@ Similarity: 96% | Tokens: 450
 - Similarity score display
 - Copy buttons (like Allegorical)
 
-#### 8. Voice Management UI
+#### 4. Voice Management UI
 **Create:** `/cloud-frontend/src/components/personalizer/VoiceManager.tsx`
 
 **Sections:**
@@ -303,7 +291,7 @@ Total: 12 samples | 15,420 words
 [+ Create Custom Persona]
 ```
 
-#### 9. Sample Upload Modal
+#### 5. Sample Upload Modal
 **Create:** `/cloud-frontend/src/components/personalizer/SampleUploadModal.tsx`
 
 **Fields:**
