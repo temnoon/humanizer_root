@@ -13,6 +13,7 @@ import writingSamplesRoutes from './routes/writing-samples';
 import personalPersonasRoutes from './routes/personal-personas';
 import personalStylesRoutes from './routes/personal-styles';
 import aiDetectionRoutes from './routes/ai-detection';
+import transformationHistoryRoutes from './routes/transformation-history';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -73,6 +74,9 @@ app.route('/personal/styles', personalStylesRoutes);
 
 // AI Detection routes
 app.route('/ai-detection', aiDetectionRoutes);
+
+// Transformation History routes
+app.route('/transformation-history', transformationHistoryRoutes);
 
 // 404 handler
 app.notFound((c) => {
