@@ -193,4 +193,5 @@ export interface Env {
   MAIEUTIC_SESSION: any; // DurableObjectNamespace - only needed in Workers context
   JWT_SECRET: string;
   ENVIRONMENT: string;
+  NTFY_TOPIC?: string; // ntfy.sh topic for signup notifications
 }
