@@ -317,4 +317,5 @@ export interface Env {
   JWT_SECRET: string;
   ENVIRONMENT: string;
   NTFY_TOPIC?: string; // ntfy.sh topic for signup notifications
+  GPTZERO_API_KEY?: string; // Optional GPTZero API key for advanced AI detection
 }

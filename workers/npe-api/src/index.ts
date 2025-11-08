@@ -12,6 +12,7 @@ import { quantumAnalysisRoutes } from './routes/quantum-analysis';
 import writingSamplesRoutes from './routes/writing-samples';
 import personalPersonasRoutes from './routes/personal-personas';
 import personalStylesRoutes from './routes/personal-styles';
+import aiDetectionRoutes from './routes/ai-detection';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -69,6 +70,9 @@ app.route('/quantum-analysis', quantumAnalysisRoutes);
 app.route('/personal/samples', writingSamplesRoutes);
 app.route('/personal/personas', personalPersonasRoutes);
 app.route('/personal/styles', personalStylesRoutes);
+
+// AI Detection routes
+app.route('/ai-detection', aiDetectionRoutes);
 
 // 404 handler
 app.notFound((c) => {

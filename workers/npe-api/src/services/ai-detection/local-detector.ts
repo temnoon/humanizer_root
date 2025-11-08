@@ -71,14 +71,14 @@ export async function detectAILocal(text: string): Promise<LocalDetectionResult>
   // Readability pattern in AI range = more AI-like
   // Lower lexical diversity = more AI-like
 
-  const burstin essAIScore = 100 - burstiness; // Invert: low burstiness = high AI score
+  const burstinessAIScore = 100 - burstiness; // Invert: low burstiness = high AI score
   const tellWordAIScore = tellWordAnalysis.score;
   const readabilityAIScore = readabilityPattern;
   const diversityAIScore = 100 - lexicalDiversity; // Invert: low diversity = high AI score
 
   // Weighted combination (weights based on research accuracy)
   const confidence = Math.round(
-    burstin essAIScore * 0.35 +       // Burstiness: 35% (strongest signal)
+    burstinessAIScore * 0.35 +         // Burstiness: 35% (strongest signal)
     tellWordAIScore * 0.30 +           // Tell words: 30%
     readabilityAIScore * 0.20 +        // Readability: 20%
     diversityAIScore * 0.15            // Diversity: 15%

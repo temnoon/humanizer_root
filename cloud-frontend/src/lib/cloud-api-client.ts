@@ -556,6 +556,41 @@ class CloudAPIClient {
       method: 'GET'
     });
   }
+
+  // ========== AI DETECTION ==========
+
+  /**
+   * Detect if text is AI-generated
+   */
+  async detectAI(text: string, useAPI: boolean = false): Promise<any> {
+    return this.fetch('/ai-detection/detect', {
+      method: 'POST',
+      body: JSON.stringify({ text, useAPI })
+    });
+  }
+
+  /**
+   * Get AI detection status (check if API is available)
+   */
+  async getAIDetectionStatus(): Promise<{
+    localDetection: boolean;
+    apiDetection: boolean;
+    userTier: string;
+    canUseAPI: boolean;
+  }> {
+    return this.fetch('/ai-detection/status', {
+      method: 'GET'
+    });
+  }
+
+  /**
+   * Get the dictionary of AI tell-words
+   */
+  async getTellWords(): Promise<any> {
+    return this.fetch('/ai-detection/tell-words', {
+      method: 'GET'
+    });
+  }
 }
 
 // ========== TYPES ==========

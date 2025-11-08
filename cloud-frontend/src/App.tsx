@@ -4,6 +4,7 @@ import AllegoricalForm from './components/transformations/AllegoricalForm';
 import RoundTripForm from './components/transformations/RoundTripForm';
 import MaieuticForm from './components/transformations/MaieuticForm';
 import PersonalizerForm from './components/transformations/PersonalizerForm';
+import AIDetectorPanel from './components/transformations/AIDetectorPanel';
 import VoiceManager from './components/personalizer/VoiceManager';
 import LandingTutorial from './components/onboarding/LandingTutorial';
 import HelpPanel from './components/help/HelpPanel';
@@ -11,7 +12,7 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import QuantumAnalysis from './pages/QuantumAnalysis';
 import type { User } from '../../workers/shared/types';
 
-type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'personalizer' | 'voice-manager' | 'quantum-analysis' | 'admin';
+type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'personalizer' | 'ai-detector' | 'voice-manager' | 'quantum-analysis' | 'admin';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('landing');
@@ -233,7 +234,7 @@ function App() {
             flexWrap: 'wrap'
           }}>
             <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
-              {(['allegorical', 'round-trip', 'maieutic', 'personalizer', 'quantum-analysis'] as View[]).map(view => (
+              {(['allegorical', 'round-trip', 'maieutic', 'personalizer', 'ai-detector', 'quantum-analysis'] as View[]).map(view => (
                 <button
                   key={view}
                   className="btn"
@@ -251,6 +252,7 @@ function App() {
                   {view === 'round-trip' && '🔄 Round-Trip'}
                   {view === 'maieutic' && '🤔 Maieutic'}
                   {view === 'personalizer' && '🎨 Personalizer'}
+                  {view === 'ai-detector' && '🔍 AI Detector'}
                   {view === 'quantum-analysis' && '⚛️ Quantum Reading'}
                 </button>
               ))}
@@ -323,6 +325,8 @@ function App() {
               <MaieuticForm />
             ) : currentView === 'personalizer' ? (
               <PersonalizerForm />
+            ) : currentView === 'ai-detector' ? (
+              <AIDetectorPanel />
             ) : null}
           </div>
         )}
