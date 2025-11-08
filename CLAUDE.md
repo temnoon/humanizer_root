@@ -1,25 +1,23 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 6, 2025 - Token Allocation & Model Compatibility FIXED
-**Status**: ✅ **WORKING** | Minor Polish Needed (Thinking Text, Markdown Rendering)
-**Active Project**: ✨ Polish GPT-OSS Output & Add Markdown Rendering
+**Last Updated**: Nov 6, 2025 - Allegorical Polish Complete + Mailing List Notifications
+**Status**: ✅ **PRODUCTION READY** - All Polish Complete!
 **Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, @simplewebauthn 13.2.2
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: free)
 **Admin URL**: https://humanizer.com (login to access admin dashboard)
 
-**✨ POLISH NEEDED - Start Next Session Here:**
-1. **Thinking Text Cleanup** - GPT-OSS 20B outputs reasoning text before actual content
-2. **Markdown Rendering** - Output displays raw markdown instead of rendered HTML (tables, headings, etc.)
+**✅ Completed This Session - Allegorical Polish Complete:**
+- ✅ Thinking text cleanup (GPT-OSS prefix, Qwen/DeepSeek `<think>` tags)
+- ✅ Markdown rendering (tables, code blocks, headings, lists)
+- ✅ HTML tag cleanup (`<br>` conversion to markdown line breaks)
+- ✅ Copy buttons with sticky positioning (text + markdown)
+- ✅ Mailing list notifications (ntfy.sh push + MailChannels email)
+- ✅ All 6 Cloudflare models tested and working
+- Backend: Version 8bc94862-9c15-41c3-9f9e-8e23d52ae27e
+- Frontend: Version 5789e16c
 
-**✅ Completed This Session (Major Fixes):**
-- ✅ Per-stage token budgets (800-2000 tokens per stage, no more truncation!)
-- ✅ GPT-OSS 20B fully working (completion format + array extraction)
-- ✅ Llama 3.1 8B & 3.3 70B generating complete outputs
-- ✅ Model-agnostic LLM architecture (chat vs completion formats)
-- Backend: Version 6569b97f-ffa8-4929-9d1b-838eb1eb8934
-
-**Memory ID**: `f5a74570faf0f04d183f461c18a95f72dbd6c96fa6f3adcaa847c02b1796fb45`
+**Memory ID**: `fdbc4d35bebd89e92a6c741428091711611be53c2ecc47343d0eec91fa4f7312` ⚡ **START HERE**
 
 **Security Status**: ✅ **PRODUCTION-READY CRITERIA MET**
 - ✅ All dependencies current with no known vulnerabilities
@@ -28,10 +26,8 @@
 - ✅ esbuild security vulnerability (GHSA-67mh-4wv8-2f99) FIXED
 
 **Memory IDs**:
-- **✅ Token Allocation & Model Compat Fixed**: `f5a74570faf0f04d183f461c18a95f72dbd6c96fa6f3adcaa847c02b1796fb45` (Nov 6, 2025) ⚡ **START HERE**
-- Allegorical 500 Error Handoff: `10de45bbefa0784b8677382b4106a2e91f592f6c5efdcea03e4727e2d94af9c4` (Nov 6, 2025)
-- Allegorical Phase 2 Complete: `d29c5c8d1f51a05ae1d7162ea7f4d898805f8ba53f7651536f8838fd31d4da12` (Nov 6, 2025)
-- Allegorical Enhancements Plan: `81d03cad3cb96dff6e0d6c7ed138ba6f0365b38154b195253945947f84f25dd3` (Nov 6, 2025)
+- **✅ Allegorical Polish Complete + Notifications**: `fdbc4d35bebd89e92a6c741428091711611be53c2ecc47343d0eec91fa4f7312` (Nov 6, 2025) ⚡ **START HERE**
+- Token Allocation & Model Compat: `f5a74570faf0f04d183f461c18a95f72dbd6c96fa6f3adcaa847c02b1796fb45` (Nov 6, 2025)
 - QR UI Polish + Analytics: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f` (Nov 4, 2025)
 - Quantum Reading MVP: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8` (Nov 3, 2025)
 - WebAuthn final: `b6901c31ee71a60cf0460083fad732e4c90d170a28d251dfa519e7fa5c3ccf79` (Nov 3, 2025)
@@ -59,9 +55,9 @@
 4. Review security advisories for all major dependencies
 5. Schedule quarterly dependency reviews
 
-**Current Versions (Nov 3, 2025):**
+**Current Versions (Nov 6, 2025):**
 - Node.js: 22.21.1 (LTS, EOL: April 2027)
-- Wrangler: 4.45.3 (fixes esbuild vulnerability)
+- Wrangler: 4.46.0 (latest)
 - React: 19.2.0 (latest)
 - jose: 6.1.0 (latest, ESM-only)
 - TypeScript: 5.7.2 (latest)
@@ -84,10 +80,11 @@
 - ✅ Phase 1: Infrastructure (D1, KV, Durable Objects, auth)
 - ✅ Phase 2: Services (Allegorical, Round-trip, Maieutic) - 1,125 lines
 - ✅ Phase 3: Frontend (React, forms, onboarding) - 1,773 lines
-- ✅ Phase 4: Mailing list feature (signup modal, admin exports)
+- ✅ Phase 4: Mailing list (signup, admin exports, notifications)
 - ✅ Phase 5: Tiered user system (roles, quotas)
 - ✅ Phase 6: WebAuthn Touch ID auth (production ready)
 - ✅ Phase 7: Quantum Reading Analysis (density matrix evolution) - 1,900 lines
+- ✅ Phase 8: Allegorical Polish (thinking cleanup, markdown, copy buttons)
 - ✅ Deployment (Cloudflare Workers + Pages, custom domains)
 
 **NPE Features**:
@@ -272,11 +269,19 @@ Launch memory-agent and [task]
 
 ## 🎯 NEW FEATURES (Nov 3 Session)
 
-### ✅ Mailing List System
+### ✅ Mailing List System (Nov 6: Added Notifications)
 - **Frontend**: Modal with name/email/interest form
 - **Backend**: POST /mailing-list/signup (public), GET /export, GET /export/csv (admin only)
 - **Database**: `mailing_list` table (migration 0003)
-- **Status**: WORKING - 1 test signup, exports functional
+- **Notifications (NEW)**:
+  - **ntfy.sh Webhook**: Push notifications to admin on every signup
+  - **MailChannels Email**: Beautiful HTML welcome email to subscribers
+  - Topic: `npe-signups-secret-2024`
+  - Both async (non-blocking), graceful error handling
+- **Setup Required**:
+  - Install ntfy.sh app and subscribe to topic
+  - Add DNS records: SPF, domain lockdown, DMARC
+- **Status**: ✅ FULLY WORKING - Signups, exports, notifications all operational
 
 ### ✅ Admin Dashboard
 - **Access**: https://humanizer.com → Login → ⚙️ Admin button
@@ -330,6 +335,29 @@ Launch memory-agent and [task]
 - **Responsive Header**: Flex-wrap layout prevents button overflow on mobile
 - **Context-Aware Home Link**: "humanizer.com" logo links to landing (logged out) or allegorical (logged in)
 - **Status**: ✅ Live on humanizer.com - commits 09dc45f, 7e2b39b
+
+### ✅ Allegorical Polish (Nov 6 Session)
+**Backend Improvements:**
+- **Thinking Text Cleanup**: All 6 models now strip reasoning/thinking text
+  - GPT-OSS 20B: 3 pattern-matching strategies for prefix removal
+  - Qwen QwQ 32B: Enhanced `<think>` tag removal with malformed tag fallback
+  - DeepSeek R1: `<think>` tag removal working
+- **HTML Tag Cleanup**: Converts `<br>` → markdown line breaks, strips other HTML tags
+- **Model Testing**: All 6 Cloudflare models tested and working
+
+**Frontend Improvements:**
+- **Markdown Rendering**: Beautiful formatted output with tables, code blocks, headings, lists
+  - Libraries: react-markdown + remark-gfm
+  - 173 lines of comprehensive CSS styling
+  - Applied to all 6 output fields
+- **Copy Buttons**: Dual copy functionality with sticky positioning
+  - 📄 Copy Text (plain, markdown stripped)
+  - 📝 Copy Markdown (raw source)
+  - Sticky at top while scrolling
+  - Green checkmark feedback
+
+- **Status**: ✅ PRODUCTION READY - All polish complete
+- **Commits**: c25cd4b, 5419066, 1614f9f, d7651de7, 891a9a5
 
 ---
 
