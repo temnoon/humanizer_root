@@ -3,13 +3,15 @@ import { cloudAPI } from './lib/cloud-api-client';
 import AllegoricalForm from './components/transformations/AllegoricalForm';
 import RoundTripForm from './components/transformations/RoundTripForm';
 import MaieuticForm from './components/transformations/MaieuticForm';
+import PersonalizerForm from './components/transformations/PersonalizerForm';
+import VoiceManager from './components/personalizer/VoiceManager';
 import LandingTutorial from './components/onboarding/LandingTutorial';
 import HelpPanel from './components/help/HelpPanel';
 import AdminDashboard from './components/admin/AdminDashboard';
 import QuantumAnalysis from './pages/QuantumAnalysis';
 import type { User } from '../../workers/shared/types';
 
-type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'quantum-analysis' | 'admin';
+type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'personalizer' | 'voice-manager' | 'quantum-analysis' | 'admin';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('landing');
@@ -231,7 +233,7 @@ function App() {
             flexWrap: 'wrap'
           }}>
             <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
-              {(['allegorical', 'round-trip', 'maieutic', 'quantum-analysis'] as View[]).map(view => (
+              {(['allegorical', 'round-trip', 'maieutic', 'personalizer', 'quantum-analysis'] as View[]).map(view => (
                 <button
                   key={view}
                   className="btn"
@@ -248,10 +250,26 @@ function App() {
                   {view === 'allegorical' && '🎭 Allegorical'}
                   {view === 'round-trip' && '🔄 Round-Trip'}
                   {view === 'maieutic' && '🤔 Maieutic'}
+                  {view === 'personalizer' && '🎨 Personalizer'}
                   {view === 'quantum-analysis' && '⚛️ Quantum Reading'}
                 </button>
               ))}
             </div>
+            <button
+              className="btn"
+              onClick={() => setCurrentView('voice-manager')}
+              style={{
+                padding: 'var(--spacing-xs) var(--spacing-md)',
+                background: currentView === 'voice-manager' ? 'var(--accent-cyan)' : 'transparent',
+                color: currentView === 'voice-manager' ? 'white' : 'var(--accent-cyan)',
+                borderRadius: 'var(--radius-sm)',
+                border: currentView === 'voice-manager' ? 'none' : '1px solid var(--accent-cyan)',
+                fontSize: 'var(--text-sm)',
+                transition: 'all 0.2s'
+              }}
+            >
+              🎭 Manage Voices
+            </button>
             {user.role === 'admin' && (
               <button
                 className="btn"
@@ -283,6 +301,10 @@ function App() {
           />
         ) : currentView === 'quantum-analysis' ? (
           <QuantumAnalysis />
+        ) : currentView === 'voice-manager' ? (
+          <div className="content-wrapper">
+            <VoiceManager />
+          </div>
         ) : (
           <div className="content-wrapper">
             {showHelp ? (
@@ -299,6 +321,8 @@ function App() {
               <RoundTripForm />
             ) : currentView === 'maieutic' ? (
               <MaieuticForm />
+            ) : currentView === 'personalizer' ? (
+              <PersonalizerForm />
             ) : null}
           </div>
         )}

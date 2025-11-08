@@ -363,6 +363,199 @@ class CloudAPIClient {
       body: JSON.stringify(prefs)
     });
   }
+
+  // ========== PERSONALIZER (VOICE/STYLE MANAGEMENT) ==========
+
+  /**
+   * Upload a writing sample for voice discovery
+   */
+  async uploadWritingSample(
+    content: string,
+    source_type: 'manual' | 'chatgpt' | 'claude' | 'other',
+    metadata?: Record<string, any>
+  ): Promise<{ success: boolean; sample_id: number; word_count: number }> {
+    return this.fetch('/personal/samples/upload', {
+      method: 'POST',
+      body: JSON.stringify({ content, source_type, metadata })
+    });
+  }
+
+  /**
+   * Get user's writing samples
+   */
+  async getWritingSamples(): Promise<any[]> {
+    const response = await this.fetch<{ samples: any[]; total: number; total_words: number }>(
+      '/personal/samples',
+      { method: 'GET' }
+    );
+    return response.samples;
+  }
+
+  /**
+   * Delete a writing sample
+   */
+  async deleteWritingSample(sampleId: number): Promise<void> {
+    await this.fetch(`/personal/samples/${sampleId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  /**
+   * Get user's personal personas (discovered + custom)
+   */
+  async getPersonalPersonas(): Promise<any[]> {
+    const response = await this.fetch<{ personas: any[]; total: number; discovered: number; custom: number }>(
+      '/personal/personas',
+      { method: 'GET' }
+    );
+    return response.personas;
+  }
+
+  /**
+   * Create a custom persona
+   */
+  async createPersonalPersona(
+    name: string,
+    description?: string,
+    example_texts?: string[],
+    metadata?: Record<string, any>
+  ): Promise<any> {
+    const response = await this.fetch<{ persona: any }>('/personal/personas', {
+      method: 'POST',
+      body: JSON.stringify({ name, description, example_texts, metadata })
+    });
+    return response.persona;
+  }
+
+  /**
+   * Update a persona (name, description, metadata only)
+   */
+  async updatePersonalPersona(
+    personaId: number,
+    name?: string,
+    description?: string,
+    metadata?: Record<string, any>
+  ): Promise<any> {
+    const response = await this.fetch<{ persona: any }>(`/personal/personas/${personaId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ name, description, metadata })
+    });
+    return response.persona;
+  }
+
+  /**
+   * Delete a persona
+   */
+  async deletePersonalPersona(personaId: number): Promise<void> {
+    await this.fetch(`/personal/personas/${personaId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  /**
+   * Discover voices from writing samples (analyze + cluster)
+   */
+  async discoverPersonalVoices(
+    min_clusters: number = 3,
+    max_clusters: number = 7
+  ): Promise<any> {
+    return this.fetch('/personal/personas/discover-voices', {
+      method: 'POST',
+      body: JSON.stringify({ min_clusters, max_clusters })
+    });
+  }
+
+  /**
+   * Get user's personal styles (discovered + custom)
+   */
+  async getPersonalStyles(): Promise<any[]> {
+    const response = await this.fetch<{ styles: any[]; total: number; discovered: number; custom: number }>(
+      '/personal/styles',
+      { method: 'GET' }
+    );
+    return response.styles;
+  }
+
+  /**
+   * Create a custom style
+   */
+  async createPersonalStyle(
+    name: string,
+    description?: string,
+    formality_score?: number,
+    complexity_score?: number,
+    tone_markers?: string[],
+    example_texts?: string[],
+    metadata?: Record<string, any>
+  ): Promise<any> {
+    const response = await this.fetch<{ style: any }>('/personal/styles', {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        description,
+        formality_score,
+        complexity_score,
+        tone_markers,
+        example_texts,
+        metadata
+      })
+    });
+    return response.style;
+  }
+
+  /**
+   * Update a style
+   */
+  async updatePersonalStyle(
+    styleId: number,
+    updates: {
+      name?: string;
+      description?: string;
+      formality_score?: number;
+      complexity_score?: number;
+      tone_markers?: string[];
+      metadata?: Record<string, any>;
+    }
+  ): Promise<any> {
+    const response = await this.fetch<{ style: any }>(`/personal/styles/${styleId}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates)
+    });
+    return response.style;
+  }
+
+  /**
+   * Delete a style
+   */
+  async deletePersonalStyle(styleId: number): Promise<void> {
+    await this.fetch(`/personal/styles/${styleId}`, {
+      method: 'DELETE'
+    });
+  }
+
+  /**
+   * Transform text using personal persona and/or style
+   */
+  async transformWithPersonalizer(
+    text: string,
+    persona_id?: number,
+    style_id?: number,
+    model?: string
+  ): Promise<any> {
+    return this.fetch('/transformations/personalizer', {
+      method: 'POST',
+      body: JSON.stringify({ text, persona_id, style_id, model })
+    });
+  }
+
+  /**
+   * Get personalizer transformation history
+   */
+  async getPersonalizerHistory(limit: number = 10, offset: number = 0): Promise<any> {
+    return this.fetch(`/transformations/personalizer/history?limit=${limit}&offset=${offset}`, {
+      method: 'GET'
+    });
+  }
 }
 
 // ========== TYPES ==========
