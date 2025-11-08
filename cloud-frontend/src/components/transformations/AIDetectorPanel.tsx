@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { cloudAPI } from '../../lib/cloud-api-client';
 
 interface DetectionSignals {
@@ -130,17 +131,30 @@ export default function AIDetectorPanel() {
   const highlightTellWords = (inputText: string, tellWords: TellWord[]) => {
     if (!tellWords || tellWords.length === 0) return inputText;
 
-    let highlightedText = inputText;
+    // Escape HTML first to prevent XSS
+    const escapeHtml = (text: string) => {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    };
+
+    let highlightedText = escapeHtml(inputText);
     const sortedTellWords = [...tellWords].sort((a, b) => b.word.length - a.word.length);
 
     sortedTellWords.forEach(tw => {
-      const regex = new RegExp(`\\b${tw.word.replace(/'/g, "\\'")}\\b`, 'gi');
+      // Escape the tell-word for safe regex matching
+      const escapedWord = tw.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/'/g, "\\'");
+      const regex = new RegExp(`\\b${escapedWord}\\b`, 'gi');
       highlightedText = highlightedText.replace(regex, (match) =>
         `<mark style="background: var(--accent-purple); color: var(--bg-primary); padding: 2px 4px; border-radius: 3px;">${match}</mark>`
       );
     });
 
-    return highlightedText;
+    // Sanitize the final HTML with DOMPurify to ensure no malicious code
+    return DOMPurify.sanitize(highlightedText, {
+      ALLOWED_TAGS: ['mark'],
+      ALLOWED_ATTR: ['style']
+    });
   };
 
   return (

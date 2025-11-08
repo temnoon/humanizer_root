@@ -10,9 +10,75 @@ export interface AuthContext {
 }
 
 /**
- * Hash password using Web Crypto API (SHA-256)
+ * Generate random salt for password hashing
+ */
+function generateSalt(): Uint8Array {
+  return crypto.getRandomValues(new Uint8Array(16));
+}
+
+/**
+ * Convert Uint8Array to hex string
+ */
+function uint8ArrayToHex(array: Uint8Array): string {
+  return Array.from(array)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Convert hex string to Uint8Array
+ */
+function hexToUint8Array(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+  }
+  return bytes;
+}
+
+/**
+ * Hash password using PBKDF2 with random salt (secure)
+ * Format: algorithm$iterations$salt$hash
+ * Example: pbkdf2$100000$1a2b3c4d...$5e6f7g8h...
  */
 export async function hashPassword(password: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const passwordData = encoder.encode(password);
+  const salt = generateSalt();
+  const iterations = 100000; // OWASP recommended minimum
+
+  // Import password as key material
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    passwordData,
+    { name: 'PBKDF2' },
+    false,
+    ['deriveBits']
+  );
+
+  // Derive key using PBKDF2
+  const derivedBits = await crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: iterations,
+      hash: 'SHA-256'
+    },
+    keyMaterial,
+    256 // 32 bytes
+  );
+
+  const hash = new Uint8Array(derivedBits);
+
+  // Return format: algorithm$iterations$salt$hash
+  return `pbkdf2$${iterations}$${uint8ArrayToHex(salt)}$${uint8ArrayToHex(hash)}`;
+}
+
+/**
+ * Legacy SHA-256 hash (for backward compatibility during migration)
+ * @deprecated Use hashPassword() instead
+ */
+async function legacyHashPassword(password: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(password);
   const hash = await crypto.subtle.digest('SHA-256', data);
@@ -22,11 +88,61 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /**
- * Verify password against hash
+ * Verify password against hash (supports both PBKDF2 and legacy SHA-256)
  */
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  const passwordHash = await hashPassword(password);
-  return passwordHash === hash;
+export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
+  // Check if it's the new PBKDF2 format
+  if (storedHash.startsWith('pbkdf2$')) {
+    const parts = storedHash.split('$');
+    if (parts.length !== 4) {
+      return false;
+    }
+
+    const iterations = parseInt(parts[1], 10);
+    const salt = hexToUint8Array(parts[2]);
+    const storedHashBytes = hexToUint8Array(parts[3]);
+
+    // Re-derive the key with the same parameters
+    const encoder = new TextEncoder();
+    const passwordData = encoder.encode(password);
+
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      passwordData,
+      { name: 'PBKDF2' },
+      false,
+      ['deriveBits']
+    );
+
+    const derivedBits = await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: iterations,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      256
+    );
+
+    const derivedHash = new Uint8Array(derivedBits);
+
+    // Constant-time comparison
+    if (derivedHash.length !== storedHashBytes.length) {
+      return false;
+    }
+
+    let result = 0;
+    for (let i = 0; i < derivedHash.length; i++) {
+      result |= derivedHash[i] ^ storedHashBytes[i];
+    }
+
+    return result === 0;
+  }
+
+  // Legacy SHA-256 format (backward compatibility)
+  const legacyHash = await legacyHashPassword(password);
+  return legacyHash === storedHash;
 }
 
 /**

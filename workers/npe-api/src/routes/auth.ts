@@ -38,17 +38,30 @@ authRoutes.post('/login', async (c) => {
     }
 
     // Verify password
-    const isValidPassword = await verifyPassword(password, userRow.password_hash as string);
+    const storedHash = userRow.password_hash as string;
+    const isValidPassword = await verifyPassword(password, storedHash);
 
     if (!isValidPassword) {
       return c.json({ error: 'Invalid email or password' }, 401);
     }
 
-    // Update last_login
+    // Check if password needs migration (legacy SHA-256 format)
+    const needsMigration = !storedHash.startsWith('pbkdf2$');
+
+    // Update last_login and migrate password if needed
     const now = Date.now();
-    await c.env.DB.prepare(
-      'UPDATE users SET last_login = ? WHERE id = ?'
-    ).bind(now, userRow.id).run();
+    if (needsMigration) {
+      // Re-hash password with secure PBKDF2
+      const newHash = await hashPassword(password);
+      await c.env.DB.prepare(
+        'UPDATE users SET last_login = ?, password_hash = ? WHERE id = ?'
+      ).bind(now, newHash, userRow.id).run();
+      console.log(`[Security] Migrated password for user ${email} to PBKDF2`);
+    } else {
+      await c.env.DB.prepare(
+        'UPDATE users SET last_login = ? WHERE id = ?'
+      ).bind(now, userRow.id).run();
+    }
 
     // Generate JWT token
     const token = await generateToken(
