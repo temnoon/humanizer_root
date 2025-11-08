@@ -33,7 +33,7 @@ export interface NPEStyle {
   style_prompt: string;
 }
 
-export type TransformationType = 'allegorical' | 'round_trip' | 'maieutic';
+export type TransformationType = 'allegorical' | 'round_trip' | 'maieutic' | 'personalizer';
 
 export interface Transformation {
   id: string;
@@ -183,6 +183,129 @@ export interface MailingListEntry {
   email: string;
   interest_comment?: string;
   created_at: string;
+}
+
+// Personalizer types
+
+export type WritingSampleSource = 'manual' | 'chatgpt' | 'claude' | 'other';
+
+export interface WritingSample {
+  id: number;
+  user_id: number;
+  source_type: WritingSampleSource;
+  content: string;
+  word_count: number;
+  custom_metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export interface PersonalPersona {
+  id: number;
+  user_id: number;
+  name: string;
+  description?: string;
+  auto_discovered: boolean;
+  embedding_signature?: number[]; // Representative embedding vector
+  example_texts?: string[];
+  custom_metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalStyle {
+  id: number;
+  user_id: number;
+  name: string;
+  description?: string;
+  auto_discovered: boolean;
+  formality_score?: number; // 0.0-1.0
+  complexity_score?: number; // 0.0-1.0
+  avg_sentence_length?: number;
+  vocab_diversity?: number; // Type-token ratio
+  tone_markers?: string[];
+  example_texts?: string[];
+  custom_metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonalizerTransformation {
+  id: number;
+  user_id: number;
+  persona_id?: number;
+  style_id?: number;
+  input_text: string;
+  output_text: string;
+  model_used: string;
+  tokens_used: number;
+  semantic_similarity?: number;
+  created_at: string;
+}
+
+// API Request/Response types for Personalizer
+
+export interface UploadWritingSampleRequest {
+  content: string;
+  source_type: WritingSampleSource;
+  metadata?: Record<string, any>;
+}
+
+export interface UploadWritingSampleResponse {
+  success: boolean;
+  sample_id: number;
+  word_count: number;
+}
+
+export interface CreatePersonaRequest {
+  name: string;
+  description?: string;
+  example_texts?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface CreateStyleRequest {
+  name: string;
+  description?: string;
+  formality_score?: number;
+  complexity_score?: number;
+  tone_markers?: string[];
+  example_texts?: string[];
+  metadata?: Record<string, any>;
+}
+
+export interface PersonaResponse {
+  persona: PersonalPersona;
+}
+
+export interface StyleResponse {
+  style: PersonalStyle;
+}
+
+export interface DiscoverVoicesRequest {
+  min_clusters?: number; // Default: 3
+  max_clusters?: number; // Default: 7
+}
+
+export interface DiscoverVoicesResponse {
+  personas_discovered: number;
+  styles_discovered: number;
+  personas: PersonalPersona[];
+  styles: PersonalStyle[];
+  total_words_analyzed: number;
+}
+
+export interface PersonalizerTransformRequest {
+  text: string;
+  persona_id?: number;
+  style_id?: number;
+}
+
+export interface PersonalizerTransformResponse {
+  transformation_id: number;
+  output_text: string;
+  semantic_similarity: number;
+  tokens_used: number;
+  model_used: string;
 }
 
 // Cloudflare Workers bindings
