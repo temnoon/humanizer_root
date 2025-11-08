@@ -203,6 +203,12 @@ export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
             </div>
           </div>
         </div>
+
+        {/* Mailing List Modal */}
+        <MailingListModal
+          isOpen={showMailingListModal}
+          onClose={() => setShowMailingListModal(false)}
+        />
       </div>
     );
   }
