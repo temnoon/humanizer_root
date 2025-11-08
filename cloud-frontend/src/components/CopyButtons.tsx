@@ -82,6 +82,7 @@ export default function CopyButtons({ markdownContent, label }: CopyButtonsProps
 
   return (
     <div
+      className="copy-button-group"
       style={{
         position: 'sticky',
         top: 0,
@@ -89,9 +90,6 @@ export default function CopyButtons({ markdownContent, label }: CopyButtonsProps
         background: 'var(--bg-secondary)',
         borderBottom: '1px solid var(--border-color)',
         padding: 'var(--spacing-sm)',
-        display: 'flex',
-        gap: 'var(--spacing-sm)',
-        alignItems: 'center',
         marginBottom: 'var(--spacing-md)'
       }}
     >
@@ -108,14 +106,7 @@ export default function CopyButtons({ markdownContent, label }: CopyButtonsProps
 
       <button
         onClick={handleCopyText}
-        className="btn btn-secondary"
-        style={{
-          padding: 'var(--spacing-xs) var(--spacing-sm)',
-          fontSize: 'var(--text-sm)',
-          background: copiedState === 'text' ? 'var(--accent-green)' : undefined,
-          color: copiedState === 'text' ? 'white' : undefined,
-          border: copiedState === 'text' ? 'none' : undefined
-        }}
+        className="copy-button copy-button-text"
         title="Copy as plain text (no formatting)"
       >
         {copiedState === 'text' ? '✓ Copied!' : '📄 Copy Text'}
@@ -123,14 +114,7 @@ export default function CopyButtons({ markdownContent, label }: CopyButtonsProps
 
       <button
         onClick={handleCopyMarkdown}
-        className="btn btn-secondary"
-        style={{
-          padding: 'var(--spacing-xs) var(--spacing-sm)',
-          fontSize: 'var(--text-sm)',
-          background: copiedState === 'markdown' ? 'var(--accent-green)' : undefined,
-          color: copiedState === 'markdown' ? 'white' : undefined,
-          border: copiedState === 'markdown' ? 'none' : undefined
-        }}
+        className="copy-button copy-button-markdown"
         title="Copy raw markdown source"
       >
         {copiedState === 'markdown' ? '✓ Copied!' : '📝 Copy Markdown'}

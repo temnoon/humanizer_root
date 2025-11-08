@@ -4,6 +4,8 @@ import remarkGfm from 'remark-gfm';
 import { cloudAPI, type ModelInfo } from '../../lib/cloud-api-client';
 import type { NPEPersona, NPENamespace, NPEStyle, AllegoricalProjectionResponse } from '../../../../workers/shared/types';
 import CopyButtons from '../CopyButtons';
+import InputCopyButton from '../InputCopyButton';
+import { useWakeLock } from '../../hooks/useWakeLock';
 
 export default function AllegoricalForm() {
   const [text, setText] = useState('');
@@ -21,6 +23,9 @@ export default function AllegoricalForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AllegoricalProjectionResponse | null>(null);
+
+  // Wake Lock: Keep screen awake during transformation (5 min max for battery safety)
+  useWakeLock(isLoading, { maxDuration: 5 * 60 * 1000, debug: false });
 
   // Load configuration on mount
   useEffect(() => {
@@ -91,13 +96,19 @@ export default function AllegoricalForm() {
       <form onSubmit={handleSubmit} style={{ marginBottom: 'var(--spacing-2xl)' }}>
         {/* Text Input */}
         <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-          <label style={{
-            display: 'block',
-            marginBottom: 'var(--spacing-sm)',
-            fontWeight: 500
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 'var(--spacing-sm)'
           }}>
-            Narrative Text
-          </label>
+            <label style={{
+              fontWeight: 500
+            }}>
+              Narrative Text
+            </label>
+            <InputCopyButton text={text} label="Copy Input" />
+          </div>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}

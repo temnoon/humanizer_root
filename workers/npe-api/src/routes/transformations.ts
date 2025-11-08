@@ -6,6 +6,7 @@ import { RoundTripTranslationService } from '../services/round_trip';
 import { MaieuticDialogueService } from '../services/maieutic';
 import { transformWithPersonalizer, getTransformationHistory } from '../services/personalizer';
 import { checkQuota, updateUsage } from '../middleware/tier-check';
+import { saveTransformationToHistory, updateTransformationHistory } from '../utils/transformation-history-helper';
 import type {
   Env,
   AllegoricalProjectionRequest,
@@ -88,6 +89,23 @@ transformationRoutes.post('/allegorical', requireAuth(), async (c) => {
       return c.json({ error: `Invalid style: ${style}` }, 400);
     }
 
+    // Generate transformation ID
+    const transformationId = crypto.randomUUID();
+
+    // Save to history before starting (status: pending)
+    try {
+      await saveTransformationToHistory(c.env.DB, {
+        id: transformationId,
+        user_id: auth.userId,
+        transformation_type: 'allegorical',
+        input_text: text,
+        input_params: { persona, namespace, style, model: selectedModel, length_preference: selectedLength }
+      });
+    } catch (err) {
+      console.error('[Transformation History] Failed to save:', err);
+      // Continue with transformation even if history save fails
+    }
+
     // Create service
     const service = new AllegoricalProjectionService(
       c.env,
@@ -114,16 +132,43 @@ transformationRoutes.post('/allegorical', requireAuth(), async (c) => {
     );
 
     // Run transformation
-    const result = await service.transform(text);
+    try {
+      const result = await service.transform(text);
 
-    const response: AllegoricalProjectionResponse = {
-      transformation_id: result.transformation_id,
-      final_projection: result.final_projection,
-      reflection: result.reflection,
-      stages: result.stages
-    };
+      const response: AllegoricalProjectionResponse = {
+        transformation_id: result.transformation_id,
+        final_projection: result.final_projection,
+        reflection: result.reflection,
+        stages: result.stages
+      };
 
-    return c.json(response, 200);
+      // Update history on success
+      try {
+        await updateTransformationHistory(c.env.DB, {
+          id: transformationId,
+          user_id: auth.userId,
+          status: 'completed',
+          output_data: response
+        });
+      } catch (err) {
+        console.error('[Transformation History] Failed to update:', err);
+      }
+
+      return c.json(response, 200);
+    } catch (transformError) {
+      // Update history on failure
+      try {
+        await updateTransformationHistory(c.env.DB, {
+          id: transformationId,
+          user_id: auth.userId,
+          status: 'failed',
+          error_message: transformError instanceof Error ? transformError.message : 'Transformation failed'
+        });
+      } catch (err) {
+        console.error('[Transformation History] Failed to update error:', err);
+      }
+      throw transformError;
+    }
   } catch (error) {
     console.error('Allegorical projection error:', error);
     return c.json({ error: 'Internal server error' }, 500);
@@ -156,23 +201,66 @@ transformationRoutes.post('/round-trip', requireAuth(), async (c) => {
       }, 400);
     }
 
+    // Generate transformation ID
+    const transformationId = crypto.randomUUID();
+
+    // Save to history before starting
+    try {
+      await saveTransformationToHistory(c.env.DB, {
+        id: transformationId,
+        user_id: auth.userId,
+        transformation_type: 'round-trip',
+        input_text: text,
+        input_params: { intermediate_language }
+      });
+    } catch (err) {
+      console.error('[Transformation History] Failed to save:', err);
+    }
+
     // Create service
     const service = new RoundTripTranslationService(c.env);
 
     // Run round-trip
-    const result = await service.performRoundTrip(text, intermediate_language, auth.userId);
+    try {
+      const result = await service.performRoundTrip(text, intermediate_language, auth.userId);
 
-    const response: RoundTripTranslationResponse = {
-      transformation_id: result.transformation_id,
-      forward_translation: result.forward_translation,
-      backward_translation: result.backward_translation,
-      semantic_drift: result.semantic_drift,
-      preserved_elements: result.preserved_elements,
-      lost_elements: result.lost_elements,
-      gained_elements: result.gained_elements
-    };
+      const response: RoundTripTranslationResponse = {
+        transformation_id: result.transformation_id,
+        forward_translation: result.forward_translation,
+        backward_translation: result.backward_translation,
+        semantic_drift: result.semantic_drift,
+        preserved_elements: result.preserved_elements,
+        lost_elements: result.lost_elements,
+        gained_elements: result.gained_elements
+      };
 
-    return c.json(response, 200);
+      // Update history on success
+      try {
+        await updateTransformationHistory(c.env.DB, {
+          id: transformationId,
+          user_id: auth.userId,
+          status: 'completed',
+          output_data: response
+        });
+      } catch (err) {
+        console.error('[Transformation History] Failed to update:', err);
+      }
+
+      return c.json(response, 200);
+    } catch (transformError) {
+      // Update history on failure
+      try {
+        await updateTransformationHistory(c.env.DB, {
+          id: transformationId,
+          user_id: auth.userId,
+          status: 'failed',
+          error_message: transformError instanceof Error ? transformError.message : 'Transformation failed'
+        });
+      } catch (err) {
+        console.error('[Transformation History] Failed to update error:', err);
+      }
+      throw transformError;
+    }
   } catch (error) {
     console.error('Round-trip translation error:', error);
     return c.json({ error: 'Internal server error' }, 500);

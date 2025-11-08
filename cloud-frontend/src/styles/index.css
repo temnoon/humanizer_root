@@ -536,3 +536,73 @@ pre {
   border-radius: var(--radius-md);
   margin: var(--spacing-md) 0;
 }
+
+/* ===================================
+   Copy Buttons - Mobile-Optimized
+   =================================== */
+
+.copy-button-group {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+
+  /* Mobile touch optimization */
+  min-height: 44px; /* Apple's recommended minimum touch target */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.copy-button:hover {
+  background: var(--accent-purple-alpha-10);
+  border-color: var(--accent-purple);
+  color: var(--accent-purple);
+}
+
+.copy-button:active {
+  transform: scale(0.98);
+  background: var(--accent-purple-alpha-20);
+}
+
+/* Success state styling */
+.copy-button:has(:contains("✓")) {
+  background: rgba(52, 211, 153, 0.1);
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+/* Sticky positioning for textareas */
+.copy-button-sticky {
+  position: sticky;
+  top: var(--spacing-xs);
+  right: var(--spacing-xs);
+  z-index: 10;
+  align-self: flex-end;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 640px) {
+  .copy-button {
+    font-size: var(--text-xs);
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+
+  .copy-button-group {
+    width: 100%;
+  }
+}

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 import { cloudAPI } from '../../lib/cloud-api-client';
+import InputCopyButton from '../InputCopyButton';
+import { useWakeLock } from '../../hooks/useWakeLock';
 
 interface DetectionSignals {
   burstiness: number;
@@ -43,6 +45,9 @@ export default function AIDetectorPanel() {
   const [useAPI, setUseAPI] = useState(false);
   const [apiAvailable, setApiAvailable] = useState(false);
   const [userTier, setUserTier] = useState('free');
+
+  // Wake Lock: Keep screen awake during detection (5 min max for battery safety)
+  useWakeLock(loading, { maxDuration: 5 * 60 * 1000, debug: false });
 
   // Load API status on mount
   useEffect(() => {
@@ -170,22 +175,28 @@ export default function AIDetectorPanel() {
 
       {/* Input Area */}
       <div style={{ marginBottom: '20px' }}>
-        <label style={{
-          display: 'block',
-          marginBottom: '8px',
-          fontWeight: 500,
-          color: 'var(--text-primary)'
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '8px'
         }}>
-          Text to Analyze
-          <span style={{
-            color: 'var(--text-secondary)',
-            fontWeight: 'normal',
-            marginLeft: '8px',
-            fontSize: '0.9em'
+          <label style={{
+            fontWeight: 500,
+            color: 'var(--text-primary)'
           }}>
-            ({wordCount} words, minimum 20)
-          </span>
-        </label>
+            Text to Analyze
+            <span style={{
+              color: 'var(--text-secondary)',
+              fontWeight: 'normal',
+              marginLeft: '8px',
+              fontSize: '0.9em'
+            }}>
+              ({wordCount} words, minimum 20)
+            </span>
+          </label>
+          <InputCopyButton text={text} label="Copy Input" />
+        </div>
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}

@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import type { Env } from '../../shared/types';
 import { requireAuth, getAuthContext } from '../middleware/auth';
 import { detectAI, explainResult, HybridDetectionResult } from '../services/ai-detection/hybrid-orchestrator';
+import { saveTransformationToHistory, updateTransformationHistory } from '../utils/transformation-history-helper';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -91,45 +92,88 @@ app.post('/detect', requireAuth(), async (c) => {
       return c.json({ error: 'Text must be at least 20 words for accurate detection' }, 400);
     }
 
+    // Generate transformation ID
+    const transformationId = crypto.randomUUID();
+
+    // Save to history before starting
+    try {
+      await saveTransformationToHistory(c.env.DB, {
+        id: transformationId,
+        user_id: auth.userId,
+        transformation_type: 'ai-detection',
+        input_text: trimmedText,
+        input_params: { useAPI }
+      });
+    } catch (err) {
+      console.error('[Transformation History] Failed to save:', err);
+    }
+
     // Get GPTZero API key from environment (optional)
     const apiKey = c.env.GPTZERO_API_KEY;
 
     console.log('[AI Detection] Starting detection, words:', words.length, 'useAPI:', useAPI, 'tier:', auth.role);
 
     // Run detection
-    const result: HybridDetectionResult = await detectAI(trimmedText, {
-      useAPI: useAPI === true,
-      userTier: auth.role,
-      apiKey: apiKey
-    });
+    try {
+      const result: HybridDetectionResult = await detectAI(trimmedText, {
+        useAPI: useAPI === true,
+        userTier: auth.role,
+        apiKey: apiKey
+      });
 
-    console.log('[AI Detection] Result:', result.verdict, result.confidence, result.method);
+      console.log('[AI Detection] Result:', result.verdict, result.confidence, result.method);
 
-    // Format response with detailed breakdown
-    const response = {
-      verdict: result.verdict,
-      confidence: result.confidence,
-      explanation: explainResult(result),
-      method: result.method,
-      signals: result.local?.signals || {
-        burstiness: 0,
-        tellWordScore: 0,
-        readabilityPattern: 0,
-        lexicalDiversity: 0
-      },
-      metrics: result.local?.metrics || {
-        fleschReadingEase: 0,
-        gunningFog: 0,
-        wordCount: words.length,
-        sentenceCount: 0,
-        avgSentenceLength: 0
-      },
-      detectedTellWords: result.local?.detectedTellWords || [],
-      processingTimeMs: result.processingTimeMs,
-      message: result.message
-    };
+      // Format response with detailed breakdown
+      const response = {
+        verdict: result.verdict,
+        confidence: result.confidence,
+        explanation: explainResult(result),
+        method: result.method,
+        signals: result.local?.signals || {
+          burstiness: 0,
+          tellWordScore: 0,
+          readabilityPattern: 0,
+          lexicalDiversity: 0
+        },
+        metrics: result.local?.metrics || {
+          fleschReadingEase: 0,
+          gunningFog: 0,
+          wordCount: words.length,
+          sentenceCount: 0,
+          avgSentenceLength: 0
+        },
+        detectedTellWords: result.local?.detectedTellWords || [],
+        processingTimeMs: result.processingTimeMs,
+        message: result.message
+      };
 
-    return c.json(response);
+      // Update history on success
+      try {
+        await updateTransformationHistory(c.env.DB, {
+          id: transformationId,
+          user_id: auth.userId,
+          status: 'completed',
+          output_data: response
+        });
+      } catch (err) {
+        console.error('[Transformation History] Failed to update:', err);
+      }
+
+      return c.json(response);
+    } catch (detectError) {
+      // Update history on failure
+      try {
+        await updateTransformationHistory(c.env.DB, {
+          id: transformationId,
+          user_id: auth.userId,
+          status: 'failed',
+          error_message: detectError instanceof Error ? detectError.message : 'Detection failed'
+        });
+      } catch (err) {
+        console.error('[Transformation History] Failed to update error:', err);
+      }
+      throw detectError;
+    }
   } catch (error) {
     console.error('AI detection error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';

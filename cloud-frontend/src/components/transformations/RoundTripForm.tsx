@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { cloudAPI } from '../../lib/cloud-api-client';
 import type { RoundTripTranslationResponse } from '../../../../workers/shared/types';
+import InputCopyButton from '../InputCopyButton';
+import { useWakeLock } from '../../hooks/useWakeLock';
 
 export default function RoundTripForm() {
   const [text, setText] = useState('');
@@ -10,6 +12,9 @@ export default function RoundTripForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<RoundTripTranslationResponse | null>(null);
+
+  // Wake Lock: Keep screen awake during transformation (5 min max for battery safety)
+  useWakeLock(isLoading, { maxDuration: 5 * 60 * 1000, debug: false });
 
   // Load languages on mount
   useEffect(() => {
@@ -57,13 +62,19 @@ export default function RoundTripForm() {
       <form onSubmit={handleSubmit} style={{ marginBottom: 'var(--spacing-2xl)' }}>
         {/* Text Input */}
         <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-          <label style={{
-            display: 'block',
-            marginBottom: 'var(--spacing-sm)',
-            fontWeight: 500
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 'var(--spacing-sm)'
           }}>
-            Text to Translate
-          </label>
+            <label style={{
+              fontWeight: 500
+            }}>
+              Text to Translate
+            </label>
+            <InputCopyButton text={text} label="Copy Input" />
+          </div>
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}

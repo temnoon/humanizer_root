@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { cloudAPI } from '../../lib/cloud-api-client';
 import type { MaieuticRespondResponse } from '../../../../workers/shared/types';
+import InputCopyButton from '../InputCopyButton';
+import { useWakeLock } from '../../hooks/useWakeLock';
 
 interface DialogueTurn {
   question: string;
@@ -22,6 +24,9 @@ export default function MaieuticForm() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Wake Lock: Keep screen awake during dialogue (5 min max for battery safety)
+  useWakeLock(isLoading, { maxDuration: 5 * 60 * 1000, debug: false });
 
   const depthLabels = [
     'Surface Level',
@@ -115,13 +120,19 @@ export default function MaieuticForm() {
       {!sessionId && !isComplete && (
         <form onSubmit={handleStart} style={{ marginBottom: 'var(--spacing-2xl)' }}>
           <div style={{ marginBottom: 'var(--spacing-lg)' }}>
-            <label style={{
-              display: 'block',
-              marginBottom: 'var(--spacing-sm)',
-              fontWeight: 500
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 'var(--spacing-sm)'
             }}>
-              Narrative Text
-            </label>
+              <label style={{
+                fontWeight: 500
+              }}>
+                Narrative Text
+              </label>
+              <InputCopyButton text={text} label="Copy Input" />
+            </div>
             <textarea
               value={text}
               onChange={(e) => setText(e.target.value)}
