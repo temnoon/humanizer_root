@@ -154,7 +154,7 @@ export default function VoiceManager() {
                       overflow: 'hidden',
                       textOverflow: 'ellipsis'
                     }}>
-                      {sample.content.substring(0, 200)}...
+                      {(sample as any).content_preview || 'No preview available'}
                     </div>
                   </div>
                   <button
