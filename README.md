@@ -1,4 +1,4 @@
-# Humanizer - Transformation via Recursive Measurement
+# Humanizer - Narrative Transformation Engine
 
 **Making you smarter by helping you know your actual subjective self.**
 
