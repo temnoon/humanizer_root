@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
 import { cloudAPI } from '../../lib/cloud-api-client';
 import InputCopyButton from '../InputCopyButton';
+import SpeechToText from '../SpeechToText';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import { useTransformationState } from '../../contexts/TransformationStateContext';
 
@@ -175,7 +176,7 @@ export default function AIDetectorPanel() {
         <textarea
           value={text}
           onChange={(e) => updateAIDetector({ text: e.target.value })}
-          placeholder="Paste text here to check if it was written by AI..."
+          placeholder="Paste text here or use voice input..."
           style={{
             width: '100%',
             minHeight: '150px',
@@ -187,14 +188,34 @@ export default function AIDetectorPanel() {
             background: 'var(--bg-secondary)',
             color: 'var(--text-primary)',
             resize: 'vertical',
-            fontFamily: 'inherit'
+            fontFamily: 'inherit',
+            marginBottom: '8px'
           }}
         />
-        {!isValidLength && wordCount > 0 && (
-          <p style={{ color: 'var(--error)', fontSize: '0.9em', marginTop: '4px' }}>
-            Need {20 - wordCount} more words for accurate detection
-          </p>
-        )}
+
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          flexWrap: 'wrap'
+        }}>
+          {!isValidLength && wordCount > 0 ? (
+            <p style={{ color: 'var(--error)', fontSize: '0.9em', margin: 0 }}>
+              Need {20 - wordCount} more words for accurate detection
+            </p>
+          ) : (
+            <div />
+          )}
+
+          <SpeechToText
+            onTranscript={(transcript) => {
+              const newText = text ? `${text} ${transcript}` : transcript;
+              updateAIDetector({ text: newText });
+            }}
+            buttonLabel="🎤 Voice"
+          />
+        </div>
       </div>
 
       {/* Options */}

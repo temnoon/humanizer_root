@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { cloudAPI } from '../../lib/cloud-api-client';
 import InputCopyButton from '../InputCopyButton';
+import SpeechToText from '../SpeechToText';
+import TextToSpeech from '../TextToSpeech';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import { useTransformationState } from '../../contexts/TransformationStateContext';
 
@@ -95,13 +97,15 @@ export default function RoundTripForm() {
       </div>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: 'var(--spacing-2xl)' }}>
-        {/* Text Input */}
+        {/* Text Input with Voice */}
         <div style={{ marginBottom: 'var(--spacing-lg)' }}>
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: 'var(--spacing-sm)'
+            marginBottom: 'var(--spacing-sm)',
+            flexWrap: 'wrap',
+            gap: 'var(--spacing-sm)'
           }}>
             <label style={{
               fontWeight: 500
@@ -113,7 +117,7 @@ export default function RoundTripForm() {
           <textarea
             value={text}
             onChange={(e) => updateRoundTrip({ text: e.target.value })}
-            placeholder="Enter your text here..."
+            placeholder="Enter your text here or use voice input..."
             required
             style={{
               width: '100%',
@@ -123,15 +127,30 @@ export default function RoundTripForm() {
               border: '1px solid var(--border-color)',
               borderRadius: 'var(--radius-md)',
               color: 'var(--text-primary)',
-              resize: 'vertical'
+              resize: 'vertical',
+              marginBottom: 'var(--spacing-sm)'
             }}
           />
           <div style={{
-            fontSize: '0.875rem',
-            color: 'var(--text-tertiary)',
-            marginTop: 'var(--spacing-xs)'
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 'var(--spacing-md)',
+            flexWrap: 'wrap'
           }}>
-            {text.length} / 5,000 characters
+            <div style={{
+              fontSize: '0.875rem',
+              color: 'var(--text-tertiary)'
+            }}>
+              {text.length} / 5,000 characters
+            </div>
+            <SpeechToText
+              onTranscript={(transcript) => {
+                const newText = text ? `${text} ${transcript}` : transcript;
+                updateRoundTrip({ text: newText });
+              }}
+              buttonLabel="🎤 Voice"
+            />
           </div>
         </div>
 
@@ -269,9 +288,19 @@ export default function RoundTripForm() {
 
             {/* Backward Translation */}
             <div className="card">
-              <h4 style={{ color: 'var(--accent-purple)' }}>
-                Backward Translation ({language.charAt(0).toUpperCase() + language.slice(1)} → English)
-              </h4>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: 'var(--spacing-sm)',
+                gap: 'var(--spacing-md)',
+                flexWrap: 'wrap'
+              }}>
+                <h4 style={{ color: 'var(--accent-purple)', margin: 0 }}>
+                  Backward Translation ({language.charAt(0).toUpperCase() + language.slice(1)} → English)
+                </h4>
+                <TextToSpeech text={result.backward_translation} buttonLabel="🔊 Listen" />
+              </div>
               <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.8 }}>
                 {result.backward_translation}
               </p>

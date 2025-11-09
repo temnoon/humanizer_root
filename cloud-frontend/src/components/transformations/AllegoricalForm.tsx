@@ -5,6 +5,8 @@ import { cloudAPI, type ModelInfo } from '../../lib/cloud-api-client';
 import type { NPEPersona, NPENamespace, NPEStyle } from '../../../../workers/shared/types';
 import CopyButtons from '../CopyButtons';
 import InputCopyButton from '../InputCopyButton';
+import SpeechToText from '../SpeechToText';
+import TextToSpeech from '../TextToSpeech';
 import { useWakeLock } from '../../hooks/useWakeLock';
 import { useTransformationState } from '../../contexts/TransformationStateContext';
 
@@ -130,13 +132,15 @@ export default function AllegoricalForm() {
       </div>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: 'var(--spacing-2xl)' }}>
-        {/* Text Input */}
+        {/* Text Input with Voice */}
         <div style={{ marginBottom: 'var(--spacing-lg)' }}>
           <div style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: 'var(--spacing-sm)'
+            marginBottom: 'var(--spacing-sm)',
+            flexWrap: 'wrap',
+            gap: 'var(--spacing-sm)'
           }}>
             <label style={{
               fontWeight: 500
@@ -145,10 +149,11 @@ export default function AllegoricalForm() {
             </label>
             <InputCopyButton text={text} label="Copy Input" />
           </div>
+
           <textarea
             value={text}
             onChange={(e) => updateAllegorical({ text: e.target.value })}
-            placeholder="Enter your narrative here..."
+            placeholder="Enter your narrative here or use voice input..."
             required
             style={{
               width: '100%',
@@ -158,15 +163,33 @@ export default function AllegoricalForm() {
               border: '1px solid var(--border-color)',
               borderRadius: 'var(--radius-md)',
               color: 'var(--text-primary)',
-              resize: 'vertical'
+              resize: 'vertical',
+              marginBottom: 'var(--spacing-sm)'
             }}
           />
+
           <div style={{
-            fontSize: '0.875rem',
-            color: 'var(--text-tertiary)',
-            marginTop: 'var(--spacing-xs)'
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 'var(--spacing-md)',
+            flexWrap: 'wrap'
           }}>
-            {text.length} / 10,000 characters
+            <div style={{
+              fontSize: '0.875rem',
+              color: 'var(--text-tertiary)'
+            }}>
+              {text.length} / 10,000 characters
+            </div>
+
+            <SpeechToText
+              onTranscript={(transcript) => {
+                // Append voice input to existing text
+                const newText = text ? `${text} ${transcript}` : transcript;
+                updateAllegorical({ text: newText });
+              }}
+              buttonLabel="🎤 Voice"
+            />
           </div>
         </div>
 
@@ -390,9 +413,19 @@ export default function AllegoricalForm() {
 
           {/* Final Projection */}
           <div className="card" style={{ marginBottom: 'var(--spacing-lg)' }}>
-            <h4 style={{ color: 'var(--accent-cyan)', marginBottom: 'var(--spacing-sm)' }}>
-              Final Projection
-            </h4>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 'var(--spacing-md)',
+              gap: 'var(--spacing-md)',
+              flexWrap: 'wrap'
+            }}>
+              <h4 style={{ color: 'var(--accent-cyan)', margin: 0 }}>
+                Final Projection
+              </h4>
+              <TextToSpeech text={result.final_projection} buttonLabel="🔊 Listen" />
+            </div>
             <div style={{ position: 'relative', maxHeight: '600px', overflowY: 'auto' }}>
               <CopyButtons markdownContent={result.final_projection} />
               <div style={{ lineHeight: 1.8, padding: 'var(--spacing-sm)' }} className="markdown-content">
