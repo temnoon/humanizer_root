@@ -10,9 +10,10 @@ import LandingTutorial from './components/onboarding/LandingTutorial';
 import HelpPanel from './components/help/HelpPanel';
 import AdminDashboard from './components/admin/AdminDashboard';
 import QuantumAnalysis from './pages/QuantumAnalysis';
+import TransformationHistory from './components/history/TransformationHistory';
 import type { User } from '../../workers/shared/types';
 
-type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'personalizer' | 'ai-detector' | 'voice-manager' | 'quantum-analysis' | 'admin';
+type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'personalizer' | 'ai-detector' | 'voice-manager' | 'quantum-analysis' | 'history' | 'admin';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('landing');
@@ -234,7 +235,7 @@ function App() {
             flexWrap: 'wrap'
           }}>
             <div className="flex gap-sm" style={{ flexWrap: 'wrap' }}>
-              {(['allegorical', 'round-trip', 'maieutic', 'personalizer', 'ai-detector', 'quantum-analysis'] as View[]).map(view => (
+              {(['allegorical', 'round-trip', 'maieutic', 'personalizer', 'ai-detector', 'quantum-analysis', 'history'] as View[]).map(view => (
                 <button
                   key={view}
                   className="btn"
@@ -254,6 +255,7 @@ function App() {
                   {view === 'personalizer' && '🎨 Personalizer'}
                   {view === 'ai-detector' && '🔍 AI Detector'}
                   {view === 'quantum-analysis' && '⚛️ Quantum Reading'}
+                  {view === 'history' && '📚 History'}
                 </button>
               ))}
             </div>
@@ -327,6 +329,8 @@ function App() {
               <PersonalizerForm />
             ) : currentView === 'ai-detector' ? (
               <AIDetectorPanel />
+            ) : currentView === 'history' ? (
+              <TransformationHistory />
             ) : null}
           </div>
         )}

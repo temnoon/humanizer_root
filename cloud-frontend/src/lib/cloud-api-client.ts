@@ -557,6 +557,65 @@ class CloudAPIClient {
     });
   }
 
+  // ========== TRANSFORMATION HISTORY ==========
+
+  /**
+   * Get transformation history for the current user
+   */
+  async getTransformationHistory(params?: {
+    type?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{
+    transformations: any[];
+    pagination: {
+      total: number;
+      limit: number;
+      offset: number;
+      has_more: boolean;
+    };
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params?.type) queryParams.set('type', params.type);
+    if (params?.status) queryParams.set('status', params.status);
+    if (params?.limit) queryParams.set('limit', params.limit.toString());
+    if (params?.offset) queryParams.set('offset', params.offset.toString());
+
+    const queryString = queryParams.toString();
+    const endpoint = queryString ? `/transformation-history?${queryString}` : '/transformation-history';
+
+    return this.fetch(endpoint, { method: 'GET' });
+  }
+
+  /**
+   * Get a single transformation by ID
+   */
+  async getTransformation(id: string): Promise<any> {
+    return this.fetch(`/transformation-history/${id}`, { method: 'GET' });
+  }
+
+  /**
+   * Delete a transformation from history
+   */
+  async deleteTransformation(id: string): Promise<{ deleted: boolean }> {
+    return this.fetch(`/transformation-history/${id}`, { method: 'DELETE' });
+  }
+
+  /**
+   * Toggle favorite status of a transformation
+   */
+  async toggleFavorite(id: string): Promise<{ is_favorite: boolean }> {
+    return this.fetch(`/transformation-history/${id}/favorite`, { method: 'POST' });
+  }
+
+  /**
+   * Get status of a transformation (for polling incomplete transformations)
+   */
+  async getTransformationStatus(id: string): Promise<any> {
+    return this.fetch(`/transformation-history/${id}`, { method: 'GET' });
+  }
+
   // ========== AI DETECTION ==========
 
   /**
