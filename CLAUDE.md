@@ -1,11 +1,11 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 8, 2025 - Security Fixes + Transformation History Phase 1
-**Status**: ✅ **SECURE** + 🚧 **Mobile UX In Progress**
-**Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, @simplewebauthn 13.2.2, DOMPurify 3.2.5
+**Last Updated**: Nov 9, 2025 - Mobile UX + Voice + Workbench M1 Complete
+**Status**: ✅ **3 Major Features Shipped** (Persistence, Voice, Workbench Scaffold)
+**Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, Vite 7.2, Tailwind 4.1
 **Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
 **Test Account**: demo@humanizer.com (password: testpass123, role: pro)
-**Admin URL**: https://humanizer.com (login to access admin dashboard)
+**Production**: https://humanizer.com | **Workbench**: http://localhost:5173
 
 **✅ SECURITY FIXES DEPLOYED (Nov 8, 2025):**
 - ✅ **XSS Fixed**: DOMPurify sanitization in AI Detector tell-word highlighting
@@ -14,17 +14,30 @@
 - ✅ **Constant-Time Comparison**: Prevents timing attacks on password verification
 - ✅ Overall security posture: EXCELLENT (all known vulnerabilities resolved)
 
-**✅ Completed This Session - Security Fixes + Mobile UX + Testing:**
-- ✅ AI Tell Detector Phase 1 Complete (~950 lines)
-- ✅ Security audit + all fixes deployed (XSS + password hashing)
-- ✅ Production testing: AI Detector, Allegorical, Round-Trip all working
-- ✅ Transformation History Phase 1: Database + API routes (754 lines)
-- ✅ Migration 0009 applied to production
-- ✅ Storage quotas: FREE (10), MEMBER (50), PRO (200), PREMIUM/ADMIN (unlimited)
-- ✅ Implementation plan documented for Phases 2-5 (15-17 hours remaining)
-- 📝 Git commits: 5737838 (security), 310d10d (docs), ed98860 (docs), 93dd15e (history)
+**✅ Completed This Session (Nov 9, 2025) - 3 Major Features:**
+1. **Persistent State Management** (0f79723)
+   - TransformationStateContext with localStorage (268 lines)
+   - Survives: tab switch, page refresh, phone sleep
+   - Load from history: wired callbacks, toast notifications
+   - "Text as valuable object" philosophy
 
-**Memory ID**: `46a352991c59765d6f0feac5a6b3bd08b63980d911dfe42b0ee007db6bd88be8` ⚡ **START HERE** (Transformation History Phase 1)
+2. **Voice Input/Output** (5c6963a)
+   - SpeechToText.tsx (184 lines) - continuous recognition, pulsing UI
+   - TextToSpeech.tsx (185 lines) - pause/resume/stop, progress bar
+   - Web Speech API: zero cost, 100% browser-local
+   - Integrated: Allegorical, RoundTrip, AIDetector
+
+3. **Cloud Workbench M1** (8f1800c)
+   - "Photoshop for Narrative" scaffold (31 files, 2677 lines)
+   - 3-column layout: Gem Vault | Canvas | Tool Dock
+   - Adapter pattern: V1 (current) → V2 (future) migration
+   - Working panels: POVM Evaluator, ρ Inspector
+   - Tech: Vite 7 + React 19 + Zustand + Zod + Tailwind 4.1
+
+**Deployments**: Frontend e38ad12e.npe-cloud.pages.dev | Workbench localhost:5173
+
+**Session Summary**: See /tmp/session_summary.md (comprehensive)
+**Tags**: mobile-ux, voice, workbench, m1-scaffold, state-management, speech-api
 
 **Security Status**: ✅ **PRODUCTION READY** - All vulnerabilities resolved
 - ✅ All dependencies current with no known vulnerabilities
@@ -36,10 +49,10 @@
 - 📋 Next: Comprehensive penetration testing recommended
 
 **Memory IDs**:
-- **🚧 Transformation History Phase 1**: `46a352991c59765d6f0feac5a6b3bd08b63980d911dfe42b0ee007db6bd88be8` (Nov 8, 2025) ⚡ **START HERE**
+- **⚡ Mobile UX + Voice + Workbench M1**: See /tmp/session_summary.md (Nov 9, 2025) **START HERE**
+- **🚧 Transformation History Phase 1**: `46a352991c59765d6f0feac5a6b3bd08b63980d911dfe42b0ee007db6bd88be8` (Nov 8, 2025)
 - **✅ Security Fixes Complete**: `37a547445ab89c7ec7915b255c0c4403f965dd59ae9ee2a509b1ee94740c93e3` (Nov 8, 2025)
-- **🔍 AI Tell Detector + Security Audit**: `8e6ae0164a0a41ecbbee2cac75204e769149af8d99879e9ca31f04eb0010a5c7` (Nov 8, 2025)
-- **✅ Allegorical Polish Complete + Notifications**: `fdbc4d35bebd89e92a6c741428091711611be53c2ecc47343d0eec91fa4f7312` (Nov 6, 2025)
+- **✅ Allegorical Polish + Notifications**: `fdbc4d35bebd89e92a6c741428091711611be53c2ecc47343d0eec91fa4f7312` (Nov 6, 2025)
 - Token Allocation & Model Compat: `f5a74570faf0f04d183f461c18a95f72dbd6c96fa6f3adcaa847c02b1796fb45` (Nov 6, 2025)
 - QR UI Polish + Analytics: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f` (Nov 4, 2025)
 - Quantum Reading MVP: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8` (Nov 3, 2025)
@@ -90,14 +103,10 @@
 - JWT Secret: Set via `wrangler secret` (not in code)
 
 **Completed Phases**:
-- ✅ Phase 1: Infrastructure (D1, KV, Durable Objects, auth)
-- ✅ Phase 2: Services (Allegorical, Round-trip, Maieutic) - 1,125 lines
-- ✅ Phase 3: Frontend (React, forms, onboarding) - 1,773 lines
-- ✅ Phase 4: Mailing list (signup, admin exports, notifications)
-- ✅ Phase 5: Tiered user system (roles, quotas)
-- ✅ Phase 6: WebAuthn Touch ID auth (production ready)
-- ✅ Phase 7: Quantum Reading Analysis (density matrix evolution) - 1,900 lines
-- ✅ Phase 8: Allegorical Polish (thinking cleanup, markdown, copy buttons)
+- ✅ Phase 1-8: Core NPE features (see previous versions)
+- ✅ Phase 9: Mobile UX (persistent state, localStorage, load from history)
+- ✅ Phase 10: Voice (speech-to-text, text-to-speech, Web Speech API)
+- ✅ Phase 11: Workbench M1 (scaffold, adapter pattern, POVM/ρ panels)
 - ✅ Deployment (Cloudflare Workers + Pages, custom domains)
 
 **NPE Features**:
