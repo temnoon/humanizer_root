@@ -1,0 +1,6 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.panel textarea { @apply w-full h-28 bg-slate-800 rounded p-2 text-sm; }
+.panel button   { @apply mt-2 px-3 py-1 bg-indigo-600 rounded hover:bg-indigo-700; }
