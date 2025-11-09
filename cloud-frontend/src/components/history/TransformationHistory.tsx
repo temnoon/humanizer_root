@@ -6,8 +6,8 @@ import { cloudAPI } from '../../lib/cloud-api-client';
 import TransformationCard from './TransformationCard';
 
 interface TransformationHistoryProps {
-  onLoadInput?: (text: string) => void;
-  onLoadOutput?: (data: any) => void;
+  onLoadInput?: (text: string, type: string) => void;
+  onLoadOutput?: (data: any, type: string) => void;
 }
 
 export default function TransformationHistory({
@@ -47,17 +47,15 @@ export default function TransformationHistory({
     loadHistory();
   }, [filter]);
 
-  const handleLoadInput = (text: string) => {
+  const handleLoadInput = (text: string, type: string) => {
     if (onLoadInput) {
-      onLoadInput(text);
-      alert('Input loaded! Switch to the transformation tab to use it.');
+      onLoadInput(text, type);
     }
   };
 
-  const handleLoadOutput = (data: any) => {
+  const handleLoadOutput = (data: any, type: string) => {
     if (onLoadOutput) {
-      onLoadOutput(data);
-      alert('Output loaded! Check the results below.');
+      onLoadOutput(data, type);
     }
   };
 

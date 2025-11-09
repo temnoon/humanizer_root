@@ -3,21 +3,7 @@ import DOMPurify from 'dompurify';
 import { cloudAPI } from '../../lib/cloud-api-client';
 import InputCopyButton from '../InputCopyButton';
 import { useWakeLock } from '../../hooks/useWakeLock';
-
-interface DetectionSignals {
-  burstiness: number;
-  tellWordScore: number;
-  readabilityPattern: number;
-  lexicalDiversity: number;
-}
-
-interface DetectionMetrics {
-  fleschReadingEase: number;
-  gunningFog: number;
-  wordCount: number;
-  sentenceCount: number;
-  avgSentenceLength: number;
-}
+import { useTransformationState } from '../../contexts/TransformationStateContext';
 
 interface TellWord {
   word: string;
@@ -25,24 +11,13 @@ interface TellWord {
   count: number;
 }
 
-interface DetectionResult {
-  verdict: 'human' | 'ai' | 'uncertain';
-  confidence: number;
-  explanation: string;
-  method: 'local' | 'gptzero' | 'hybrid';
-  signals: DetectionSignals;
-  metrics: DetectionMetrics;
-  detectedTellWords: TellWord[];
-  processingTimeMs: number;
-  message?: string;
-}
-
 export default function AIDetectorPanel() {
-  const [text, setText] = useState('');
-  const [result, setResult] = useState<DetectionResult | null>(null);
+  // Get state from context (persists across navigation)
+  const { state, updateAIDetector } = useTransformationState();
+  const { text, useAPI, result } = state.aiDetector;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [useAPI, setUseAPI] = useState(false);
   const [apiAvailable, setApiAvailable] = useState(false);
   const [userTier, setUserTier] = useState('free');
 
@@ -78,14 +53,14 @@ export default function AIDetectorPanel() {
 
     setLoading(true);
     setError(null);
-    setResult(null);
+    updateAIDetector({ result: null }); // Clear previous result
 
     try {
       console.log('[AI Detector] Starting detection, text length:', text.length, 'words:', words.length);
       console.log('[AI Detector] useAPI:', useAPI);
       const detectionResult = await cloudAPI.detectAI(text, useAPI);
       console.log('[AI Detector] Result:', detectionResult);
-      setResult(detectionResult);
+      updateAIDetector({ result: detectionResult }); // Save result to context
     } catch (err: any) {
       console.error('[AI Detector] Error:', err);
       setError(err.message || 'Failed to detect AI content');
@@ -199,7 +174,7 @@ export default function AIDetectorPanel() {
         </div>
         <textarea
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => updateAIDetector({ text: e.target.value })}
           placeholder="Paste text here to check if it was written by AI..."
           style={{
             width: '100%',
@@ -234,7 +209,7 @@ export default function AIDetectorPanel() {
           <input
             type="checkbox"
             checked={useAPI}
-            onChange={(e) => setUseAPI(e.target.checked)}
+            onChange={(e) => updateAIDetector({ useAPI: e.target.checked })}
             disabled={!apiAvailable}
             style={{ cursor: apiAvailable ? 'pointer' : 'not-allowed' }}
           />

@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
 import { cloudAPI } from '../../lib/cloud-api-client';
-import type { RoundTripTranslationResponse } from '../../../../workers/shared/types';
 import InputCopyButton from '../InputCopyButton';
 import { useWakeLock } from '../../hooks/useWakeLock';
+import { useTransformationState } from '../../contexts/TransformationStateContext';
 
 export default function RoundTripForm() {
-  const [text, setText] = useState('');
-  const [language, setLanguage] = useState('');
+  // Get state from context (persists across navigation)
+  const { state, updateRoundTrip, reset } = useTransformationState();
+  const { text, language, result } = state.roundTrip;
+
   const [languages, setLanguages] = useState<string[]>([]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<RoundTripTranslationResponse | null>(null);
 
   // Wake Lock: Keep screen awake during transformation (5 min max for battery safety)
   useWakeLock(isLoading, { maxDuration: 5 * 60 * 1000, debug: false });
@@ -22,24 +23,27 @@ export default function RoundTripForm() {
       try {
         const languagesData = await cloudAPI.getLanguages();
         setLanguages(languagesData);
-        if (languagesData.length > 0) setLanguage(languagesData[0]);
+        // Set default only if not already set in context
+        if (languagesData.length > 0 && !language) {
+          updateRoundTrip({ language: languagesData[0] });
+        }
       } catch (err) {
         setError('Failed to load languages');
       }
     };
 
     loadLanguages();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setResult(null);
+    updateRoundTrip({ result: null }); // Clear previous result
     setIsLoading(true);
 
     try {
       const response = await cloudAPI.createRoundTripTranslation(text, language);
-      setResult(response);
+      updateRoundTrip({ result: response }); // Save result to context
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create round-trip translation');
     } finally {
@@ -47,16 +51,47 @@ export default function RoundTripForm() {
     }
   };
 
+  const handleReset = () => {
+    if (text.trim() || result) {
+      if (confirm('Clear all content and results for Round-Trip Translation?')) {
+        reset('roundTrip');
+        setError(null);
+      }
+    }
+  };
+
   const driftPercentage = result ? Math.round(result.semantic_drift * 100) : 0;
 
   return (
     <div>
-      <div style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h2>🔄 Round-Trip Translation Analysis</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          Translate your text to an intermediate language and back to English, then analyze what changed.
-          Discover what meaning is preserved, lost, or gained through the transformation.
-        </p>
+      <div style={{
+        marginBottom: 'var(--spacing-xl)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        flexWrap: 'wrap',
+        gap: 'var(--spacing-md)'
+      }}>
+        <div>
+          <h2>🔄 Round-Trip Translation Analysis</h2>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Translate your text to an intermediate language and back to English, then analyze what changed.
+            Discover what meaning is preserved, lost, or gained through the transformation.
+          </p>
+        </div>
+        <button
+          onClick={handleReset}
+          className="btn btn-secondary"
+          style={{
+            padding: 'var(--spacing-sm) var(--spacing-lg)',
+            minHeight: '44px',
+            fontSize: 'var(--text-base)',
+            whiteSpace: 'nowrap'
+          }}
+          title="Clear all content and results"
+        >
+          🔄 Reset
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: 'var(--spacing-2xl)' }}>
@@ -77,7 +112,7 @@ export default function RoundTripForm() {
           </div>
           <textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => updateRoundTrip({ text: e.target.value })}
             placeholder="Enter your text here..."
             required
             style={{
@@ -111,7 +146,7 @@ export default function RoundTripForm() {
           </label>
           <select
             value={language}
-            onChange={(e) => setLanguage(e.target.value)}
+            onChange={(e) => updateRoundTrip({ language: e.target.value })}
             style={{
               width: '100%',
               maxWidth: '400px',

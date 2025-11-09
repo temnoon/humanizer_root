@@ -11,15 +11,19 @@ import HelpPanel from './components/help/HelpPanel';
 import AdminDashboard from './components/admin/AdminDashboard';
 import QuantumAnalysis from './pages/QuantumAnalysis';
 import TransformationHistory from './components/history/TransformationHistory';
+import Toast from './components/Toast';
+import { TransformationStateProvider, useTransformationState } from './contexts/TransformationStateContext';
 import type { User } from '../../workers/shared/types';
 
 type View = 'landing' | 'allegorical' | 'round-trip' | 'maieutic' | 'personalizer' | 'ai-detector' | 'voice-manager' | 'quantum-analysis' | 'history' | 'admin';
 
-function App() {
+function AppContent() {
   const [currentView, setCurrentView] = useState<View>('landing');
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const { loadInput, loadOutput, resetAll } = useTransformationState();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     // Check localStorage first (user preference override)
     const savedTheme = localStorage.getItem('theme');
@@ -114,6 +118,35 @@ function App() {
     cloudAPI.logout();
     setUser(null);
     setCurrentView('landing');
+    resetAll(); // Clear all transformation state on logout
+  };
+
+  // Handle loading input from history
+  const handleLoadInput = (type: 'allegorical' | 'roundTrip' | 'maieutic' | 'aiDetector' | 'personalizer', text: string) => {
+    loadInput(type, text);
+    setToastMessage({ message: `Input loaded to ${getViewLabel(type)}`, type: 'success' });
+    setCurrentView(type as View);
+  };
+
+  // Handle loading output from history
+  const handleLoadOutput = (type: 'allegorical' | 'roundTrip' | 'maieutic' | 'aiDetector' | 'personalizer', data: any) => {
+    loadOutput(type, data);
+    setToastMessage({ message: `Output loaded to ${getViewLabel(type)}`, type: 'success' });
+    setCurrentView(type as View);
+  };
+
+  // Get human-readable label for view
+  const getViewLabel = (view: string) => {
+    const labels: Record<string, string> = {
+      'allegorical': 'Allegorical',
+      'roundTrip': 'Round-Trip',
+      'round-trip': 'Round-Trip',
+      'maieutic': 'Maieutic',
+      'aiDetector': 'AI Detector',
+      'ai-detector': 'AI Detector',
+      'personalizer': 'Personalizer'
+    };
+    return labels[view] || view;
   };
 
   if (isLoading) {
@@ -330,7 +363,36 @@ function App() {
             ) : currentView === 'ai-detector' ? (
               <AIDetectorPanel />
             ) : currentView === 'history' ? (
-              <TransformationHistory />
+              <TransformationHistory
+                onLoadInput={(text, type) => {
+                  // Map transformation type to view name
+                  const typeMap: Record<string, 'allegorical' | 'roundTrip' | 'maieutic' | 'aiDetector' | 'personalizer'> = {
+                    'allegorical': 'allegorical',
+                    'round-trip': 'roundTrip',
+                    'maieutic': 'maieutic',
+                    'ai-detection': 'aiDetector',
+                    'personalizer': 'personalizer'
+                  };
+                  const mappedType = typeMap[type];
+                  if (mappedType) {
+                    handleLoadInput(mappedType, text);
+                  }
+                }}
+                onLoadOutput={(data, type) => {
+                  // Map transformation type to view name
+                  const typeMap: Record<string, 'allegorical' | 'roundTrip' | 'maieutic' | 'aiDetector' | 'personalizer'> = {
+                    'allegorical': 'allegorical',
+                    'round-trip': 'roundTrip',
+                    'maieutic': 'maieutic',
+                    'ai-detection': 'aiDetector',
+                    'personalizer': 'personalizer'
+                  };
+                  const mappedType = typeMap[type];
+                  if (mappedType) {
+                    handleLoadOutput(mappedType, data);
+                  }
+                }}
+              />
             ) : null}
           </div>
         )}
@@ -352,7 +414,24 @@ function App() {
           </p>
         </div>
       </footer>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <Toast
+          message={toastMessage.message}
+          type={toastMessage.type}
+          onClose={() => setToastMessage(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <TransformationStateProvider>
+      <AppContent />
+    </TransformationStateProvider>
   );
 }
 

@@ -7,8 +7,8 @@ import { cloudAPI } from '../../lib/cloud-api-client';
 interface TransformationCardProps {
   transformation: any;
   onDelete: () => void;
-  onLoadInput: (text: string) => void;
-  onLoadOutput: (data: any) => void;
+  onLoadInput: (text: string, type: string) => void;
+  onLoadOutput: (data: any, type: string) => void;
 }
 
 export default function TransformationCard({
@@ -49,7 +49,7 @@ export default function TransformationCard({
 
   const handleLoadInput = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onLoadInput(transformation.input_text);
+    onLoadInput(transformation.input_text, transformation.transformation_type);
   };
 
   const handleLoadOutput = (e: React.MouseEvent) => {
@@ -59,7 +59,7 @@ export default function TransformationCard({
         const data = typeof transformation.output_data === 'string'
           ? JSON.parse(transformation.output_data)
           : transformation.output_data;
-        onLoadOutput(data);
+        onLoadOutput(data, transformation.transformation_type);
       } catch (err) {
         console.error('Failed to parse output data:', err);
       }

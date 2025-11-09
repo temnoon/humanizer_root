@@ -2,18 +2,16 @@ import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cloudAPI, type ModelInfo } from '../../lib/cloud-api-client';
-import type { NPEPersona, NPENamespace, NPEStyle, AllegoricalProjectionResponse } from '../../../../workers/shared/types';
+import type { NPEPersona, NPENamespace, NPEStyle } from '../../../../workers/shared/types';
 import CopyButtons from '../CopyButtons';
 import InputCopyButton from '../InputCopyButton';
 import { useWakeLock } from '../../hooks/useWakeLock';
+import { useTransformationState } from '../../contexts/TransformationStateContext';
 
 export default function AllegoricalForm() {
-  const [text, setText] = useState('');
-  const [persona, setPersona] = useState('');
-  const [namespace, setNamespace] = useState('');
-  const [style, setStyle] = useState('');
-  const [model, setModel] = useState('');
-  const [lengthPreference, setLengthPreference] = useState<'shorter' | 'same' | 'longer' | 'much_longer'>('same');
+  // Get state from context (persists across navigation)
+  const { state, updateAllegorical, reset } = useTransformationState();
+  const { text, persona, namespace, style, model, lengthPreference, result } = state.allegorical;
 
   const [personas, setPersonas] = useState<NPEPersona[]>([]);
   const [namespaces, setNamespaces] = useState<NPENamespace[]>([]);
@@ -22,7 +20,6 @@ export default function AllegoricalForm() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<AllegoricalProjectionResponse | null>(null);
 
   // Wake Lock: Keep screen awake during transformation (5 min max for battery safety)
   useWakeLock(isLoading, { maxDuration: 5 * 60 * 1000, debug: false });
@@ -43,23 +40,31 @@ export default function AllegoricalForm() {
         setStyles(stylesData);
         setModels(modelsData);
 
-        // Set defaults
-        if (personasData.length > 0) setPersona(personasData[0].name);
-        if (namespacesData.length > 0) setNamespace(namespacesData[0].name);
-        if (stylesData.length > 0) setStyle(stylesData[0].name);
-        if (modelsData.length > 0) setModel(modelsData[0].id);
+        // Set defaults only if not already set in context
+        if (personasData.length > 0 && !persona) {
+          updateAllegorical({ persona: personasData[0].name });
+        }
+        if (namespacesData.length > 0 && !namespace) {
+          updateAllegorical({ namespace: namespacesData[0].name });
+        }
+        if (stylesData.length > 0 && !style) {
+          updateAllegorical({ style: stylesData[0].name });
+        }
+        if (modelsData.length > 0 && !model) {
+          updateAllegorical({ model: modelsData[0].id });
+        }
       } catch (err) {
         setError('Failed to load configuration');
       }
     };
 
     loadConfig();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setResult(null);
+    updateAllegorical({ result: null }); // Clear previous result
     setIsLoading(true);
 
     try {
@@ -71,11 +76,20 @@ export default function AllegoricalForm() {
         model,
         lengthPreference
       );
-      setResult(response);
+      updateAllegorical({ result: response }); // Save result to context
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create projection');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleReset = () => {
+    if (text.trim() || result) {
+      if (confirm('Clear all content and results for Allegorical Projection?')) {
+        reset('allegorical');
+        setError(null);
+      }
     }
   };
 
@@ -85,12 +99,34 @@ export default function AllegoricalForm() {
 
   return (
     <div>
-      <div style={{ marginBottom: 'var(--spacing-xl)' }}>
-        <h2>🎭 Allegorical Projection</h2>
-        <p style={{ color: 'var(--text-secondary)' }}>
-          Transform your narrative through a 5-stage pipeline: deconstruct, map to a fictional universe,
-          reconstruct, apply style and persona, then reflect on the transformation.
-        </p>
+      <div style={{
+        marginBottom: 'var(--spacing-xl)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        flexWrap: 'wrap',
+        gap: 'var(--spacing-md)'
+      }}>
+        <div>
+          <h2>🎭 Allegorical Projection</h2>
+          <p style={{ color: 'var(--text-secondary)' }}>
+            Transform your narrative through a 5-stage pipeline: deconstruct, map to a fictional universe,
+            reconstruct, apply style and persona, then reflect on the transformation.
+          </p>
+        </div>
+        <button
+          onClick={handleReset}
+          className="btn btn-secondary"
+          style={{
+            padding: 'var(--spacing-sm) var(--spacing-lg)',
+            minHeight: '44px',
+            fontSize: 'var(--text-base)',
+            whiteSpace: 'nowrap'
+          }}
+          title="Clear all content and results"
+        >
+          🔄 Reset
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} style={{ marginBottom: 'var(--spacing-2xl)' }}>
@@ -111,7 +147,7 @@ export default function AllegoricalForm() {
           </div>
           <textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => updateAllegorical({ text: e.target.value })}
             placeholder="Enter your narrative here..."
             required
             style={{
@@ -152,7 +188,7 @@ export default function AllegoricalForm() {
             </label>
             <select
               value={persona}
-              onChange={(e) => setPersona(e.target.value)}
+              onChange={(e) => updateAllegorical({ persona: e.target.value })}
               style={{
                 width: '100%',
                 padding: 'var(--spacing-sm) var(--spacing-md)',
@@ -188,7 +224,7 @@ export default function AllegoricalForm() {
             </label>
             <select
               value={namespace}
-              onChange={(e) => setNamespace(e.target.value)}
+              onChange={(e) => updateAllegorical({ namespace: e.target.value })}
               style={{
                 width: '100%',
                 padding: 'var(--spacing-sm) var(--spacing-md)',
@@ -224,7 +260,7 @@ export default function AllegoricalForm() {
             </label>
             <select
               value={style}
-              onChange={(e) => setStyle(e.target.value)}
+              onChange={(e) => updateAllegorical({ style: e.target.value })}
               style={{
                 width: '100%',
                 padding: 'var(--spacing-sm) var(--spacing-md)',
@@ -251,7 +287,7 @@ export default function AllegoricalForm() {
             </label>
             <select
               value={model}
-              onChange={(e) => setModel(e.target.value)}
+              onChange={(e) => updateAllegorical({ model: e.target.value })}
               style={{
                 width: '100%',
                 padding: 'var(--spacing-sm) var(--spacing-md)',
@@ -289,7 +325,7 @@ export default function AllegoricalForm() {
             </label>
             <select
               value={lengthPreference}
-              onChange={(e) => setLengthPreference(e.target.value as any)}
+              onChange={(e) => updateAllegorical({ lengthPreference: e.target.value as any })}
               style={{
                 width: '100%',
                 padding: 'var(--spacing-sm) var(--spacing-md)',
