@@ -1,6 +1,6 @@
 // Transformation routes for NPE Workers API
 import { Hono } from 'hono';
-import { requireAuth, getAuthContext, requireProPlus } from '../middleware/auth';
+import { requireAuth, optionalLocalAuth, getAuthContext, requireProPlus } from '../middleware/auth';
 import { AllegoricalProjectionService } from '../services/allegorical';
 import { RoundTripTranslationService } from '../services/round_trip';
 import { MaieuticDialogueService } from '../services/maieutic';
@@ -26,7 +26,7 @@ const transformationRoutes = new Hono<{ Bindings: Env }>();
  *
  * Transform narrative through 5-stage pipeline with persona, namespace, and style
  */
-transformationRoutes.post('/allegorical', requireAuth(), async (c) => {
+transformationRoutes.post('/allegorical', optionalLocalAuth(), async (c) => {
   try {
     const auth = getAuthContext(c);
     const body = await c.req.json() as AllegoricalProjectionRequest & {
@@ -180,7 +180,7 @@ transformationRoutes.post('/allegorical', requireAuth(), async (c) => {
  *
  * Translate text to intermediate language and back, analyzing semantic drift
  */
-transformationRoutes.post('/round-trip', requireAuth(), async (c) => {
+transformationRoutes.post('/round-trip', optionalLocalAuth(), async (c) => {
   try {
     const auth = getAuthContext(c);
     const { text, intermediate_language }: RoundTripTranslationRequest = await c.req.json();
@@ -272,7 +272,7 @@ transformationRoutes.post('/round-trip', requireAuth(), async (c) => {
  *
  * Begin Socratic questioning dialogue to explore narrative meaning
  */
-transformationRoutes.post('/maieutic/start', requireAuth(), async (c) => {
+transformationRoutes.post('/maieutic/start', optionalLocalAuth(), async (c) => {
   try {
     const auth = getAuthContext(c);
     const { text, goal }: MaieuticStartRequest = await c.req.json();
@@ -310,7 +310,7 @@ transformationRoutes.post('/maieutic/start', requireAuth(), async (c) => {
  *
  * Provide answer to question and receive next question or final understanding
  */
-transformationRoutes.post('/maieutic/:sessionId/respond', requireAuth(), async (c) => {
+transformationRoutes.post('/maieutic/:sessionId/respond', optionalLocalAuth(), async (c) => {
   try {
     const sessionId = c.req.param('sessionId');
     const { answer }: MaieuticRespondRequest = await c.req.json();
@@ -351,7 +351,7 @@ transformationRoutes.post('/maieutic/:sessionId/respond', requireAuth(), async (
  *
  * Retrieve current state of maieutic dialogue session
  */
-transformationRoutes.get('/maieutic/:sessionId', requireAuth(), async (c) => {
+transformationRoutes.get('/maieutic/:sessionId', optionalLocalAuth(), async (c) => {
   try {
     const sessionId = c.req.param('sessionId');
 
@@ -374,7 +374,7 @@ transformationRoutes.get('/maieutic/:sessionId', requireAuth(), async (c) => {
  *
  * Transform text to express content through user's authentic discovered voices
  */
-transformationRoutes.post('/personalizer', requireAuth(), requireProPlus(), async (c) => {
+transformationRoutes.post('/personalizer', optionalLocalAuth(), requireProPlus(), async (c) => {
   try {
     const auth = getAuthContext(c);
     const { text, persona_id, style_id, model } = await c.req.json();
@@ -459,7 +459,7 @@ transformationRoutes.post('/personalizer', requireAuth(), requireProPlus(), asyn
  *
  * Retrieve user's personalizer transformation history
  */
-transformationRoutes.get('/personalizer/history', requireAuth(), requireProPlus(), async (c) => {
+transformationRoutes.get('/personalizer/history', optionalLocalAuth(), requireProPlus(), async (c) => {
   try {
     const auth = getAuthContext(c);
     const limit = parseInt(c.req.query('limit') || '10', 10);

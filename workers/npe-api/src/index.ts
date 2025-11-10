@@ -14,6 +14,9 @@ import personalPersonasRoutes from './routes/personal-personas';
 import personalStylesRoutes from './routes/personal-styles';
 import aiDetectionRoutes from './routes/ai-detection';
 import transformationHistoryRoutes from './routes/transformation-history';
+import { analysisRoutes } from './routes/analysis';
+import { narrativesRoutes } from './routes/v2/narratives';
+import { rhoRoutes } from './routes/v2/rho';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -35,6 +38,7 @@ app.use('*', cors({
     // Allow production domains
     if (origin === 'https://humanizer.com' ||
         origin === 'https://www.humanizer.com' ||
+        origin === 'https://workbench.humanizer.com' ||
         origin.endsWith('.pages.dev')) {
       return origin;
     }
@@ -77,6 +81,19 @@ app.route('/ai-detection', aiDetectionRoutes);
 
 // Transformation History routes
 app.route('/transformation-history', transformationHistoryRoutes);
+
+// Analysis routes (POVM, Rho)
+app.route('/eval', analysisRoutes);
+
+// V2 Routes - ρ-Centric Architecture
+app.route('/v2/narratives', narrativesRoutes);
+app.route('/v2/rho', rhoRoutes);
+
+// V2 Attribute Builder Routes
+import attributesRoutes from './routes/v2/attributes';
+import workspaceRoutes from './routes/v2/workspace';
+app.route('/v2/attributes', attributesRoutes);
+app.route('/v2/workspace', workspaceRoutes);
 
 // 404 handler
 app.notFound((c) => {

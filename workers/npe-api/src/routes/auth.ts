@@ -7,13 +7,88 @@ const authRoutes = new Hono<{ Bindings: Env }>();
 
 /**
  * POST /auth/register - Register new user
- * TEMPORARILY DISABLED - Application in testing phase
+ *
+ * Environment-based registration control:
+ * - Local development (ENVIRONMENT != "production"): Registration ENABLED
+ * - Production (ENVIRONMENT == "production"): Registration DISABLED during testing
+ *
+ * This allows local API distribution and testing while protecting production.
  */
 authRoutes.post('/register', async (c) => {
-  // Registration temporarily disabled during testing phase
-  return c.json({
-    error: 'Registration is temporarily disabled. We are currently in testing phase and not accepting new signups at this time.'
-  }, 503);
+  const environment = c.env.ENVIRONMENT || 'development';
+
+  // Block registration in production during testing phase
+  if (environment === 'production') {
+    return c.json({
+      error: 'Registration is temporarily disabled. We are currently in testing phase and not accepting new signups at this time.',
+      hint: 'For local development, ensure ENVIRONMENT is set to "development" or "local".'
+    }, 503);
+  }
+
+  // Registration enabled for local/dev environments
+  try {
+    const { email, password }: RegisterRequest = await c.req.json();
+
+    // Validate input
+    if (!email || !password) {
+      return c.json({ error: 'Email and password are required' }, 400);
+    }
+
+    if (password.length < 8) {
+      return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    }
+
+    // Check if user already exists
+    const existingUser = await c.env.DB.prepare(
+      'SELECT id FROM users WHERE email = ?'
+    ).bind(email).first();
+
+    if (existingUser) {
+      return c.json({ error: 'User with this email already exists' }, 409);
+    }
+
+    // Hash password (PBKDF2 with 100,000 iterations)
+    const passwordHash = await hashPassword(password);
+
+    // Create user with FREE tier by default
+    const userId = crypto.randomUUID();
+    const now = Date.now();
+
+    await c.env.DB.prepare(
+      `INSERT INTO users (id, email, password_hash, role, created_at, monthly_transformations, monthly_tokens_used, last_reset_date)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(userId, email, passwordHash, 'free', now, 0, 0, now).run();
+
+    // Generate JWT token
+    const secret = c.env.JWT_SECRET;
+    if (!secret) {
+      throw new Error('JWT_SECRET not configured');
+    }
+    const token = await generateToken(userId, email, 'free', secret);
+
+    const user: User = {
+      id: userId,
+      email,
+      role: 'free',
+      created_at: now,
+      monthly_transformations: 0,
+      monthly_tokens_used: 0,
+      last_reset_date: now
+    };
+
+    const response: AuthResponse = {
+      token,
+      user
+    };
+
+    return c.json(response, 201);
+  } catch (error) {
+    console.error('Registration error:', error);
+    return c.json({
+      error: 'Registration failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
 });
 
 /**

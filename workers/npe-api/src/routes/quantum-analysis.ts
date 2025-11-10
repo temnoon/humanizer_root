@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono';
 import { v4 as uuidv4 } from 'uuid';
-import { requireAuth, getAuthContext } from '../middleware/auth';
+import { requireAuth, optionalLocalAuth, getAuthContext } from '../middleware/auth';
 import {
   createMaximallyMixedState,
   constructDensityMatrix,
@@ -31,8 +31,8 @@ import {
 
 export const quantumAnalysisRoutes = new Hono();
 
-// Apply auth middleware
-quantumAnalysisRoutes.use('/*', requireAuth());
+// Apply auth middleware (optional for local dev)
+quantumAnalysisRoutes.use('/*', optionalLocalAuth());
 
 /**
  * POST /quantum-analysis/start

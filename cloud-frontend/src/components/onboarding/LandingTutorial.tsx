@@ -214,104 +214,121 @@ export default function LandingTutorial({ onLogin }: LandingTutorialProps) {
   }
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-      {/* Hero Section */}
-      <div style={{ textAlign: 'center', marginBottom: 'var(--spacing-2xl)' }}>
-        <h1 style={{
-          fontSize: '3rem',
-          marginBottom: 'var(--spacing-md)',
-          background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent'
-        }}>
-          Transform Your Narratives
-        </h1>
-        <p style={{
+    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      {/* Announcement Section */}
+      <section style={{
+        padding: 'var(--spacing-2xl) var(--spacing-lg)',
+        background: 'linear-gradient(180deg, rgba(139, 122, 216, 0.05) 0%, rgba(74, 158, 255, 0.05) 100%)',
+        borderRadius: 'var(--radius-lg)',
+        marginBottom: 'var(--spacing-2xl)',
+        textAlign: 'center'
+      }}>
+        <blockquote style={{
           fontSize: '1.25rem',
-          color: 'var(--text-secondary)',
-          marginBottom: 'var(--spacing-xl)'
+          fontStyle: 'italic',
+          color: 'var(--accent-purple)',
+          marginBottom: 'var(--spacing-xl)',
+          lineHeight: 1.6
         }}>
-          Explore meaning through allegory, translation, and Socratic dialogue
+          "The world of words is empty enough to change, structured enough to care, and lawful enough to conserve what matters."
+        </blockquote>
+
+        <h2 style={{
+          fontSize: '2rem',
+          fontWeight: 700,
+          marginBottom: 'var(--spacing-lg)',
+          color: 'var(--text-primary)'
+        }}>
+          From the Crisis to the Field of Agency
+        </h2>
+
+        <p style={{
+          fontSize: '1.125rem',
+          color: 'var(--text-secondary)',
+          lineHeight: 1.7,
+          marginBottom: 'var(--spacing-lg)'
+        }}>
+          When Edmund Husserl warned of the <strong style={{ color: 'var(--text-primary)' }}>Crisis of the European Sciences</strong>,
+          he saw a civilization drifting away from lived meaning.
+          At <strong style={{ color: 'var(--accent-purple)' }}>Humanizer.com</strong>, we're answering that call —
+          not only diagnosing the crisis, but <strong style={{ color: 'var(--text-primary)' }}>building the instrument that heals it</strong>.
         </p>
+
+        <p style={{
+          color: 'var(--text-tertiary)',
+          marginBottom: 'var(--spacing-lg)',
+          lineHeight: 1.7
+        }}>
+          Humanizer is a <strong style={{ color: 'var(--text-secondary)' }}>phenomenological laboratory</strong> where sentences are treated as the atoms of narrative,
+          and the dynamics of meaning can be measured, visualized, and transformed.
+          We use the mathematics of quantum mechanics not to reduce thought to physics,
+          but because it already describes how any observer resonates with a field of possibilities.
+        </p>
+
+        <p style={{
+          color: 'var(--text-tertiary)',
+          marginBottom: 'var(--spacing-lg)',
+          lineHeight: 1.7
+        }}>
+          Each sentence closes like a measurement: intentions collapse into understanding; meaning becomes visible.
+          Our system models this process as a <strong style={{ color: 'var(--text-secondary)' }}>Field of Agency</strong> — where writers, readers, and AI agents share a living field of sense.
+        </p>
+
+        <ul style={{
+          listStyle: 'none',
+          padding: 0,
+          marginBottom: 'var(--spacing-xl)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--spacing-sm)'
+        }}>
+          <li style={{ color: 'var(--text-secondary)' }}>
+            🜂 <strong>Phenomenology</strong> gives us the method.
+          </li>
+          <li style={{ color: 'var(--text-secondary)' }}>
+            🜁 <strong>Quantum formalism</strong> gives us the grammar.
+          </li>
+          <li style={{ color: 'var(--text-secondary)' }}>
+            🜃 <strong>Humanizer</strong> gives us the tool.
+          </li>
+        </ul>
+
+        <p style={{
+          color: 'var(--text-tertiary)',
+          marginBottom: 'var(--spacing-2xl)',
+          lineHeight: 1.7
+        }}>
+          We're finishing internal tests now. Until public accounts open, you can follow the philosophy and progress here.
+          If you care about language, consciousness, or the future of meaning itself,
+          you're already part of the Field.
+        </p>
+
         <button
-          onClick={() => setShowAuth(true)}
+          onClick={() => setShowMailingListModal(true)}
           className="btn btn-primary"
           style={{
+            background: 'var(--accent-purple)',
+            color: 'white',
+            fontSize: '1.125rem',
+            fontWeight: 600,
             padding: 'var(--spacing-md) var(--spacing-2xl)',
-            fontSize: '1.125rem'
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: '0 4px 14px rgba(139, 122, 216, 0.4)',
+            transition: 'all 0.2s'
           }}
         >
-          Get Started
+          Join the Field →
         </button>
-      </div>
 
-      {/* Feature Cards */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-        gap: 'var(--spacing-lg)',
-        marginBottom: 'var(--spacing-2xl)'
-      }}>
-        {/* Allegorical */}
-        <div className="card" style={{
-          background: 'linear-gradient(135deg, rgba(139, 122, 216, 0.1), rgba(139, 122, 216, 0.05))',
-          borderColor: 'var(--accent-purple)'
+        <p style={{
+          marginTop: 'var(--spacing-xl)',
+          fontSize: '0.875rem',
+          color: 'var(--text-tertiary)'
         }}>
-          <div style={{ fontSize: '3rem', marginBottom: 'var(--spacing-md)' }}>🎭</div>
-          <h3 style={{ color: 'var(--accent-purple)' }}>Allegorical Projection</h3>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Transform your narrative through fictional universes. Your story retold through
-            mythology, quantum physics, corporate dystopia, and more.
-          </p>
-          <div style={{
-            fontSize: '0.875rem',
-            color: 'var(--text-tertiary)',
-            marginTop: 'var(--spacing-md)'
-          }}>
-            5 personas × 6 namespaces × 5 styles = 150 unique transformations
-          </div>
-        </div>
-
-        {/* Round-Trip */}
-        <div className="card" style={{
-          background: 'linear-gradient(135deg, rgba(74, 158, 255, 0.1), rgba(74, 158, 255, 0.05))',
-          borderColor: 'var(--accent-cyan)'
-        }}>
-          <div style={{ fontSize: '3rem', marginBottom: 'var(--spacing-md)' }}>🔄</div>
-          <h3 style={{ color: 'var(--accent-cyan)' }}>Round-Trip Translation</h3>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Discover what meaning survives translation. Analyze semantic drift through
-            18 languages and see what's preserved, lost, or gained.
-          </p>
-          <div style={{
-            fontSize: '0.875rem',
-            color: 'var(--text-tertiary)',
-            marginTop: 'var(--spacing-md)'
-          }}>
-            Supports: Spanish, French, German, Chinese, Japanese, Arabic, and 12 more
-          </div>
-        </div>
-
-        {/* Maieutic */}
-        <div className="card" style={{
-          background: 'linear-gradient(135deg, rgba(74, 222, 128, 0.1), rgba(74, 222, 128, 0.05))',
-          borderColor: 'var(--accent-green)'
-        }}>
-          <div style={{ fontSize: '3rem', marginBottom: 'var(--spacing-md)' }}>🤔</div>
-          <h3 style={{ color: 'var(--accent-green)' }}>Maieutic Dialogue</h3>
-          <p style={{ color: 'var(--text-secondary)' }}>
-            Explore through Socratic questioning. Progressively deeper questions
-            reveal underlying assumptions and universal themes.
-          </p>
-          <div style={{
-            fontSize: '0.875rem',
-            color: 'var(--text-tertiary)',
-            marginTop: 'var(--spacing-md)'
-          }}>
-            5 depth levels: Surface → Motivations → Root → Assumptions → Universal
-          </div>
-        </div>
-      </div>
+          <strong style={{ color: 'var(--text-secondary)' }}>Tem Noon</strong> · Founder, Humanizer.com<br />
+          <em>A science of meaning for the next renaissance.</em>
+        </p>
+      </section>
 
       {/* How It Works */}
       <div className="card" style={{ marginBottom: 'var(--spacing-2xl)' }}>

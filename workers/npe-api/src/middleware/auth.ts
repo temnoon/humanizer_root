@@ -188,7 +188,11 @@ export function requireAuth() {
   return async (c: Context<{ Bindings: Env }>, next: () => Promise<void>) => {
     const authHeader = c.req.header('Authorization');
 
+    console.log('[AUTH] Header:', authHeader ? `Bearer ${authHeader.substring(7, 30)}...` : 'MISSING');
+    console.log('[AUTH] JWT_SECRET available:', !!c.env?.JWT_SECRET);
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('[AUTH] FAILED: Missing or invalid header format');
       return c.json({ error: 'Missing or invalid authorization header' }, 401);
     }
 
@@ -196,6 +200,57 @@ export function requireAuth() {
     const authContext = await verifyToken(token, c.env.JWT_SECRET);
 
     if (!authContext) {
+      console.log('[AUTH] FAILED: Invalid or expired token');
+      return c.json({ error: 'Invalid or expired token' }, 401);
+    }
+
+    // Add auth context to request
+    c.set('auth', authContext);
+
+    await next();
+  };
+}
+
+/**
+ * Optional auth for local development
+ * Skips authentication if ENVIRONMENT is 'local', otherwise requires auth
+ * Uses test user 'test-user-local' with role 'pro' for local dev
+ */
+export function optionalLocalAuth() {
+  return async (c: Context<{ Bindings: Env }>, next: () => Promise<void>) => {
+    // Skip auth for local development
+    const isLocalDev = !c.env?.ENVIRONMENT ||
+                      c.env.ENVIRONMENT === 'local' ||
+                      c.env.ENVIRONMENT === 'development';
+
+    if (isLocalDev) {
+      console.log('[AUTH] Local dev mode - using test user');
+      // Set test user context for local development
+      c.set('auth', {
+        userId: 'test-user-local',
+        email: 'local@test.com',
+        role: 'pro' as UserRole
+      });
+      await next();
+      return;
+    }
+
+    // Production: require auth
+    const authHeader = c.req.header('Authorization');
+
+    console.log('[AUTH] Header:', authHeader ? `Bearer ${authHeader.substring(7, 30)}...` : 'MISSING');
+    console.log('[AUTH] JWT_SECRET available:', !!c.env?.JWT_SECRET);
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('[AUTH] FAILED: Missing or invalid header format');
+      return c.json({ error: 'Missing or invalid authorization header' }, 401);
+    }
+
+    const token = authHeader.substring(7);
+    const authContext = await verifyToken(token, c.env.JWT_SECRET);
+
+    if (!authContext) {
+      console.log('[AUTH] FAILED: Invalid or expired token');
       return c.json({ error: 'Invalid or expired token' }, 401);
     }
 

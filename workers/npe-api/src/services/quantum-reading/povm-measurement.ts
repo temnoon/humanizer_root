@@ -106,19 +106,12 @@ export async function measureSentenceTetralemma(
   } catch (error) {
     console.error('Error performing POVM measurement:', error);
 
-    // Fallback to uniform distribution if LLM fails
-    return {
-      sentence,
-      sentenceIndex,
-      measurement: {
-        literal: { probability: 0.25, evidence: 'LLM error - uniform fallback' },
-        metaphorical: { probability: 0.25, evidence: 'LLM error - uniform fallback' },
-        both: { probability: 0.25, evidence: 'LLM error - uniform fallback' },
-        neither: { probability: 0.25, evidence: 'LLM error - uniform fallback' }
-      },
-      isValid: false,
-      probSum: 1.0
-    };
+    // NO FALLBACK - Fail loudly instead of returning mock data
+    // Mock results erode user trust and credibility
+    throw new Error(
+      `POVM measurement failed: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
+      `Workers AI model may be unavailable or timed out.`
+    );
   }
 }
 
@@ -160,7 +153,7 @@ function parseAndValidateMeasurement(
     // Normalize if sum is not exactly 1.0 but close
     let normalizedProbs = { probLiteral, probMetaphorical, probBoth, probNeither };
     if (Math.abs(sum - 1.0) > 0.001 && Math.abs(sum - 1.0) < 0.1) {
-      // Normalize
+      // Normalize - acceptable rounding error
       normalizedProbs = {
         probLiteral: probLiteral / sum,
         probMetaphorical: probMetaphorical / sum,
@@ -168,13 +161,11 @@ function parseAndValidateMeasurement(
         probNeither: probNeither / sum
       };
     } else if (Math.abs(sum - 1.0) > 0.1) {
-      // Too far off, use uniform distribution
-      normalizedProbs = {
-        probLiteral: 0.25,
-        probMetaphorical: 0.25,
-        probBoth: 0.25,
-        probNeither: 0.25
-      };
+      // Too far off - FAIL instead of returning mock data
+      throw new Error(
+        `POVM probabilities sum to ${sum.toFixed(3)}, expected 1.0. ` +
+        `LLM returned invalid measurement. Workers AI may be malfunctioning.`
+      );
     }
 
     const measurement: TetralemmaMeasurement = {
@@ -209,19 +200,12 @@ function parseAndValidateMeasurement(
   } catch (error) {
     console.error('Error parsing measurement:', error, 'Response:', responseText);
 
-    // Fallback to uniform distribution
-    return {
-      sentence,
-      sentenceIndex,
-      measurement: {
-        literal: { probability: 0.25, evidence: 'Parse error - uniform fallback' },
-        metaphorical: { probability: 0.25, evidence: 'Parse error - uniform fallback' },
-        both: { probability: 0.25, evidence: 'Parse error - uniform fallback' },
-        neither: { probability: 0.25, evidence: 'Parse error - uniform fallback' }
-      },
-      isValid: false,
-      probSum: 1.0
-    };
+    // NO FALLBACK - Fail loudly instead of returning mock data
+    throw new Error(
+      `Failed to parse POVM measurement from LLM response. ` +
+      `Response was: ${responseText.substring(0, 200)}... ` +
+      `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
 }
 

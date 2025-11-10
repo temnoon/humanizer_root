@@ -32,5 +32,11 @@ new_sqlite_classes = ["MaieuticSessionDO"]
 [vars]
 ENVIRONMENT = "production"
 
+# Local development overrides
+# When running `wrangler dev --local`, use development environment
+# This enables registration for local API distribution and testing
+[env.dev]
+vars = { ENVIRONMENT = "development" }
+
 # Secrets (set via wrangler secret put)
 # JWT_SECRET - set via: wrangler secret put JWT_SECRET

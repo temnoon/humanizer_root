@@ -12,6 +12,7 @@ export interface DensityMatrixState {
   purity: number;     // Tr(ρ²) ∈ [1/32, 1]
   entropy: number;    // -Tr(ρ log ρ) ∈ [0, ln(32)]
   eigenvalues: number[]; // Diagonal elements (sorted descending)
+  trace: number;      // Should be ~1.0 (sum of eigenvalues)
   timestamp: string;
 }
 
@@ -53,11 +54,15 @@ export function constructDensityMatrix(embedding: number[]): DensityMatrixState 
   // Sort descending (eigenvalues)
   const eigenvalues = [...probs].sort((a, b) => b - a);
 
+  // Compute trace (should be 1.0 since eigenvalues sum to 1.0)
+  const trace = eigenvalues.reduce((sum, λ) => sum + λ, 0);
+
   return {
     matrix: createDiagonalMatrix(eigenvalues),
     purity: computePurity(eigenvalues),
     entropy: computeEntropy(eigenvalues),
     eigenvalues,
+    trace,
     timestamp: new Date().toISOString()
   };
 }

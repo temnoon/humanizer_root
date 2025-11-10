@@ -1,11 +1,11 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 9, 2025 - Mobile UX + Voice + Workbench M1 Complete
-**Status**: ✅ **3 Major Features Shipped** (Persistence, Voice, Workbench Scaffold)
-**Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, Vite 7.2, Tailwind 4.1
-**Admin Account**: dreegle@gmail.com (personal account, device registered ✅)
-**Test Account**: demo@humanizer.com (password: testpass123, role: pro)
-**Production**: https://humanizer.com | **Workbench**: http://localhost:5173
+**Last Updated**: Nov 10, 2025 - Cloud Workbench Environment Fixes
+**Status**: ✅ **DEPLOYED** - Cloud workbench at https://8b17adab.workbench-4ec.pages.dev
+**Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, Vite 7.2, Tailwind 4.1, DOMPurify 3.2
+**Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
+**Production API**: https://npe-api.tem-527.workers.dev
+**Workbench**: https://8b17adab.workbench-4ec.pages.dev (setup workbench.humanizer.com custom domain)
 
 **✅ SECURITY FIXES DEPLOYED (Nov 8, 2025):**
 - ✅ **XSS Fixed**: DOMPurify sanitization in AI Detector tell-word highlighting
@@ -14,30 +14,45 @@
 - ✅ **Constant-Time Comparison**: Prevents timing attacks on password verification
 - ✅ Overall security posture: EXCELLENT (all known vulnerabilities resolved)
 
-**✅ Completed This Session (Nov 9, 2025) - 3 Major Features:**
-1. **Persistent State Management** (0f79723)
-   - TransformationStateContext with localStorage (268 lines)
-   - Survives: tab switch, page refresh, phone sleep
-   - Load from history: wired callbacks, toast notifications
-   - "Text as valuable object" philosophy
+**✅ Cloud Workbench Deployed (Nov 10, 2025):**
+**"Photoshop for Narrative"** - Complete cloud-based transformation workflow
 
-2. **Voice Input/Output** (5c6963a)
-   - SpeechToText.tsx (184 lines) - continuous recognition, pulsing UI
-   - TextToSpeech.tsx (185 lines) - pause/resume/stop, progress bar
-   - Web Speech API: zero cost, 100% browser-local
-   - Integrated: Allegorical, RoundTrip, AIDetector
+**Architecture:**
+- 3-column layout: Content Source | Canvas | Tool Dock
+- 10 panels: 5 transformations + 3 analysis + 2 pipeline
+- ~4,000 lines of production React/TypeScript
+- Remote Content Source: Paste buffer + file upload (.txt, .md)
+- Smart tabs: Remote (cloud default) OR Archive (localhost only)
 
-3. **Cloud Workbench M1** (8f1800c)
-   - "Photoshop for Narrative" scaffold (31 files, 2677 lines)
-   - 3-column layout: Gem Vault | Canvas | Tool Dock
-   - Adapter pattern: V1 (current) → V2 (future) migration
-   - Working panels: POVM Evaluator, ρ Inspector
-   - Tech: Vite 7 + React 19 + Zustand + Zod + Tailwind 4.1
+**10 Working Panels:**
+1. 🌟 Allegorical (240 lines) - 5-stage pipeline, personas/namespaces/styles
+2. 🌍 Round-Trip (180 lines) - 18 languages, drift analysis
+3. 🔍 AI Detection (290 lines) - Tell-word highlighting, DOMPurify sanitization
+4. 🎭 Personalizer (250 lines) - 6 voice profiles, similarity scoring
+5. 🤔 Maieutic (260 lines) - Socratic dialogue, 5 depth levels
+6. ◈ Multi-Reading (240 lines) - Sentence-by-sentence quantum analysis
+7. ◆ POVM Evaluator (320 lines) - 6 axes, Tetralemma visualization
+8. ↗︎ ρ Inspector (313 lines) - Density matrix, eigenvalue spectra
+9. 📜 History (280 lines) - Transformation history with search/filter
+10. ◈ Sessions (220 lines) - Quantum session management
 
-**Deployments**: Frontend e38ad12e.npe-cloud.pages.dev | Workbench localhost:5173
+**Deployments**:
+- **Cloud Workbench**: https://414febad.workbench-4ec.pages.dev (workbench.humanizer.com)
+- **Frontend**: humanizer.com
+- **API**: npe-api.tem-527.workers.dev (v0a5e68f1)
 
-**Session Summary**: See /tmp/session_summary.md (comprehensive)
-**Tags**: mobile-ux, voice, workbench, m1-scaffold, state-management, speech-api
+**Features**:
+- ✅ Remote content source (paste + .txt/.md upload)
+- ✅ Canvas displays remote content correctly
+- ✅ All TypeScript errors fixed (47 total)
+- ✅ Environment variables configured properly (.env.production)
+- ✅ No more localhost:8000 CORS errors
+- ✅ ρ Inspector working (real eigenvalues)
+- ✅ Login/auth UI working
+- ⚠️ POVM results need verification (may be 25% defaults)
+- ⚠️ Allegorical transformation timeouts (Workers AI issue)
+
+**Latest Handoff**: /tmp/WORKBENCH_FINAL_STATUS.md (comprehensive guide)
 
 **Security Status**: ✅ **PRODUCTION READY** - All vulnerabilities resolved
 - ✅ All dependencies current with no known vulnerabilities
@@ -48,10 +63,19 @@
 - ✅ Automatic password migration on user login
 - 📋 Next: Comprehensive penetration testing recommended
 
-**Memory IDs**:
-- **⚡ Mobile UX + Voice + Workbench M1**: See /tmp/session_summary.md (Nov 9, 2025) **START HERE**
-- **🚧 Transformation History Phase 1**: `46a352991c59765d6f0feac5a6b3bd08b63980d911dfe42b0ee007db6bd88be8` (Nov 8, 2025)
-- **✅ Security Fixes Complete**: `37a547445ab89c7ec7915b255c0c4403f965dd59ae9ee2a509b1ee94740c93e3` (Nov 8, 2025)
+**🔧 KNOWN ISSUES**:
+1. ⚠️ **Allegorical Transformation Timeout**: Workers AI hangs after 10+ seconds (HIGH priority)
+2. ⚠️ **Attribute Builder Dialogue**: Backend works, frontend DialoguePanel not rendering AI responses
+3. 📦 **Custom Domain Cache**: workbench.humanizer.com cached, use direct URL for latest
+
+**Memory IDs** (Recent Sessions):
+- **✅ Cloud Workbench + Remote Content**: `a51a1c1f240f9c2852f66299fce4c5e995a60f2f4c778228885ae0333c778399` (Nov 10, 2025) **LATEST**
+  - Remote content source (paste + upload)
+  - Fixed /v2/narratives (migration 0010)
+  - Smart Archive/Remote tabs
+  - Handoff: /tmp/WORKBENCH_CLOUD_DEPLOYMENT_HANDOFF.md
+- **✅ Attribute Builder**: `814f00b4ef8b763abef2d589ef3b4a65ba9c64733996ed8d11f23af43c04de5f` (Nov 10, 2025)
+- **✅ Workbench M4**: `7c975dd515ae4849d37c45bca895a12b73de541a56bf0865ce6699e63f1eab2b` (Nov 9, 2025)
 - **✅ Allegorical Polish + Notifications**: `fdbc4d35bebd89e92a6c741428091711611be53c2ecc47343d0eec91fa4f7312` (Nov 6, 2025)
 - Token Allocation & Model Compat: `f5a74570faf0f04d183f461c18a95f72dbd6c96fa6f3adcaa847c02b1796fb45` (Nov 6, 2025)
 - QR UI Polish + Analytics: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f` (Nov 4, 2025)

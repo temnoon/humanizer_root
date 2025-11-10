@@ -3,7 +3,7 @@
 
 import { Hono } from 'hono';
 import type { Env } from '../../shared/types';
-import { requireAuth, getAuthContext } from '../middleware/auth';
+import { requireAuth, optionalLocalAuth, getAuthContext } from '../middleware/auth';
 import { detectAI, explainResult, HybridDetectionResult } from '../services/ai-detection/hybrid-orchestrator';
 import { saveTransformationToHistory, updateTransformationHistory } from '../utils/transformation-history-helper';
 
@@ -62,7 +62,7 @@ app.post('/test-detect', async (c) => {
  *   message?: string         // Optional info message
  * }
  */
-app.post('/detect', requireAuth(), async (c) => {
+app.post('/detect', optionalLocalAuth(), async (c) => {
   console.log('[AI Detection Route] Handler called');
   try {
     // Get user info from auth context
@@ -193,7 +193,7 @@ app.post('/detect', requireAuth(), async (c) => {
  *   canUseAPI: boolean        // True if user has PRO+ tier and API key available
  * }
  */
-app.get('/status', requireAuth(), async (c) => {
+app.get('/status', optionalLocalAuth(), async (c) => {
   try {
     const auth = getAuthContext(c);
     if (!auth) {
@@ -229,7 +229,7 @@ app.get('/status', requireAuth(), async (c) => {
  *   }>
  * }
  */
-app.get('/tell-words', requireAuth(), async (c) => {
+app.get('/tell-words', optionalLocalAuth(), async (c) => {
   try {
     // Import tell-words dynamically to get categories
     const { AI_TELL_WORDS } = await import('../services/ai-detection/tell-words');
