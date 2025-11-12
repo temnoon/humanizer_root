@@ -313,6 +313,7 @@ export interface Env {
   DB: any; // D1Database - only needed in Workers context
   AI: any; // Cloudflare AI binding
   KV: any; // KVNamespace - only needed in Workers context
+  R2_ARCHIVE: any; // R2Bucket - for encrypted file storage
   MAIEUTIC_SESSION: any; // DurableObjectNamespace - only needed in Workers context
   JWT_SECRET: string;
   ENVIRONMENT: string;

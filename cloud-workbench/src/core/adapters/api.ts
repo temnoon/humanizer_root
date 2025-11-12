@@ -367,6 +367,24 @@ export interface WorkbenchAPI {
   getQuantumSessions(): Promise<QuantumAnalysisSession[]>;
   getQuantumSession(id: string): Promise<QuantumAnalysisSession>;
   deleteQuantumSession(id: string): Promise<void>;
+
+  // Secure Archive
+  getArchiveSalt(): Promise<string>;
+  uploadArchiveFile(
+    file: Blob,
+    iv: number[],
+    filename: string,
+    contentType: string,
+    folder: string | null,
+    conversationMetadata?: any,
+    parentFileId?: string | null,
+    fileRole?: string,
+    relativePath?: string
+  ): Promise<any>;
+  listArchiveFiles(folder?: string): Promise<{ files: any[]; folders: string[]; total: number }>;
+  downloadArchiveFile(fileId: string): Promise<any>;
+  deleteArchiveFile(fileId: string): Promise<any>;
+  deleteArchiveFolder(folderName: string): Promise<any>;
 }
 
 /** V1 API implementation - Simple, reliable transformations */
@@ -586,6 +604,59 @@ const implementation: WorkbenchAPI = {
 
   async deleteQuantumSession(id) {
     await http.delete(`quantum-analysis/sessions/${id}`);
+  },
+
+  // Secure Archive
+  async getArchiveSalt() {
+    const r = await http.get(`secure-archive/salt`).json<any>();
+    return r.salt;
+  },
+
+  async uploadArchiveFile(
+    file: Blob,
+    iv: number[],
+    filename: string,
+    contentType: string,
+    folder: string | null,
+    conversationMetadata?: any,
+    parentFileId?: string | null,
+    fileRole?: string,
+    relativePath?: string
+  ) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('iv', JSON.stringify(iv));
+    formData.append('filename', filename);
+    formData.append('contentType', contentType);
+    if (folder) formData.append('folder', folder);
+    if (conversationMetadata) formData.append('conversationMetadata', JSON.stringify(conversationMetadata));
+    if (parentFileId) formData.append('parentFileId', parentFileId);
+    if (fileRole) formData.append('fileRole', fileRole);
+    if (relativePath) formData.append('relativePath', relativePath);
+
+    const r = await http.post(`secure-archive/upload`, { body: formData }).json<any>();
+    return r;
+  },
+
+  async listArchiveFiles(folder?: string) {
+    const params = folder ? `?folder=${encodeURIComponent(folder)}` : '';
+    const r = await http.get(`secure-archive/files${params}`).json<any>();
+    return r;
+  },
+
+  async downloadArchiveFile(fileId: string) {
+    const r = await http.get(`secure-archive/files/${fileId}`).json<any>();
+    return r;
+  },
+
+  async deleteArchiveFile(fileId: string) {
+    const r = await http.delete(`secure-archive/files/${fileId}`).json<any>();
+    return r;
+  },
+
+  async deleteArchiveFolder(folderName: string) {
+    const r = await http.delete(`secure-archive/folders/${encodeURIComponent(folderName)}`).json<any>();
+    return r;
   },
 };
 

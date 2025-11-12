@@ -18,6 +18,7 @@ import { analysisRoutes } from './routes/analysis';
 import { narrativesRoutes } from './routes/v2/narratives';
 import { rhoRoutes } from './routes/v2/rho';
 import { adminRoutes } from './routes/admin';
+import { secureArchive } from './routes/secure-archive';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -98,6 +99,9 @@ app.route('/v2/workspace', workspaceRoutes);
 
 // Admin routes (metrics, user management, system health)
 app.route('/admin', adminRoutes);
+
+// Secure Archive routes (encrypted file storage)
+app.route('/secure-archive', secureArchive);
 
 // 404 handler
 app.notFound((c) => {

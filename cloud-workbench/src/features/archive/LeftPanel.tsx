@@ -3,7 +3,7 @@
  */
 
 import { useState } from 'react';
-import { ArchiveBrowser } from './ArchiveBrowser';
+import { ArchivePanel } from '../panels/archive/ArchivePanel';
 import { RemoteContentSource } from '../remote/RemoteContentSource';
 
 type TopLevelTab = 'archive' | 'remote';
@@ -25,7 +25,7 @@ export function LeftPanel() {
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          📂 Archive
+          🗄️ Archive
         </button>
         <button
           onClick={() => setTopTab('remote')}
@@ -41,7 +41,7 @@ export function LeftPanel() {
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden">
-        {topTab === 'archive' ? <ArchiveBrowser /> : <RemoteContentSource />}
+        {topTab === 'archive' ? <ArchivePanel /> : <RemoteContentSource />}
       </div>
     </div>
   );
