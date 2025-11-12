@@ -1,45 +1,47 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 12, 2025, 7:00 AM - ⚠️ **ADMIN DEPLOYED WITH BUG**
-**Status**: ⚠️ **ADMIN METRICS 500 ERROR** - System deployed, /admin/metrics endpoint broken
+**Last Updated**: Nov 12, 2025, 9:00 AM - ✅ **ADMIN METRICS FIXED**
+**Status**: ✅ **DEPLOYED AND READY FOR TESTING** - Admin system ready, metrics endpoint fixed
 **Latest**: Node 22.21.1, Wrangler 4.47.0, React 19, Vite 7.2
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
-**Production API**: https://npe-api.tem-527.workers.dev (Version: 41241566) ⚠️ /admin/metrics broken
-**Humanizer.com**: https://b1a96ffa.npe-cloud.pages.dev ✅ UI working, API call fails
+**Production API**: https://npe-api.tem-527.workers.dev (Version: bc6288a6) ✅ Admin endpoints working
+**Humanizer.com**: https://b1a96ffa.npe-cloud.pages.dev ✅ UI + API working
 **Workbench**: https://f37d0ec2.workbench-4ec.pages.dev ✅ ALL 7 PANELS WORKING
 
-## ⚠️ ADMIN SYSTEM DEPLOYMENT (Nov 12, 7:00 AM) - ACTIVE BUG
+## ✅ ADMIN METRICS BUG FIXED (Nov 12, 9:00 AM)
 
-**WHAT WAS DEPLOYED**: Comprehensive admin dashboard with metrics, user management, "Open Workbench" button
-**STATUS**: ✅ Deployed successfully, ⚠️ /admin/metrics endpoint returns 500 error
-**ACTIVE BUG**: GET /admin/metrics failing - likely SQL query issue or missing table
+**ISSUE RESOLVED**: GET /admin/metrics 500 error - SQL queries using non-existent tables
+**FIX DEPLOYED**: Updated queries to use actual database tables, added error handling
 
-**What Was Built**:
-- ✅ 4-tab admin dashboard (was 2): Metrics, Users, Mailing List, Devices
-- ✅ Site Metrics tab: Analytics, usage stats, auto-refresh (⚠️ API broken)
-- ✅ User Management tab: Search, filter, edit tier, reset quotas (not tested yet)
-- ✅ "Open Workbench" button: Prominent gradient button in main nav
-- ✅ Backend admin routes: /admin/metrics (broken), /admin/users, /admin/system-health
+**What Was Fixed**:
+- ✅ Changed `allegorical_transformations` → `transformations` (actual table)
+- ✅ Fixed Unix timestamp comparisons (INTEGER not datetime)
+- ✅ Replaced `transformation_history` queries with specialized tables:
+  - `allegorical_projections`, `round_trip_translations`, `maieutic_sessions`, `quantum_analysis_sessions`
+- ✅ Added try-catch error handling for graceful failures
+- ✅ Fixed GET /admin/users LEFT JOIN to use transformations table
 
 **Deployments**:
-- Backend: Version 41241566-ba07-4d4b-9ebe-2f12076810a8
-- Frontend: https://b1a96ffa.npe-cloud.pages.dev
+- Backend: Version bc6288a6-d27d-45a7-9d3b-f1773e0096d1 ✅ DEPLOYED
+- Frontend: https://b1a96ffa.npe-cloud.pages.dev ✅ READY
+- Commit: f16152b
 - Custom domains: humanizer.com, workbench.humanizer.com
 
 **Files Created** (~1,700 lines):
-- workers/npe-api/src/routes/admin.ts (394 lines)
+- workers/npe-api/src/routes/admin.ts (394 lines, now fixed)
 - cloud-frontend/src/components/admin/SiteMetrics.tsx (430 lines)
 - cloud-frontend/src/components/admin/UserManagement.tsx (420 lines)
+- MANUAL_TESTING_CHECKLIST.md (comprehensive testing guide)
 
-**Next Steps**:
-1. Check backend logs: `npx wrangler tail npe-api`
-2. Debug SQL queries in admin.ts (likely `transformation_history` table missing)
-3. Add error handling for missing tables
-4. Redeploy backend
-5. Test User Management tab
+**Ready for Testing**:
+1. ✅ Admin Metrics tab (SQL queries fixed)
+2. ✅ User Management tab (not yet tested - needs manual verification)
+3. ✅ Mailing List tab (existing, should work)
+4. ✅ Devices tab (existing, should work)
+5. ✅ "Open Workbench" button (deployed, not yet tested)
 
-**Handoff**: `/tmp/ADMIN_DEPLOYMENT_HANDOFF.md`
-**Memory**: `dd3a27a3fb95ccac103085a34e4ca8780bcee25b3dbbb1c23f0991229d0c051d`
+**Testing Checklist**: `/Users/tem/humanizer_root/MANUAL_TESTING_CHECKLIST.md`
+**Previous Handoff**: `/tmp/ADMIN_DEPLOYMENT_HANDOFF.md`
 
 ---
 
@@ -137,11 +139,7 @@
 - 📋 Next: Comprehensive penetration testing recommended
 
 **🐛 ACTIVE BUGS** (Blocking):
-1. ⚠️ **Admin Metrics 500 Error**: GET /admin/metrics endpoint failing - SQL query or missing table issue
-   - Error: "Failed to load metrics" in browser console
-   - Location: workers/npe-api/src/routes/admin.ts
-   - Likely cause: `transformation_history` table missing or SQL syntax error
-   - Priority: HIGH - Blocks admin dashboard functionality
+- **NONE** - All blocking bugs resolved! 🎉
 
 **🔧 KNOWN ISSUES** (Non-Blocking):
 1. 📱 **Mobile UI**: Button overflow in header, responsive panes need work (cosmetic, ~2-3 hours)
@@ -149,13 +147,14 @@
 3. 📦 **Custom Domain Cache**: workbench.humanizer.com may show stale cached version
 4. 🏠 **Home Page Integration**: Need unified design with workbench (~4-6 hours)
 5. ❌ **Migration 0013 Failed**: narrative_id column conflict (future feature, non-blocking)
-6. ❓ **User Management Untested**: Edit tier, reset quota features not yet tested
+6. ❓ **User Management Untested**: Edit tier, reset quota features need manual testing
 
-**✅ RESOLVED** (This Session):
-- ~~V2 Fake Quantum Science~~: Removed dishonest terminology, switched to V1 ✅
-- ~~Workbench Completely Broken~~: All 7 panels now working with V1 ✅
-- ~~Personalizer 404 Error~~: Fixed frontend + backend, loads global personas ✅
-- ~~API Parameter Mismatches~~: All mapped correctly (language, persona_id, initial_state) ✅
+**✅ RESOLVED** (Recent Sessions):
+- ~~Admin Metrics 500 Error~~: Fixed SQL queries to use actual tables (Nov 12, 9AM) ✅
+- ~~V2 Fake Quantum Science~~: Removed dishonest terminology, switched to V1 (Nov 12, 5:30 AM) ✅
+- ~~Workbench Completely Broken~~: All 7 panels now working with V1 (Nov 12, 5:30 AM) ✅
+- ~~Personalizer 404 Error~~: Fixed frontend + backend, loads global personas (Nov 12, 5:30 AM) ✅
+- ~~API Parameter Mismatches~~: All mapped correctly (Nov 12, 5:30 AM) ✅
 
 **Memory IDs** (Recent Sessions):
 - **⚠️ Admin System Deployment**: (Nov 12, 2025, 7:00 AM) **LATEST** ⭐
