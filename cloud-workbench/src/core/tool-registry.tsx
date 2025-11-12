@@ -30,8 +30,8 @@ export const toolRegistry: ToolDef[] = [
 
   // Analysis
   { id: "multi-reading", kind: "analysis", icon: <span>◈</span>, label: "Multi-Reading", panel: MultiReadingPanel },
-  { id: "povm", kind: "analysis", icon: <span>◆</span>, label: "POVM", panel: POVMPanel },
-  { id: "rho-inspect", kind: "analysis", icon: <span>↗︎</span>, label: "ρ Inspector", panel: RhoInspector },
+  { id: "povm", kind: "analysis", icon: <span>◆</span>, label: "Perspective Analysis", panel: POVMPanel },
+  { id: "rho-inspect", kind: "analysis", icon: <span>↗︎</span>, label: "Embedding Profile", panel: RhoInspector },
 
   // Pipeline (History & Sessions)
   { id: "history", kind: "pipeline", icon: <span>📜</span>, label: "History", panel: HistoryPanel },
