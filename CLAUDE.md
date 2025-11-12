@@ -1,11 +1,11 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 10, 2025 - Cloud Workbench Environment Fixes
-**Status**: ✅ **DEPLOYED** - Cloud workbench at https://8b17adab.workbench-4ec.pages.dev
-**Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, Vite 7.2, Tailwind 4.1, DOMPurify 3.2
+**Last Updated**: Nov 12, 2025, 12:20 AM - V2 Fixed, V1/V2 Testing
+**Status**: 🟢 **V2 FULLY WORKING, TESTS RUNNING**
+**Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, Vite 7.2
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
-**Production API**: https://npe-api.tem-527.workers.dev
-**Workbench**: https://8b17adab.workbench-4ec.pages.dev (setup workbench.humanizer.com custom domain)
+**Production API**: https://npe-api.tem-527.workers.dev ✅ V1 & V2 BOTH WORKING
+**Workbench**: https://996852cf.workbench-4ec.pages.dev ✅ ALL FEATURES WORKING
 
 **✅ SECURITY FIXES DEPLOYED (Nov 8, 2025):**
 - ✅ **XSS Fixed**: DOMPurify sanitization in AI Detector tell-word highlighting
@@ -37,22 +37,24 @@
 10. ◈ Sessions (220 lines) - Quantum session management
 
 **Deployments**:
-- **Cloud Workbench**: https://414febad.workbench-4ec.pages.dev (workbench.humanizer.com)
-- **Frontend**: humanizer.com
-- **API**: npe-api.tem-527.workers.dev (v0a5e68f1)
+- **API Backend**: https://npe-api.tem-527.workers.dev ✅ V1 WORKING, V2 BROKEN
+- **Workbench (Latest)**: https://dd019400.workbench-4ec.pages.dev ✅ UI FIXES DEPLOYED
+- **Home Page**: https://humanizer.com ✅ V1 API WORKING
+- **Custom Domains**:
+  - workbench.humanizer.com (may show cached version)
+  - api.humanizer.com → npe-api.tem-527.workers.dev
 
-**Features**:
-- ✅ Remote content source (paste + .txt/.md upload)
-- ✅ Canvas displays remote content correctly
-- ✅ All TypeScript errors fixed (47 total)
-- ✅ Environment variables configured properly (.env.production)
-- ✅ No more localhost:8000 CORS errors
-- ✅ ρ Inspector working (real eigenvalues)
-- ✅ Login/auth UI working
-- ⚠️ POVM results need verification (may be 25% defaults)
-- ⚠️ Allegorical transformation timeouts (Workers AI issue)
+**Latest Session** (Nov 11-12): V2 Fixed, V1/V2 Comparison Testing Running
+- ✅ **V2 Fixed**: Created database tables, fixed auth, added model selection
+- ✅ **V2 Working**: Full ρ tracking, POVM measurements, eigenvalue evolution
+- 🧪 **25 Comparison Tests Running**: 5 passages × 5 namespaces (V1 vs V2)
+  - Test script: `/Users/tem/humanizer_root/test-v1-v2-comparison.mjs`
+  - Early results: V2 ~2x slower but includes quantum metrics
+  - Results: `/tmp/v1-v2-comparison-*.{json,md}`
+- 🎯 **Next**: Analyze results, optimize V2 LLM usage
 
-**Latest Handoff**: /tmp/WORKBENCH_FINAL_STATUS.md (comprehensive guide)
+**Latest Handoff**: /tmp/V2_FIXES_AND_TESTING_HANDOFF.md
+**Quick Start**: /tmp/QUICK_START_V2_TESTING.md
 
 **Security Status**: ✅ **PRODUCTION READY** - All vulnerabilities resolved
 - ✅ All dependencies current with no known vulnerabilities
@@ -64,23 +66,26 @@
 - 📋 Next: Comprehensive penetration testing recommended
 
 **🔧 KNOWN ISSUES**:
-1. ⚠️ **Allegorical Transformation Timeout**: Workers AI hangs after 10+ seconds (HIGH priority)
-2. ⚠️ **Attribute Builder Dialogue**: Backend works, frontend DialoguePanel not rendering AI responses
-3. 📦 **Custom Domain Cache**: workbench.humanizer.com cached, use direct URL for latest
+1. ⚠️ **V2 Performance**: ~2x slower than V1 (10 LLM calls + 6 embeddings vs 5 LLM calls)
+   - Acceptable trade-off for quantum metrics?
+   - Next: Optimize by using faster models for mechanical stages
+2. 📦 **Custom Domain Cache**: workbench.humanizer.com may show stale cached version
+3. 🔍 **Email Validation**: Login form regex too strict (cosmetic)
+4. 📂 **Archive Tab**: Shows localhost data on cloud (should filter)
 
 **Memory IDs** (Recent Sessions):
-- **✅ Cloud Workbench + Remote Content**: `a51a1c1f240f9c2852f66299fce4c5e995a60f2f4c778228885ae0333c778399` (Nov 10, 2025) **LATEST**
-  - Remote content source (paste + upload)
-  - Fixed /v2/narratives (migration 0010)
-  - Smart Archive/Remote tabs
-  - Handoff: /tmp/WORKBENCH_CLOUD_DEPLOYMENT_HANDOFF.md
-- **✅ Attribute Builder**: `814f00b4ef8b763abef2d589ef3b4a65ba9c64733996ed8d11f23af43c04de5f` (Nov 10, 2025)
-- **✅ Workbench M4**: `7c975dd515ae4849d37c45bca895a12b73de541a56bf0865ce6699e63f1eab2b` (Nov 9, 2025)
-- **✅ Allegorical Polish + Notifications**: `fdbc4d35bebd89e92a6c741428091711611be53c2ecc47343d0eec91fa4f7312` (Nov 6, 2025)
-- Token Allocation & Model Compat: `f5a74570faf0f04d183f461c18a95f72dbd6c96fa6f3adcaa847c02b1796fb45` (Nov 6, 2025)
-- QR UI Polish + Analytics: `4e04a4a272adc9fd398086a0df2f1d16277ad5af185eccb20dded24276ca8d9f` (Nov 4, 2025)
-- Quantum Reading MVP: `04f54d40bb5cc038a7ab6159db6b518643f05a3f9a92fc7d0af8fdf24746ddb8` (Nov 3, 2025)
-- WebAuthn final: `b6901c31ee71a60cf0460083fad732e4c90d170a28d251dfa519e7fa5c3ccf79` (Nov 3, 2025)
+- **🟡 POVM Verification System**: (Nov 10-11, 3AM) **LATEST**
+  - Built working prototype: Content POVM Pack, verification pipeline, test API
+  - Tested 3 PG excerpts, identified drift calculation bug (100% on identical strings)
+  - Fix: Replace Jaccard with embeddings, then re-run tests
+  - Handoff: /tmp/POVM_VERIFICATION_HANDOFF_NOV10.md
+- **✅ Workbench Bug Fixes**: `7fb6babaa4a19cc0f68711927a8ff586394e247c54df9905fcff04e691a2d29c` (Nov 10, 8PM)
+  - Fixed 7 critical bugs: timeout, custom attrs, progress, scrolling, AI detection, round-trip, auth
+  - All transformation panels working
+  - Handoff: /tmp/WORKBENCH_SESSION_NOV10_HANDOFF.md
+- **✅ V2 ρ-Based API Integration**: `a863bdf81fd099204d2d5e05ce460a9551e7f9c30f46f2dcb4f242667e5081da` (Nov 10, 4PM)
+- **✅ Cloud Workbench + Remote Content**: `a51a1c1f240f9c2852f66299fce4c5e995a60f2f4c778228885ae0333c778399` (Nov 10)
+- **✅ Attribute Builder**: `814f00b4ef8b763abef2d589ef3b4a65ba9c64733996ed8d11f23af43c04de5f` (Nov 10)
 
 **✅ WEBAUTHN FULLY WORKING**:
 - **Issues Fixed**:
@@ -93,6 +98,37 @@
   - First device registered: "Tem's Mac" ✅
 - **Latest commit**: d4c6a81 (WebAuthn credential structure fix)
 - **Node.js**: 22.21.1 now default (.nvmrc files added)
+
+---
+
+## 🎯 NEXT PHASE: THE GREAT RECONCILIATION
+
+**Vision**: "A welcoming and informative website for learning about subjectivity, phenomenology and tools available nowhere else in the world."
+
+### Current State
+- **humanizer.com** (cloud-frontend): Beautiful aesthetics, V1 API working
+- **workbench.humanizer.com** (cloud-workbench): Excellent usability, V2 API broken
+
+### Goals
+1. **Fix V2 Transformations** - Critical: Get workbench working
+2. **Unified Design** - Merge humanizer.com aesthetics + workbench usability
+3. **Educational Landing** - Welcoming introduction to subjectivity/POVM/ρ
+4. **Maximum Usability** - Professional tool environment
+5. **Information Architecture** - Help users discover what's possible
+
+### Approach Options
+1. **Enhance Workbench** (Recommended) - Add humanizer.com visual polish to workbench architecture
+2. **Enhance Home** - Add workbench tools to humanizer.com
+3. **Merge Codebases** - Create unified frontend
+
+### Key Deliverables
+- Working transformations on workbench (V2 fix or V1 migration)
+- Beautiful landing page with tutorial/info
+- Integrated help and documentation
+- Smooth onboarding flow for new users
+- Production-ready unified interface
+
+**See**: /tmp/WORKBENCH_FRONTEND_HANDOFF_NOV11.md for detailed next steps
 
 ---
 
