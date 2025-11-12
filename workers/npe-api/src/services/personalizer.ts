@@ -74,17 +74,25 @@ export async function transformWithPersonalizer(
 
   // Load persona if provided
   if (personaId) {
-    const persona = await env.DB.prepare(
+    // Try user's personal personas first
+    let persona = await env.DB.prepare(
       'SELECT * FROM personal_personas WHERE id = ? AND user_id = ?'
     ).bind(personaId, userId).first();
 
+    // Fall back to global personas if not found
     if (!persona) {
-      throw new Error('Persona not found or does not belong to user');
+      persona = await env.DB.prepare(
+        'SELECT * FROM npe_personas WHERE id = ?'
+      ).bind(personaId).first();
+    }
+
+    if (!persona) {
+      throw new Error('Persona not found');
     }
 
     personaDescription = `PERSONA: ${persona.name}${persona.description ? ' - ' + persona.description : ''}\n`;
 
-    // Add example texts
+    // Add example texts if available
     if (persona.example_texts) {
       const examples = JSON.parse(persona.example_texts as string) as string[];
       personaExamples = examples.map((ex, idx) =>

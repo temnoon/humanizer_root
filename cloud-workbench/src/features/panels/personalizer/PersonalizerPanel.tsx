@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCanvas } from '../../../core/context/CanvasContext';
 import { api, type PersonalizerResponse } from '../../../core/adapters/api';
 
@@ -7,28 +7,36 @@ import { api, type PersonalizerResponse } from '../../../core/adapters/api';
  *
  * Features:
  * - Transform text to match a specific writing voice
- * - Voice profile selection (predefined or custom)
+ * - Voice profile selection (from global personas)
  * - Similarity scoring
  * - Load personalized text to Canvas
  * - PRO+ tier feature (requires authentication)
- *
- * Note: Voice sample upload functionality is planned for future release
  */
 export function PersonalizerPanel() {
   const { getActiveText, setText } = useCanvas();
   const [result, setResult] = useState<PersonalizerResponse | null>(null);
   const [isTransforming, setIsTransforming] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [voiceProfile, setVoiceProfile] = useState('professional');
+  const [voiceProfile, setVoiceProfile] = useState('neutral');
 
-  const voiceProfiles = [
-    { id: 'professional', name: 'Professional', description: 'Formal, business-appropriate tone' },
-    { id: 'casual', name: 'Casual', description: 'Relaxed, conversational style' },
-    { id: 'academic', name: 'Academic', description: 'Scholarly, research-oriented voice' },
-    { id: 'creative', name: 'Creative', description: 'Artistic, expressive language' },
-    { id: 'technical', name: 'Technical', description: 'Precise, documentation-style' },
-    { id: 'journalistic', name: 'Journalistic', description: 'News-style, objective reporting' },
-  ];
+  // Load personas from API
+  const [personas, setPersonas] = useState<Array<{ id: string; name: string; description: string }>>([]);
+
+  useEffect(() => {
+    loadPersonas();
+  }, []);
+
+  const loadPersonas = async () => {
+    try {
+      const data = await api.getPersonas();
+      setPersonas(data);
+      if (data.length > 0 && !voiceProfile) {
+        setVoiceProfile(data[0].id);
+      }
+    } catch (err: any) {
+      console.error('Error loading personas:', err);
+    }
+  };
 
   const handleTransform = async () => {
     const text = getActiveText();
@@ -91,16 +99,20 @@ export function PersonalizerPanel() {
             value={voiceProfile}
             onChange={(e) => setVoiceProfile(e.target.value)}
             className="w-full rounded bg-slate-700 px-3 py-2 text-sm text-slate-100"
+            disabled={personas.length === 0}
           >
-            {voiceProfiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name}
+            {personas.length === 0 && (
+              <option value="">Loading personas...</option>
+            )}
+            {personas.map((persona) => (
+              <option key={persona.id} value={persona.id}>
+                {persona.name}
               </option>
             ))}
           </select>
-          {voiceProfiles.find((p) => p.id === voiceProfile) && (
+          {personas.find((p) => p.id === voiceProfile) && (
             <div className="mt-1 text-xs text-slate-400">
-              {voiceProfiles.find((p) => p.id === voiceProfile)?.description}
+              {personas.find((p) => p.id === voiceProfile)?.description}
             </div>
           )}
         </div>
