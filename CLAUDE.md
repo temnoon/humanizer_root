@@ -44,20 +44,28 @@
   - workbench.humanizer.com (may show cached version)
   - api.humanizer.com → npe-api.tem-527.workers.dev
 
-**Latest Session** (Nov 11-12): V1/V2 Comparison Complete - V2 is Superior
-- ✅ **V2 Fixed**: Created database tables, fixed auth, added model selection
-- ✅ **V2 Working**: Full ρ tracking, POVM measurements, eigenvalue evolution
-- ✅ **25 Comparison Tests Complete**: 5 passages × 5 namespaces (V1 vs V2)
-  - Test script: `/Users/tem/humanizer_root/test-v1-v2-comparison.mjs`
-  - **Results**: V1 avg 16.5s, V2 avg 28.6s (+73.6% overhead, 1.74x slower)
-  - **Quality**: V2 produces measurably better, more nuanced outputs
-  - **Quantum Metrics**: Correlate with transformation quality (coherence predicts semantic fit)
-  - Full report: `/tmp/v1-v2-comparison-2025-11-12T00-40-59-814Z.md`
-- 🎯 **Decision**: Deploy BOTH V1 (loss leader) and V2 (premium scientific offering)
-- 🎯 **Next**: "Polish the brass in the lobby" - frontend cleanup for public launch
+**Latest Session** (Nov 12, 2025, 2:00 AM): Narrative Sessions Architecture
+- ✅ **Tested all 10 workbench panels** - 9/10 working, 1 broken (Sessions 404)
+- ✅ **Designed comprehensive architecture** for narrative persistence
+  - Canvas as pipeline manager (manual orchestration)
+  - Narrative validation (reject gibberish before processing)
+  - Linear session model (MVP) → future: variation trees
+  - Database schema: narratives, operations, quantum_sessions, quantum_measurements
+- ✅ **Created MVP Functional Spec** (678 lines) - Complete vision for launch
+  - File: `docs/MVP_FUNCTIONAL_SPEC.md` ⭐ **READ BEFORE IMPLEMENTING**
+  - Defines Phase 1, 2, 3 roadmap
+  - Launch checklist and success criteria
+- 🎯 **Next**: Implement Phase 1 (6-8 hours)
+  - Migration 0013: Create tables
+  - Implement Sessions API (fix 404)
+  - Add narrative validation utility
+  - Deploy and test
+- 📊 **Signups**: 73 organic (no marketing yet!)
 
-**Strategy Document**: `docs/V1_V2_COMPARISON_AND_STRATEGY.md` ⭐ **READ THIS FIRST**
-**Latest Handoff**: /tmp/V2_FIXES_AND_TESTING_HANDOFF.md
+**Strategy Documents**:
+- `docs/MVP_FUNCTIONAL_SPEC.md` ⭐ **IMPLEMENTATION GUIDE**
+- `docs/V1_V2_COMPARISON_AND_STRATEGY.md` - V1/V2 decision rationale
+**Latest Handoff**: /tmp/NARRATIVE_SESSIONS_ARCHITECTURE_HANDOFF.md
 
 **Security Status**: ✅ **PRODUCTION READY** - All vulnerabilities resolved
 - ✅ All dependencies current with no known vulnerabilities
@@ -68,27 +76,34 @@
 - ✅ Automatic password migration on user login
 - 📋 Next: Comprehensive penetration testing recommended
 
-**🔧 KNOWN ISSUES**:
+**🔧 KNOWN ISSUES** (Blocking Launch):
+1. 🚨 **Sessions Panel 404**: `/quantum-analysis/sessions` endpoint not implemented
+   - **Impact**: Panel shows error instead of quantum reading sessions
+   - **Fix**: Phase 1 implementation (migration 0013 + sessions API)
+   - **Priority**: HIGH
+
+**🔧 KNOWN ISSUES** (Non-Blocking):
 1. 📦 **Custom Domain Cache**: workbench.humanizer.com may show stale cached version
 2. 🔍 **Email Validation**: Login form regex too strict (cosmetic)
 3. 📂 **Archive Tab**: Shows localhost data on cloud (should filter)
 
 **✅ RESOLVED**:
 - ~~V2 Performance~~: 1.74x overhead is **acceptable** and strategic (V2 as premium offering)
+- ~~9/10 panels working~~: All panels load correctly (Sessions needs backend fix)
 
 **Memory IDs** (Recent Sessions):
-- **🟡 POVM Verification System**: (Nov 10-11, 3AM) **LATEST**
-  - Built working prototype: Content POVM Pack, verification pipeline, test API
-  - Tested 3 PG excerpts, identified drift calculation bug (100% on identical strings)
-  - Fix: Replace Jaccard with embeddings, then re-run tests
-  - Handoff: /tmp/POVM_VERIFICATION_HANDOFF_NOV10.md
-- **✅ Workbench Bug Fixes**: `7fb6babaa4a19cc0f68711927a8ff586394e247c54df9905fcff04e691a2d29c` (Nov 10, 8PM)
-  - Fixed 7 critical bugs: timeout, custom attrs, progress, scrolling, AI detection, round-trip, auth
-  - All transformation panels working
-  - Handoff: /tmp/WORKBENCH_SESSION_NOV10_HANDOFF.md
-- **✅ V2 ρ-Based API Integration**: `a863bdf81fd099204d2d5e05ce460a9551e7f9c30f46f2dcb4f242667e5081da` (Nov 10, 4PM)
-- **✅ Cloud Workbench + Remote Content**: `a51a1c1f240f9c2852f66299fce4c5e995a60f2f4c778228885ae0333c778399` (Nov 10)
-- **✅ Attribute Builder**: `814f00b4ef8b763abef2d589ef3b4a65ba9c64733996ed8d11f23af43c04de5f` (Nov 10)
+- **🟢 Narrative Sessions Architecture**: (Nov 12, 2025, 2AM) **LATEST**
+  - Tested all 10 workbench panels (9/10 working, Sessions 404)
+  - Designed narrative persistence architecture (Canvas as pipeline)
+  - Created MVP Functional Spec (678 lines)
+  - Phase 1 ready: migrations, Sessions API, validation
+  - Handoff: /tmp/NARRATIVE_SESSIONS_ARCHITECTURE_HANDOFF.md
+  - ChromaDB: `afcc4f28eacac812a09fced2a258cc9bb7e97d327601a4da401a0523f662e96e`
+- **✅ V1/V2 Comparison Complete**: (Nov 11-12)
+  - 25 tests: V1 16.5s, V2 28.6s (1.74x overhead)
+  - V2 superior quality, quantum metrics correlate with quality
+  - Decision: Deploy both (V1 loss leader, V2 premium)
+  - Report: /tmp/v1-v2-comparison-2025-11-12T00-40-59-814Z.md
 
 **✅ WEBAUTHN FULLY WORKING**:
 - **Issues Fixed**:
@@ -558,52 +573,34 @@ npx wrangler secret list
 
 ---
 
-## 🔧 NPE Next Steps
+## 🎯 Launch Roadmap (3-4 Sessions to Open Signups)
 
-**COMPLETED** ✅:
-- ✅ Allegorical Enhancements Phases 1-3 (deployed to production)
-- ✅ Database migration 0008 applied
-- ✅ LLM provider integrations created
-- ✅ Frontend model/length dropdowns
-- ✅ Split-pane Quantum Reading UI
-- ✅ Light/dark mode with theme toggle
-- ✅ WebAuthn Touch ID authentication
-- ✅ Google Analytics 4 + SEO metadata
+**PHASE 1: Narrative Sessions Foundation** (THIS SESSION - 6-8 hours):
+1. ✅ Test all 10 panels (DONE)
+2. ✅ Design architecture (DONE)
+3. ✅ Write functional spec (DONE)
+4. 🔨 **TODO**: Create migration 0013 (narratives, operations, quantum_sessions)
+5. 🔨 **TODO**: Implement Sessions API (fix 404)
+6. 🔨 **TODO**: Add narrative validation utility
+7. 🔨 **TODO**: Deploy and test on production
 
-**✅ RESOLVED - Allegorical 500 Error**:
-- Root cause was authentication bug in getAuthContext helper
-- Fixed in previous session (see Memory ID below)
-- All transformations now working correctly
+**PHASE 2: Polish for Launch** (NEXT SESSION - 3-4 hours):
+1. Add V1/V2 API selector to Allegorical panel
+2. Mobile responsiveness testing
+3. Cross-browser verification (Chrome, Firefox, Safari)
+4. Error handling audit (graceful failures)
 
-**See:** Memory ID `10de45bbefa0784b8677382b4106a2e91f592f6c5efdcea03e4727e2d94af9c4` for debugging details
+**PHASE 3: Final Launch Prep** (FINAL SESSION - 2-3 hours):
+1. All 10 panels working without errors
+2. Performance testing (<30s per transform)
+3. Documentation: User guide + API docs
+4. Enable signups (73 waiting!)
+5. Announce to subscribers
 
-**SHORT TERM** (After Allegorical Enhancements):
-1. **Quantum Reading Testing**:
-   - End-to-end testing with longer narratives (10+ sentences)
-   - Mobile device testing (iOS Safari, Android Chrome)
-   - Cross-browser testing for highlight colors
-2. **Other Transformations**:
-   - Test Round-Trip and Maieutic transformations thoroughly
-   - Fix any UI issues in other forms
-3. **Documentation**:
-   - User guide for Quantum Reading
-   - API documentation
-   - Feature overview videos
-
-**MEDIUM TERM**:
-4. Quota enforcement middleware (role-based limits)
-5. Monthly usage reset cron job
-6. User management UI (promote/demote users)
-7. Usage analytics dashboard (leverage GA4 data)
-8. Rate limiting (KV namespace ready)
-9. Additional POVM packs for Quantum Reading (Tone, Ontology, Pragmatics)
-
-**LONG TERM**:
-10. Cloudflare Zero Trust integration (when scaling admins)
-11. Multi-tenant architecture
-12. API versioning
-13. Context-specific POVM generation (LLM-analyzed narrative axes)
-14. Export/share functionality for Quantum Reading sessions
+**POST-LAUNCH** (Based on User Feedback):
+- Phase 2 features: Lineage/variation trees, "Fork from here"
+- Phase 3 features: Pipeline builder, workflow templates
+- Phase 4 features: Quantum Reading UX overhaul (hover display)
 
 ---
 
