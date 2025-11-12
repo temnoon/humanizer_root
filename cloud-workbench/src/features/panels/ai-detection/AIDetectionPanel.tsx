@@ -61,27 +61,24 @@ export function AIDetectionPanel() {
     );
   };
 
-  const highlightTellWords = (text: string, tellWords: AIDetectionResponse['tell_words']) => {
+  const highlightTellWords = (text: string, tellWords: AIDetectionResponse['detectedTellWords']) => {
     if (!tellWords || tellWords.length === 0) {
       return text;
     }
 
-    // Sort by position (descending) to avoid position shifts during replacement
-    const sorted = [...tellWords].sort((a, b) => b.position - a.position);
-
+    // For each detected tell-word, find and highlight all occurrences
     let highlightedText = text;
 
-    for (const { word, position, severity } of sorted) {
-      const colorClass = {
-        low: 'bg-yellow-500/30 text-yellow-100 border-b-2 border-yellow-500',
-        medium: 'bg-orange-500/30 text-orange-100 border-b-2 border-orange-500',
-        high: 'bg-red-500/30 text-red-100 border-b-2 border-red-500',
-      }[severity];
+    for (const { word, category } of tellWords) {
+      // Create case-insensitive regex for the word
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
 
-      const before = highlightedText.substring(0, position);
-      const after = highlightedText.substring(position + word.length);
+      // Determine color based on category (simplified since we don't have severity)
+      const colorClass = 'bg-yellow-500/30 text-yellow-100 border-b-2 border-yellow-500';
 
-      highlightedText = `${before}<mark class="${colorClass}" title="Severity: ${severity}">${word}</mark>${after}`;
+      highlightedText = highlightedText.replace(regex, (match) => {
+        return `<mark class="${colorClass}" title="Category: ${category}">${match}</mark>`;
+      });
     }
 
     // Sanitize to prevent XSS
@@ -133,9 +130,9 @@ export function AIDetectionPanel() {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {result && (
           <>
-            {/* Grade Badge */}
+            {/* Verdict Badge */}
             <div className="text-center">
-              {getGradeBadge(result.grade)}
+              {getGradeBadge(result.verdict)}
             </div>
 
             {/* Confidence Score */}
@@ -155,40 +152,26 @@ export function AIDetectionPanel() {
                 />
               </div>
               <div className="mt-2 text-xs text-slate-400">
-                {result.is_ai_generated
+                {result.verdict === 'ai'
                   ? 'High likelihood of AI generation detected'
-                  : 'Text appears to be human-written'}
+                  : result.verdict === 'human'
+                  ? 'Text appears to be human-written'
+                  : 'Detection uncertain - mixed signals'}
               </div>
             </div>
 
             {/* Tell-Words */}
-            {result.tell_words && result.tell_words.length > 0 && (
+            {result.detectedTellWords && result.detectedTellWords.length > 0 && (
               <div className="rounded bg-slate-800 p-4">
                 <h3 className="text-sm font-bold text-slate-300 mb-3">
-                  Tell-Words Detected ({result.tell_words.length})
+                  Tell-Words Detected ({result.detectedTellWords.length})
                 </h3>
-
-                {/* Legend */}
-                <div className="flex flex-wrap gap-2 mb-3 text-xs">
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-4 rounded bg-yellow-500/30 border-b-2 border-yellow-500"></div>
-                    <span className="text-slate-400">Low</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-4 rounded bg-orange-500/30 border-b-2 border-orange-500"></div>
-                    <span className="text-slate-400">Medium</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-4 h-4 rounded bg-red-500/30 border-b-2 border-red-500"></div>
-                    <span className="text-slate-400">High</span>
-                  </div>
-                </div>
 
                 {/* Highlighted Text */}
                 <div
                   className="rounded bg-slate-900 p-3 text-sm text-slate-300 leading-relaxed"
                   dangerouslySetInnerHTML={{
-                    __html: highlightTellWords(getActiveText() || '', result.tell_words),
+                    __html: highlightTellWords(getActiveText() || '', result.detectedTellWords),
                   }}
                 />
 
@@ -198,23 +181,20 @@ export function AIDetectionPanel() {
                     View tell-words list
                   </summary>
                   <div className="mt-2 space-y-1">
-                    {result.tell_words.map((tw, i) => (
+                    {result.detectedTellWords.map((tw, i) => (
                       <div
                         key={i}
                         className="flex items-center justify-between text-xs bg-slate-900 rounded px-2 py-1"
                       >
                         <span className="font-mono text-slate-300">{tw.word}</span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-xs font-medium ${
-                            tw.severity === 'high'
-                              ? 'bg-red-900/40 text-red-200'
-                              : tw.severity === 'medium'
-                              ? 'bg-orange-900/40 text-orange-200'
-                              : 'bg-yellow-900/40 text-yellow-200'
-                          }`}
-                        >
-                          {tw.severity}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-400 text-xs">
+                            {tw.category}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-xs font-medium bg-slate-700 text-slate-300">
+                            {tw.count}x
+                          </span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -222,14 +202,14 @@ export function AIDetectionPanel() {
               </div>
             )}
 
-            {/* Analysis */}
-            {result.analysis && (
+            {/* Explanation */}
+            {result.explanation && (
               <div className="rounded bg-slate-800 p-4">
                 <h4 className="text-sm font-bold text-slate-300 mb-2">
                   Analysis
                 </h4>
                 <p className="text-sm text-slate-400 leading-relaxed whitespace-pre-wrap">
-                  {result.analysis}
+                  {result.explanation}
                 </p>
               </div>
             )}

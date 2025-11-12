@@ -123,8 +123,8 @@ export function AllegoricalPanel() {
 
   const loadToCanvas = () => {
     if (result) {
-      setText(result.final_projection);
-      console.log('Loaded final projection to Canvas');
+      setText(result.final_text);
+      console.log('Loaded final text to Canvas');
     }
   };
 
@@ -315,17 +315,7 @@ export function AllegoricalPanel() {
               </div>
               <div className="prose prose-invert prose-sm max-w-none rounded bg-slate-800 p-3 text-slate-200">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {result.final_projection}
-                </ReactMarkdown>
-              </div>
-            </div>
-
-            {/* Reflection */}
-            <div>
-              <h3 className="font-bold text-sm text-slate-100 mb-2">Reflection</h3>
-              <div className="prose prose-invert prose-sm max-w-none rounded bg-slate-800 p-3 text-slate-200">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {result.reflection}
+                  {result.final_text}
                 </ReactMarkdown>
               </div>
             </div>
@@ -333,41 +323,26 @@ export function AllegoricalPanel() {
             {/* Stages (Collapsible) */}
             <details className="rounded border border-slate-700 bg-slate-800">
               <summary className="cursor-pointer px-3 py-2 font-medium text-sm text-slate-100 hover:bg-slate-700">
-                View 5 Stages
+                View {result.stages.length} Stages
               </summary>
               <div className="space-y-3 p-3">
-                <div>
-                  <h4 className="text-xs font-bold text-slate-300 mb-1">1. Deconstruct</h4>
-                  <div className="prose prose-invert prose-xs max-w-none text-slate-300">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {result.stages.deconstruct}
-                    </ReactMarkdown>
+                {result.stages.map((stage, idx) => (
+                  <div key={idx}>
+                    <h4 className="text-xs font-bold text-slate-300 mb-1">
+                      {stage.stage_number}. {stage.stage_name}
+                    </h4>
+                    <div className="prose prose-invert prose-xs max-w-none text-slate-300">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {stage.output_text}
+                      </ReactMarkdown>
+                    </div>
+                    {stage.transformation_description && (
+                      <p className="text-xs text-slate-500 mt-1 italic">
+                        {stage.transformation_description}
+                      </p>
+                    )}
                   </div>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-300 mb-1">2. Map</h4>
-                  <div className="prose prose-invert prose-xs max-w-none text-slate-300">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {result.stages.map}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-300 mb-1">3. Reconstruct</h4>
-                  <div className="prose prose-invert prose-xs max-w-none text-slate-300">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {result.stages.reconstruct}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-slate-300 mb-1">4. Stylize</h4>
-                  <div className="prose prose-invert prose-xs max-w-none text-slate-300">
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                      {result.stages.stylize}
-                    </ReactMarkdown>
-                  </div>
-                </div>
+                ))}
               </div>
             </details>
           </>
