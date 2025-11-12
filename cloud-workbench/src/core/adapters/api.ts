@@ -408,10 +408,19 @@ const implementation: WorkbenchAPI = {
     return { text, metrics: {} };
   },
 
-  // V2 Quantum Reading (uses v1 endpoints for now, will migrate)
+  // Quantum Reading
   async quantumStart(b) {
     const r = await http.post(`quantum-analysis/start`, { json: b }).json<any>();
-    return QuantumSession.parse(r);
+    // Backend returns different structure, map to expected format
+    return QuantumSession.parse({
+      session_id: r.session_id,
+      total_sentences: r.total_sentences,
+      current_index: 0,
+      initial_state: {
+        purity: r.initial_rho.purity,
+        entropy: r.initial_rho.entropy
+      }
+    });
   },
 
   async quantumStep(id) {
@@ -455,8 +464,23 @@ const implementation: WorkbenchAPI = {
   },
 
   async roundTrip(b) {
-    const r = await http.post(`transformations/round-trip`, { json: b }).json<any>();
-    return RoundTripResponse.parse(r);
+    // Map 'language' to 'intermediate_language' for backend
+    const payload = {
+      text: b.text,
+      intermediate_language: b.language
+    };
+    const r = await http.post(`transformations/round-trip`, { json: payload }).json<any>();
+
+    // Backend returns different structure, map to expected format
+    return RoundTripResponse.parse({
+      transformation_id: r.transformation_id,
+      original_text: b.text,
+      final_text: r.backward_translation,
+      intermediate_translations: [
+        { language: b.language, text: r.forward_translation }
+      ],
+      drift_analysis: r.semantic_drift || ''
+    });
   },
 
   async aiDetect(b) {
@@ -465,8 +489,20 @@ const implementation: WorkbenchAPI = {
   },
 
   async personalizer(b) {
-    const r = await http.post(`transformations/personalizer`, { json: b }).json<any>();
-    return PersonalizerResponse.parse(r);
+    // Map voice_profile to persona_id for backend
+    const payload = {
+      text: b.text,
+      persona_id: b.voice_profile,
+      style_id: undefined // Backend allows persona OR style
+    };
+    const r = await http.post(`transformations/personalizer`, { json: payload }).json<any>();
+    return PersonalizerResponse.parse({
+      transformation_id: r.transformation_id,
+      personalized_text: r.personalized_text,
+      similarity_score: r.similarity_score || 0,
+      voice_profile: b.voice_profile,
+      analysis: r.analysis
+    });
   },
 
   async maieutic(b) {
