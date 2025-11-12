@@ -7,7 +7,6 @@ import { parseConversation } from '../../../lib/conversation-parser';
 import { EncryptionPasswordModal } from './EncryptionPasswordModal';
 import { FileUploadZone } from './FileUploadZone';
 import { FileList, type ArchiveFile } from './FileList';
-import { ConversationViewer } from './ConversationViewer';
 
 /**
  * ArchivePanel - Secure encrypted file storage
@@ -42,12 +41,6 @@ export function ArchivePanel() {
   // UI state
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-
-  // Conversation viewer state
-  const [viewingConversation, setViewingConversation] = useState<{
-    fileId: string;
-    data: string;
-  } | null>(null);
 
   // Initialize: Check if encryption key is already in memory
   useEffect(() => {
@@ -182,8 +175,8 @@ export function ArchivePanel() {
     }
   };
 
-  // Handle file load into Content Source or Conversation Viewer
-  const handleLoad = async (fileId: string, filename: string) => {
+  // Handle file load into Canvas
+  const handleLoad = async (fileId: string, _filename: string) => {
     try {
       // Get encryption key
       const key = keyManager.getKey();
@@ -206,68 +199,38 @@ export function ArchivePanel() {
       const isConversation = file?.conversation_title || file?.file_role === 'conversation';
 
       if (isConversation) {
-        // Show in Conversation Viewer
-        setViewingConversation({
-          fileId,
-          data: text
-        });
+        // Parse and format conversation for Canvas
+        const conversationData = JSON.parse(text);
+        const parsed = parseConversation(conversationData);
+
+        // Format as readable markdown for Canvas
+        let markdown = `# ${parsed.metadata.title}\n\n`;
+        markdown += `**Provider**: ${parsed.metadata.provider === 'chatgpt' ? '💬 ChatGPT' : '🤖 Claude'}\n`;
+        markdown += `**Messages**: ${parsed.metadata.message_count}\n`;
+        if (parsed.metadata.created_at) {
+          markdown += `**Date**: ${new Date(parsed.metadata.created_at).toLocaleDateString()}\n\n`;
+        } else {
+          markdown += `\n`;
+        }
+        markdown += `---\n\n`;
+
+        // Add each message
+        for (const message of parsed.messages) {
+          const roleLabel = message.role === 'user' ? '👤 **You**' : '🤖 **Assistant**';
+          markdown += `## ${roleLabel}\n\n`;
+          markdown += `${message.content}\n\n`;
+          markdown += `---\n\n`;
+        }
+
+        setText(markdown);
+        console.log('Loaded conversation to Canvas:', parsed.metadata.title);
       } else {
         // Load into Canvas as plain text
         setText(text);
-        alert(`Loaded "${filename}" into Content Source`);
       }
     } catch (err: any) {
       console.error('Failed to load file:', err);
       throw new Error('Failed to decrypt file. Wrong password or corrupted data.');
-    }
-  };
-
-  // Load and decrypt images for a conversation
-  const handleLoadImages = async (conversationFileId: string): Promise<Map<string, string>> => {
-    const imageUrls = new Map<string, string>();
-
-    try {
-      // Get encryption key
-      const key = keyManager.getKey();
-
-      // Find all image files linked to this conversation
-      const imageFiles = files.filter(f =>
-        f.parent_file_id === conversationFileId && f.file_role === 'image'
-      );
-
-      // Decrypt each image and create object URL
-      for (const imageFile of imageFiles) {
-        try {
-          // Download encrypted image
-          const fileData = await api.downloadArchiveFile(imageFile.id);
-
-          // Decrypt in browser
-          const decrypted = await decryptFile(
-            new Uint8Array(fileData.data),
-            JSON.parse(fileData.iv),
-            key
-          );
-
-          // Create blob and object URL
-          const blob = new Blob([new Uint8Array(decrypted)], { type: imageFile.content_type });
-          const objectUrl = URL.createObjectURL(blob);
-
-          // Extract file-id from relative_path or filename
-          // ChatGPT uses format: "images/file-XXXXX.png"
-          const match = imageFile.relative_path?.match(/file-[^.\/]+/) ||
-                       imageFile.filename.match(/file-[^.\/]+/);
-          if (match) {
-            imageUrls.set(match[0], objectUrl);
-          }
-        } catch (err) {
-          console.error(`Failed to decrypt image ${imageFile.filename}:`, err);
-        }
-      }
-
-      return imageUrls;
-    } catch (err: any) {
-      console.error('Failed to load images:', err);
-      return imageUrls;
     }
   };
 
@@ -336,38 +299,6 @@ export function ArchivePanel() {
         <div className="text-center space-y-2">
           <div className="text-4xl">⏳</div>
           <p>Initializing encryption...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show Conversation Viewer if viewing a conversation
-  if (viewingConversation) {
-    return (
-      <div className="h-full flex flex-col">
-        {/* Header with back button */}
-        <div className="border-b border-slate-700 p-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setViewingConversation(null)}
-              className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm rounded transition-colors"
-            >
-              ← Back to Files
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">🗄️</span>
-              <h2 className="text-xl font-bold text-slate-100">Viewing Conversation</h2>
-            </div>
-          </div>
-        </div>
-
-        {/* Conversation Viewer */}
-        <div className="flex-1 overflow-hidden">
-          <ConversationViewer
-            conversationJson={viewingConversation.data}
-            fileId={viewingConversation.fileId}
-            onLoadImages={handleLoadImages}
-          />
         </div>
       </div>
     );
