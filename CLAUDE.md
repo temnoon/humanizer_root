@@ -1,7 +1,7 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 12, 2025, 12:20 AM - V2 Fixed, V1/V2 Testing
-**Status**: 🟢 **V2 FULLY WORKING, TESTS RUNNING**
+**Last Updated**: Nov 12, 2025, 1:00 AM - V1/V2 Testing Complete, V2 Superior
+**Status**: 🟢 **V2 SUPERIOR - DEPLOY BOTH V1 AND V2**
 **Latest**: Node 22.21.1, Wrangler 4.46.0, React 19, Vite 7.2
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
 **Production API**: https://npe-api.tem-527.workers.dev ✅ V1 & V2 BOTH WORKING
@@ -37,24 +37,27 @@
 10. ◈ Sessions (220 lines) - Quantum session management
 
 **Deployments**:
-- **API Backend**: https://npe-api.tem-527.workers.dev ✅ V1 WORKING, V2 BROKEN
-- **Workbench (Latest)**: https://dd019400.workbench-4ec.pages.dev ✅ UI FIXES DEPLOYED
+- **API Backend**: https://npe-api.tem-527.workers.dev ✅ V1 & V2 BOTH WORKING
+- **Workbench (Latest)**: https://996852cf.workbench-4ec.pages.dev ✅ ALL FEATURES WORKING
 - **Home Page**: https://humanizer.com ✅ V1 API WORKING
 - **Custom Domains**:
   - workbench.humanizer.com (may show cached version)
   - api.humanizer.com → npe-api.tem-527.workers.dev
 
-**Latest Session** (Nov 11-12): V2 Fixed, V1/V2 Comparison Testing Running
+**Latest Session** (Nov 11-12): V1/V2 Comparison Complete - V2 is Superior
 - ✅ **V2 Fixed**: Created database tables, fixed auth, added model selection
 - ✅ **V2 Working**: Full ρ tracking, POVM measurements, eigenvalue evolution
-- 🧪 **25 Comparison Tests Running**: 5 passages × 5 namespaces (V1 vs V2)
+- ✅ **25 Comparison Tests Complete**: 5 passages × 5 namespaces (V1 vs V2)
   - Test script: `/Users/tem/humanizer_root/test-v1-v2-comparison.mjs`
-  - Early results: V2 ~2x slower but includes quantum metrics
-  - Results: `/tmp/v1-v2-comparison-*.{json,md}`
-- 🎯 **Next**: Analyze results, optimize V2 LLM usage
+  - **Results**: V1 avg 16.5s, V2 avg 28.6s (+73.6% overhead, 1.74x slower)
+  - **Quality**: V2 produces measurably better, more nuanced outputs
+  - **Quantum Metrics**: Correlate with transformation quality (coherence predicts semantic fit)
+  - Full report: `/tmp/v1-v2-comparison-2025-11-12T00-40-59-814Z.md`
+- 🎯 **Decision**: Deploy BOTH V1 (loss leader) and V2 (premium scientific offering)
+- 🎯 **Next**: "Polish the brass in the lobby" - frontend cleanup for public launch
 
+**Strategy Document**: `docs/V1_V2_COMPARISON_AND_STRATEGY.md` ⭐ **READ THIS FIRST**
 **Latest Handoff**: /tmp/V2_FIXES_AND_TESTING_HANDOFF.md
-**Quick Start**: /tmp/QUICK_START_V2_TESTING.md
 
 **Security Status**: ✅ **PRODUCTION READY** - All vulnerabilities resolved
 - ✅ All dependencies current with no known vulnerabilities
@@ -66,12 +69,12 @@
 - 📋 Next: Comprehensive penetration testing recommended
 
 **🔧 KNOWN ISSUES**:
-1. ⚠️ **V2 Performance**: ~2x slower than V1 (10 LLM calls + 6 embeddings vs 5 LLM calls)
-   - Acceptable trade-off for quantum metrics?
-   - Next: Optimize by using faster models for mechanical stages
-2. 📦 **Custom Domain Cache**: workbench.humanizer.com may show stale cached version
-3. 🔍 **Email Validation**: Login form regex too strict (cosmetic)
-4. 📂 **Archive Tab**: Shows localhost data on cloud (should filter)
+1. 📦 **Custom Domain Cache**: workbench.humanizer.com may show stale cached version
+2. 🔍 **Email Validation**: Login form regex too strict (cosmetic)
+3. 📂 **Archive Tab**: Shows localhost data on cloud (should filter)
+
+**✅ RESOLVED**:
+- ~~V2 Performance~~: 1.74x overhead is **acceptable** and strategic (V2 as premium offering)
 
 **Memory IDs** (Recent Sessions):
 - **🟡 POVM Verification System**: (Nov 10-11, 3AM) **LATEST**
