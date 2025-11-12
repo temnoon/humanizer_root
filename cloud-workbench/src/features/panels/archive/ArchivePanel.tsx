@@ -175,16 +175,76 @@ export function ArchivePanel() {
     }
   };
 
+  // Decrypt images and return a map of file-id -> base64 data URL
+  const decryptImagesForConversation = async (conversationFileId: string): Promise<Map<string, string>> => {
+    const imageMap = new Map<string, string>();
+    const key = keyManager.getKey();
+
+    // Find all image files linked to this conversation
+    const imageFiles = files.filter(f =>
+      f.parent_file_id === conversationFileId && f.file_role === 'image'
+    );
+
+    console.log(`Found ${imageFiles.length} image files for conversation`);
+
+    for (const imageFile of imageFiles) {
+      try {
+        // Download and decrypt image
+        const fileData = await api.downloadArchiveFile(imageFile.id);
+        const decrypted = await decryptFile(
+          new Uint8Array(fileData.data),
+          JSON.parse(fileData.iv),
+          key
+        );
+
+        // Convert to base64 data URL
+        const blob = new Blob([new Uint8Array(decrypted)], { type: imageFile.content_type });
+        const base64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+
+        // Extract file-id from relative_path or filename
+        // ChatGPT uses format: "images/file-XXXXX.png"
+        const match = imageFile.relative_path?.match(/file-[^.\/]+/) ||
+                     imageFile.filename.match(/file-[^.\/]+/);
+        if (match) {
+          imageMap.set(match[0], base64);
+          console.log(`✓ Decrypted image: ${match[0]}`);
+        }
+      } catch (err) {
+        console.error(`Failed to decrypt image ${imageFile.filename}:`, err);
+      }
+    }
+
+    return imageMap;
+  };
+
   // Handle file load into Canvas
   const handleLoad = async (fileId: string, _filename: string) => {
     try {
       // Get encryption key
       const key = keyManager.getKey();
 
+      // Get file metadata
+      const file = files.find(f => f.id === fileId);
+      if (!file) {
+        throw new Error('File not found');
+      }
+
+      // Skip non-conversation files (images, attachments)
+      if (file.file_role === 'image' || file.file_role === 'attachment') {
+        alert('This is a media file. Please load the parent conversation instead.');
+        return;
+      }
+
       // Download encrypted file
+      console.log('Downloading file:', fileId, file.filename);
       const fileData = await api.downloadArchiveFile(fileId);
 
       // Decrypt in browser
+      console.log('Decrypting file...');
       const decrypted = await decryptFile(
         new Uint8Array(fileData.data),
         JSON.parse(fileData.iv),
@@ -193,15 +253,23 @@ export function ArchivePanel() {
 
       // Convert to text
       const text = uint8ArrayToText(decrypted);
+      console.log('Decrypted text length:', text.length);
 
       // Check if this is a conversation file
-      const file = files.find(f => f.id === fileId);
       const isConversation = file?.conversation_title || file?.file_role === 'conversation';
 
       if (isConversation) {
         // Parse and format conversation for Canvas
+        console.log('Parsing conversation...');
         const conversationData = JSON.parse(text);
         const parsed = parseConversation(conversationData);
+
+        // Decrypt images if conversation has images
+        let imageMap: Map<string, string> | null = null;
+        if (parsed.metadata.has_images) {
+          console.log('Decrypting images...');
+          imageMap = await decryptImagesForConversation(fileId);
+        }
 
         // Format as readable markdown for Canvas
         let markdown = `# ${parsed.metadata.title}\n\n`;
@@ -214,23 +282,41 @@ export function ArchivePanel() {
         }
         markdown += `---\n\n`;
 
-        // Add each message
+        // Add each message and handle images
         for (const message of parsed.messages) {
           const roleLabel = message.role === 'user' ? '👤 **You**' : '🤖 **Assistant**';
           markdown += `## ${roleLabel}\n\n`;
-          markdown += `${message.content}\n\n`;
+
+          // Process content to replace image placeholders with actual images
+          let content = message.content;
+
+          if (imageMap && imageMap.size > 0) {
+            // Replace [Image: file-XXXXX] with markdown image syntax
+            const imagePattern = /\[Image:\s*(file-[^\]]+)\]/g;
+            content = content.replace(imagePattern, (match, fileId) => {
+              const dataUrl = imageMap!.get(fileId);
+              if (dataUrl) {
+                return `![${fileId}](${dataUrl})`;
+              }
+              return match; // Keep placeholder if image not found
+            });
+          }
+
+          markdown += `${content}\n\n`;
           markdown += `---\n\n`;
         }
 
         setText(markdown);
-        console.log('Loaded conversation to Canvas:', parsed.metadata.title);
+        console.log('✓ Loaded conversation to Canvas:', parsed.metadata.title);
       } else {
         // Load into Canvas as plain text
+        console.log('Loading as plain text');
         setText(text);
       }
     } catch (err: any) {
       console.error('Failed to load file:', err);
-      throw new Error('Failed to decrypt file. Wrong password or corrupted data.');
+      alert(`Failed to load file: ${err.message}`);
+      throw err;
     }
   };
 

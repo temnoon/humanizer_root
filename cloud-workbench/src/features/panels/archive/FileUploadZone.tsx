@@ -48,16 +48,25 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    setError(null);
 
     const files = Array.from(e.dataTransfer.files);
     if (files.length === 0) return;
 
-    // If multiple files (folder drag), process as conversation folder
-    if (files.length > 1) {
+    // Check if any file has webkitRelativePath (indicates folder drag)
+    const hasRelativePaths = files.some(f => f.webkitRelativePath);
+
+    // If multiple files OR has relative paths (folder structure), process as folder
+    if (files.length > 1 || hasRelativePaths) {
       await handleConversationFolder(files);
     } else {
-      // Single file
-      await handleFile(files[0]);
+      // Single file - validate type
+      const file = files[0];
+      if (!validateFileType(file, ALLOWED_FILE_TYPES)) {
+        setError(`File type not supported. Please upload .txt, .md, or .json files, or drag a conversation folder.`);
+        return;
+      }
+      await handleFile(file);
     }
   };
 
