@@ -1,46 +1,47 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 12, 2025, 3:00 PM - ✅ **CONVERSATION ARCHIVE BUILT**
-**Status**: ✅ Folder upload complete, needs deployment & ConversationViewer
+**Last Updated**: Nov 12, 2025, 3:30 PM - ⚠️ **CONVERSATION ARCHIVE 98% COMPLETE**
+**Status**: ✅ All features working EXCEPT images not rendering (needs debug)
 **Latest**: Node 22.21.1, Wrangler 4.47.0, React 19, Vite 7.2
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
-**Production API**: https://npe-api.tem-527.workers.dev (Version: 12f26984) ✅
+**Production API**: https://npe-api.tem-527.workers.dev (Version: 444dbdfb) ✅
 **Humanizer.com**: https://b1a96ffa.npe-cloud.pages.dev
-**Workbench**: https://workbench.humanizer.com (pending deployment)
+**Workbench**: https://e3b34275.workbench-4ec.pages.dev ✅
 
-## ✅ CONVERSATION ARCHIVE SYSTEM (Nov 12, 3PM)
+## ⚠️ CONVERSATION ARCHIVE - DEBUGGING IMAGES (Nov 12, 3:30 PM)
 
-**COMPLETE**: Encrypted conversation archive with folder upload for ChatGPT/Claude exports
+**Status**: 98% Complete - Images not rendering, extensive debugging added
 
-**Features Built**:
-- 📁 Folder upload (webkitdirectory) - Select entire ChatGPT export folders
-- 🔍 Auto-parser - Detects ChatGPT vs Claude format, extracts metadata
-- 🔒 Zero-knowledge - All files (JSON + images) encrypted client-side (AES-256-GCM)
-- 🔗 Parent-child linking - Images linked to conversations via parent_file_id
-- 🎨 Beautiful UI - Provider badges, message counts, first message preview
-- 🗑️ HTML filtering - Skips .html files automatically (saves space)
+**What Works** ✅:
+- Folder upload (drag-and-drop & button with webkitdirectory)
+- Conversation formatting in Canvas (beautiful markdown)
+- Media files hidden from list (clean UI)
+- Encrypted data protection (no garbage in Canvas)
+- Environment-aware archive (local vs cloud)
 
-**Database Schema** (3 migrations):
-- 0014: Base encrypted archive (encrypted_files, user_encryption_settings, R2)
-- 0015: Conversation metadata (title, provider, message_count, has_images, first_message)
-- 0016: File relationships (parent_file_id, file_role, relative_path)
+**What's Broken** ❌:
+- Images show as `[Image: file-XXX]` placeholders instead of actual images
+- Added extensive console logging to diagnose
 
-**Status**:
-- ✅ Backend deployed (Version 12f26984-20fe-4ef4-9ff7-9b0db831443b)
-- ⏳ Frontend: Build errors fixed, ready to deploy
-- ⏳ Next: Deploy workbench, build ConversationViewer with encrypted images
+**Debug Next Session**:
+1. Load conversation with browser console open (F12)
+2. Check these logs:
+   - `Found X image files` - should be > 0
+   - `✅ Mapped image: file-XXX` - should appear per image
+   - `📷 Message has X image placeholders` - should match
+   - `✅ Replaced placeholder` - should appear per image
+3. Look for warnings to identify root cause:
+   - `⚠️ Could not extract file-id from...`
+   - `⚠️ No data URL found for...`
+   - `⚠️ Images found but imageMap is empty`
 
-**Files Created** (~1,500 lines):
-- `cloud-workbench/src/lib/conversation-parser.ts` (280 lines)
-- `cloud-workbench/src/features/panels/archive/*.tsx` (4 components, ~900 lines)
-- `workers/npe-api/migrations/001{4,5,6}_*.sql` (3 migrations)
+**Likely Issues**:
+- parent_file_id mismatch
+- file_role not set correctly
+- File-ID extraction regex failure
+- Placeholder format mismatch
 
-**Testing Checklist**: `/tmp/CONVERSATION_ARCHIVE_HANDOFF.md`
-
-**Next Session**:
-1. Build/deploy workbench: `npm run build && npx wrangler pages deploy`
-2. Test folder upload with real ChatGPT export
-3. Build ConversationViewer (reuse Canvas.tsx rendering + decrypt images)
+**Handoff**: `/tmp/CONVERSATION_ARCHIVE_DEBUG_HANDOFF.md`
 
 ---
 
