@@ -1,16 +1,23 @@
 /**
  * Left Panel with Archive and Remote tabs
+ *
+ * Environment-aware:
+ * - Localhost: Archive = ArchiveBrowser (local API at localhost:8000)
+ * - Production: Archive = ArchivePanel (encrypted cloud storage)
  */
 
 import { useState } from 'react';
+import { ArchiveBrowser } from './ArchiveBrowser';
 import { ArchivePanel } from '../panels/archive/ArchivePanel';
 import { RemoteContentSource } from '../remote/RemoteContentSource';
 
 type TopLevelTab = 'archive' | 'remote';
 
 export function LeftPanel() {
-  // Default to Remote for cloud deployments (non-localhost)
+  // Detect environment
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  // Default to Archive for localhost (dev), Remote for production
   const [topTab, setTopTab] = useState<TopLevelTab>(isLocalhost ? 'archive' : 'remote');
 
   return (
@@ -25,7 +32,7 @@ export function LeftPanel() {
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
         >
-          🗄️ Archive
+          {isLocalhost ? '📂 Archive (Local)' : '🗄️ Archive'}
         </button>
         <button
           onClick={() => setTopTab('remote')}
@@ -41,7 +48,13 @@ export function LeftPanel() {
 
       {/* Content area */}
       <div className="flex-1 overflow-hidden">
-        {topTab === 'archive' ? <ArchivePanel /> : <RemoteContentSource />}
+        {topTab === 'archive' ? (
+          // Localhost: Use ArchiveBrowser for local API access
+          // Production: Use ArchivePanel for encrypted cloud storage
+          isLocalhost ? <ArchiveBrowser /> : <ArchivePanel />
+        ) : (
+          <RemoteContentSource />
+        )}
       </div>
     </div>
   );
