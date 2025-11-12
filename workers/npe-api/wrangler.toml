@@ -18,6 +18,11 @@ binding = "AI"
 binding = "KV"
 id = "4c372f27384b40d1aa02aed7be7c8ccd"
 
+# R2 for encrypted file storage
+[[r2_buckets]]
+binding = "R2_ARCHIVE"
+bucket_name = "humanizer-archive"
+
 # Durable Objects for maieutic dialogue sessions
 [[durable_objects.bindings]]
 name = "MAIEUTIC_SESSION"
