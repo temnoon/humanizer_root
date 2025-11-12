@@ -42,6 +42,11 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
   const [loadingFileId, setLoadingFileId] = useState<string | null>(null);
   const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
 
+  // Filter out media files - only show conversations and standalone files
+  const displayFiles = files.filter(f =>
+    f.file_role !== 'image' && f.file_role !== 'attachment'
+  );
+
   const handleLoad = async (fileId: string, filename: string) => {
     try {
       setLoadingFileId(fileId);
@@ -100,7 +105,7 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
     );
   }
 
-  if (files.length === 0) {
+  if (displayFiles.length === 0) {
     return (
       <div className="flex items-center justify-center py-12 text-slate-400">
         <div className="text-center space-y-2">
@@ -115,11 +120,14 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
   return (
     <div className="space-y-2">
       <div className="text-sm text-slate-400 px-1">
-        {files.length} {files.length === 1 ? 'file' : 'files'} stored
+        {displayFiles.length} {displayFiles.length === 1 ? 'file' : 'files'} stored
+        {files.length > displayFiles.length && (
+          <span className="text-slate-500"> ({files.length - displayFiles.length} media files hidden)</span>
+        )}
       </div>
 
       <div className="space-y-1">
-        {files.map((file) => {
+        {displayFiles.map((file) => {
           const isLoading = loadingFileId === file.id;
           const isDeleting = deletingFileId === file.id;
           const isDisabled = isLoading || isDeleting || !!loadingFileId || !!deletingFileId;

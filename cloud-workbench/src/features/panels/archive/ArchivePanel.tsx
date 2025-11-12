@@ -185,10 +185,21 @@ export function ArchivePanel() {
       f.parent_file_id === conversationFileId && f.file_role === 'image'
     );
 
-    console.log(`Found ${imageFiles.length} image files for conversation`);
+    console.log(`🔍 Looking for images with parent_file_id = ${conversationFileId}`);
+    console.log(`📁 Total files in list: ${files.length}`);
+    console.log(`🖼️ Found ${imageFiles.length} image files for conversation`);
+
+    if (imageFiles.length > 0) {
+      console.log('Image files:', imageFiles.map(f => ({
+        filename: f.filename,
+        relative_path: f.relative_path,
+        content_type: f.content_type
+      })));
+    }
 
     for (const imageFile of imageFiles) {
       try {
+        console.log(`⬇️ Downloading image: ${imageFile.filename}`);
         // Download and decrypt image
         const fileData = await api.downloadArchiveFile(imageFile.id);
         const decrypted = await decryptFile(
@@ -196,6 +207,8 @@ export function ArchivePanel() {
           JSON.parse(fileData.iv),
           key
         );
+
+        console.log(`🔓 Decrypted ${decrypted.length} bytes`);
 
         // Convert to base64 data URL
         const blob = new Blob([new Uint8Array(decrypted)], { type: imageFile.content_type });
@@ -205,19 +218,24 @@ export function ArchivePanel() {
           reader.readAsDataURL(blob);
         });
 
+        console.log(`📊 Base64 length: ${base64.length} chars`);
+
         // Extract file-id from relative_path or filename
         // ChatGPT uses format: "images/file-XXXXX.png"
         const match = imageFile.relative_path?.match(/file-[^.\/]+/) ||
                      imageFile.filename.match(/file-[^.\/]+/);
         if (match) {
           imageMap.set(match[0], base64);
-          console.log(`✓ Decrypted image: ${match[0]}`);
+          console.log(`✅ Mapped image: ${match[0]} -> base64 data (${Math.round(base64.length/1024)}KB)`);
+        } else {
+          console.warn(`⚠️ Could not extract file-id from: ${imageFile.filename} or ${imageFile.relative_path}`);
         }
       } catch (err) {
-        console.error(`Failed to decrypt image ${imageFile.filename}:`, err);
+        console.error(`❌ Failed to decrypt image ${imageFile.filename}:`, err);
       }
     }
 
+    console.log(`🎨 Image map size: ${imageMap.size} images ready`);
     return imageMap;
   };
 
@@ -290,16 +308,27 @@ export function ArchivePanel() {
           // Process content to replace image placeholders with actual images
           let content = message.content;
 
+          // Find all image placeholders in this message
+          const imagePattern = /\[Image:\s*(file-[^\]]+)\]/g;
+          const imageMatches = [...content.matchAll(imagePattern)];
+
+          if (imageMatches.length > 0) {
+            console.log(`📷 Message has ${imageMatches.length} image placeholders:`, imageMatches.map(m => m[1]));
+          }
+
           if (imageMap && imageMap.size > 0) {
             // Replace [Image: file-XXXXX] with markdown image syntax
-            const imagePattern = /\[Image:\s*(file-[^\]]+)\]/g;
             content = content.replace(imagePattern, (match, fileId) => {
               const dataUrl = imageMap!.get(fileId);
               if (dataUrl) {
+                console.log(`✅ Replaced placeholder: ${fileId}`);
                 return `![${fileId}](${dataUrl})`;
               }
+              console.warn(`⚠️ No data URL found for: ${fileId}`);
               return match; // Keep placeholder if image not found
             });
+          } else if (imageMatches.length > 0) {
+            console.warn(`⚠️ Images found in content but imageMap is empty`);
           }
 
           markdown += `${content}\n\n`;
