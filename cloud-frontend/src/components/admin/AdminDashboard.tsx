@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import DeviceManager from './DeviceManager';
 import MailingListViewer from './MailingListViewer';
+import SiteMetrics from './SiteMetrics';
+import UserManagement from './UserManagement';
 
 interface AdminDashboardProps {
   token: string;
@@ -9,7 +11,7 @@ interface AdminDashboardProps {
 }
 
 export default function AdminDashboard({ token, userEmail, onLogout }: AdminDashboardProps) {
-  const [activeTab, setActiveTab] = useState<'mailing-list' | 'devices'>('mailing-list');
+  const [activeTab, setActiveTab] = useState<'metrics' | 'users' | 'mailing-list' | 'devices'>('metrics');
 
   return (
     <div style={{
@@ -62,8 +64,37 @@ export default function AdminDashboard({ token, userEmail, onLogout }: AdminDash
         display: 'flex',
         gap: 'var(--spacing-md)',
         borderBottom: '1px solid var(--border-color)',
-        marginBottom: 'var(--spacing-xl)'
+        marginBottom: 'var(--spacing-xl)',
+        overflowX: 'auto'
       }}>
+        <button
+          onClick={() => setActiveTab('metrics')}
+          style={{
+            padding: 'var(--spacing-md) var(--spacing-lg)',
+            background: 'none',
+            color: activeTab === 'metrics' ? 'var(--accent-purple)' : 'var(--text-secondary)',
+            borderBottom: activeTab === 'metrics' ? '2px solid var(--accent-purple)' : 'none',
+            fontWeight: activeTab === 'metrics' ? 600 : 400,
+            marginBottom: '-1px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          📊 Site Metrics
+        </button>
+        <button
+          onClick={() => setActiveTab('users')}
+          style={{
+            padding: 'var(--spacing-md) var(--spacing-lg)',
+            background: 'none',
+            color: activeTab === 'users' ? 'var(--accent-purple)' : 'var(--text-secondary)',
+            borderBottom: activeTab === 'users' ? '2px solid var(--accent-purple)' : 'none',
+            fontWeight: activeTab === 'users' ? 600 : 400,
+            marginBottom: '-1px',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          👥 Users
+        </button>
         <button
           onClick={() => setActiveTab('mailing-list')}
           style={{
@@ -72,10 +103,11 @@ export default function AdminDashboard({ token, userEmail, onLogout }: AdminDash
             color: activeTab === 'mailing-list' ? 'var(--accent-purple)' : 'var(--text-secondary)',
             borderBottom: activeTab === 'mailing-list' ? '2px solid var(--accent-purple)' : 'none',
             fontWeight: activeTab === 'mailing-list' ? 600 : 400,
-            marginBottom: '-1px'
+            marginBottom: '-1px',
+            whiteSpace: 'nowrap'
           }}
         >
-          Mailing List
+          📧 Mailing List
         </button>
         <button
           onClick={() => setActiveTab('devices')}
@@ -85,14 +117,23 @@ export default function AdminDashboard({ token, userEmail, onLogout }: AdminDash
             color: activeTab === 'devices' ? 'var(--accent-purple)' : 'var(--text-secondary)',
             borderBottom: activeTab === 'devices' ? '2px solid var(--accent-purple)' : 'none',
             fontWeight: activeTab === 'devices' ? 600 : 400,
-            marginBottom: '-1px'
+            marginBottom: '-1px',
+            whiteSpace: 'nowrap'
           }}
         >
-          Devices
+          🔐 Devices
         </button>
       </div>
 
       {/* Tab Content */}
+      {activeTab === 'metrics' && (
+        <SiteMetrics token={token} />
+      )}
+
+      {activeTab === 'users' && (
+        <UserManagement token={token} />
+      )}
+
       {activeTab === 'mailing-list' && (
         <MailingListViewer token={token} />
       )}

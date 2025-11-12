@@ -292,22 +292,50 @@ function AppContent() {
                 </button>
               ))}
             </div>
-            <button
-              className="btn"
-              onClick={() => setCurrentView('voice-manager')}
-              style={{
-                padding: 'var(--spacing-xs) var(--spacing-md)',
-                background: currentView === 'voice-manager' ? 'var(--accent-cyan)' : 'transparent',
-                color: currentView === 'voice-manager' ? 'white' : 'var(--accent-cyan)',
-                borderRadius: 'var(--radius-sm)',
-                border: currentView === 'voice-manager' ? 'none' : '1px solid var(--accent-cyan)',
-                fontSize: 'var(--text-sm)',
-                transition: 'all 0.2s'
-              }}
-            >
-              🎭 Manage Voices
-            </button>
-            {user.role === 'admin' && (
+            <div style={{ display: 'flex', gap: 'var(--spacing-sm)', alignItems: 'center' }}>
+              <button
+                className="btn"
+                onClick={() => window.open('https://workbench.humanizer.com', '_blank')}
+                style={{
+                  padding: 'var(--spacing-sm) var(--spacing-lg)',
+                  background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))',
+                  color: 'white',
+                  borderRadius: 'var(--radius-sm)',
+                  border: 'none',
+                  fontSize: 'var(--text-sm)',
+                  fontWeight: 600,
+                  transition: 'all 0.2s',
+                  boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)',
+                  cursor: 'pointer'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(139, 92, 246, 0.4)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(139, 92, 246, 0.3)';
+                }}
+                title="Open Professional Workbench (3-column layout)"
+              >
+                🚀 Open Workbench
+              </button>
+              <button
+                className="btn"
+                onClick={() => setCurrentView('voice-manager')}
+                style={{
+                  padding: 'var(--spacing-xs) var(--spacing-md)',
+                  background: currentView === 'voice-manager' ? 'var(--accent-cyan)' : 'transparent',
+                  color: currentView === 'voice-manager' ? 'white' : 'var(--accent-cyan)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: currentView === 'voice-manager' ? 'none' : '1px solid var(--accent-cyan)',
+                  fontSize: 'var(--text-sm)',
+                  transition: 'all 0.2s'
+                }}
+              >
+                🎭 Manage Voices
+              </button>
+              {user.role === 'admin' && (
               <button
                 className="btn"
                 onClick={() => setCurrentView('admin')}
@@ -323,7 +351,8 @@ function AppContent() {
               >
                 ⚙️ Admin
               </button>
-            )}
+              )}
+            </div>
           </div>
         </nav>
       )}
