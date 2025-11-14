@@ -341,7 +341,12 @@ export function Canvas() {
               setEditedContent(e.target.value);
               setText(e.target.value); // Sync with CanvasContext
             }}
-            className="h-full w-full resize-none bg-slate-900 p-8 font-mono text-base text-slate-100"
+            className="h-full w-full resize-none p-8 font-mono text-base"
+            style={{
+              background: 'var(--bg-primary)',
+              color: 'var(--text-primary)',
+              border: 'none',
+            }}
             spellCheck={false}
           />
         ) : isFullHtmlDocument(text || '') ? (

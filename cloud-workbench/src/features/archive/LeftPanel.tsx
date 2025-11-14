@@ -23,24 +23,24 @@ export function LeftPanel() {
   return (
     <div className="flex flex-col h-full">
       {/* Top-level tabs: Archive | Remote */}
-      <div className="flex border-b border-slate-800 bg-slate-900">
+      <div className="flex border-b" style={{ borderColor: 'var(--border-color)', background: 'var(--bg-secondary)' }}>
         <button
           onClick={() => setTopTab('archive')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            topTab === 'archive'
-              ? 'border-indigo-500 text-slate-100'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+          className="flex-1 px-4 py-2 text-sm font-medium transition-colors border-b-2"
+          style={{
+            borderColor: topTab === 'archive' ? 'var(--accent-purple)' : 'transparent',
+            color: topTab === 'archive' ? 'var(--text-primary)' : 'var(--text-secondary)',
+          }}
         >
           {isLocalhost ? '📂 Archive (Local)' : '🗄️ Archive'}
         </button>
         <button
           onClick={() => setTopTab('remote')}
-          className={`flex-1 px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
-            topTab === 'remote'
-              ? 'border-indigo-500 text-slate-100'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
-          }`}
+          className="flex-1 px-4 py-2 text-sm font-medium transition-colors border-b-2"
+          style={{
+            borderColor: topTab === 'remote' ? 'var(--accent-purple)' : 'transparent',
+            color: topTab === 'remote' ? 'var(--text-primary)' : 'var(--text-secondary)',
+          }}
         >
           ☁️ Remote
         </button>

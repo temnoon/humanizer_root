@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
 import { toolRegistry } from "../../core/tool-registry";
+import { useAuth } from "../../core/context/AuthContext";
+import { LoginModal } from "../../components/auth/LoginModal";
 
 export interface UnifiedLayoutProps {
   left: ReactNode;
@@ -19,6 +21,10 @@ export function UnifiedLayout({
 }: UnifiedLayoutProps) {
   const [leftOpen, setLeftOpen] = useState(false);
   const [rightOpen, setRightOpen] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+
+  // Get auth state
+  const { user, isAuthenticated, logout } = useAuth();
 
   // Filter tools by kind (transformations/analysis vs history/sessions)
   const mainTools = toolRegistry.filter(t => t.kind !== "pipeline");
@@ -146,15 +152,50 @@ export function UnifiedLayout({
           {/* Right: Theme Toggle + User Info */}
           <div className="flex items-center gap-3">
             <ThemeToggle />
-            <div
-              className="text-sm"
-              style={{ color: 'var(--text-secondary)' }}
-            >
-              demo@humanizer.com
-            </div>
+            {isAuthenticated && user ? (
+              <div className="flex items-center gap-2">
+                <div
+                  className="text-sm"
+                  style={{ color: 'var(--text-secondary)' }}
+                >
+                  {user.email}
+                </div>
+                <button
+                  onClick={logout}
+                  className="text-sm px-3 py-1.5 rounded-lg transition-colors"
+                  style={{
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-color)',
+                  }}
+                  title="Logout"
+                >
+                  Logout
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="text-sm px-3 py-1.5 rounded-lg transition-colors font-medium"
+                style={{
+                  background: 'var(--accent-purple)',
+                  color: 'white',
+                }}
+                title="Login"
+              >
+                Login
+              </button>
+            )}
           </div>
         </div>
       </header>
+
+      {/* Login Modal */}
+      <LoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        canDismiss={true}
+      />
 
       {/* Main Content Grid */}
       <div className="flex-1 grid grid-rows-[1fr] overflow-hidden">
