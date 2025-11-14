@@ -233,7 +233,10 @@ export function UnifiedLayout({
                 </svg>
               </button>
             </div>
-            <div className="md:rounded-lg overflow-hidden h-full">
+            <div
+              className="md:rounded-lg overflow-hidden h-full"
+              style={{ background: 'var(--bg-secondary)' }}
+            >
               {left}
             </div>
           </aside>
@@ -280,7 +283,10 @@ export function UnifiedLayout({
             </div>
 
             {/* Render active tool panel */}
-            <div className="md:rounded-lg overflow-hidden h-full">
+            <div
+              className="md:rounded-lg overflow-hidden h-full"
+              style={{ background: 'var(--bg-secondary)' }}
+            >
               {CurrentToolPanel && <CurrentToolPanel />}
             </div>
           </aside>
