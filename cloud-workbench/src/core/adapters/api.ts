@@ -363,6 +363,15 @@ export interface WorkbenchAPI {
     voice_samples?: string[];
   }): Promise<PersonalizerResponse>;
 
+  computerHumanizer(input: {
+    text: string;
+    intensity?: 'light' | 'moderate' | 'aggressive';
+    voiceSamples?: string[];
+    enableLLMPolish?: boolean;
+    targetBurstiness?: number;
+    targetLexicalDiversity?: number;
+  }): Promise<any>;
+
   maieutic(input: {
     text: string;
     depth: number;
@@ -616,6 +625,19 @@ const implementation: WorkbenchAPI = {
       voice_profile: b.voice_profile,
       analysis: r.analysis
     });
+  },
+
+  async computerHumanizer(b) {
+    const payload = {
+      text: b.text,
+      intensity: b.intensity || 'moderate',
+      voiceSamples: b.voiceSamples,
+      enableLLMPolish: b.enableLLMPolish !== undefined ? b.enableLLMPolish : true,
+      targetBurstiness: b.targetBurstiness,
+      targetLexicalDiversity: b.targetLexicalDiversity
+    };
+    const r = await http.post(`transformations/computer-humanizer`, { json: payload }).json<any>();
+    return r;
   },
 
   async maieutic(b) {

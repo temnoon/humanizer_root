@@ -8,7 +8,7 @@ import { RoundTripPanel } from "../features/panels/round-trip/RoundTripPanel";
 import { HistoryPanel } from "../features/history/HistoryPanel";
 import { SessionBrowser } from "../features/quantum/SessionBrowser";
 import { AIDetectionPanel } from "../features/panels/ai-detection/AIDetectionPanel";
-import { PersonalizerPanel } from "../features/panels/personalizer/PersonalizerPanel";
+import { ComputerHumanizerPanel } from "../features/panels/computer-humanizer/ComputerHumanizerPanel";
 import { MaieuticPanel } from "../features/panels/maieutic/MaieuticPanel";
 
 export type ToolKind = "analysis" | "transform" | "pipeline";
@@ -26,7 +26,7 @@ export const toolRegistry: ToolDef[] = [
   { id: "allegorical", kind: "transform", icon: <span>🌟</span>, label: "Allegorical", panel: AllegoricalPanel },
   { id: "round-trip", kind: "transform", icon: <span>🌍</span>, label: "Round-Trip", panel: RoundTripPanel },
   { id: "ai-detection", kind: "transform", icon: <span>🔍</span>, label: "AI Detection", panel: AIDetectionPanel },
-  { id: "personalizer", kind: "transform", icon: <span>🎭</span>, label: "Personalizer", panel: PersonalizerPanel },
+  { id: "computer-humanizer", kind: "transform", icon: <span>🖥️</span>, label: "Computer Humanizer", panel: ComputerHumanizerPanel },
   { id: "maieutic", kind: "transform", icon: <span>🤔</span>, label: "Maieutic", panel: MaieuticPanel },
 
   // Analysis

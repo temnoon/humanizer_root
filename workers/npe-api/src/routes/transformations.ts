@@ -5,6 +5,7 @@ import { AllegoricalProjectionService } from '../services/allegorical';
 import { RoundTripTranslationService } from '../services/round_trip';
 import { MaieuticDialogueService } from '../services/maieutic';
 import { transformWithPersonalizer, getTransformationHistory } from '../services/personalizer';
+import { humanizeText, analyzeForHumanization, type HumanizationOptions } from '../services/computer-humanizer';
 import { checkQuota, updateUsage } from '../middleware/tier-check';
 import { saveTransformationToHistory, updateTransformationHistory } from '../utils/transformation-history-helper';
 import type {
@@ -484,6 +485,165 @@ transformationRoutes.get('/personalizer/history', optionalLocalAuth(), requirePr
   } catch (error) {
     console.error('Get personalizer history error:', error);
     return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+/**
+ * POST /transformations/computer-humanizer - Humanize AI-generated text
+ *
+ * Transforms AI text to reduce detection while preserving meaning
+ * Uses hybrid approach: statistical + rule-based + optional LLM
+ */
+transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const body = await c.req.json();
+    const {
+      text,
+      intensity = 'moderate',
+      voiceSamples = [],
+      enableLLMPolish = true,
+      targetBurstiness = 60,
+      targetLexicalDiversity = 60
+    } = body;
+
+    // Validate input
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return c.json({ error: 'Missing required field: text' }, 400);
+    }
+
+    if (text.length > 10000) {
+      return c.json({ error: 'Text too long (max 10,000 characters)' }, 400);
+    }
+
+    if (!['light', 'moderate', 'aggressive'].includes(intensity)) {
+      return c.json({ error: 'Invalid intensity. Must be: light, moderate, or aggressive' }, 400);
+    }
+
+    // Validate voice samples if provided
+    if (voiceSamples && !Array.isArray(voiceSamples)) {
+      return c.json({ error: 'voiceSamples must be an array of strings' }, 400);
+    }
+
+    if (voiceSamples && voiceSamples.length > 10) {
+      return c.json({ error: 'Maximum 10 voice samples allowed' }, 400);
+    }
+
+    // Generate transformation ID
+    const transformationId = crypto.randomUUID();
+
+    // Save to history before starting
+    try {
+      await saveTransformationToHistory(c.env.DB, {
+        id: transformationId,
+        user_id: auth.userId,
+        transformation_type: 'computer-humanizer',
+        input_text: text,
+        input_params: {
+          intensity,
+          voiceSamplesCount: voiceSamples?.length || 0,
+          enableLLMPolish,
+          targetBurstiness,
+          targetLexicalDiversity
+        }
+      });
+    } catch (err) {
+      console.error('[Transformation History] Failed to save:', err);
+      // Continue with transformation even if history save fails
+    }
+
+    // Build options
+    const options: HumanizationOptions = {
+      intensity: intensity as 'light' | 'moderate' | 'aggressive',
+      voiceSamples: voiceSamples || undefined,
+      enableLLMPolish,
+      targetBurstiness,
+      targetLexicalDiversity
+    };
+
+    // Run humanization
+    try {
+      const result = await humanizeText(c.env, text, options);
+
+      const response = {
+        transformation_id: transformationId,
+        humanizedText: result.humanizedText,
+        baseline: result.baseline,
+        final: result.final,
+        improvement: result.improvement,
+        stages: result.stages,
+        voiceProfile: result.voiceProfile,
+        processing: result.processing
+      };
+
+      // Update history on success
+      try {
+        await updateTransformationHistory(c.env.DB, {
+          id: transformationId,
+          user_id: auth.userId,
+          status: 'completed',
+          output_data: response
+        });
+      } catch (err) {
+        console.error('[Transformation History] Failed to update:', err);
+      }
+
+      return c.json(response, 200);
+    } catch (transformError) {
+      // Update history on failure
+      try {
+        await updateTransformationHistory(c.env.DB, {
+          id: transformationId,
+          user_id: auth.userId,
+          status: 'failed',
+          error_message: transformError instanceof Error ? transformError.message : 'Humanization failed'
+        });
+      } catch (err) {
+        console.error('[Transformation History] Failed to update error:', err);
+      }
+      throw transformError;
+    }
+  } catch (error) {
+    console.error('Computer humanizer error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Internal server error'
+    }, 500);
+  }
+});
+
+/**
+ * POST /transformations/computer-humanizer/analyze - Analyze text for humanization needs
+ *
+ * Returns recommendation and current AI detection metrics
+ */
+transformationRoutes.post('/computer-humanizer/analyze', optionalLocalAuth(), async (c) => {
+  try {
+    const body = await c.req.json();
+    const { text } = body;
+
+    // Validate input
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      return c.json({ error: 'Missing required field: text' }, 400);
+    }
+
+    if (text.length > 10000) {
+      return c.json({ error: 'Text too long (max 10,000 characters)' }, 400);
+    }
+
+    // Analyze text
+    const analysis = await analyzeForHumanization(text);
+
+    return c.json({
+      needsHumanization: analysis.needsHumanization,
+      recommendation: analysis.recommendation,
+      currentMetrics: analysis.currentMetrics,
+      reasons: analysis.reasons
+    }, 200);
+  } catch (error) {
+    console.error('Computer humanizer analyze error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Internal server error'
+    }, 500);
   }
 });
 
