@@ -1,12 +1,12 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 14, 2025, 5:45 PM - 🎨 **PRODUCTION THEMING COMPLETE & DEPLOYED!**
-**Status**: ✅ Computer Humanizer Working | ✅ Light/Dark Mode Complete | ⏳ Visual Testing Needed
+**Last Updated**: Nov 14, 2025, 6:15 PM - 🎨 **THEME DETECTION FIXED!**
+**Status**: ✅ Computer Humanizer Working | ✅ Light/Dark Mode Fixed | ⏳ Testing Needed
 **Latest**: Node 22.21.1, Wrangler 4.47.0 ✅, React 19, Vite 7.2, pnpm 10.12.4
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
 **Production API**: https://npe-api.tem-527.workers.dev (Version: **571cc86a**) ✅ **WITH PARAGRAPH FIX**
-**Workbench**: https://31ec2b22.workbench-4ec.pages.dev ✅ **LATEST - Production Theming Complete (19/19 files)**
-**Git**: `ce80458` (committed and pushed to main)
+**Workbench**: https://feb19bce.workbench-4ec.pages.dev ✅ **LATEST - Theme Detection Fixed**
+**Git**: `d50bf17` (committed and pushed to main)
 **Humanizer.com**: https://humanizer.com (REFERENCE for design/theme)
 **Safety Tag**: `pre-cleanup-safety` (restore point before branch cleanup)
 
@@ -146,6 +146,43 @@ Real users typing/pasting text works perfectly! **NOT A BLOCKING BUG** ✅
 **Next Steps**: Visual QA testing in both light and dark modes to verify all colors work correctly
 
 **ChromaDB Memory**: ID `81321057...` (tags: session-3, production-theming-complete, 100-percent)
+
+---
+
+## 🐛 **CRITICAL FIXES - Theme Detection** (Nov 14, 6:15 PM)
+
+### **Invisible Text Bug SOLVED** ✅
+
+**User Report**: "Invisible text (everything shows light in the selection blue)"
+
+**Root Cause Found**:
+- `index.html` set class `.light-mode` (line 12)
+- CSS expected attribute `[data-theme="light"]`
+- **Mismatch** → CSS variables stuck at `:root` defaults (dark mode colors)
+- **Result**: Light text on light background = invisible!
+
+**Fixes Applied**:
+1. ✅ **index.html**: Now sets `data-theme` attribute correctly (checks localStorage + system preference)
+2. ✅ **Mobile Header**: Added ThemeToggle button (was only on desktop)
+3. ✅ **ThemeToggle**: Removed Tailwind `dark:` classes, using semantic classes
+4. ✅ **Mobile Backdrop**: Fixed overlay to use inline styles instead of Tailwind
+
+**Deployed**: https://feb19bce.workbench-4ec.pages.dev ✅
+
+**Files Changed**:
+- `index.html` (9-15) - Theme detection script rewritten
+- `UnifiedLayout.tsx` (44-95, 300-313) - Mobile header + backdrop
+- `ThemeToggle.tsx` (51) - Removed Tailwind classes
+
+**Expected Behavior**:
+- ✅ Text visible in both light and dark modes
+- ✅ Theme toggle button works on mobile
+- ✅ Theme persists after reload
+- ✅ Logo visible in both modes
+
+**Documentation**: `/tmp/THEME_DETECTION_FIXES.md` (complete fix details)
+
+**Git**: `d50bf17` (committed and pushed)
 
 ---
 
@@ -472,7 +509,7 @@ console.log('Canvas text content:', text?.substring(0, 100));
 - **API**: https://npe-api.tem-527.workers.dev (api.humanizer.com)
 - **Frontend**: https://humanizer.com (← REFERENCE for design)
 - **Workbench**: https://workbench.humanizer.com (custom domain may be cached)
-- **Latest Deploy**: https://31ec2b22.workbench-4ec.pages.dev ✅ **Production Theming Complete (19/19 files)**
+- **Latest Deploy**: https://feb19bce.workbench-4ec.pages.dev ✅ **Theme Detection Fixed + Production Theming Complete**
 - **Archive**: Left panel in workbench (🗄️ Archive tab) ✅ Working
 
 **Signups**: 73 organic users waiting for launch!
