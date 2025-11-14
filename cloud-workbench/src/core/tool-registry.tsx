@@ -2,14 +2,15 @@ import type { ReactNode } from "react";
 // Quantum tools removed for MVP
 // import { POVMPanel } from "../features/panels/povm/POVMPanel";
 // import { RhoInspector } from "../features/panels/rho/RhoInspector";
-import { MultiReadingPanel } from "../features/panels/MultiReadingPanel";
+// Broken tools removed (Nov 14 testing)
+// import { MultiReadingPanel } from "../features/panels/MultiReadingPanel";
+// import { RoundTripPanel } from "../features/panels/round-trip/RoundTripPanel";
+// import { MaieuticPanel } from "../features/panels/maieutic/MaieuticPanel";
 import { AllegoricalPanel } from "../features/panels/allegorical/AllegoricalPanel";
-import { RoundTripPanel } from "../features/panels/round-trip/RoundTripPanel";
 import { HistoryPanel } from "../features/history/HistoryPanel";
 import { SessionBrowser } from "../features/quantum/SessionBrowser";
 import { AIDetectionPanel } from "../features/panels/ai-detection/AIDetectionPanel";
 import { ComputerHumanizerPanel } from "../features/panels/computer-humanizer/ComputerHumanizerPanel";
-import { MaieuticPanel } from "../features/panels/maieutic/MaieuticPanel";
 
 export type ToolKind = "analysis" | "transform" | "pipeline";
 
@@ -22,15 +23,16 @@ export interface ToolDef {
 }
 
 export const toolRegistry: ToolDef[] = [
-  // Transformations
-  { id: "allegorical", kind: "transform", icon: <span>🌟</span>, label: "Allegorical", panel: AllegoricalPanel },
-  { id: "round-trip", kind: "transform", icon: <span>🌍</span>, label: "Round-Trip", panel: RoundTripPanel },
-  { id: "ai-detection", kind: "transform", icon: <span>🔍</span>, label: "AI Detection", panel: AIDetectionPanel },
+  // Transformations (Working Tools Only)
   { id: "computer-humanizer", kind: "transform", icon: <span>🖥️</span>, label: "Computer Humanizer", panel: ComputerHumanizerPanel },
-  { id: "maieutic", kind: "transform", icon: <span>🤔</span>, label: "Maieutic", panel: MaieuticPanel },
+  { id: "allegorical", kind: "transform", icon: <span>🌟</span>, label: "Allegorical", panel: AllegoricalPanel },
+  { id: "ai-detection", kind: "transform", icon: <span>🔍</span>, label: "AI Detection", panel: AIDetectionPanel },
 
-  // Analysis
-  { id: "multi-reading", kind: "analysis", icon: <span>◈</span>, label: "Multi-Reading", panel: MultiReadingPanel },
+  // Broken tools removed (Nov 14 testing - see /tmp/TOOL_TESTING_RESULTS.md)
+  // { id: "round-trip", kind: "transform", icon: <span>🌍</span>, label: "Round-Trip", panel: RoundTripPanel },
+  // { id: "maieutic", kind: "transform", icon: <span>🤔</span>, label: "Maieutic", panel: MaieuticPanel },
+  // { id: "multi-reading", kind: "analysis", icon: <span>◈</span>, label: "Multi-Reading", panel: MultiReadingPanel },
+
   // Quantum tools removed for MVP
   // { id: "povm", kind: "analysis", icon: <span>◆</span>, label: "Perspective Analysis", panel: POVMPanel },
   // { id: "rho-inspect", kind: "analysis", icon: <span>↗︎</span>, label: "Embedding Profile", panel: RhoInspector },
