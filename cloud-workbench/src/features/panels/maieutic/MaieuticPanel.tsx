@@ -73,11 +73,11 @@ export function MaieuticPanel() {
 
   const getDepthColor = (d: number) => {
     const colors = [
-      'text-green-400',
-      'text-blue-400',
-      'text-indigo-400',
-      'text-purple-400',
-      'text-pink-400',
+      'var(--accent-green)',     // Level 0: Surface
+      'var(--accent-cyan)',      // Level 1: Shallow
+      'var(--accent-purple)',    // Level 2: Moderate
+      '#9333ea',                 // Level 3: Deep (purple)
+      '#ec4899',                 // Level 4: Profound (pink)
     ];
     return colors[d] || colors[2];
   };
@@ -85,9 +85,9 @@ export function MaieuticPanel() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-slate-700 px-4 py-3">
-        <h2 className="text-lg font-bold text-slate-100">🤔 Maieutic Dialogue</h2>
-        <p className="text-xs text-slate-400 mt-1">
+      <div className="panel-header">
+        <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>🤔 Maieutic Dialogue</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
           Socratic questioning to explore ideas deeply
         </p>
       </div>
@@ -100,16 +100,16 @@ export function MaieuticPanel() {
       />
 
       {/* Config Form */}
-      <div className="border-b border-slate-700 p-4 space-y-3">
+      <div className="border-b p-4 space-y-3" style={{ borderColor: 'var(--border-color)' }}>
         {/* Depth Level Selection */}
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1">
+          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
             Question Depth
           </label>
           <select
             value={depth}
             onChange={(e) => setDepth(parseInt(e.target.value))}
-            className="w-full rounded bg-slate-700 px-3 py-2 text-sm text-slate-100"
+            className="input w-full rounded px-3 py-2 text-sm"
           >
             {depthLevels.map((level) => (
               <option key={level.value} value={level.value}>
@@ -118,16 +118,16 @@ export function MaieuticPanel() {
             ))}
           </select>
           {depthLevels.find((l) => l.value === depth) && (
-            <div className="mt-1 text-xs text-slate-400">
+            <div className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
               {depthLevels.find((l) => l.value === depth)?.description}
             </div>
           )}
         </div>
 
         {/* Canvas Text Preview */}
-        <div className="rounded bg-slate-800 p-3">
-          <div className="text-xs text-slate-400 mb-1">Reading from Canvas</div>
-          <div className="text-sm text-slate-300">
+        <div className="card rounded p-3">
+          <div className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Reading from Canvas</div>
+          <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
             {getActiveText()
               ? `${getActiveText().substring(0, 100)}${getActiveText().length > 100 ? '...' : ''}`
               : 'No text in Canvas'}
@@ -139,14 +139,14 @@ export function MaieuticPanel() {
           <button
             onClick={handleAskQuestion}
             disabled={!getActiveText() || isQuestioning}
-            className="flex-1 rounded bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+            className="btn-primary flex-1 rounded px-4 py-2 font-medium disabled:opacity-50"
           >
             {isQuestioning ? '⏳ Thinking...' : '🤔 Ask Question'}
           </button>
           {conversationHistory.length > 0 && (
             <button
               onClick={handleReset}
-              className="rounded bg-slate-700 px-4 py-2 font-medium text-slate-300 hover:bg-slate-600"
+              className="btn-secondary rounded px-4 py-2 font-medium"
               title="Reset conversation"
             >
               🔄
@@ -156,7 +156,7 @@ export function MaieuticPanel() {
 
         {/* Conversation Turn Counter */}
         {conversationHistory.length > 0 && (
-          <div className="text-xs text-slate-400 text-center">
+          <div className="text-xs text-center" style={{ color: 'var(--text-secondary)' }}>
             Turn {Math.floor(conversationHistory.length / 2)} • {conversationHistory.length} messages
           </div>
         )}
@@ -164,7 +164,14 @@ export function MaieuticPanel() {
 
       {/* Error Display */}
       {error && (
-        <div className="border-b border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+        <div
+          className="border-b px-4 py-3 text-sm"
+          style={{
+            borderColor: 'var(--accent-red)',
+            background: 'rgba(220, 38, 38, 0.2)',
+            color: 'var(--accent-red)',
+          }}
+        >
           {error}
         </div>
       )}
@@ -174,53 +181,63 @@ export function MaieuticPanel() {
         {result && (
           <>
             {/* Current Question */}
-            <div className="rounded bg-gradient-to-br from-purple-900/30 to-purple-800/20 border border-purple-700/50 p-4">
+            <div
+              className="rounded p-4"
+              style={{
+                background: 'linear-gradient(to bottom right, rgba(167, 139, 250, 0.2), rgba(139, 92, 246, 0.1))',
+                border: '1px solid rgba(167, 139, 250, 0.3)',
+              }}
+            >
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-bold text-purple-200">Socratic Question</h3>
-                <span className={`text-xs font-medium ${getDepthColor(result.depth)}`}>
+                <h3 className="text-sm font-bold" style={{ color: 'var(--accent-purple)' }}>Socratic Question</h3>
+                <span className="text-xs font-medium" style={{ color: getDepthColor(result.depth) }}>
                   Depth {result.depth}
                 </span>
               </div>
-              <p className="text-base text-slate-100 leading-relaxed">
+              <p className="text-base leading-relaxed" style={{ color: 'var(--text-primary)' }}>
                 {result.question}
               </p>
             </div>
 
             {/* Reasoning */}
-            <div className="rounded bg-slate-800 p-4">
-              <h4 className="text-sm font-bold text-slate-300 mb-2">
+            <div className="card rounded p-4">
+              <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
                 Reasoning
               </h4>
-              <p className="text-sm text-slate-400 leading-relaxed whitespace-pre-wrap">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
                 {result.reasoning}
               </p>
             </div>
 
             {/* Conversation History */}
             {conversationHistory.length > 0 && (
-              <div className="rounded bg-slate-800 p-4">
-                <h4 className="text-sm font-bold text-slate-300 mb-3">
+              <div className="card rounded p-4">
+                <h4 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
                   Conversation History
                 </h4>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {conversationHistory.map((msg, i) => (
                     <div
                       key={i}
-                      className={`rounded p-3 ${
-                        msg.role === 'user'
-                          ? 'bg-blue-900/20 border border-blue-700/50'
-                          : 'bg-purple-900/20 border border-purple-700/50'
-                      }`}
+                      className="rounded p-3"
+                      style={{
+                        background: msg.role === 'user'
+                          ? 'rgba(6, 182, 212, 0.15)'
+                          : 'rgba(167, 139, 250, 0.15)',
+                        border: msg.role === 'user'
+                          ? '1px solid rgba(6, 182, 212, 0.3)'
+                          : '1px solid rgba(167, 139, 250, 0.3)',
+                      }}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium text-slate-400 uppercase">
+                        <span className="text-xs font-medium uppercase" style={{ color: 'var(--text-secondary)' }}>
                           {msg.role === 'user' ? '👤 You' : '🤔 Socrates'}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                           Turn {Math.floor(i / 2) + 1}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-300 leading-relaxed">
+                      <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>
                         {msg.content}
                       </p>
                     </div>
@@ -230,21 +247,21 @@ export function MaieuticPanel() {
             )}
 
             {/* Guidance */}
-            <div className="rounded bg-slate-800 p-4">
-              <h4 className="text-sm font-bold text-slate-300 mb-2">
+            <div className="card rounded p-4">
+              <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
                 💡 How to Continue
               </h4>
-              <div className="text-xs text-slate-400 space-y-2">
+              <div className="text-xs space-y-2" style={{ color: 'var(--text-secondary)' }}>
                 <p>
-                  1. <strong className="text-slate-300">Reflect</strong> on the question above
+                  1. <strong style={{ color: 'var(--text-primary)' }}>Reflect</strong> on the question above
                 </p>
                 <p>
-                  2. <strong className="text-slate-300">Update Canvas</strong> with your response or new thoughts
+                  2. <strong style={{ color: 'var(--text-primary)' }}>Update Canvas</strong> with your response or new thoughts
                 </p>
                 <p>
-                  3. <strong className="text-slate-300">Click "Ask Question"</strong> to continue the dialogue
+                  3. <strong style={{ color: 'var(--text-primary)' }}>Click "Ask Question"</strong> to continue the dialogue
                 </p>
-                <p className="mt-3 pt-3 border-t border-slate-700">
+                <p className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-color)' }}>
                   The conversation builds on previous turns, creating a deep exploration of your ideas.
                 </p>
               </div>
@@ -258,7 +275,7 @@ export function MaieuticPanel() {
                   .join('\n\n');
                 navigator.clipboard.writeText(conversation);
               }}
-              className="w-full rounded bg-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-600"
+              className="btn-secondary w-full rounded px-4 py-2 text-sm font-medium"
             >
               📄 Copy Full Conversation
             </button>
@@ -266,9 +283,9 @@ export function MaieuticPanel() {
         )}
 
         {!result && !isQuestioning && !error && (
-          <div className="text-center text-sm text-slate-400 py-8">
+          <div className="text-center text-sm py-8" style={{ color: 'var(--text-secondary)' }}>
             <div className="mb-4 text-4xl">🤔</div>
-            <p className="mb-2">Begin your Socratic inquiry</p>
+            <p className="mb-2" style={{ color: 'var(--text-primary)' }}>Begin your Socratic inquiry</p>
             <p className="text-xs">
               Load text to Canvas, select a depth level, and click Ask Question
             </p>
