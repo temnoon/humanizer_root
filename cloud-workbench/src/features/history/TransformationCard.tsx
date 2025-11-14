@@ -48,18 +48,61 @@ export function TransformationCard({
   };
 
   const getTypeBadge = (type: string) => {
-    const badges: Record<string, { emoji: string; color: string; label: string }> = {
-      allegorical: { emoji: '🌟', color: 'bg-purple-900/40 text-purple-200 border-purple-700', label: 'Allegorical' },
-      'round-trip': { emoji: '🌍', color: 'bg-blue-900/40 text-blue-200 border-blue-700', label: 'Round-Trip' },
-      maieutic: { emoji: '🤔', color: 'bg-amber-900/40 text-amber-200 border-amber-700', label: 'Maieutic' },
-      personalizer: { emoji: '🎭', color: 'bg-pink-900/40 text-pink-200 border-pink-700', label: 'Personalizer' },
-      'ai-detection': { emoji: '🔍', color: 'bg-cyan-900/40 text-cyan-200 border-cyan-700', label: 'AI Detection' },
+    const badges: Record<string, { emoji: string; bgColor: string; textColor: string; borderColor: string; label: string }> = {
+      allegorical: {
+        emoji: '🌟',
+        bgColor: 'rgba(167, 139, 250, 0.2)',
+        textColor: 'var(--accent-purple)',
+        borderColor: 'var(--accent-purple)',
+        label: 'Allegorical'
+      },
+      'round-trip': {
+        emoji: '🌍',
+        bgColor: 'rgba(6, 182, 212, 0.2)',
+        textColor: 'var(--accent-cyan)',
+        borderColor: 'var(--accent-cyan)',
+        label: 'Round-Trip'
+      },
+      maieutic: {
+        emoji: '🤔',
+        bgColor: 'rgba(251, 191, 36, 0.2)',
+        textColor: 'var(--accent-yellow)',
+        borderColor: 'var(--accent-yellow)',
+        label: 'Maieutic'
+      },
+      personalizer: {
+        emoji: '🎭',
+        bgColor: 'rgba(236, 72, 153, 0.2)',
+        textColor: '#ec4899',
+        borderColor: '#ec4899',
+        label: 'Personalizer'
+      },
+      'ai-detection': {
+        emoji: '🔍',
+        bgColor: 'rgba(6, 182, 212, 0.2)',
+        textColor: 'var(--accent-cyan)',
+        borderColor: 'var(--accent-cyan)',
+        label: 'AI Detection'
+      },
     };
 
-    const badge = badges[type] || { emoji: '✨', color: 'bg-slate-700 text-slate-200 border-slate-600', label: type };
+    const badge = badges[type] || {
+      emoji: '✨',
+      bgColor: 'var(--bg-tertiary)',
+      textColor: 'var(--text-primary)',
+      borderColor: 'var(--border-color)',
+      label: type
+    };
 
     return (
-      <span className={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium border ${badge.color}`}>
+      <span
+        className="inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium border"
+        style={{
+          background: badge.bgColor,
+          color: badge.textColor,
+          borderColor: badge.borderColor,
+        }}
+      >
         <span>{badge.emoji}</span>
         <span>{badge.label}</span>
       </span>
@@ -76,7 +119,13 @@ export function TransformationCard({
   };
 
   return (
-    <div className="rounded border border-slate-700 bg-slate-800/50 hover:bg-slate-800 transition-colors">
+    <div
+      className="rounded border transition-colors"
+      style={{
+        borderColor: 'var(--border-color)',
+        background: 'var(--bg-secondary)',
+      }}
+    >
       {/* Header */}
       <div className="flex items-start gap-3 p-3">
         {/* Favorite Star */}
@@ -93,13 +142,13 @@ export function TransformationCard({
           {/* Type Badge + Timestamp */}
           <div className="flex items-center gap-2 mb-2">
             {getTypeBadge(item.transformation_type)}
-            <span className="text-xs text-slate-400">
+            <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               {formatDate(item.created_at)}
             </span>
           </div>
 
           {/* Input Preview */}
-          <div className="text-sm text-slate-300 mb-2 line-clamp-2">
+          <div className="text-sm mb-2 line-clamp-2" style={{ color: 'var(--text-primary)' }}>
             {item.input_text}
           </div>
 
@@ -107,7 +156,14 @@ export function TransformationCard({
           {item.config && Object.keys(item.config).length > 0 && (
             <div className="flex flex-wrap gap-1 mb-2">
               {Object.entries(item.config).slice(0, 3).map(([key, value]) => (
-                <span key={key} className="text-xs bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded">
+                <span
+                  key={key}
+                  className="text-xs px-1.5 py-0.5 rounded"
+                  style={{
+                    background: 'var(--bg-tertiary)',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
                   {key}: {String(value)}
                 </span>
               ))}
@@ -119,14 +175,14 @@ export function TransformationCard({
         <div className="flex flex-col gap-1">
           <button
             onClick={() => onLoadToCanvas(item.output_text)}
-            className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500"
+            className="rounded btn-primary px-3 py-1 text-xs font-medium"
             title="Load output to Canvas"
           >
             Load
           </button>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="rounded bg-slate-700 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-slate-600"
+            className="rounded btn-secondary px-3 py-1 text-xs font-medium"
             title={expanded ? 'Collapse' : 'Expand'}
           >
             {expanded ? '▲' : '▼'}
@@ -147,19 +203,19 @@ export function TransformationCard({
 
       {/* Expanded Content */}
       {expanded && (
-        <div className="border-t border-slate-700 p-3 space-y-3">
+        <div className="border-t p-3 space-y-3" style={{ borderColor: 'var(--border-color)' }}>
           {/* Input */}
           <div>
-            <div className="text-xs font-medium text-slate-400 mb-1">Input</div>
-            <div className="rounded bg-slate-900 p-2 text-sm text-slate-300 max-h-32 overflow-y-auto">
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Input</div>
+            <div className="rounded p-2 text-sm max-h-32 overflow-y-auto" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
               {item.input_text}
             </div>
           </div>
 
           {/* Output */}
           <div>
-            <div className="text-xs font-medium text-slate-400 mb-1">Output</div>
-            <div className="rounded bg-slate-900 p-2 text-sm text-slate-300 max-h-32 overflow-y-auto">
+            <div className="text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Output</div>
+            <div className="rounded p-2 text-sm max-h-32 overflow-y-auto" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-primary)' }}>
               {item.output_text}
             </div>
           </div>
@@ -167,10 +223,10 @@ export function TransformationCard({
           {/* Full Config */}
           {item.config && Object.keys(item.config).length > 0 && (
             <details className="text-xs">
-              <summary className="cursor-pointer text-slate-400 hover:text-slate-300">
+              <summary className="cursor-pointer" style={{ color: 'var(--text-secondary)' }}>
                 Configuration
               </summary>
-              <pre className="mt-2 rounded bg-slate-900 p-2 text-slate-400 overflow-x-auto">
+              <pre className="mt-2 rounded p-2 overflow-x-auto" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
                 {JSON.stringify(item.config, null, 2)}
               </pre>
             </details>
@@ -180,13 +236,13 @@ export function TransformationCard({
           <div className="flex gap-2">
             <button
               onClick={() => navigator.clipboard.writeText(item.input_text)}
-              className="flex-1 rounded bg-slate-700 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-slate-600"
+              className="flex-1 rounded btn-secondary px-3 py-1 text-xs font-medium"
             >
               Copy Input
             </button>
             <button
               onClick={() => navigator.clipboard.writeText(item.output_text)}
-              className="flex-1 rounded bg-slate-700 px-3 py-1 text-xs font-medium text-slate-300 hover:bg-slate-600"
+              className="flex-1 rounded btn-secondary px-3 py-1 text-xs font-medium"
             >
               Copy Output
             </button>
