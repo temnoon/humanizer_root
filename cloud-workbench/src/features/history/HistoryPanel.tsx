@@ -144,18 +144,18 @@ export function HistoryPanel() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-slate-700 px-4 py-3">
-        <h2 className="text-lg font-bold text-slate-100">📜 Transformation History</h2>
-        <p className="text-xs text-slate-400 mt-1">
+      <div className="panel-header">
+        <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>📜 Transformation History</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
           Browse and restore past transformations
         </p>
       </div>
 
       {/* Filters */}
-      <div className="border-b border-slate-700 p-4 space-y-3">
+      <div className="border-b p-4 space-y-3" style={{ borderColor: 'var(--border-color)' }}>
         {/* Search */}
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1">
+          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
             Search
           </label>
           <input
@@ -163,19 +163,19 @@ export function HistoryPanel() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search input or output text..."
-            className="w-full rounded bg-slate-700 px-3 py-2 text-sm text-slate-100 placeholder-slate-400"
+            className="input w-full rounded px-3 py-2 text-sm"
           />
         </div>
 
         {/* Type Filter */}
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1">
+          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
             Type
           </label>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-full rounded bg-slate-700 px-3 py-2 text-sm text-slate-100"
+            className="input w-full rounded px-3 py-2 text-sm"
           >
             {transformationTypes.map(type => (
               <option key={type.id} value={type.id}>
@@ -191,8 +191,8 @@ export function HistoryPanel() {
             onClick={() => setFavoriteFilter(undefined)}
             className={`flex-1 rounded px-3 py-2 text-xs font-medium transition-colors ${
               favoriteFilter === undefined
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                ? 'btn-primary'
+                : 'btn-secondary'
             }`}
           >
             All
@@ -201,8 +201,8 @@ export function HistoryPanel() {
             onClick={() => setFavoriteFilter(true)}
             className={`flex-1 rounded px-3 py-2 text-xs font-medium transition-colors ${
               favoriteFilter === true
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                ? 'btn-primary'
+                : 'btn-secondary'
             }`}
           >
             ⭐ Favorites
@@ -213,7 +213,7 @@ export function HistoryPanel() {
         <button
           onClick={() => loadHistory(true)}
           disabled={loading}
-          className="w-full rounded bg-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-600 disabled:opacity-50"
+          className="btn-secondary w-full rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
         >
           {loading ? '⏳ Loading...' : '🔄 Refresh'}
         </button>
@@ -221,13 +221,20 @@ export function HistoryPanel() {
 
       {/* Error Display */}
       {error && (
-        <div className="border-b border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+        <div
+          className="border-b px-4 py-3 text-sm"
+          style={{
+            borderColor: 'var(--accent-red)',
+            background: 'rgba(220, 38, 38, 0.2)',
+            color: 'var(--accent-red)',
+          }}
+        >
           {error}
         </div>
       )}
 
       {/* Results Count */}
-      <div className="border-b border-slate-700 px-4 py-2 text-xs text-slate-400">
+      <div className="border-b px-4 py-2 text-xs" style={{ borderColor: 'var(--border-color)', color: 'var(--text-secondary)' }}>
         {filteredItems.length > 0 ? (
           <>
             Showing {filteredItems.length} {filteredItems.length === 1 ? 'transformation' : 'transformations'}
@@ -259,14 +266,14 @@ export function HistoryPanel() {
               <button
                 onClick={handleLoadMore}
                 disabled={loading}
-                className="w-full rounded bg-slate-700 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-600 disabled:opacity-50"
+                className="btn-secondary w-full rounded px-4 py-2 text-sm font-medium disabled:opacity-50"
               >
                 {loading ? '⏳ Loading...' : 'Load More'}
               </button>
             )}
           </>
         ) : !loading && (
-          <div className="text-center text-sm text-slate-400 py-8">
+          <div className="text-center text-sm py-8" style={{ color: 'var(--text-secondary)' }}>
             {searchQuery ? (
               <>No transformations matching "{searchQuery}"</>
             ) : typeFilter !== 'all' ? (
