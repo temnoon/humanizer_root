@@ -99,9 +99,9 @@ export function RoundTripPanel() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-slate-700 px-4 py-3">
-        <h2 className="text-lg font-bold text-slate-100">🌍 Round-Trip Translation</h2>
-        <p className="text-xs text-slate-400 mt-1">
+      <div className="panel-header">
+        <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>🌍 Round-Trip Translation</h2>
+        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
           Analyze semantic drift through translation cycles
         </p>
       </div>
@@ -114,15 +114,15 @@ export function RoundTripPanel() {
       />
 
       {/* Config Form */}
-      <div className="border-b border-slate-700 p-4 space-y-3">
+      <div className="border-b p-4 space-y-3" style={{ borderColor: 'var(--border-color)' }}>
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1">
+          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
             Intermediate Language
           </label>
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
-            className="w-full rounded bg-slate-700 px-3 py-2 text-sm text-slate-100"
+            className="input w-full rounded px-3 py-2 text-sm"
           >
             {languages.map((lang) => (
               <option key={lang.code} value={lang.code}>
@@ -135,7 +135,7 @@ export function RoundTripPanel() {
         <button
           onClick={handleTransform}
           disabled={isTransforming}
-          className="w-full rounded bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="btn-primary w-full rounded px-4 py-2 font-medium disabled:opacity-50"
         >
           {isTransforming ? '⏳ Translating...' : '🌍 Round-Trip'}
         </button>
@@ -143,7 +143,14 @@ export function RoundTripPanel() {
 
       {/* Error Display */}
       {error && (
-        <div className="border-b border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+        <div
+          className="border-b px-4 py-3 text-sm"
+          style={{
+            borderColor: 'var(--accent-red)',
+            background: 'rgba(220, 38, 38, 0.2)',
+            color: 'var(--accent-red)',
+          }}
+        >
           {error}
         </div>
       )}
@@ -154,8 +161,8 @@ export function RoundTripPanel() {
           <>
             {/* Original Text */}
             <div>
-              <h3 className="font-bold text-sm text-slate-100 mb-2">Original Text</h3>
-              <div className="rounded bg-slate-800 p-3 text-sm text-slate-300">
+              <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--text-primary)' }}>Original Text</h3>
+              <div className="card rounded p-3 text-sm">
                 {result.original_text}
               </div>
             </div>
@@ -163,23 +170,23 @@ export function RoundTripPanel() {
             {/* Final Text (After Round-Trip) */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-bold text-sm text-slate-100">Final Text (After Round-Trip)</h3>
+                <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Final Text (After Round-Trip)</h3>
                 <button
                   onClick={loadToCanvas}
-                  className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500"
+                  className="btn-primary rounded px-3 py-1 text-xs font-medium"
                 >
                   Load to Canvas →
                 </button>
               </div>
-              <div className="rounded bg-slate-800 p-3 text-sm text-slate-300">
+              <div className="card rounded p-3 text-sm">
                 {result.final_text}
               </div>
             </div>
 
             {/* Drift Analysis */}
             <div>
-              <h3 className="font-bold text-sm text-slate-100 mb-2">Semantic Drift Analysis</h3>
-              <div className="prose prose-invert prose-sm max-w-none rounded bg-slate-800 p-3 text-slate-200">
+              <h3 className="font-bold text-sm mb-2" style={{ color: 'var(--text-primary)' }}>Semantic Drift Analysis</h3>
+              <div className="prose prose-invert prose-sm max-w-none card rounded p-3" style={{ color: 'var(--text-primary)' }}>
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {result.drift_analysis}
                 </ReactMarkdown>
@@ -187,8 +194,8 @@ export function RoundTripPanel() {
             </div>
 
             {/* Intermediate Translations */}
-            <details className="rounded border border-slate-700 bg-slate-800">
-              <summary className="cursor-pointer px-3 py-2 font-medium text-sm text-slate-100 hover:bg-slate-700">
+            <details className="card rounded">
+              <summary className="cursor-pointer px-3 py-2 font-medium text-sm hover-bg-accent" style={{ color: 'var(--text-primary)' }}>
                 View Intermediate Translations ({result.intermediate_translations.length})
               </summary>
               <div className="space-y-2 p-3">
