@@ -48,7 +48,7 @@ export function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="p-2 rounded-lg hover:bg-slate-800 dark:hover:bg-slate-700 transition-colors"
+      className="p-2 rounded-lg transition-colors hover-bg-accent"
       style={{
         background: 'var(--bg-secondary)',
         border: '1px solid var(--border-color)',

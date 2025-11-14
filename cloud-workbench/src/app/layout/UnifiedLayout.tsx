@@ -41,26 +41,48 @@ export function UnifiedLayout({
         }}
       >
         {/* Mobile Header */}
-        <div className="lg:hidden flex items-center justify-between px-4 py-3">
-          {/* Left: Menu Button */}
-          <button
-            onClick={() => setLeftOpen(!leftOpen)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
-            style={{
-              background: leftOpen ? 'var(--accent-purple-alpha-10)' : 'transparent',
-              border: '1px solid var(--border-color)',
-            }}
-            aria-label="Toggle menu"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-            <span className="text-sm font-medium">Menu</span>
-          </button>
+        <div className="lg:hidden px-4 py-3">
+          {/* Top row: Menu, Logo, Tools */}
+          <div className="flex items-center justify-between mb-2">
+            {/* Left: Menu Button */}
+            <button
+              onClick={() => setLeftOpen(!leftOpen)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
+              style={{
+                background: leftOpen ? 'var(--accent-purple-alpha-10)' : 'transparent',
+                border: '1px solid var(--border-color)',
+              }}
+              aria-label="Toggle menu"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              <span className="text-sm font-medium">Menu</span>
+            </button>
 
-          {/* Center: Logo */}
+            {/* Right: Theme Toggle + Tools Button */}
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <button
+                onClick={() => setRightOpen(!rightOpen)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
+                style={{
+                  background: rightOpen ? 'var(--accent-purple-alpha-10)' : 'transparent',
+                  border: '1px solid var(--border-color)',
+                }}
+                aria-label="Toggle tools"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+                <span className="text-sm font-medium">Tools</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom row: Logo (centered) */}
           <h1
-            className="text-lg font-bold"
+            className="text-lg font-bold text-center"
             style={{
               background: 'linear-gradient(135deg, var(--logo-gradient-from), var(--logo-gradient-to))',
               WebkitBackgroundClip: 'text',
@@ -70,22 +92,6 @@ export function UnifiedLayout({
           >
             humanizer.com
           </h1>
-
-          {/* Right: Tools Button */}
-          <button
-            onClick={() => setRightOpen(!rightOpen)}
-            className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
-            style={{
-              background: rightOpen ? 'var(--accent-purple-alpha-10)' : 'transparent',
-              border: '1px solid var(--border-color)',
-            }}
-            aria-label="Toggle tools"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-            </svg>
-            <span className="text-sm font-medium">Tools</span>
-          </button>
         </div>
 
         {/* Desktop Header */}
@@ -294,12 +300,15 @@ export function UnifiedLayout({
           {/* Overlay for mobile panels */}
           {(leftOpen || rightOpen) && (
             <div
-              className="md:hidden fixed inset-0 bg-black/50 z-30"
+              className="md:hidden fixed inset-0 z-30"
               onClick={() => {
                 setLeftOpen(false);
                 setRightOpen(false);
               }}
-              style={{ marginTop: '60px' }}
+              style={{
+                marginTop: '60px',
+                background: 'rgba(0, 0, 0, 0.5)',
+              }}
             />
           )}
         </div>

@@ -8,9 +8,10 @@
     <title>humanizer.com workbench</title>
     <script>
       // System theme detection - apply before render to prevent flash
-      if (window.matchMedia('(prefers-color-scheme: light)').matches) {
-        document.documentElement.classList.add('light-mode');
-      }
+      const savedTheme = localStorage.getItem('theme');
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      const theme = savedTheme || systemTheme;
+      document.documentElement.setAttribute('data-theme', theme);
     </script>
   </head>
   <body>
