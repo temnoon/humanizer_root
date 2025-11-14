@@ -44,8 +44,8 @@
   color: var(--accent-purple);
 }
 
-.text-white {
-  color: white;
+.text-on-accent {
+  color: var(--text-on-accent);
 }
 
 /* ==========================================

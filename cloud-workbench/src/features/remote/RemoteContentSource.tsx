@@ -90,8 +90,8 @@ export function RemoteContentSource() {
       <div className="p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
         <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--text-secondary)' }}>📁 Upload Files</h3>
         <label
-          className="block w-full px-4 py-2 text-white rounded font-medium text-center cursor-pointer transition-colors"
-          style={{ background: 'var(--accent-purple)' }}
+          className="block w-full px-4 py-2 rounded font-medium text-center cursor-pointer transition-colors"
+          style={{ background: 'var(--accent-purple)', color: 'var(--text-on-accent)' }}
         >
           Choose .txt or .md files
           <input

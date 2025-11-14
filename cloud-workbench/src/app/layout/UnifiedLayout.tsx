@@ -211,6 +211,7 @@ export function UnifiedLayout({
           {/* Left Panel (Archive/History) - Slides in on mobile */}
           <aside
             className={`
+              panel
               fixed md:relative inset-y-0 left-0 z-40 w-[280px] md:w-auto
               transform transition-transform duration-300 ease-in-out
               ${leftOpen ? 'translate-x-0' : '-translate-x-full'}
@@ -219,7 +220,6 @@ export function UnifiedLayout({
               border-r md:border-r-0
             `}
             style={{
-              background: 'var(--bg-secondary)',
               borderColor: 'var(--border-color)',
               marginTop: leftOpen ? '60px' : '0',
             }}
@@ -239,25 +239,20 @@ export function UnifiedLayout({
                 </svg>
               </button>
             </div>
-            <div
-              className="md:rounded-lg overflow-hidden h-full"
-              style={{ background: 'var(--bg-secondary)' }}
-            >
+            <div className="md:rounded-lg overflow-hidden h-full">
               {left}
             </div>
           </aside>
 
           {/* Center Panel (Canvas) - Always visible */}
-          <main
-            className="rounded-none md:rounded-lg overflow-hidden"
-            style={{ background: 'var(--bg-secondary)' }}
-          >
+          <main className="panel rounded-none md:rounded-lg overflow-hidden">
             {center}
           </main>
 
           {/* Right Panel (Tool Panel) - Slides in on mobile, visible on tablet+ */}
           <aside
             className={`
+              panel
               fixed md:relative inset-y-0 right-0 z-40 w-full sm:w-[360px] md:w-auto
               transform transition-transform duration-300 ease-in-out
               ${rightOpen ? 'translate-x-0' : 'translate-x-full'}
@@ -267,7 +262,6 @@ export function UnifiedLayout({
               max-w-full
             `}
             style={{
-              background: 'var(--bg-secondary)',
               borderColor: 'var(--border-color)',
               marginTop: rightOpen ? '60px' : '0',
             }}
@@ -289,10 +283,7 @@ export function UnifiedLayout({
             </div>
 
             {/* Render active tool panel */}
-            <div
-              className="md:rounded-lg overflow-hidden h-full"
-              style={{ background: 'var(--bg-secondary)' }}
-            >
+            <div className="md:rounded-lg overflow-hidden h-full">
               {CurrentToolPanel && <CurrentToolPanel />}
             </div>
           </aside>
