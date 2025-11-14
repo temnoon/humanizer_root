@@ -144,26 +144,54 @@ export class AllegoricalProjectionService {
 
   /**
    * Stage 1: Deconstruct narrative into core elements
+   * Content-aware: preserves the type of discourse (argument, story, analysis, etc.)
    */
   private async deconstruct(text: string): Promise<AllegoricalStage> {
     const startTime = Date.now();
 
-    const systemPrompt = `You are analyzing narratives to identify their fundamental elements.
-Your task is to deconstruct the narrative into its core components without interpretation or judgment.`;
+    const systemPrompt = `You are analyzing the structure of meaning in discourse.
+Your task is to identify core elements WITHOUT changing what type of discourse it is.
+If it's an argument, identify claims and evidence. If it's a story, identify characters and events.
+If it's analysis, identify concepts and relationships. Preserve the essence.`;
 
-    const prompt = `Deconstruct the following narrative into its fundamental elements:
+    const prompt = `Identify the fundamental elements of this discourse:
 
-Narrative:
 ${text}
 
-Identify and list:
-1. Key actors (individuals, groups, entities)
-2. Core actions (what happens)
-3. Relationships (connections between actors)
-4. Conflicts (tensions, obstacles, challenges)
-5. Outcomes (results, consequences, transformations)
+**STEP 1: IDENTIFY PRIMARY DISCOURSE TYPE**
 
-Provide a structured breakdown of these elements.`;
+Ask: What is the MAIN content here?
+- STORY: Characters doing things, dialogue, scenes, events
+  - Even if text also contains commentary about the story
+  - Primary = what happens, Secondary = commentary
+- ARGUMENT: Claims with reasoning to support them
+  - May include examples as evidence
+- EXPLANATION: Theory/mechanism with evidence/examples
+  - Must preserve BOTH abstract principles AND concrete examples
+- ANALYSIS: Examination/interpretation of something else
+  - About a text, not the text itself
+
+**PRIMARY TYPE for this text**: [State it clearly]
+
+**STEP 2: LIST ALL ELEMENTS (keeping abstraction level)**
+
+Then identify:
+1. Core concepts or entities (what this is ABOUT)
+   - If STORY: List actual character names (not "characters")
+   - If EXPLANATION: List BOTH concepts AND specific examples
+   - Example: "Natural selection (concept), woodpecker (example)"
+2. Key claims or actions (what is SAID or HAPPENS)
+3. Relationships (how concepts/entities relate)
+4. Tensions (conflicts, paradoxes, problems, challenges)
+5. Resolutions or outcomes (conclusions, results, implications)
+
+**CRITICAL RULES**:
+- Preserve abstraction level: Concrete stays concrete, abstract stays abstract
+- For SPECIFIC EXAMPLES: List them explicitly, don't generalize
+  - ✅ "woodpecker, mistletoe" (specific)
+  - ❌ "organisms, beings" (too general)
+- Do NOT invent examples. Do NOT create fiction. Extract what's actually there.
+- Tag concrete examples: [CONCRETE: woodpecker, mistletoe] so later stages preserve them`;
 
     const result = await this.callLLM(systemPrompt, prompt, 1);
 
@@ -177,28 +205,67 @@ Provide a structured breakdown of these elements.`;
 
   /**
    * Stage 2: Map elements to target namespace
+   * CRITICAL: Translate concepts, DON'T create fiction
    */
   private async map(deconstructedText: string): Promise<AllegoricalStage> {
     const startTime = Date.now();
 
-    const systemPrompt = `You are mapping narrative elements to a specific fictional universe.
+    const systemPrompt = `You are translating concepts between conceptual frameworks.
 ${this.namespace.context_prompt}
 
-Your task is to find analogous elements in this universe that parallel the original narrative elements.`;
+CRITICAL RULES:
+- If the source is an ARGUMENT, translate to an argument in this framework
+- If the source is ANALYSIS, translate to analysis in this framework
+- If the source is a STORY, only then translate to a story
+- DO NOT invent concrete examples that weren't in the source
+- PRESERVE the abstraction level - if source is abstract/conceptual, keep it abstract
+- Translate VOCABULARY and CONCEPTUAL FRAMEWORK, not create new content`;
 
-    const prompt = `Given these deconstructed narrative elements, map each element to analogous elements in ${this.namespace.description}:
+    const prompt = `Translate these elements into the conceptual framework of ${this.namespace.description}:
 
-Deconstructed Elements:
+Source Elements:
 ${deconstructedText}
 
-Create a mapping where:
-- Each actor becomes an analogous character/entity in ${this.namespace.name}
-- Each action becomes an analogous event in ${this.namespace.name}
-- Each relationship becomes an analogous connection in ${this.namespace.name}
-- Each conflict becomes an analogous tension in ${this.namespace.name}
-- Each outcome becomes an analogous result in ${this.namespace.name}
+**CRITICAL: PRESERVE DISCOURSE TYPE FROM STAGE 1**
+The Stage 1 analysis identified this as: [extract type from deconstructedText]
+You MUST maintain that same type in your mapping.
 
-Provide the complete mapping in a structured format.`;
+**CRITICAL: PRESERVE ABSTRACTION LEVEL**
+
+For each element, find the EQUIVALENT (not abstracted) concept in ${this.namespace.name} framework.
+
+**TRANSLATION RULES**:
+
+1. **ABSTRACT → ABSTRACT**:
+   - "Empiricism" → "Empirical study"
+   - "Causation" → "Mechanical necessity"
+
+2. **CONCRETE → CONCRETE** (DO NOT ABSTRACT):
+   - "Woodpecker's beak" → [Find equivalent specific example in ${this.namespace.name}]
+   - Example: "Galileo's telescope" (specific tool, not "instruments")
+   - "Elizabeth Bennet" → [Find equivalent character in ${this.namespace.name}]
+   - Example: "Miss Havisham" (specific person, not "woman")
+
+3. **MIXED → MIXED** (Preserve BOTH):
+   - Theory + Examples → Theory + Examples
+   - Characters + Themes → Characters + Themes
+
+**FOR CONCRETE EXAMPLES**:
+If source mentions "woodpecker", your output MUST include a specific equivalent:
+✅ "Woodpecker → Diving bird of the Thames estuary"
+✅ "Mistletoe → Climbing vine of tropical conservatories"
+❌ "Woodpecker → Organism" (too abstract - WRONG)
+❌ "Mistletoe → Plant" (too abstract - WRONG)
+
+**FOR STORY CHARACTERS**:
+If source mentions "Elizabeth", your output MUST include a character:
+✅ "Elizabeth Bennet → Sarah Marwick of Cheapside"
+❌ "Elizabeth → Individual" (too abstract - WRONG)
+
+Provide structured mapping that:
+- Preserves discourse type
+- Maintains abstraction level
+- Provides concrete equivalents for concrete examples`;
 
     const result = await this.callLLM(systemPrompt, prompt, 2);
 
@@ -211,29 +278,59 @@ Provide the complete mapping in a structured format.`;
   }
 
   /**
-   * Stage 3: Reconstruct narrative in new namespace
+   * Stage 3: Reconstruct in new conceptual framework
+   * Preserves discourse type while using new vocabulary
    */
   private async reconstruct(mappedText: string): Promise<AllegoricalStage> {
     const startTime = Date.now();
 
-    const systemPrompt = `You are reconstructing a narrative in a specific fictional universe.
+    const systemPrompt = `You are expressing ideas through a specific conceptual framework.
 ${this.namespace.context_prompt}
 
-Your task is to weave the mapped elements into a coherent narrative that tells THE SAME STORY but in a completely different setting.`;
+Your task is to reconstruct the SAME MEANING using the vocabulary and concepts of this framework.
 
-    const prompt = `Using these mapped elements, reconstruct the narrative as a cohesive story set entirely within ${this.namespace.description}:
+**TYPE LOCK**: The discourse type was identified in Stage 1. You MUST preserve that exact type.`;
 
-Mapped Elements:
+    const prompt = `Using these translated elements, reconstruct the discourse entirely within ${this.namespace.description} framework:
+
+Translated Elements:
 ${mappedText}
 
-Create a complete narrative that:
-- Tells the same fundamental story as the original
-- Uses ONLY characters, settings, and events from ${this.namespace.name}
-- Maintains the same narrative arc (beginning, conflict, resolution)
-- Preserves the core relationships and tensions
-- Achieves the same outcomes through analogous means
+**IDENTIFY THE TYPE** (from Stage 1 mapping):
+[Extract from mappedText]
 
-Write the reconstructed narrative.`;
+**RECONSTRUCT REQUIREMENTS**:
+
+IF TYPE = STORY:
+- Output MUST be narrative scene/story
+- Use translated character names in action
+- Show events happening, not analysis of events
+- Include dialogue or concrete actions
+- ❌ Do NOT write "This story demonstrates..."
+- ✅ DO write "Sarah walked into... she said..."
+
+IF TYPE = EXPLANATION:
+- Output MUST explain mechanism/theory
+- Include BOTH abstract principles AND concrete examples
+- Use specific examples from Stage 2 mapping
+- ❌ Do NOT drop the examples
+- ✅ DO include: "Consider the case of [specific example]..."
+
+IF TYPE = ARGUMENT:
+- Output MUST make claims with reasoning
+- Maintain argumentative structure
+- Support abstract claims with concrete evidence (if source had it)
+
+IF TYPE = ANALYSIS:
+- Output MUST analyze/interpret
+- Maintain analytical structure
+
+**ABSTRACTION PRESERVATION**:
+- If Stage 2 mapping included concrete examples → OUTPUT MUST INCLUDE THEM
+- If Stage 2 mapping was pure abstract → OUTPUT stays abstract
+- Match the abstraction level of the input
+
+Write the reconstructed discourse in ${this.namespace.name} framework.`;
 
     const result = await this.callLLM(systemPrompt, prompt, 3);
 
@@ -247,29 +344,54 @@ Write the reconstructed narrative.`;
 
   /**
    * Stage 4: Apply style and persona voice
+   * Voice and register, NOT content changes
    */
   private async stylize(reconstructedText: string): Promise<AllegoricalStage> {
     const startTime = Date.now();
 
-    const systemPrompt = `You are a narrator with a specific voice and style.
+    const systemPrompt = `You are applying a specific voice and stylistic register to discourse.
 ${this.persona.system_prompt}
 
 ${this.style.style_prompt}
 
-Your task is to retell the narrative in your distinctive voice and style.`;
+Your task is to express the SAME CONTENT in your distinctive voice.
+Change ONLY the linguistic style, NOT the substance or structure.`;
 
-    const prompt = `Retell this narrative in your voice as the ${this.persona.name} persona, using a ${this.style.name} style:
+    const prompt = `Apply ${this.persona.name} voice and ${this.style.name} style to this discourse:
 
-Narrative:
+Source:
 ${reconstructedText}
 
-Retell the complete narrative with:
-- Your ${this.persona.description.toLowerCase()} perspective
-- The characteristics of ${this.style.name} writing
-- The same events and outcomes
-- Your distinctive narrative voice throughout
+**FIRST: IDENTIFY THE TYPE**:
+What type of discourse is this? [story/argument/explanation/analysis]
 
-Write the stylized narrative.`;
+**THEN: APPLY VOICE WITHIN THAT TYPE**:
+
+IF STORY:
+- Keep it a story (characters, actions, scenes)
+- Apply voice to narrative and dialogue
+- Example: "Most astutely observed..." (Austen analyzing character action)
+
+IF ARGUMENT/EXPLANATION/ANALYSIS:
+- Keep it argumentative/explanatory/analytical
+- Apply voice to reasoning and claims
+- Example: "One cannot help but conclude..." (Austen analyzing argument)
+
+**Style requirements**:
+- Apply ${this.persona.description.toLowerCase()} perspective and voice
+- Use ${this.style.name} stylistic characteristics
+- Preserve ALL content, claims, and structure from source
+- Change ONLY word choice, sentence structure, and rhetorical devices
+
+**TYPE MUST MATCH SOURCE**:
+- If source is argument, output argument in this voice
+- If source is story, output story in this voice
+- If source is analysis, output analysis in this voice
+- If source is explanation, output explanation in this voice
+
+Do NOT change what is being said, only HOW it is said.
+
+Write the styled version.`;
 
     const result = await this.callLLM(systemPrompt, prompt, 4);
 
