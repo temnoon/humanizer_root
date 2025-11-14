@@ -51,25 +51,25 @@ export function EncryptionPasswordModal({
   };
 
   return (
-    <div className="absolute inset-0 bg-slate-950 flex items-start justify-center overflow-y-auto p-4">
-      <div className="bg-slate-900 rounded-lg max-w-2xl w-full p-6 border border-slate-700 shadow-2xl my-4">
+    <div className="modal-overlay absolute inset-0 flex items-start justify-center overflow-y-auto p-4">
+      <div className="modal max-w-2xl w-full p-6 shadow-2xl my-4">
         {/* Header */}
         <div className="flex items-center gap-3 mb-4">
           <span className="text-4xl">🔒</span>
           <div>
-            <h2 className="text-2xl font-bold text-slate-100">
+            <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
               Unlock Secure Archive
             </h2>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
               Enter your archive password to access encrypted files
             </p>
           </div>
         </div>
 
         {/* Info */}
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-4 mb-6">
-          <h3 className="text-slate-300 font-semibold mb-2">🔐 Zero-Knowledge Encryption</h3>
-          <ul className="space-y-1.5 text-sm text-slate-400">
+        <div className="card rounded-lg p-4 mb-6">
+          <h3 className="font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>🔐 Zero-Knowledge Encryption</h3>
+          <ul className="space-y-1.5 text-sm" style={{ color: 'var(--text-secondary)' }}>
             <li>• Encryption happens in your browser (client-side)</li>
             <li>• Your password never leaves your device</li>
             <li>• We cannot decrypt your files or recover lost passwords</li>
@@ -92,8 +92,8 @@ export function EncryptionPasswordModal({
           />
 
           <div>
-            <label htmlFor="archive-password" className="block text-sm font-medium text-slate-300 mb-1">
-              Archive Password <span className="text-red-400">*</span>
+            <label htmlFor="archive-password" className="block text-sm font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
+              Archive Password <span style={{ color: 'var(--accent-red)' }}>*</span>
             </label>
             <input
               type="password"
@@ -103,19 +103,26 @@ export function EncryptionPasswordModal({
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your archive password"
               autoComplete="current-password"
-              className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-md text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              className="input w-full px-3 py-2 rounded-md"
               minLength={8}
               required
               disabled={isInitializing}
               autoFocus
             />
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
               Use the same password to access your previous files
             </p>
           </div>
 
           {error && (
-            <div className="bg-red-950 border border-red-800 rounded-md p-3 text-red-300 text-sm">
+            <div
+              className="rounded-md p-3 text-sm"
+              style={{
+                background: 'rgba(220, 38, 38, 0.2)',
+                border: '1px solid var(--accent-red)',
+                color: 'var(--accent-red)',
+              }}
+            >
               {error}
             </div>
           )}
@@ -125,7 +132,7 @@ export function EncryptionPasswordModal({
             <button
               type="submit"
               disabled={isInitializing || password.length < 8}
-              className="flex-1 px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-medium rounded-md transition-colors"
+              className="btn-primary flex-1 px-4 py-2.5 font-medium rounded-md"
             >
               {isInitializing ? 'Unlocking...' : 'Unlock Archive'}
             </button>
@@ -134,7 +141,7 @@ export function EncryptionPasswordModal({
                 type="button"
                 onClick={onCancel}
                 disabled={isInitializing}
-                className="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 text-slate-300 rounded-md transition-colors"
+                className="btn-secondary px-4 py-2.5 rounded-md"
               >
                 Cancel
               </button>

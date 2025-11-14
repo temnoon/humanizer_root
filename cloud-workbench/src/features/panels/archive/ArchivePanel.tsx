@@ -241,7 +241,7 @@ export function ArchivePanel() {
   // Require auth
   if (typeof requiresAuth === 'function' && !isAuthenticated) {
     return (
-      <div className="flex items-center justify-center h-full text-slate-400">
+      <div className="flex items-center justify-center h-full" style={{ color: 'var(--text-secondary)' }}>
         <div className="text-center space-y-2 p-4">
           <div className="text-4xl">🔒</div>
           <p className="font-medium">Authentication Required</p>
@@ -254,7 +254,7 @@ export function ArchivePanel() {
   // Show initialization error
   if (initError) {
     return (
-      <div className="flex items-center justify-center h-full text-red-400">
+      <div className="flex items-center justify-center h-full" style={{ color: 'var(--accent-red)' }}>
         <div className="text-center space-y-2 p-4">
           <div className="text-4xl">❌</div>
           <p className="font-medium">Initialization Failed</p>
@@ -264,7 +264,7 @@ export function ArchivePanel() {
               setInitError(null);
               fetchSalt();
             }}
-            className="mt-4 px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors"
+            className="btn-secondary mt-4 px-4 py-2 rounded"
           >
             Try Again
           </button>
@@ -288,7 +288,7 @@ export function ArchivePanel() {
   // Loading salt
   if (!salt) {
     return (
-      <div className="flex items-center justify-center h-full text-slate-400">
+      <div className="flex items-center justify-center h-full" style={{ color: 'var(--text-secondary)' }}>
         <div className="text-center space-y-2">
           <div className="text-4xl">⏳</div>
           <p>Initializing encryption...</p>
@@ -301,20 +301,20 @@ export function ArchivePanel() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="border-b border-slate-700 p-4">
+      <div className="border-b p-4" style={{ borderColor: 'var(--border-color)' }}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             <span className="text-2xl">🗄️</span>
-            <h2 className="text-xl font-bold text-slate-100">Secure Archive</h2>
+            <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>Secure Archive</h2>
           </div>
-          <div className="flex items-center gap-2 text-xs text-slate-400">
+          <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--text-secondary)' }}>
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+              <span className="w-2 h-2 rounded-full" style={{ background: 'var(--accent-green)' }}></span>
               Encrypted
             </span>
           </div>
         </div>
-        <p className="text-sm text-slate-400">
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
           Zero-knowledge encrypted storage for your conversation archives and documents
         </p>
       </div>
@@ -329,16 +329,17 @@ export function ArchivePanel() {
                 setCurrentConversation(null);
                 setSelectedMessageIndex(null);
               }}
-              className="mb-4 text-sm text-slate-400 hover:text-slate-200 flex items-center gap-2"
+              className="mb-4 text-sm hover-accent flex items-center gap-2"
+              style={{ color: 'var(--text-secondary)' }}
             >
               ← Back to Files
             </button>
 
             <div className="mb-4">
-              <h3 className="text-lg font-semibold text-slate-200 mb-1">
+              <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>
                 💬 {currentConversation.metadata.title}
               </h3>
-              <div className="text-xs text-slate-400">
+              <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {currentConversation.messages.length} messages
                 {selectedMessageIndex !== null && (
                   <span> • Message {selectedMessageIndex + 1} loaded in Canvas</span>
@@ -351,23 +352,30 @@ export function ArchivePanel() {
                 <div
                   key={index}
                   onClick={() => handleLoadMessage(index)}
-                  className={`bg-slate-800 border rounded-lg p-3 cursor-pointer transition-colors ${
+                  className="list-item cursor-pointer"
+                  style={
                     selectedMessageIndex === index
-                      ? 'border-purple-500 bg-slate-750'
-                      : 'border-slate-700 hover:bg-slate-750 hover:border-slate-600'
-                  }`}
+                      ? {
+                          borderColor: 'var(--accent-purple)',
+                          background: 'var(--accent-purple-alpha-10)',
+                        }
+                      : {}
+                  }
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-xs font-medium ${
-                      message.role === 'user' ? 'text-blue-400' : 'text-purple-400'
-                    }`}>
+                    <span
+                      className="text-xs font-medium"
+                      style={{
+                        color: message.role === 'user' ? 'var(--accent-cyan)' : 'var(--accent-purple)',
+                      }}
+                    >
                       {message.role === 'user' ? '👤 You' : '🤖 Assistant'}
                     </span>
-                    <span className="text-xs text-slate-500">
+                    <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
                       Message {index + 1}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-300 line-clamp-2">
+                  <p className="text-sm line-clamp-2" style={{ color: 'var(--text-primary)' }}>
                     {message.content.substring(0, 100)}...
                   </p>
                 </div>
@@ -386,7 +394,7 @@ export function ArchivePanel() {
 
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-semibold text-slate-200">Your Files</h3>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Your Files</h3>
                 {folders.length > 0 && (
                   <select
                     value={selectedFolder || ''}
@@ -394,7 +402,7 @@ export function ArchivePanel() {
                       setSelectedFolder(e.target.value || null);
                       loadFiles();
                     }}
-                    className="px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="input px-3 py-1.5 rounded text-sm"
                   >
                     <option value="">All Folders</option>
                     {folders.map((folder) => (

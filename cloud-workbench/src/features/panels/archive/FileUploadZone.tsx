@@ -189,7 +189,7 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
     <div className="space-y-3">
       {/* Folder Selector */}
       <div className="flex gap-2 items-center">
-        <label className="text-sm text-slate-400 whitespace-nowrap">
+        <label className="text-sm whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
           Folder:
         </label>
         <select
@@ -199,7 +199,7 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
             setShowNewFolder(false);
           }}
           disabled={uploading}
-          className="flex-1 px-2 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+          className="input flex-1 px-2 py-1.5 rounded text-sm disabled:opacity-50"
         >
           <option value="">No folder (root)</option>
           {folders.map((folder) => (
@@ -212,7 +212,7 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
           type="button"
           onClick={() => setShowNewFolder(!showNewFolder)}
           disabled={uploading}
-          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:opacity-50 text-slate-300 text-sm rounded transition-colors whitespace-nowrap"
+          className="btn-secondary px-3 py-1.5 text-sm rounded whitespace-nowrap disabled:opacity-50"
         >
           {showNewFolder ? 'Cancel' : 'New Folder'}
         </button>
@@ -227,7 +227,7 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
             onChange={(e) => setNewFolderName(e.target.value)}
             placeholder="Enter folder name"
             disabled={uploading}
-            className="flex-1 px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+            className="input flex-1 px-3 py-1.5 rounded text-sm disabled:opacity-50"
           />
         </div>
       )}
@@ -237,14 +237,13 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`
-          border-2 border-dashed rounded-lg p-6 text-center transition-all
-          ${isDragging
-            ? 'border-purple-500 bg-purple-950 bg-opacity-30'
-            : 'border-slate-600 bg-slate-800'
-          }
-          ${uploading ? 'opacity-50 cursor-not-allowed' : ''}
-        `}
+        className="border-2 border-dashed rounded-lg p-6 text-center transition-all"
+        style={{
+          borderColor: isDragging ? 'var(--accent-purple)' : 'var(--border-color)',
+          background: isDragging ? 'var(--accent-purple-alpha-10)' : 'var(--bg-tertiary)',
+          opacity: uploading ? 0.5 : 1,
+          cursor: uploading ? 'not-allowed' : 'default',
+        }}
       >
         <input
           ref={fileInputRef}
@@ -259,13 +258,13 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
         {uploading ? (
           <div className="space-y-2">
             <div className="text-4xl">⏳</div>
-            <p className="text-slate-300 font-medium">Encrypting and uploading...</p>
-            <p className="text-sm text-slate-400">Please wait</p>
+            <p className="font-medium" style={{ color: 'var(--text-primary)' }}>Encrypting and uploading...</p>
+            <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Please wait</p>
           </div>
         ) : (
           <div className="space-y-3">
             <div className="text-4xl">{isDragging ? '⬇️' : '📤'}</div>
-            <p className="text-slate-300 font-medium">
+            <p className="font-medium" style={{ color: 'var(--text-primary)' }}>
               {isDragging ? 'Drop files or folder here' : 'Upload Conversation Archive'}
             </p>
 
@@ -275,7 +274,7 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
                 type="button"
                 onClick={handleFileClick}
                 disabled={uploading}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-700 text-white text-sm rounded transition-colors"
+                className="btn-primary px-4 py-2 text-sm rounded"
               >
                 📄 Select File
               </button>
@@ -283,16 +282,16 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
                 type="button"
                 onClick={handleFolderClick}
                 disabled={uploading}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-700 text-white text-sm rounded transition-colors"
+                className="btn-primary px-4 py-2 text-sm rounded"
               >
                 📁 Select Folder
               </button>
             </div>
 
-            <p className="text-xs text-slate-500">
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
               File: .txt, .md, .json • Folder: ChatGPT/Claude exports with images
             </p>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
               Max size: {formatFileSize(MAX_FILE_SIZE)} per file • HTML files skipped
             </p>
           </div>
@@ -301,7 +300,14 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-950 border border-red-800 rounded-md p-3 text-red-300 text-sm">
+        <div
+          className="rounded-md p-3 text-sm"
+          style={{
+            background: 'rgba(220, 38, 38, 0.2)',
+            border: '1px solid var(--accent-red)',
+            color: 'var(--accent-red)',
+          }}
+        >
           <span className="font-semibold">Error: </span>
           {error}
         </div>

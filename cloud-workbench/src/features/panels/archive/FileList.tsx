@@ -96,7 +96,7 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-slate-400">
+      <div className="flex items-center justify-center py-12" style={{ color: 'var(--text-secondary)' }}>
         <div className="text-center space-y-2">
           <div className="text-3xl">⏳</div>
           <p>Loading files...</p>
@@ -107,10 +107,10 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
 
   if (displayFiles.length === 0) {
     return (
-      <div className="flex items-center justify-center py-12 text-slate-400">
+      <div className="flex items-center justify-center py-12" style={{ color: 'var(--text-secondary)' }}>
         <div className="text-center space-y-2">
           <div className="text-5xl">📭</div>
-          <p className="text-lg font-medium text-slate-300">No files uploaded yet</p>
+          <p className="text-lg font-medium" style={{ color: 'var(--text-primary)' }}>No files uploaded yet</p>
           <p className="text-sm">Upload your first file to get started</p>
         </div>
       </div>
@@ -119,10 +119,10 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
 
   return (
     <div className="space-y-2">
-      <div className="text-sm text-slate-400 px-1">
+      <div className="text-sm px-1" style={{ color: 'var(--text-secondary)' }}>
         {displayFiles.length} {displayFiles.length === 1 ? 'file' : 'files'} stored
         {files.length > displayFiles.length && (
-          <span className="text-slate-500"> ({files.length - displayFiles.length} media files hidden)</span>
+          <span style={{ color: 'var(--text-tertiary)' }}> ({files.length - displayFiles.length} media files hidden)</span>
         )}
       </div>
 
@@ -135,7 +135,7 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
           return (
             <div
               key={file.id}
-              className="bg-slate-800 border border-slate-700 rounded-lg p-3 hover:bg-slate-750 transition-colors"
+              className="list-item rounded-lg p-3"
             >
               <div className="flex items-start gap-3">
                 {/* File/Conversation Icon */}
@@ -150,19 +150,25 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1">
                       {/* Title - use conversation title if available */}
-                      <p className="text-slate-200 font-medium truncate">
+                      <p className="font-medium truncate" style={{ color: 'var(--text-primary)' }}>
                         {file.conversation_title || file.filename}
                       </p>
 
                       {/* Metadata row */}
-                      <div className="flex items-center flex-wrap gap-2 text-xs text-slate-400 mt-1">
+                      <div className="flex items-center flex-wrap gap-2 text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
                         {/* Provider badge */}
                         {file.conversation_provider && (
-                          <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${
-                            file.conversation_provider === 'chatgpt'
-                              ? 'bg-green-900/40 text-green-300'
-                              : 'bg-purple-900/40 text-purple-300'
-                          }`}>
+                          <span
+                            className="px-1.5 py-0.5 rounded text-xs font-medium"
+                            style={{
+                              background: file.conversation_provider === 'chatgpt'
+                                ? 'rgba(52, 211, 153, 0.2)'
+                                : 'var(--accent-purple-alpha-10)',
+                              color: file.conversation_provider === 'chatgpt'
+                                ? 'var(--accent-green)'
+                                : 'var(--accent-purple)',
+                            }}
+                          >
                             {file.conversation_provider === 'chatgpt' ? 'ChatGPT' : 'Claude'}
                           </span>
                         )}
@@ -192,7 +198,7 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
 
                       {/* First message preview for conversations */}
                       {file.first_message && (
-                        <p className="text-xs text-slate-500 mt-1 line-clamp-2 italic">
+                        <p className="text-xs mt-1 line-clamp-2 italic" style={{ color: 'var(--text-tertiary)' }}>
                           "{file.first_message}..."
                         </p>
                       )}
@@ -203,7 +209,7 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
                       <button
                         onClick={() => handleLoad(file.id, file.filename)}
                         disabled={isDisabled}
-                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white text-sm rounded transition-colors whitespace-nowrap"
+                        className="btn-primary px-3 py-1.5 text-sm rounded whitespace-nowrap"
                         title="Load into Content Source"
                       >
                         {isLoading ? (
@@ -219,11 +225,11 @@ export function FileList({ files, onLoad, onDelete, loading }: FileListProps) {
                       <button
                         onClick={() => handleDelete(file.id, file.filename)}
                         disabled={isDisabled}
-                        className="px-3 py-1.5 bg-red-900 hover:bg-red-800 disabled:bg-slate-700 disabled:cursor-not-allowed text-red-200 disabled:text-slate-500 text-sm rounded transition-colors"
+                        className="btn-danger px-3 py-1.5 text-sm rounded"
                         title="Delete file"
                       >
                         {isDeleting ? (
-                          <span className="inline-block w-3 h-3 border-2 border-red-200 border-t-transparent rounded-full animate-spin" />
+                          <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                         ) : (
                           '🗑️'
                         )}

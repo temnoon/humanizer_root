@@ -246,7 +246,7 @@ export function Canvas() {
   // If no archive message AND no text from RemoteContentSource, show placeholder
   if (!currentMessage && !text) {
     return (
-      <div className="flex h-full items-center justify-center text-slate-500">
+      <div className="flex h-full items-center justify-center" style={{ color: 'var(--text-tertiary)' }}>
         Select a conversation from the Archive or paste/upload text via Remote tab
       </div>
     );
@@ -255,7 +255,7 @@ export function Canvas() {
   return (
     <div className="flex h-full flex-col">
       {/* Header with Navigation */}
-      <div className="flex items-center justify-between border-b border-slate-700 px-6 py-3">
+      <div className="flex items-center justify-between border-b px-6 py-3" style={{ borderColor: 'var(--border-color)' }}>
         {/* Navigation Arrows (only show for Archive messages) */}
         <div className="flex items-center gap-3">
           {currentMessage ? (
@@ -263,23 +263,23 @@ export function Canvas() {
               <button
                 onClick={prevMessage}
                 disabled={selectedMessageIndex === 0}
-                className="rounded bg-slate-700 px-4 py-2 text-sm hover:bg-slate-600 disabled:opacity-30"
+                className="btn-secondary rounded px-4 py-2 text-sm disabled:opacity-30"
               >
                 ← Prev
               </button>
-              <span className="text-sm text-slate-400">
+              <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
                 {selectedMessageIndex !== null ? selectedMessageIndex + 1 : 0} / {selectedConv!.messages.length}
               </span>
               <button
                 onClick={nextMessage}
                 disabled={selectedMessageIndex !== null && selectedMessageIndex === selectedConv!.messages.length - 1}
-                className="rounded bg-slate-700 px-4 py-2 text-sm hover:bg-slate-600 disabled:opacity-30"
+                className="btn-secondary rounded px-4 py-2 text-sm disabled:opacity-30"
               >
                 Next →
               </button>
             </>
           ) : (
-            <span className="text-sm text-slate-400">☁️ Remote Content</span>
+            <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>☁️ Remote Content</span>
           )}
         </div>
 
@@ -287,21 +287,13 @@ export function Canvas() {
         <div className="flex">
           <button
             onClick={() => setCenterTab('render')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              centerTab === 'render'
-                ? 'border-b-2 border-indigo-500 text-slate-100'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            className={`tab ${centerTab === 'render' ? 'tab-active' : ''}`}
           >
             📄 Render
           </button>
           <button
             onClick={() => setCenterTab('edit')}
-            className={`px-4 py-2 text-sm font-medium transition-colors ${
-              centerTab === 'edit'
-                ? 'border-b-2 border-indigo-500 text-slate-100'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+            className={`tab ${centerTab === 'edit' ? 'tab-active' : ''}`}
           >
             ✏️ Edit
           </button>
@@ -309,11 +301,17 @@ export function Canvas() {
 
         {/* Role Badge (only for Archive messages) */}
         {currentMessage && (
-          <span className={`rounded px-3 py-1 text-sm font-bold ${
-            currentMessage.role === 'user'
-              ? 'bg-blue-900/50 text-blue-200'
-              : 'bg-purple-900/50 text-purple-200'
-          }`}>
+          <span
+            className="rounded px-3 py-1 text-sm font-bold"
+            style={{
+              background: currentMessage.role === 'user'
+                ? 'rgba(59, 130, 246, 0.2)'
+                : 'var(--accent-purple-alpha-10)',
+              color: currentMessage.role === 'user'
+                ? 'var(--accent-cyan)'
+                : 'var(--accent-purple)',
+            }}
+          >
             {currentMessage.role.toUpperCase()}
           </span>
         )}
@@ -326,7 +324,7 @@ export function Canvas() {
           <div className="absolute top-4 right-4 z-10">
             <button
               onClick={handleSendToTool}
-              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-indigo-500 transition-colors"
+              className="btn-primary rounded px-4 py-2 text-sm font-medium shadow-lg"
             >
               Send Selection to Tool →
             </button>
