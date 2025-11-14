@@ -88,15 +88,15 @@ export function ArchiveBrowser() {
     return (
       <div className="flex h-full flex-col overflow-hidden">
         {/* TABS */}
-        <div className="flex flex-shrink-0 border-b border-slate-700">
+        <div className="flex flex-shrink-0 border-b" style={{ borderColor: 'var(--border-color)' }}>
           <button
             onClick={() => setLeftTab('conversations')}
-            className="flex-1 px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-200"
+            className="flex-1 px-4 py-2 text-sm font-medium" style={{ color: 'var(--text-secondary)' }}
           >
             📚 All Conversations
           </button>
           <button
-            className="flex-1 px-4 py-2 text-sm font-medium border-b-2 border-indigo-500 text-slate-100"
+            className="flex-1 px-4 py-2 text-sm font-medium border-b-2" style={{ borderColor: 'var(--accent-purple)', color: 'var(--text-primary)' }}
           >
             💬 Conv Messages
           </button>
@@ -104,31 +104,31 @@ export function ArchiveBrowser() {
 
         {/* MESSAGES CONTENT */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          <div className="flex-shrink-0 border-b border-slate-700 p-3">
+          <div className="flex-shrink-0 border-b p-3" style={{ borderColor: 'var(--border-color)' }}>
             <div className="mb-2 flex items-center gap-2">
               <button
                 onClick={() => setLeftTab('conversations')}
-                className="rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600"
+                className="btn-secondary rounded px-2 py-1 text-xs"
               >
                 ← Back
               </button>
-              <div className="flex-1 text-sm font-medium line-clamp-1">{selectedConv.title}</div>
+              <div className="flex-1 text-sm font-medium line-clamp-1" style={{ color: 'var(--text-primary)' }}>{selectedConv.title}</div>
             </div>
             <input
               type="text"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter messages..."
-              className="w-full rounded bg-slate-800 px-2 py-1 text-xs"
+              className="input w-full rounded px-2 py-1 text-xs"
             />
             <div className="mt-2 flex items-center justify-between">
-              <div className="text-xs text-slate-400">
+              <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {filter ? `${filteredMessages.length} of ${selectedConv.messages.length}` : `${selectedConv.messages.length} messages`}
               </div>
               {selectedMessageIndex !== null && (
                 <button
                   onClick={loadMessageToCanvas}
-                  className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500"
+                  className="btn-primary rounded px-3 py-1 text-xs font-medium"
                 >
                   Load to Canvas →
                 </button>
@@ -140,24 +140,27 @@ export function ArchiveBrowser() {
             {filteredMessages.map((msg, idx) => (
               <div
                 key={`msg-${idx}`}
-                className={`cursor-pointer rounded border p-2 transition-colors ${
-                  selectedMessageIndex === idx
-                    ? 'border-indigo-500 bg-indigo-900/30'
-                    : 'border-slate-700 bg-slate-800 hover:border-slate-600'
-                }`}
+                className="cursor-pointer rounded border p-2 transition-colors"
+                style={{
+                  borderColor: selectedMessageIndex === idx ? 'var(--accent-purple)' : 'var(--border-color)',
+                  borderWidth: selectedMessageIndex === idx ? '2px' : '1px',
+                  background: selectedMessageIndex === idx ? 'rgba(167, 139, 250, 0.1)' : 'var(--bg-secondary)',
+                }}
                 onClick={() => selectMessage(idx)}
               >
                 <div className="mb-1 flex items-center justify-between">
-                  <span className={`rounded px-2 py-0.5 text-xs font-bold ${
-                    msg.role === 'user'
-                      ? 'bg-blue-900/50 text-blue-200'
-                      : 'bg-purple-900/50 text-purple-200'
-                  }`}>
+                  <span
+                    className="rounded px-2 py-0.5 text-xs font-bold"
+                    style={{
+                      background: msg.role === 'user' ? 'rgba(6, 182, 212, 0.3)' : 'rgba(167, 139, 250, 0.3)',
+                      color: msg.role === 'user' ? 'var(--accent-cyan)' : 'var(--accent-purple)',
+                    }}
+                  >
                     {msg.role.toUpperCase()}
                   </span>
-                  <span className="text-xs text-slate-400">#{idx + 1}</span>
+                  <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>#{idx + 1}</span>
                 </div>
-                <div className="text-xs text-slate-300 line-clamp-3">{msg.content}</div>
+                <div className="text-xs line-clamp-3" style={{ color: 'var(--text-primary)' }}>{msg.content}</div>
               </div>
             ))}
           </div>
@@ -170,13 +173,13 @@ export function ArchiveBrowser() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* LEFT PANE TABS - Conversations / Messages */}
-      <div className="flex flex-shrink-0 border-b border-slate-700">
+      <div className="flex flex-shrink-0 border-b" style={{ borderColor: 'var(--border-color)' }}>
         <button
           onClick={() => setLeftTab('conversations')}
           className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
             leftTab === 'conversations'
-              ? 'border-b-2 border-indigo-500 text-slate-100'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'border-b-2 text-sm font-medium'
+              : ''
           }`}
         >
           📚 All Conversations
@@ -186,8 +189,8 @@ export function ArchiveBrowser() {
           disabled={!selectedConv}
           className={`flex-1 px-4 py-2 text-sm font-medium transition-colors ${
             leftTab === 'messages'
-              ? 'border-b-2 border-indigo-500 text-slate-100'
-              : 'text-slate-400 hover:text-slate-200'
+              ? 'border-b-2 text-sm font-medium'
+              : ''
           } disabled:opacity-30`}
         >
           💬 Conv Messages
@@ -198,15 +201,15 @@ export function ArchiveBrowser() {
       {leftTab === 'conversations' ? (
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Filter */}
-          <div className="flex-shrink-0 border-b border-slate-700 p-3">
+          <div className="flex-shrink-0 border-b p-3" style={{ borderColor: 'var(--border-color)' }}>
             <input
               type="text"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter conversations..."
-              className="w-full rounded bg-slate-800 px-2 py-1 text-xs"
+              className="input w-full rounded px-2 py-1 text-xs"
             />
-            <div className="mt-2 text-xs text-slate-400">
+            <div className="mt-2 text-xs">
               {filter ? `${filteredConversations.length} of ${conversations.length}` : `${conversations.length} total`}
             </div>
           </div>
@@ -216,15 +219,16 @@ export function ArchiveBrowser() {
             {filteredConversations.map((conv) => (
               <div
                 key={conv.folder}
-                className={`cursor-pointer rounded border p-2 transition-colors ${
-                  selectedConv?.id === conv.id
-                    ? 'border-indigo-500 bg-indigo-900/30'
-                    : 'border-slate-700 bg-slate-800 hover:border-slate-600'
-                }`}
+                className="cursor-pointer rounded border p-2 transition-colors"
+                style={{
+                  borderColor: selectedConv?.id === conv.id ? 'var(--accent-purple)' : 'var(--border-color)',
+                  borderWidth: selectedConv?.id === conv.id ? '2px' : '1px',
+                  background: selectedConv?.id === conv.id ? 'rgba(167, 139, 250, 0.1)' : 'var(--bg-secondary)',
+                }}
                 onClick={() => loadConversation(conv.folder)}
               >
-                <div className="mb-1 text-sm font-medium line-clamp-2">{conv.title}</div>
-                <div className="text-xs text-slate-400">{conv.message_count} messages</div>
+                <div className="mb-1 text-sm font-medium line-clamp-2" style={{ color: 'var(--text-primary)' }}>{conv.title}</div>
+                <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{conv.message_count} messages</div>
               </div>
             ))}
           </div>
@@ -232,31 +236,31 @@ export function ArchiveBrowser() {
       ) : (
         <div className="flex flex-1 flex-col overflow-hidden">
           {/* Conversation Title + Back Button */}
-          <div className="flex-shrink-0 border-b border-slate-700 p-3">
+          <div className="flex-shrink-0 border-b p-3" style={{ borderColor: 'var(--border-color)' }}>
             <div className="mb-2 flex items-center gap-2">
               <button
                 onClick={() => setLeftTab('conversations')}
-                className="rounded bg-slate-700 px-2 py-1 text-xs hover:bg-slate-600"
+                className="btn-secondary rounded px-2 py-1 text-xs"
               >
                 ← Back
               </button>
-              <div className="flex-1 text-sm font-medium line-clamp-1">{selectedConv?.title}</div>
+              <div className="flex-1 text-sm font-medium line-clamp-1" style={{ color: 'var(--text-primary)' }}>{selectedConv?.title}</div>
             </div>
             <input
               type="text"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
               placeholder="Filter messages..."
-              className="w-full rounded bg-slate-800 px-2 py-1 text-xs"
+              className="input w-full rounded px-2 py-1 text-xs"
             />
             <div className="mt-2 flex items-center justify-between">
-              <div className="text-xs text-slate-400">
+              <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
                 {filter ? `${filteredMessages.length} of ${selectedConv?.messages.length || 0}` : `${selectedConv?.messages.length || 0} messages`}
               </div>
               {selectedMessageIndex !== null && (
                 <button
                   onClick={loadMessageToCanvas}
-                  className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500"
+                  className="btn-primary rounded px-3 py-1 text-xs font-medium"
                 >
                   Load to Canvas →
                 </button>
@@ -273,22 +277,22 @@ export function ArchiveBrowser() {
                   key={originalIndex}
                   className={`cursor-pointer rounded border p-2 transition-colors ${
                     selectedMessageIndex === originalIndex
-                      ? 'border-indigo-500 bg-indigo-900/30'
-                      : 'border-slate-700 bg-slate-800 hover:border-slate-600'
+                      ? 'border-2'
+                      : 'border'
                   }`}
                   onClick={() => selectMessage(originalIndex)}
                 >
                   <div className="mb-1 flex items-center justify-between">
                     <span className={`rounded px-2 py-0.5 text-xs font-bold ${
                       msg.role === 'user'
-                        ? 'bg-blue-900/50 text-blue-200'
-                        : 'bg-purple-900/50 text-purple-200'
+                        ? 'role-badge'
+                        : 'assistant-badge'
                     }`}>
                       {msg.role.toUpperCase()}
                     </span>
-                    <span className="text-xs text-slate-400">#{originalIndex + 1}</span>
+                    <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>#{originalIndex + 1}</span>
                   </div>
-                  <div className="text-xs text-slate-300 line-clamp-3">{msg.content}</div>
+                  <div className="text-xs line-clamp-3" style={{ color: 'var(--text-primary)' }}>{msg.content}</div>
                 </div>
               );
             })}
