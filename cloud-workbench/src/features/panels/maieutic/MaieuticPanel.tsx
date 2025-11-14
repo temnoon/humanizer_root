@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useCanvas } from '../../../core/context/CanvasContext';
 import { api, type MaieuticResponse } from '../../../core/adapters/api';
+import { PhilosophyTooltip } from '../../../components/ui/PhilosophyTooltip';
 
 /**
  * MaieuticPanel - Socratic Questioning System
@@ -90,6 +91,13 @@ export function MaieuticPanel() {
           Socratic questioning to explore ideas deeply
         </p>
       </div>
+
+      {/* Philosophy Context */}
+      <PhilosophyTooltip
+        title="Socratic Midwifery — Birth of Understanding from Within"
+        description="Maieutic dialogue practices what Socrates called 'midwifery of ideas' — the art of helping consciousness give birth to understanding it already contains. Questions don't inject knowledge from outside; they draw out latent understanding from within your own experiential horizon. This is phenomenological reflection made dialogical: through questioning, you make explicit what was implicit, turning unreflected experience into articulated understanding."
+        learnMoreUrl="https://humanizer.com/docs/tools/maieutic"
+      />
 
       {/* Config Form */}
       <div className="border-b border-slate-700 p-4 space-y-3">

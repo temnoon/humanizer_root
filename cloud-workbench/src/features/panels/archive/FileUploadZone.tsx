@@ -13,6 +13,7 @@ const ALLOWED_FILE_TYPES = [
   'text/plain',           // .txt
   'text/markdown',        // .md
   'application/json',     // .json
+  'text/html',            // .html (for conversation exports)
   'text/*',               // Any text file
 ];
 
@@ -63,7 +64,7 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
       // Single file - validate type
       const file = files[0];
       if (!validateFileType(file, ALLOWED_FILE_TYPES)) {
-        setError(`File type not supported. Please upload .txt, .md, or .json files, or drag a conversation folder.`);
+        setError(`File type not supported. Please upload .txt, .md, .html, or .json files, or drag a conversation folder.`);
         return;
       }
       await handleFile(file);
@@ -116,7 +117,7 @@ export function FileUploadZone({ onUpload, onUploadFolder, uploading, folders }:
 
     // Validate file type
     if (!validateFileType(file, ALLOWED_FILE_TYPES)) {
-      setError(`File type not supported. Please upload .txt, .md, or .json files.`);
+      setError(`File type not supported. Please upload .txt, .md, .html, or .json files.`);
       return;
     }
 

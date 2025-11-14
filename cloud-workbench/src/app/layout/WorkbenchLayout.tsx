@@ -9,22 +9,22 @@ export function WorkbenchLayout({
   const [rightOpen, setRightOpen] = useState(false);
 
   return (
-    <div className="flex flex-col h-screen bg-slate-950 text-slate-100">
+    <div className="flex flex-col h-screen bg-slate-950 dark:bg-slate-950 bg-slate-50 text-slate-900 dark:text-slate-100">
       {/* Header with API Toggle */}
-      <header className="flex items-center justify-between border-b border-slate-800 px-3 md:px-6 py-3">
-        <div className="flex items-center gap-2">
+      <header className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 px-2 sm:px-4 md:px-6 py-2 sm:py-3 bg-white dark:bg-transparent">
+        <div className="flex items-center gap-1 sm:gap-2 min-w-0 flex-shrink">
           {/* Mobile hamburger menu */}
           <button
             onClick={() => setLeftOpen(!leftOpen)}
-            className="lg:hidden p-2 hover:bg-slate-800 rounded transition-colors"
+            className="lg:hidden p-1.5 sm:p-2 hover:bg-slate-800 rounded transition-colors flex-shrink-0"
             aria-label="Toggle archive"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-base md:text-xl font-bold text-slate-100">
-            ✨ Narrative Projection Engine
+          <h1 className="text-sm sm:text-base md:text-xl font-bold text-slate-100 truncate">
+            humanizer.com
           </h1>
         </div>
         <APIToggle />
@@ -69,12 +69,13 @@ export function WorkbenchLayout({
           {/* Right Panel (Tool Dock) - Slides in on mobile, visible on tablet+ */}
           <aside
             className={`
-              fixed md:relative inset-y-0 right-0 z-40 w-[320px] md:w-auto
+              fixed md:relative inset-y-0 right-0 z-40 w-full sm:w-[360px] md:w-auto
               transform transition-transform duration-300 ease-in-out
               ${rightOpen ? 'translate-x-0' : 'translate-x-full'}
               md:translate-x-0
               bg-slate-900 md:rounded-lg overflow-hidden
               border-l md:border-l-0 border-slate-800
+              max-w-full
             `}
           >
             {/* Mobile close button */}

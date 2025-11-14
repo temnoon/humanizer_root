@@ -50,21 +50,28 @@ export function CanvasProvider({ children }: CanvasProviderProps) {
   const [sourceType, setSourceType] = useState<SourceType>('full');
   const [activeTool, setActiveTool] = useState<string | null>(null);
 
+  // Wrapper to log setText calls
+  const setTextWithLogging = (newText: string) => {
+    console.log('[CanvasContext] setText called, length:', newText?.length, 'chars');
+    console.log('[CanvasContext] First 100 chars:', newText?.substring(0, 100));
+    setText(newText);
+  };
+
   const clearSelection = () => {
     setSelectedText(null);
     setSourceType('full');
   };
 
   const getActiveText = (): string => {
-    if (sourceType === 'selection' && selectedText) {
-      return selectedText;
-    }
-    return text;
+    const result = sourceType === 'selection' && selectedText ? selectedText : text;
+    console.log('[CanvasContext] getActiveText called, returning', result?.length, 'chars');
+    console.log('[CanvasContext] sourceType:', sourceType, 'hasSelection:', !!selectedText);
+    return result;
   };
 
   const value: CanvasContextType = {
     text,
-    setText,
+    setText: setTextWithLogging, // Use logging wrapper
     selectedText,
     setSelectedText,
     clearSelection,

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useCanvas } from '../../core/context/CanvasContext';
 import { api } from '../../core/adapters/api';
+import { PhilosophyTooltip } from '../../components/ui/PhilosophyTooltip';
 
 interface POVMReading {
   axis: string;
@@ -97,9 +98,23 @@ export function MultiReadingPanel() {
   const current = readings[currentSentence];
 
   return (
-    <div className="flex h-full flex-col p-4">
-      <h2 className="mb-4 text-lg font-semibold">Multi-Reading Analysis</h2>
+    <div className="flex h-full flex-col overflow-hidden">
+      {/* Header */}
+      <div className="border-b border-slate-700 px-4 py-3">
+        <h2 className="text-lg font-bold text-slate-100">◈ Multi-Reading Analysis</h2>
+        <p className="text-xs text-slate-400 mt-1">
+          Non-binary measurement of meaning states
+        </p>
+      </div>
 
+      {/* Philosophy Context */}
+      <PhilosophyTooltip
+        title="Tetralemmic Measurement — Non-Binary Meaning States"
+        description="Multi-reading applies Buddhist tetralemma logic to narrative analysis: meaning exists in superposition across four states (True, False, Both, Neither). This isn't quantum physics — it's quantum phenomenology. Your sentences don't have single meanings; they occupy meaning-spaces that collapse differently depending on the measurement axis. Literalness, affect, epistemic certainty — each axis reveals a different probability distribution of meaning, all coexisting in the text."
+        learnMoreUrl="https://humanizer.com/docs/tools/multi-reading"
+      />
+
+      <div className="flex-1 overflow-y-auto p-4">
       {/* Axis Selection */}
       <div className="mb-4">
         <label className="mb-2 block text-sm font-medium">Select POVM Axes:</label>
@@ -244,6 +259,7 @@ export function MultiReadingPanel() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }

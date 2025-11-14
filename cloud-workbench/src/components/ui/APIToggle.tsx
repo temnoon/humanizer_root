@@ -95,26 +95,30 @@ export function APIToggle() {
   };
 
   return (
-    <div className="flex items-center gap-3">
-      {/* Target Selector */}
+    <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-shrink-0">
+      {/* Target Selector - Hidden on small mobile, icon-only on mobile */}
       <select
         value={target}
         onChange={(e) => handleSwitch(e.target.value as ProcessingTarget)}
-        className="rounded bg-slate-700 px-3 py-2 text-sm text-slate-100 hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        className="hidden sm:block rounded bg-slate-700 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm text-slate-100 hover:bg-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500"
       >
-        <option value="remote">🌐 Remote (Cloud)</option>
-        <option value="local">💻 Local (FastAPI)</option>
+        <option value="remote">🌐 Remote</option>
+        <option value="local">💻 Local</option>
       </select>
 
-      {/* Status Indicator */}
-      <div className="flex items-center gap-2">
-        <span className={`text-sm ${getStatusColor()}`}>
+      {/* Status Indicator - Simplified on mobile */}
+      <div className="flex items-center gap-1 sm:gap-2">
+        <span className={`text-xs sm:text-sm ${getStatusColor()} hidden sm:inline`}>
           {getCurrentStatus()}
+        </span>
+        {/* Mobile: Show only status emoji */}
+        <span className={`text-xs sm:hidden ${getStatusColor()}`}>
+          {getCurrentStatus().split(' ')[0]}
         </span>
         <button
           onClick={checkHealth}
           disabled={checking}
-          className="rounded bg-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-600 disabled:opacity-50"
+          className="rounded bg-slate-700 px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs text-slate-300 hover:bg-slate-600 disabled:opacity-50"
           title="Refresh connection status"
         >
           🔄
@@ -125,13 +129,13 @@ export function APIToggle() {
       {target === 'remote' && remoteHealthy && (
         <>
           {isAuthenticated && user ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">
-                {user.email} ({user.role})
+            <div className="flex items-center gap-1 sm:gap-2">
+              <span className="text-xs text-slate-400 hidden md:inline truncate max-w-[120px]">
+                {user.email}
               </span>
               <button
                 onClick={logout}
-                className="rounded bg-slate-700 px-3 py-1 text-xs text-slate-300 hover:bg-slate-600"
+                className="rounded bg-slate-700 px-2 sm:px-3 py-1 text-xs text-slate-300 hover:bg-slate-600"
               >
                 Logout
               </button>
@@ -139,7 +143,7 @@ export function APIToggle() {
           ) : (
             <button
               onClick={() => setShowLoginModal(true)}
-              className="rounded bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500"
+              className="rounded bg-indigo-600 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm font-medium text-white hover:bg-indigo-500"
             >
               Login
             </button>

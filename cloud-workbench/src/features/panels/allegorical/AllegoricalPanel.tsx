@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import { AttributeBuilder } from '../../attributes/AttributeBuilder';
 import { listUserAttributes, saveAttribute } from '../../attributes/api';
 import type { AttributeType, AttributeDefinition, UserAttribute } from '../../attributes/types';
+import { PhilosophyTooltip } from '../../../components/ui/PhilosophyTooltip';
 
 /**
  * AllegoricalPanel - 5-stage allegorical projection transformation
@@ -104,6 +105,9 @@ export function AllegoricalPanel() {
     setResult(null);
 
     try {
+      console.log('[Allegorical] Making API call with text length:', text.length);
+      console.log('[Allegorical] Parameters:', { persona, namespace, style });
+
       const response = await api.allegorical({
         text,
         persona,
@@ -111,11 +115,13 @@ export function AllegoricalPanel() {
         style,
       });
 
+      console.log('[Allegorical] API response received:', response);
+      console.log('[Allegorical] Response has final_text:', !!response?.final_text);
       setResult(response);
       console.log('Allegorical transformation complete');
     } catch (err: any) {
+      console.log('[Allegorical] Transformation failed:', err.message);
       setError(err.message || 'Transformation failed');
-      console.error('Transformation error:', err);
     } finally {
       setIsTransforming(false);
     }
@@ -172,6 +178,13 @@ export function AllegoricalPanel() {
         </p>
       </div>
 
+      {/* Philosophy Context */}
+      <PhilosophyTooltip
+        title="Phenomenological Reduction Through Perspectival Projection"
+        description="Allegorical projection reveals the latent intentionality of your narrative by projecting it through different experiential horizons (persona, namespace, style). This isn't 'rephrasing' — it's phenomenological reduction, exposing what-was-always-there-but-unseen. By shifting perspective, you bracket your natural attitude and see the invariant structures of meaning that persist across different modes of consciousness."
+        learnMoreUrl="https://humanizer.com/docs/tools/allegorical"
+      />
+
       {/* Config Form */}
       <div className="border-b border-slate-700 p-4 space-y-3">
         <div>
@@ -193,7 +206,7 @@ export function AllegoricalPanel() {
           >
             <optgroup label="Presets">
               {personas.map((p) => (
-                <option key={p.id} value={p.id}>
+                <option key={p.id} value={p.name}>
                   {p.name}
                 </option>
               ))}
@@ -201,7 +214,7 @@ export function AllegoricalPanel() {
             {userPersonas.length > 0 && (
               <optgroup label="Custom">
                 {userPersonas.map((p) => (
-                  <option key={p.id} value={`custom_${p.id}`}>
+                  <option key={p.id} value={p.name}>
                     ✨ {p.name}
                   </option>
                 ))}
@@ -229,7 +242,7 @@ export function AllegoricalPanel() {
           >
             <optgroup label="Presets">
               {namespaces.map((n) => (
-                <option key={n.id} value={n.id}>
+                <option key={n.id} value={n.name}>
                   {n.name}
                 </option>
               ))}
@@ -237,7 +250,7 @@ export function AllegoricalPanel() {
             {userNamespaces.length > 0 && (
               <optgroup label="Custom">
                 {userNamespaces.map((n) => (
-                  <option key={n.id} value={`custom_${n.id}`}>
+                  <option key={n.id} value={n.name}>
                     ✨ {n.name}
                   </option>
                 ))}
@@ -265,7 +278,7 @@ export function AllegoricalPanel() {
           >
             <optgroup label="Presets">
               {styles.map((s) => (
-                <option key={s.id} value={s.id}>
+                <option key={s.id} value={s.name}>
                   {s.name}
                 </option>
               ))}
@@ -273,7 +286,7 @@ export function AllegoricalPanel() {
             {userStyles.length > 0 && (
               <optgroup label="Custom">
                 {userStyles.map((s) => (
-                  <option key={s.id} value={`custom_${s.id}`}>
+                  <option key={s.id} value={s.name}>
                     ✨ {s.name}
                   </option>
                 ))}

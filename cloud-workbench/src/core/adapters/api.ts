@@ -35,13 +35,45 @@ const createHttpClient = () => ky.create({
   hooks: {
     beforeRequest: [
       (request) => {
+        console.log('[HTTP] Making request to:', request.url);
+        console.log('[HTTP] Method:', request.method);
+        console.log('[HTTP] Base URL:', ApiConfig.baseUrl);
+        console.log('[HTTP] Processing target:', ApiConfig.processingTarget);
+
         // Inject auth token for remote API
         if (ApiConfig.processingTarget === "remote") {
           const token = localStorage.getItem("auth_token");
           if (token) {
             request.headers.set("Authorization", `Bearer ${token}`);
+            console.log('[HTTP] Auth token added');
+          } else {
+            console.log('[HTTP] No auth token found');
           }
         }
+      }
+    ],
+    afterResponse: [
+      async (request, _options, response) => {
+        console.log('[HTTP] Response from:', request.url);
+        console.log('[HTTP] Status:', response.status);
+
+        // Extract error message from response body for non-2xx responses
+        if (!response.ok) {
+          try {
+            const errorData = await response.clone().json();
+            if (errorData.error) {
+              // Throw custom error with backend message
+              const error = new Error(errorData.error);
+              error.name = 'BackendError';
+              throw error;
+            }
+          } catch (e: any) {
+            // If parsing fails, let ky's default error handling take over
+            if (e?.name === 'BackendError') throw e;
+          }
+        }
+
+        return response;
       }
     ]
   }
@@ -453,26 +485,89 @@ const implementation: WorkbenchAPI = {
 
   // NPE Transformations
   async allegorical(b) {
-    // Use V1 allegorical endpoint - fast, reliable
+    // Use V1 allegorical endpoint with proper 5-stage pipeline
     const r = await http.post(`transformations/allegorical`, { json: b }).json<any>();
 
-    // V1 returns simple response, wrap it in V2 structure for UI compatibility
-    const simpleStage: any = {
-      stage_name: "allegorical",
-      stage_number: 1,
-      input_text: b.text,
-      output_text: r.allegorical_text || r.output_text || r.text || "",
-      rho_before: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
-      rho_after: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
-      transformation_description: `${b.persona} persona, ${b.namespace} namespace, ${b.style} style`,
-    };
+    // Backend returns: final_projection, reflection, stages: { deconstruct, map, reconstruct, stylize }
+    const finalText = r.final_projection || "";
+
+    // Map backend's 5-stage process to UI format
+    const stages: any[] = [];
+
+    if (r.stages?.deconstruct) {
+      stages.push({
+        stage_name: "Deconstruct",
+        stage_number: 1,
+        input_text: b.text,
+        output_text: r.stages.deconstruct,
+        rho_before: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        rho_after: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        transformation_description: "Phenomenological reduction - isolating core intentionality",
+      });
+    }
+
+    if (r.stages?.map) {
+      stages.push({
+        stage_name: "Map",
+        stage_number: 2,
+        input_text: r.stages.deconstruct || b.text,
+        output_text: r.stages.map,
+        rho_before: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        rho_after: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        transformation_description: `Projection into ${b.namespace} namespace`,
+      });
+    }
+
+    if (r.stages?.reconstruct) {
+      stages.push({
+        stage_name: "Reconstruct",
+        stage_number: 3,
+        input_text: r.stages.map || b.text,
+        output_text: r.stages.reconstruct,
+        rho_before: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        rho_after: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        transformation_description: `Embodiment through ${b.persona} persona`,
+      });
+    }
+
+    if (r.stages?.stylize) {
+      stages.push({
+        stage_name: "Stylize",
+        stage_number: 4,
+        input_text: r.stages.reconstruct || b.text,
+        output_text: r.stages.stylize,
+        rho_before: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        rho_after: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        transformation_description: `Application of ${b.style} style`,
+      });
+    }
+
+    if (r.reflection) {
+      stages.push({
+        stage_name: "Reflect",
+        stage_number: 5,
+        input_text: r.stages?.stylize || finalText,
+        output_text: r.reflection,
+        rho_before: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        rho_after: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        transformation_description: "Critical reflection on transformation process",
+      });
+    }
 
     return AllegoricalResponse.parse({
       transformation_id: r.transformation_id || "unknown",
       narrative_id: "n/a",
       original_text: b.text,
-      final_text: r.allegorical_text || r.output_text || r.text || "",
-      stages: [simpleStage],
+      final_text: finalText,
+      stages: stages.length > 0 ? stages : [{
+        stage_name: "allegorical",
+        stage_number: 1,
+        input_text: b.text,
+        output_text: finalText,
+        rho_before: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        rho_after: { id: "n/a", purity: 0, entropy: 0, top_eigenvalues: [] },
+        transformation_description: `${b.persona} × ${b.namespace} × ${b.style}`,
+      }],
       overall_metrics: {
         initial_purity: 0, final_purity: 0, purity_delta: 0,
         initial_entropy: 0, final_entropy: 0, entropy_delta: 0,

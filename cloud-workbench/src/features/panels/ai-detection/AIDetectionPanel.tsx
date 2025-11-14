@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useCanvas } from '../../../core/context/CanvasContext';
 import { api, type AIDetectionResponse } from '../../../core/adapters/api';
 import DOMPurify from 'dompurify';
+import { PhilosophyTooltip } from '../../../components/ui/PhilosophyTooltip';
 
 /**
  * AIDetectionPanel - AI-Generated Content Detection
@@ -98,6 +99,13 @@ export function AIDetectionPanel() {
         </p>
       </div>
 
+      {/* Philosophy Context */}
+      <PhilosophyTooltip
+        title="Detecting Synthetic vs. Lived Experience Markers"
+        description="AI detection reveals the difference between synthetic pattern matching and lived phenomenological experience. Human writing emerges from embodied consciousness — messy, contextual, full of personal history. AI writing emerges from statistical optimization — smooth, generic, pattern-conforming. Tell-words aren't just frequent phrases — they're markers of disembodied cognition, language without experiential grounding. This tool identifies the phenomenological gap between consciousness and computation."
+        learnMoreUrl="https://humanizer.com/docs/tools/ai-detection"
+      />
+
       {/* Config Form */}
       <div className="border-b border-slate-700 p-4 space-y-3">
         {/* Canvas Text Preview */}
@@ -142,13 +150,14 @@ export function AIDetectionPanel() {
                   AI Confidence
                 </span>
                 <span className="text-lg font-bold text-indigo-400">
-                  {(result.confidence * 100).toFixed(0)}%
+                  {/* Backend returns percentage (0-100), not decimal (0-1) */}
+                  {result.confidence.toFixed(0)}%
                 </span>
               </div>
               <div className="h-3 overflow-hidden rounded bg-slate-700">
                 <div
                   className="h-full bg-gradient-to-r from-green-500 via-amber-500 to-red-500 transition-all"
-                  style={{ width: `${result.confidence * 100}%` }}
+                  style={{ width: `${result.confidence}%` }}
                 />
               </div>
               <div className="mt-2 text-xs text-slate-400">

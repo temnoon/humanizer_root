@@ -96,3 +96,9 @@ temp/
 dev_TRM/
 .codebase_tracking/
 *.md.swp
+
+# Legal Documents (Provisional - Not Yet Reviewed)
+docs/TERMS_OF_SERVICE.md
+docs/PRIVACY_POLICY.md
+docs/GDPR_COMPLIANCE_REVIEW.md
+docs/LEGAL_DOCUMENTS_README.md

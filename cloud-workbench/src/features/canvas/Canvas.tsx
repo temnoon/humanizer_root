@@ -202,6 +202,7 @@ export function Canvas() {
   // Update content when message changes (from Archive)
   useEffect(() => {
     if (currentMessage) {
+      console.log('[Canvas] Loading Archive message, length:', currentMessage.content?.length);
       setEditedContent(currentMessage.content);
       setText(currentMessage.content); // Sync with CanvasContext
       const html = processContent(currentMessage.content);
@@ -209,20 +210,36 @@ export function Canvas() {
     }
   }, [currentMessage, mediaMapping]); // Re-render when media mapping loads
 
+  // Check if content is a full HTML document
+  const isFullHtmlDocument = (content: string): boolean => {
+    return content.trim().startsWith('<!DOCTYPE html>') ||
+           content.trim().startsWith('<html');
+  };
+
   // Update content when text changes (from RemoteContentSource)
   useEffect(() => {
     if (!currentMessage && text) {
       setEditedContent(text);
-      const html = processContent(text);
-      setRenderedHtml(html);
+      // If it's a full HTML document, don't process it - render as-is in iframe
+      if (isFullHtmlDocument(text)) {
+        setRenderedHtml(text); // Will be rendered in iframe
+      } else {
+        const html = processContent(text);
+        setRenderedHtml(html);
+      }
     }
   }, [text, currentMessage, mediaMapping]);
 
   // Update rendered HTML when edited content changes (in edit tab)
   useEffect(() => {
     if (centerTab === 'edit' && editedContent) {
-      const html = processContent(editedContent);
-      setRenderedHtml(html);
+      // Check if it's a full HTML document
+      if (isFullHtmlDocument(editedContent)) {
+        setRenderedHtml(editedContent); // Keep as-is for iframe rendering
+      } else {
+        const html = processContent(editedContent);
+        setRenderedHtml(html);
+      }
     }
   }, [editedContent, centerTab, mediaMapping]); // Re-render when media mapping loads
 
@@ -320,11 +337,20 @@ export function Canvas() {
           <textarea
             value={editedContent}
             onChange={(e) => {
+              console.log('[Canvas] Edit mode, updating text, length:', e.target.value?.length);
               setEditedContent(e.target.value);
               setText(e.target.value); // Sync with CanvasContext
             }}
             className="h-full w-full resize-none bg-slate-900 p-8 font-mono text-base text-slate-100"
             spellCheck={false}
+          />
+        ) : isFullHtmlDocument(text || '') ? (
+          // Render full HTML documents in iframe for XSS safety
+          <iframe
+            srcDoc={renderedHtml}
+            className="h-full w-full border-0"
+            sandbox="allow-scripts allow-same-origin"
+            title="HTML Content"
           />
         ) : (
           <div

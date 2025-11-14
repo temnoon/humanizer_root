@@ -4,7 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>cloud-workbench</title>
+    <meta name="color-scheme" content="dark light" />
+    <title>humanizer.com workbench</title>
+    <script>
+      // System theme detection - apply before render to prevent flash
+      if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+        document.documentElement.classList.add('light-mode');
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

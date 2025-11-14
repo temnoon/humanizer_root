@@ -109,63 +109,55 @@ export function ArchivePanel() {
     }
   };
 
-  // Handle folder upload (conversation with images)
+  // Handle folder upload (conversation JSON only, skip images)
   const handleUploadFolder = async (files: File[], folder: string | null) => {
     try {
       setUploading(true);
 
-      // Filter out HTML files
-      const validFiles = files.filter(file =>
-        !file.name.endsWith('.html') && !file.name.endsWith('.htm')
-      );
-
-      if (validFiles.length === 0) {
-        throw new Error('No valid files found in folder (HTML files are skipped)');
-      }
-
-      // Find conversation.json
-      const conversationFile = validFiles.find(f =>
-        f.name === 'conversation.json' || f.name.endsWith('/conversation.json')
+      // Find conversation.json (check various possible locations)
+      const conversationFile = files.find(f =>
+        f.name === 'conversation.json' ||
+        f.name.endsWith('/conversation.json') ||
+        f.webkitRelativePath?.endsWith('conversation.json')
       );
 
       if (!conversationFile) {
-        throw new Error('No conversation.json found in folder');
+        const fileList = files.map(f => f.webkitRelativePath || f.name).join(', ');
+        console.error('Files in upload:', fileList);
+        throw new Error(`No conversation.json found in folder. Found ${files.length} files: ${fileList.substring(0, 200)}...`);
       }
 
-      // Parse conversation metadata
+      // Parse JSON
       const conversationText = await conversationFile.text();
       const conversationData = JSON.parse(conversationText);
       const parsed = parseConversation(conversationData);
       const metadata = parsed.metadata;
+
+      // Count skipped images
+      const imageFiles = files.filter(f =>
+        f.type.startsWith('image/') ||
+        f.webkitRelativePath?.includes('/media/') ||
+        f.name.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+      );
 
       // Use conversation title as folder if not specified
       if (!folder) {
         folder = metadata.title.substring(0, 50);
       }
 
-      // Upload conversation JSON first
+      // Upload conversation JSON only (no images)
       const key = keyManager.getKey();
       const { encryptedData: convEncrypted, iv: convIv } = await encryptFile(conversationFile, key);
       const convBlob = new Blob([convEncrypted as any]);
-      const convResult = await api.uploadArchiveFile(
+      await api.uploadArchiveFile(
         convBlob, convIv, conversationFile.name, conversationFile.type, folder, metadata
       );
-      const conversationId = convResult.fileId;
 
-      // Upload all other files (images, etc.)
-      const otherFiles = validFiles.filter(f => f !== conversationFile);
-      for (const file of otherFiles) {
-        const role = file.type.startsWith('image/') ? 'image' : 'attachment';
-        const relativePath = file.webkitRelativePath || file.name;
-
-        const { encryptedData, iv } = await encryptFile(file, key);
-        const blob = new Blob([encryptedData as any]);
-        await api.uploadArchiveFile(
-          blob, iv, file.name, file.type, folder, null, conversationId, role, relativePath
-        );
+      console.log(`✅ Uploaded conversation: ${metadata.title}`);
+      if (imageFiles.length > 0) {
+        console.log(`ℹ️ Skipped ${imageFiles.length} image files (images not supported in MVP)`);
       }
 
-      console.log(`Uploaded conversation with ${otherFiles.length} attachments`);
       await loadFiles();
     } catch (err: any) {
       console.error('Folder upload failed:', err);
@@ -175,71 +167,11 @@ export function ArchivePanel() {
     }
   };
 
-  // Decrypt images and return a map of file-id -> base64 data URL
-  const decryptImagesForConversation = async (conversationFileId: string): Promise<Map<string, string>> => {
-    const imageMap = new Map<string, string>();
-    const key = keyManager.getKey();
+  // State for conversation and messages
+  const [currentConversation, setCurrentConversation] = useState<any>(null);
+  const [selectedMessageIndex, setSelectedMessageIndex] = useState<number | null>(null);
 
-    // Find all image files linked to this conversation
-    const imageFiles = files.filter(f =>
-      f.parent_file_id === conversationFileId && f.file_role === 'image'
-    );
-
-    console.log(`🔍 Looking for images with parent_file_id = ${conversationFileId}`);
-    console.log(`📁 Total files in list: ${files.length}`);
-    console.log(`🖼️ Found ${imageFiles.length} image files for conversation`);
-
-    if (imageFiles.length > 0) {
-      console.log('Image files:', imageFiles.map(f => ({
-        filename: f.filename,
-        relative_path: f.relative_path,
-        content_type: f.content_type
-      })));
-    }
-
-    for (const imageFile of imageFiles) {
-      try {
-        console.log(`⬇️ Downloading image: ${imageFile.filename}`);
-        // Download and decrypt image
-        const fileData = await api.downloadArchiveFile(imageFile.id);
-        const decrypted = await decryptFile(
-          new Uint8Array(fileData.data),
-          JSON.parse(fileData.iv),
-          key
-        );
-
-        console.log(`🔓 Decrypted ${decrypted.length} bytes`);
-
-        // Convert to base64 data URL
-        const blob = new Blob([new Uint8Array(decrypted)], { type: imageFile.content_type });
-        const base64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        });
-
-        console.log(`📊 Base64 length: ${base64.length} chars`);
-
-        // Extract file-id from relative_path or filename
-        // ChatGPT uses format: "images/file-XXXXX.png"
-        const match = imageFile.relative_path?.match(/file-[^.\/]+/) ||
-                     imageFile.filename.match(/file-[^.\/]+/);
-        if (match) {
-          imageMap.set(match[0], base64);
-          console.log(`✅ Mapped image: ${match[0]} -> base64 data (${Math.round(base64.length/1024)}KB)`);
-        } else {
-          console.warn(`⚠️ Could not extract file-id from: ${imageFile.filename} or ${imageFile.relative_path}`);
-        }
-      } catch (err) {
-        console.error(`❌ Failed to decrypt image ${imageFile.filename}:`, err);
-      }
-    }
-
-    console.log(`🎨 Image map size: ${imageMap.size} images ready`);
-    return imageMap;
-  };
-
-  // Handle file load into Canvas
+  // Handle conversation load - parse and show message cards
   const handleLoad = async (fileId: string, _filename: string) => {
     try {
       // Get encryption key
@@ -251,105 +183,51 @@ export function ArchivePanel() {
         throw new Error('File not found');
       }
 
-      // Skip non-conversation files (images, attachments)
-      if (file.file_role === 'image' || file.file_role === 'attachment') {
-        alert('This is a media file. Please load the parent conversation instead.');
-        return;
-      }
-
-      // Download encrypted file
-      console.log('Downloading file:', fileId, file.filename);
+      // Download and decrypt file
+      console.log('Loading conversation:', file.filename);
       const fileData = await api.downloadArchiveFile(fileId);
-
-      // Decrypt in browser
-      console.log('Decrypting file...');
       const decrypted = await decryptFile(
         new Uint8Array(fileData.data),
         JSON.parse(fileData.iv),
         key
       );
 
-      // Convert to text
+      // Convert to text and parse
       const text = uint8ArrayToText(decrypted);
       console.log('Decrypted text length:', text.length);
 
-      // Check if this is a conversation file
-      const isConversation = file?.conversation_title || file?.file_role === 'conversation';
+      // Parse conversation JSON
+      const conversationData = JSON.parse(text);
+      const parsed = parseConversation(conversationData);
 
-      if (isConversation) {
-        // Parse and format conversation for Canvas
-        console.log('Parsing conversation...');
-        const conversationData = JSON.parse(text);
-        const parsed = parseConversation(conversationData);
+      // Store conversation in state for message cards
+      setCurrentConversation({ fileId, ...parsed });
+      setSelectedMessageIndex(null); // Reset selection
 
-        // Decrypt images if conversation has images
-        let imageMap: Map<string, string> | null = null;
-        if (parsed.metadata.has_images) {
-          console.log('Decrypting images...');
-          imageMap = await decryptImagesForConversation(fileId);
-        }
-
-        // Format as readable markdown for Canvas
-        let markdown = `# ${parsed.metadata.title}\n\n`;
-        markdown += `**Provider**: ${parsed.metadata.provider === 'chatgpt' ? '💬 ChatGPT' : '🤖 Claude'}\n`;
-        markdown += `**Messages**: ${parsed.metadata.message_count}\n`;
-        if (parsed.metadata.created_at) {
-          markdown += `**Date**: ${new Date(parsed.metadata.created_at).toLocaleDateString()}\n\n`;
-        } else {
-          markdown += `\n`;
-        }
-        markdown += `---\n\n`;
-
-        // Add each message and handle images
-        for (const message of parsed.messages) {
-          const roleLabel = message.role === 'user' ? '👤 **You**' : '🤖 **Assistant**';
-          markdown += `## ${roleLabel}\n\n`;
-
-          // Process content to replace image placeholders with actual images
-          let content = message.content;
-
-          // Find all image placeholders in this message
-          const imagePattern = /\[Image:\s*(file-[^\]]+)\]/g;
-          const imageMatches = [...content.matchAll(imagePattern)];
-
-          if (imageMatches.length > 0) {
-            console.log(`📷 Message has ${imageMatches.length} image placeholders:`, imageMatches.map(m => m[1]));
-          }
-
-          if (imageMap && imageMap.size > 0) {
-            // Replace [Image: file-XXXXX] with markdown image syntax
-            content = content.replace(imagePattern, (match, fileId) => {
-              const dataUrl = imageMap!.get(fileId);
-              if (dataUrl) {
-                console.log(`✅ Replaced placeholder: ${fileId}`);
-                return `![${fileId}](${dataUrl})`;
-              }
-              console.warn(`⚠️ No data URL found for: ${fileId}`);
-              return match; // Keep placeholder if image not found
-            });
-          } else if (imageMatches.length > 0) {
-            console.warn(`⚠️ Images found in content but imageMap is empty`);
-          }
-
-          markdown += `${content}\n\n`;
-          markdown += `---\n\n`;
-        }
-
-        setText(markdown);
-        console.log('✓ Loaded conversation to Canvas:', parsed.metadata.title);
-      } else {
-        // Load into Canvas as plain text
-        console.log('Loading as plain text');
-        setText(text);
-      }
+      console.log(`✅ Loaded conversation: ${parsed.metadata.title} (${parsed.messages.length} messages)`);
     } catch (err: any) {
-      console.error('Failed to load file:', err);
-      alert(`Failed to load file: ${err.message}`);
-      throw err;
+      console.error('Failed to load conversation:', err);
+      alert(`Failed to load conversation: ${err.message}`);
     }
   };
 
-  // Handle file delete
+  // Handle loading a specific message into Canvas
+  const handleLoadMessage = (messageIndex: number) => {
+    if (!currentConversation) return;
+
+    const message = currentConversation.messages[messageIndex];
+    setSelectedMessageIndex(messageIndex);
+
+    // Format message for Canvas (clean, no image placeholders)
+    let content = message.content;
+
+    // Remove image placeholders (they're not supported)
+    content = content.replace(/\[Image:\s*[^\]]+\]/g, '[Image]');
+
+    setText(content);
+    console.log(`Loaded message ${messageIndex + 1}/${currentConversation.messages.length}`);
+  };
+
   const handleDelete = async (fileId: string, _filename: string) => {
     try {
       await api.deleteArchiveFile(fileId);
@@ -443,45 +321,100 @@ export function ArchivePanel() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {/* Upload Zone */}
-        <FileUploadZone
-          onUpload={handleUpload}
-          onUploadFolder={handleUploadFolder}
-          uploading={uploading}
-          folders={folders}
-        />
+        {currentConversation ? (
+          /* Message Cards View */
+          <div>
+            <button
+              onClick={() => {
+                setCurrentConversation(null);
+                setSelectedMessageIndex(null);
+              }}
+              className="mb-4 text-sm text-slate-400 hover:text-slate-200 flex items-center gap-2"
+            >
+              ← Back to Files
+            </button>
 
-        {/* File List */}
-        <div>
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-slate-200">Your Files</h3>
-            {folders.length > 0 && (
-              <select
-                value={selectedFolder || ''}
-                onChange={(e) => {
-                  setSelectedFolder(e.target.value || null);
-                  // Reload files with new filter
-                  loadFiles();
-                }}
-                className="px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
-              >
-                <option value="">All Folders</option>
-                {folders.map((folder) => (
-                  <option key={folder} value={folder}>
-                    📁 {folder}
-                  </option>
-                ))}
-              </select>
-            )}
+            <div className="mb-4">
+              <h3 className="text-lg font-semibold text-slate-200 mb-1">
+                💬 {currentConversation.metadata.title}
+              </h3>
+              <div className="text-xs text-slate-400">
+                {currentConversation.messages.length} messages
+                {selectedMessageIndex !== null && (
+                  <span> • Message {selectedMessageIndex + 1} loaded in Canvas</span>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {currentConversation.messages.map((message: any, index: number) => (
+                <div
+                  key={index}
+                  onClick={() => handleLoadMessage(index)}
+                  className={`bg-slate-800 border rounded-lg p-3 cursor-pointer transition-colors ${
+                    selectedMessageIndex === index
+                      ? 'border-purple-500 bg-slate-750'
+                      : 'border-slate-700 hover:bg-slate-750 hover:border-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className={`text-xs font-medium ${
+                      message.role === 'user' ? 'text-blue-400' : 'text-purple-400'
+                    }`}>
+                      {message.role === 'user' ? '👤 You' : '🤖 Assistant'}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      Message {index + 1}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-300 line-clamp-2">
+                    {message.content.substring(0, 100)}...
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
+        ) : (
+          /* File List View */
+          <>
+            <FileUploadZone
+              onUpload={handleUpload}
+              onUploadFolder={handleUploadFolder}
+              uploading={uploading}
+              folders={folders}
+            />
 
-          <FileList
-            files={files}
-            onLoad={handleLoad}
-            onDelete={handleDelete}
-            loading={loading}
-          />
-        </div>
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-slate-200">Your Files</h3>
+                {folders.length > 0 && (
+                  <select
+                    value={selectedFolder || ''}
+                    onChange={(e) => {
+                      setSelectedFolder(e.target.value || null);
+                      loadFiles();
+                    }}
+                    className="px-3 py-1.5 bg-slate-800 border border-slate-600 rounded text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">All Folders</option>
+                    {folders.map((folder) => (
+                      <option key={folder} value={folder}>
+                        📁 {folder}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <FileList
+                files={files}
+                onLoad={handleLoad}
+                onDelete={handleDelete}
+                loading={loading}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

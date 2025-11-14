@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useCanvas } from '../../../core/context/CanvasContext';
 import { api, type PersonalizerResponse } from '../../../core/adapters/api';
+import { PhilosophyTooltip } from '../../../components/ui/PhilosophyTooltip';
 
 /**
  * PersonalizerPanel - Voice-Based Text Personalization
@@ -87,6 +88,13 @@ export function PersonalizerPanel() {
           Transform text to match a specific voice or style
         </p>
       </div>
+
+      {/* Philosophy Context */}
+      <PhilosophyTooltip
+        title="Voice as Gestalt — Finding Your Experiential Signature"
+        description="Personalizer doesn't just match writing style — it maps the experiential signature embedded in your authentic voice. What Merleau-Ponty called 'the phenomenological body' — the pre-reflective way consciousness expresses itself through language. Your voice is a gestalt: rhythm, word choice, syntax, all pointing to a unique mode of being-in-the-world. This tool finds that signature in your past writing and projects new content through it."
+        learnMoreUrl="https://humanizer.com/docs/tools/personalizer"
+      />
 
       {/* Config Form */}
       <div className="border-b border-slate-700 p-4 space-y-3">

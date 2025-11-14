@@ -4,6 +4,8 @@ import { useAuth } from '../../../core/context/AuthContext';
 import { api, type RoundTripResponse } from '../../../core/adapters/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { PhilosophyTooltip } from '../../../components/ui/PhilosophyTooltip';
+import { validateTransformation } from '../../../utils/validation';
 
 /**
  * RoundTripPanel - Translation drift analysis
@@ -49,9 +51,15 @@ export function RoundTripPanel() {
 
   const handleTransform = async () => {
     const text = getActiveText();
+    console.log('[RoundTrip] handleTransform called');
+    console.log('[RoundTrip] Got text from getActiveText(), length:', text?.length, 'chars');
+    console.log('[RoundTrip] First 100 chars:', text?.substring(0, 100));
 
-    if (!text || text.trim().length === 0) {
-      setError('No text to transform. Please load text to Canvas first.');
+    // Pre-validation: Check for content
+    const validationError = validateTransformation(text, { minLength: 10, maxLength: 5000 });
+    if (validationError) {
+      console.log('[RoundTrip] Validation failed:', validationError);
+      setError(validationError);
       return;
     }
 
@@ -67,7 +75,7 @@ export function RoundTripPanel() {
 
     try {
       const response = await api.roundTrip({
-        text,
+        text: text!,
         language,
       });
 
@@ -97,6 +105,13 @@ export function RoundTripPanel() {
           Analyze semantic drift through translation cycles
         </p>
       </div>
+
+      {/* Philosophy Context */}
+      <PhilosophyTooltip
+        title="Translation as Semantic Drift Analysis (Husserl's Horizons)"
+        description="Round-trip translation reveals the 'horizon of untranslatability' — what Husserl called the pre-predicative layer that resists perfect transmutation between languages. Preserved elements show invariant structures of meaning. Lost elements reveal culture-bound intentionality. Gained elements are gifts from the intermediate language's unique phenomenological horizon. This isn't about translation quality — it's about exposing the deep structure of meaning embedded in linguistic and cultural contexts."
+        learnMoreUrl="https://humanizer.com/docs/tools/round-trip"
+      />
 
       {/* Config Form */}
       <div className="border-b border-slate-700 p-4 space-y-3">
