@@ -6,6 +6,9 @@
 /* Import theme variables */
 @import './styles/theme-variables.css';
 
+/* Import component utilities */
+@import './styles/components.css';
+
 /* Base resets and defaults */
 *,
 *::before,

@@ -1,25 +1,42 @@
 export default {
-  content: ["./index.html","./src/**/*.{ts,tsx}"],
-  darkMode: 'media', // Use system preference
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+
+  // Use 'selector' mode with [data-theme] attribute (not 'media')
+  darkMode: ['selector', '[data-theme="dark"]'],
+
   theme: {
+    // Disable ALL color utilities - we use CSS variables only
+    colors: {},
+    backgroundColor: {},
+    textColor: {},
+    borderColor: {},
+
+    // Keep spacing, sizing, and layout utilities
     extend: {
-      colors: {
-        // Light mode overrides (when prefers-color-scheme: light)
-        slate: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617',
-        }
-      }
+      // These are fine - they're not colors
     }
   },
+
+  // Explicitly disable color-related utilities
+  corePlugins: {
+    // Disable all color utilities
+    backgroundColor: false,
+    backgroundOpacity: false,
+    textColor: false,
+    textOpacity: false,
+    borderColor: false,
+    borderOpacity: false,
+    placeholderColor: false,
+    placeholderOpacity: false,
+    divideColor: false,
+    divideOpacity: false,
+    ringColor: false,
+    ringOpacity: false,
+    ringOffsetColor: false,
+    gradientColorStops: false,
+
+    // Keep everything else (layout, spacing, flexbox, grid, etc.)
+  },
+
   plugins: [],
 };
