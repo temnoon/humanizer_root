@@ -8,7 +8,7 @@ export function ToolDock() {
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Tool Selector - Scrollable horizontal on mobile, clear labels */}
-      <div className="flex-shrink-0 border-b border-slate-800 overflow-x-auto">
+      <div className="flex-shrink-0 border-b overflow-x-auto" style={{ borderColor: 'var(--border-color)' }}>
         <div className="flex gap-1 p-2 min-w-min">
           {toolRegistry.map(t => (
             <button
@@ -16,10 +16,8 @@ export function ToolDock() {
               className={`
                 flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded whitespace-nowrap
                 text-xs sm:text-sm transition-colors
-                ${active === t.id
-                  ? "bg-indigo-600 text-white font-medium"
-                  : "bg-slate-800 text-slate-300 hover:bg-slate-700"
-                }
+                ${active === t.id ? "btn-primary" : "btn-secondary"}
+                ${active === t.id ? "font-medium" : ""}
               `}
               onClick={() => setActive(t.id)}
               title={t.label}
@@ -35,7 +33,7 @@ export function ToolDock() {
       {/* Tool Panel - Properly constrained for mobile */}
       <div className="flex-1 overflow-hidden">
         {tool ? <tool.panel /> : (
-          <div className="p-4 text-slate-400 text-center">
+          <div className="p-4 text-center" style={{ color: 'var(--text-secondary)' }}>
             Select a tool above
           </div>
         )}
