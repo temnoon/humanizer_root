@@ -119,7 +119,7 @@ export function UnifiedLayout({
                   className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all font-medium text-sm"
                   style={{
                     background: activeTool === tool.id ? 'var(--accent-purple)' : 'transparent',
-                    color: activeTool === tool.id ? 'white' : 'var(--text-secondary)',
+                    color: activeTool === tool.id ? 'var(--text-on-accent)' : 'var(--text-secondary)',
                     border: activeTool === tool.id ? 'none' : '1px solid transparent',
                   }}
                   title={tool.label}
@@ -143,7 +143,7 @@ export function UnifiedLayout({
                   className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all font-medium text-sm"
                   style={{
                     background: activeTool === tool.id ? 'var(--accent-purple)' : 'transparent',
-                    color: activeTool === tool.id ? 'white' : 'var(--text-secondary)',
+                    color: activeTool === tool.id ? 'var(--text-on-accent)' : 'var(--text-secondary)',
                     border: activeTool === tool.id ? 'none' : '1px solid transparent',
                   }}
                   title={tool.label}
@@ -185,7 +185,7 @@ export function UnifiedLayout({
                 className="text-sm px-3 py-1.5 rounded-lg transition-colors font-medium"
                 style={{
                   background: 'var(--accent-purple)',
-                  color: 'white',
+                  color: 'var(--text-on-accent)',
                 }}
                 title="Login"
               >

@@ -14,6 +14,7 @@
   --accent-purple-hover: #9176e0;
   --accent-purple-alpha-10: rgba(167, 139, 250, 0.1);
   --accent-purple-alpha-20: rgba(167, 139, 250, 0.2);
+  --text-on-accent: #ffffff;
   --accent-cyan: #60a5fa;
   --accent-blue: #60a5fa;
   --accent-green: #34d399;
@@ -68,6 +69,7 @@
   --accent-purple-hover: #6d28d9;
   --accent-purple-alpha-10: rgba(124, 58, 237, 0.1);
   --accent-purple-alpha-20: rgba(124, 58, 237, 0.2);
+  --text-on-accent: #ffffff;
   --accent-cyan: #0891b2;
   --accent-blue: #2563eb;
   --accent-green: #059669;

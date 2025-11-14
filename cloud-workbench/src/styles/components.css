@@ -76,7 +76,7 @@
 
 .btn-primary {
   background: var(--accent-purple);
-  color: white;
+  color: var(--text-on-accent);
 }
 
 .btn-primary:hover:not(:disabled) {
