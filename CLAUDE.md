@@ -1,12 +1,70 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 13, 2025, 10:45 PM - ✅ **SPRINT 2/3 RESTORED - STABLE**
-**Status**: ✅ Transformations Working | ✅ Sprint 4 Rolled Back | ❌ Light/Dark Mode Broken
-**Latest**: Node 22.21.1, Wrangler 4.47.0, React 19, Vite 7.2
+**Last Updated**: Nov 14, 2025, 11:30 AM - ✅ **READY FOR BETA DEPLOYMENT**
+**Status**: ✅ Git Cleaned | ✅ Packages Updated | ⚠️ Node Version Fix Needed | ❌ Light/Dark Mode Broken
+**Latest**: Node 22.21.1, Wrangler 4.48.0 ✅, React 19, Vite 7.2, pnpm 10.12.4
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
 **Production API**: https://npe-api.tem-527.workers.dev (Version: c75a3de4) ✅ **SPRINT 2/3**
 **Workbench**: https://c68febfa.workbench-4ec.pages.dev ✅
 **Humanizer.com**: https://humanizer.com (REFERENCE for design/theme)
+**Safety Tag**: `pre-cleanup-safety` (restore point before branch cleanup)
+
+---
+
+## 🚨 **CRITICAL: Node Version Issue** (Nov 14, 11:30 AM)
+
+**MUST FIX FIRST THING NEXT SESSION:**
+
+**Problem**: Node version mismatch causing wrangler confusion
+- Global (Node 18): wrangler 4.46.0 ⚠️
+- Local (Node 22): wrangler 4.48.0 ✅
+- Each bash command defaults to Node 18
+- User tried to fix but couldn't remove Node 18 wrangler
+
+**Fix Next Session**:
+```bash
+# Set Node 22 as default
+nvm alias default 22
+
+# Remove global wrangler from Node 18
+nvm use 18
+npm uninstall -g wrangler
+
+# Verify fixed
+npx wrangler --version  # Should show 4.48.0
+```
+
+**Why Critical**: Version confusion causes deployment issues and wasted debugging time.
+
+---
+
+## ✅ **Session Complete: Branch Cleanup & Package Updates** (Nov 14, 11:30 AM)
+
+**Completed This Session**:
+1. ✅ Fixed archive password manager autofill (hidden username field)
+2. ✅ Git branch cleanup complete (deleted 4 obsolete branches)
+3. ✅ Changed GitHub default branch: dev-TRM → main
+4. ✅ Created safety tag: `pre-cleanup-safety`
+5. ✅ Created beta-release-v1.0 branch
+6. ✅ Updated 11 packages (wrangler 4.48, hono, workers-types, 8 frontend)
+7. ✅ Deployment dry-run successful
+
+**Repository Status**:
+- **Main Branch**: bf69005 (all latest work)
+- **Branches**: main, beta-release-v1.0, master (clean!)
+- **Safety Tag**: pre-cleanup-safety (can restore with `git checkout pre-cleanup-safety`)
+- **Deleted**: dev-TRM, feat/encrypted-conversation-archive, upgrade-dependencies-2025, claude/*
+
+**Package Manager Discovery**:
+- Backend (workers/npe-api): **npm**
+- Frontend (cloud-workbench): **pnpm** (not npm!)
+
+**Handoff Documents**:
+- `/tmp/BRANCH_CLEANUP_COMPLETE.md` - comprehensive cleanup report
+- `/tmp/PACKAGE_UPDATE_SUMMARY.md` - detailed update summary
+- `/tmp/NOV_14_SESSION_HANDOFF.md` ⭐ **READ THIS FIRST**
+
+**ChromaDB Memory**: ID `2d35df7715b4d64753c3601d1d9d3bf30d8880caa86b43a4397e0ccd1e47fd56`
 
 ---
 
