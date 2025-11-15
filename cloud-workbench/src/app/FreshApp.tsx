@@ -13,14 +13,14 @@ function AppContent() {
     return (
       <div className="min-h-screen bg-base-100 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-base-content mb-4">
+          <h1 className="text-5xl font-bold text-base-content mb-4">
             humanizer.com
           </h1>
-          <p className="text-base-content/70 mb-8">
+          <p className="text-xl text-base-content/70 mb-12">
             Narrative Phenomenology Workbench
           </p>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-lg btn-wide"
             onClick={() => setShowLogin(true)}
           >
             Login to Continue

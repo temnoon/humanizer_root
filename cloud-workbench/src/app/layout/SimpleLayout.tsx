@@ -1,31 +1,27 @@
-import { useState } from "react";
 import { ThemeToggle } from "../../components/ui/ThemeToggle";
-import { Canvas } from "../../features/canvas/Canvas";
-import { ComputerHumanizerPanel } from "../../features/panels/computer-humanizer/ComputerHumanizerPanel";
 import { useAuth } from "../../core/context/AuthContext";
+import { useCanvas } from "../../core/context/CanvasContext";
 
 export function SimpleLayout() {
   const { logout } = useAuth();
-  const [leftPanelOpen, setLeftPanelOpen] = useState(true);
+  const { text, setText } = useCanvas();
 
   return (
     <div className="h-screen flex flex-col bg-base-100">
       {/* Header */}
-      <header className="bg-base-200 border-b border-base-300">
-        <div className="flex items-center justify-between px-4 py-3">
+      <header className="bg-base-200 border-b-2 border-base-300">
+        <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
-            <h1 className="text-xl font-bold text-base-content">
+            <h1 className="text-2xl font-bold text-base-content">
               humanizer.com
             </h1>
-            <span className="text-sm text-base-content/50">
-              Workbench
-            </span>
+            <span className="badge badge-primary">Workbench</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <ThemeToggle />
             <button
-              className="btn btn-sm btn-ghost"
+              className="btn btn-sm btn-outline"
               onClick={logout}
             >
               Logout
@@ -34,39 +30,34 @@ export function SimpleLayout() {
         </div>
       </header>
 
-      {/* 3-Panel Layout */}
+      {/* Main Content - Just Canvas for now */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Archive (placeholder) */}
-        {leftPanelOpen && (
-          <div className="w-80 bg-base-200 border-r border-base-300 flex flex-col">
-            <div className="p-4 border-b border-base-300 flex items-center justify-between">
-              <h2 className="font-semibold text-base-content">Archive</h2>
-              <button
-                className="btn btn-sm btn-ghost btn-square"
-                onClick={() => setLeftPanelOpen(false)}
-              >
-                ×
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-4">
-              <div className="text-center text-base-content/50 py-8">
-                <p className="mb-2">Archive panel</p>
-                <p className="text-xs">Coming soon</p>
-              </div>
-            </div>
+        <div className="flex-1 flex flex-col p-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-base-content mb-2">Canvas</h2>
+            <p className="text-sm text-base-content/70">
+              Paste or type your text here. Archive and tools coming next.
+            </p>
           </div>
-        )}
 
-        {/* Center Panel - Canvas */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 overflow-hidden">
-            <Canvas />
+          <textarea
+            className="textarea textarea-bordered w-full flex-1 font-mono text-sm resize-none"
+            placeholder="Paste your text here..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+
+          <div className="mt-4 flex justify-between items-center">
+            <span className="text-sm text-base-content/50">
+              {text.length} characters
+            </span>
+            <button
+              className="btn btn-sm btn-ghost"
+              onClick={() => setText('')}
+            >
+              Clear
+            </button>
           </div>
-        </div>
-
-        {/* Right Panel - Tool (Computer Humanizer) */}
-        <div className="w-96 bg-base-200 border-l border-base-300 flex flex-col overflow-hidden">
-          <ComputerHumanizerPanel />
         </div>
       </div>
     </div>

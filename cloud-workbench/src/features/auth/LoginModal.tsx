@@ -34,8 +34,8 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
     <>
       {/* Modal backdrop */}
       <div className="modal modal-open">
-        <div className="modal-box max-w-md relative">
-        <h3 className="font-bold text-lg mb-4">Login Required</h3>
+        <div className="modal-box max-w-md relative border-2 border-base-300 shadow-xl">
+        <h3 className="font-bold text-xl mb-4 text-base-content">Login Required</h3>
 
         <p className="text-base-content/70 mb-6">
           Enter your credentials to access the workbench.
@@ -78,7 +78,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
           <div className="modal-action">
             <button
               type="button"
-              className="btn btn-ghost"
+              className="btn btn-outline"
               onClick={onClose}
               disabled={isLoading}
             >
@@ -86,7 +86,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
             </button>
             <button
               type="submit"
-              className="btn btn-primary"
+              className="btn btn-primary btn-wide"
               disabled={isLoading}
             >
               {isLoading ? (
