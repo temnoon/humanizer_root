@@ -131,6 +131,50 @@ textarea,
   font-family: var(--font-ui);
 }
 
+/* Comfortable button sizes - LARGER for better UX */
+button {
+  min-height: 40px;
+  padding: var(--space-sm) var(--space-md);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  border: none;
+  background: none;
+  transition: all 0.2s ease;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Comfortable input sizes - LARGER for better UX */
+input,
+select,
+textarea {
+  min-height: 44px;
+  padding: var(--space-sm) var(--space-md);
+  font-size: 0.9375rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+}
+
+[data-theme='dark'] input:focus,
+[data-theme='dark'] select:focus,
+[data-theme='dark'] textarea:focus {
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+}
+
 /* Code elements use mono font */
 code,
 pre,
