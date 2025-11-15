@@ -172,8 +172,8 @@ export function AllegoricalPanel() {
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
       <div className="panel-header">
-        <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>🌟 Allegorical Projection</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+        <h2 className="text-lg font-bold text-base-content">🌟 Allegorical Projection</h2>
+        <p className="text-xs mt-1 text-base-content opacity-70">
           5-stage transformation: Deconstruct → Map → Reconstruct → Stylize → Reflect
         </p>
       </div>
@@ -186,16 +186,15 @@ export function AllegoricalPanel() {
       />
 
       {/* Config Form */}
-      <div className="border-b p-4 space-y-3" style={{ borderColor: 'var(--border-color)' }}>
+      <div className="border-b border-base-300 p-4 space-y-3">
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+            <label className="text-xs font-medium text-base-content">
               Persona
             </label>
             <button
               onClick={() => handleCreateCustom('persona')}
-              className="text-xs"
-              style={{ color: 'var(--accent-purple)' }}
+              className="text-xs text-primary hover:underline"
             >
               + Create Custom
             </button>
@@ -203,7 +202,7 @@ export function AllegoricalPanel() {
           <select
             value={persona}
             onChange={(e) => setPersona(e.target.value)}
-            className="input w-full rounded px-3 py-2 text-sm"
+            className="select select-bordered w-full text-sm"
           >
             <optgroup label="Presets">
               {personas.map((p) => (
@@ -226,13 +225,12 @@ export function AllegoricalPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+            <label className="text-xs font-medium text-base-content">
               Namespace
             </label>
             <button
               onClick={() => handleCreateCustom('namespace')}
-              className="text-xs"
-              style={{ color: 'var(--accent-purple)' }}
+              className="text-xs text-primary hover:underline"
             >
               + Create Custom
             </button>
@@ -240,7 +238,7 @@ export function AllegoricalPanel() {
           <select
             value={namespace}
             onChange={(e) => setNamespace(e.target.value)}
-            className="input w-full rounded px-3 py-2 text-sm"
+            className="select select-bordered w-full text-sm"
           >
             <optgroup label="Presets">
               {namespaces.map((n) => (
@@ -263,13 +261,12 @@ export function AllegoricalPanel() {
 
         <div>
           <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+            <label className="text-xs font-medium text-base-content">
               Style
             </label>
             <button
               onClick={() => handleCreateCustom('style')}
-              className="text-xs"
-              style={{ color: 'var(--accent-purple)' }}
+              className="text-xs text-primary hover:underline"
             >
               + Create Custom
             </button>
@@ -277,7 +274,7 @@ export function AllegoricalPanel() {
           <select
             value={style}
             onChange={(e) => setStyle(e.target.value)}
-            className="input w-full rounded px-3 py-2 text-sm"
+            className="select select-bordered w-full text-sm"
           >
             <optgroup label="Presets">
               {styles.map((s) => (
@@ -301,7 +298,7 @@ export function AllegoricalPanel() {
         <button
           onClick={handleTransform}
           disabled={isTransforming}
-          className="btn-primary w-full rounded px-4 py-2 font-medium disabled:opacity-50"
+          className="btn btn-primary w-full"
         >
           {isTransforming ? '⏳ Transforming...' : '✨ Transform'}
         </button>
@@ -309,14 +306,7 @@ export function AllegoricalPanel() {
 
       {/* Error Display */}
       {error && (
-        <div
-          className="border-b px-4 py-3 text-sm"
-          style={{
-            borderColor: 'var(--accent-red)',
-            background: 'rgba(220, 38, 38, 0.2)',
-            color: 'var(--accent-red)',
-          }}
-        >
+        <div className="alert alert-error border-none">
           {error}
         </div>
       )}
@@ -328,39 +318,41 @@ export function AllegoricalPanel() {
             {/* Final Projection */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h3 className="font-bold text-sm" style={{ color: 'var(--text-primary)' }}>Final Projection</h3>
+                <h3 className="font-bold text-sm text-base-content">Final Projection</h3>
                 <button
                   onClick={loadToCanvas}
-                  className="btn-primary rounded px-3 py-1 text-xs font-medium"
+                  className="btn btn-primary btn-sm"
                 >
                   Load to Canvas →
                 </button>
               </div>
-              <div className="prose prose-invert prose-sm max-w-none card rounded p-3" style={{ color: 'var(--text-primary)' }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {result.final_text}
-                </ReactMarkdown>
+              <div className="card bg-base-200 rounded-lg p-3">
+                <div className="prose prose-invert prose-sm max-w-none text-base-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {result.final_text}
+                  </ReactMarkdown>
+                </div>
               </div>
             </div>
 
             {/* Stages (Collapsible) */}
-            <details className="card rounded" style={{ border: '1px solid var(--border-color)' }}>
-              <summary className="cursor-pointer px-3 py-2 font-medium text-sm hover-bg-accent" style={{ color: 'var(--text-primary)' }}>
+            <details className="card border border-base-300 rounded-lg">
+              <summary className="cursor-pointer px-3 py-2 font-medium text-sm text-base-content hover:bg-base-100">
                 View {result.stages.length} Stages
               </summary>
               <div className="space-y-3 p-3">
                 {result.stages.map((stage, idx) => (
                   <div key={idx}>
-                    <h4 className="text-xs font-bold mb-1" style={{ color: 'var(--text-primary)' }}>
+                    <h4 className="text-xs font-bold mb-1 text-base-content">
                       {stage.stage_number}. {stage.stage_name}
                     </h4>
-                    <div className="prose prose-invert prose-xs max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <div className="prose prose-invert prose-xs max-w-none text-base-content">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>
                         {stage.output_text}
                       </ReactMarkdown>
                     </div>
                     {stage.transformation_description && (
-                      <p className="text-xs mt-1 italic" style={{ color: 'var(--text-tertiary)' }}>
+                      <p className="text-xs mt-1 italic text-base-content opacity-50">
                         {stage.transformation_description}
                       </p>
                     )}
@@ -372,7 +364,7 @@ export function AllegoricalPanel() {
         )}
 
         {!result && !isTransforming && !error && (
-          <div className="text-center text-sm py-8" style={{ color: 'var(--text-secondary)' }}>
+          <div className="text-center text-sm py-8 text-base-content opacity-70">
             Configure settings and click Transform to begin
           </div>
         )}

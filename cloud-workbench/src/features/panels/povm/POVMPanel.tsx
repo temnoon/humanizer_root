@@ -120,23 +120,23 @@ export function POVMPanel() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="border-b border-slate-700 px-4 py-3">
-        <h2 className="text-lg font-bold text-slate-100">◆ POVM Evaluator</h2>
-        <p className="text-xs text-slate-400 mt-1">
+      <div className="panel-header">
+        <h2 className="text-lg font-bold text-base-content">◆ POVM Evaluator</h2>
+        <p className="text-xs text-base-content opacity-70 mt-1">
           Single-axis quantum measurement
         </p>
       </div>
 
       {/* Config Form */}
-      <div className="border-b border-slate-700 p-4 space-y-3">
+      <div className="border-b border-base-300 p-4 space-y-3">
         <div>
-          <label className="block text-xs font-medium text-slate-300 mb-1">
+          <label className="block text-xs font-medium text-base-content mb-1">
             Measurement Axis
           </label>
           <select
             value={axis}
             onChange={(e) => setAxis(e.target.value)}
-            className="w-full rounded bg-slate-700 px-3 py-2 text-sm text-slate-100"
+            className="select select-bordered w-full text-sm"
           >
             {availableAxes.map((ax) => (
               <option key={ax.id} value={ax.id}>
@@ -145,16 +145,16 @@ export function POVMPanel() {
             ))}
           </select>
           {selectedAxisInfo && (
-            <div className="mt-1 text-xs text-slate-400">
+            <div className="mt-1 text-xs text-base-content opacity-70">
               {selectedAxisInfo.description}
             </div>
           )}
         </div>
 
         {/* Canvas Text Preview */}
-        <div className="rounded bg-slate-800 p-3">
-          <div className="text-xs text-slate-400 mb-1">Reading from Canvas</div>
-          <div className="text-sm text-slate-300">
+        <div className="card bg-base-200 rounded-lg p-3">
+          <div className="text-xs text-base-content opacity-70 mb-1">Reading from Canvas</div>
+          <div className="text-sm text-base-content">
             {getActiveText()
               ? `${getActiveText().substring(0, 100)}${getActiveText().length > 100 ? '...' : ''}`
               : 'No text in Canvas'}
@@ -164,7 +164,7 @@ export function POVMPanel() {
         <button
           onClick={handleEvaluate}
           disabled={!getActiveText() || isEvaluating}
-          className="w-full rounded bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          className="btn btn-primary w-full"
         >
           {isEvaluating ? '⏳ Evaluating...' : '◆ Evaluate'}
         </button>
@@ -172,7 +172,7 @@ export function POVMPanel() {
 
       {/* Error Display */}
       {error && (
-        <div className="border-b border-red-700 bg-red-900/30 px-4 py-3 text-sm text-red-300">
+        <div className="alert alert-error border-none">
           {error}
         </div>
       )}
@@ -183,7 +183,7 @@ export function POVMPanel() {
           <>
             {/* Axis Name */}
             <div className="text-center">
-              <h3 className="text-sm font-bold text-slate-300">
+              <h3 className="text-sm font-bold text-base-content">
                 {result.axis} Measurement
               </h3>
             </div>
@@ -191,64 +191,64 @@ export function POVMPanel() {
             {/* Four-Corner Tetralemma */}
             <div className="grid grid-cols-2 gap-3">
               {/* T (Top-Left) */}
-              <div className="rounded bg-red-900/30 p-4 border border-red-800/50">
-                <div className="text-xs font-medium text-red-200 mb-1">
+              <div className="card bg-error/10 border border-error/30 p-4">
+                <div className="text-xs font-medium text-error mb-1">
                   {result.labels.T}
                 </div>
-                <div className="text-2xl font-bold text-red-100">
+                <div className="text-2xl font-bold text-base-content">
                   {(result.weights.T * 100).toFixed(0)}%
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded bg-red-950">
+                <div className="mt-2 h-2 overflow-hidden rounded bg-base-300">
                   <div
-                    className="h-full bg-red-500"
+                    className="h-full bg-error"
                     style={{ width: `${result.weights.T * 100}%` }}
                   />
                 </div>
               </div>
 
               {/* F (Top-Right) */}
-              <div className="rounded bg-green-900/30 p-4 border border-green-800/50">
-                <div className="text-xs font-medium text-green-200 mb-1">
+              <div className="card bg-success/10 border border-success/30 p-4">
+                <div className="text-xs font-medium text-success mb-1">
                   {result.labels.F}
                 </div>
-                <div className="text-2xl font-bold text-green-100">
+                <div className="text-2xl font-bold text-base-content">
                   {(result.weights.F * 100).toFixed(0)}%
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded bg-green-950">
+                <div className="mt-2 h-2 overflow-hidden rounded bg-base-300">
                   <div
-                    className="h-full bg-green-500"
+                    className="h-full bg-success"
                     style={{ width: `${result.weights.F * 100}%` }}
                   />
                 </div>
               </div>
 
               {/* B (Bottom-Left) */}
-              <div className="rounded bg-blue-900/30 p-4 border border-blue-800/50">
-                <div className="text-xs font-medium text-blue-200 mb-1">
+              <div className="card bg-info/10 border border-info/30 p-4">
+                <div className="text-xs font-medium text-info mb-1">
                   {result.labels.B}
                 </div>
-                <div className="text-2xl font-bold text-blue-100">
+                <div className="text-2xl font-bold text-base-content">
                   {(result.weights.B * 100).toFixed(0)}%
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded bg-blue-950">
+                <div className="mt-2 h-2 overflow-hidden rounded bg-base-300">
                   <div
-                    className="h-full bg-blue-500"
+                    className="h-full bg-info"
                     style={{ width: `${result.weights.B * 100}%` }}
                   />
                 </div>
               </div>
 
               {/* N (Bottom-Right) */}
-              <div className="rounded bg-purple-900/30 p-4 border border-purple-800/50">
-                <div className="text-xs font-medium text-purple-200 mb-1">
+              <div className="card bg-secondary/10 border border-secondary/30 p-4">
+                <div className="text-xs font-medium text-secondary mb-1">
                   {result.labels.N}
                 </div>
-                <div className="text-2xl font-bold text-purple-100">
+                <div className="text-2xl font-bold text-base-content">
                   {(result.weights.N * 100).toFixed(0)}%
                 </div>
-                <div className="mt-2 h-2 overflow-hidden rounded bg-purple-950">
+                <div className="mt-2 h-2 overflow-hidden rounded bg-base-300">
                   <div
-                    className="h-full bg-purple-500"
+                    className="h-full bg-secondary"
                     style={{ width: `${result.weights.N * 100}%` }}
                   />
                 </div>
@@ -256,54 +256,54 @@ export function POVMPanel() {
             </div>
 
             {/* Coherence (Alpha) */}
-            <div className="rounded bg-slate-800 p-4">
+            <div className="card bg-base-200 rounded-lg p-4">
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-slate-300">
+                <span className="text-sm font-medium text-base-content opacity-70">
                   Coherence (α)
                 </span>
-                <span className="text-lg font-bold text-indigo-400">
+                <span className="text-lg font-bold text-primary">
                   {(result.alpha * 100).toFixed(0)}%
                 </span>
               </div>
-              <div className="h-3 overflow-hidden rounded bg-slate-700">
+              <div className="h-3 overflow-hidden rounded bg-base-300">
                 <div
-                  className="h-full bg-indigo-500 transition-all"
+                  className="h-full bg-primary transition-all"
                   style={{ width: `${result.alpha * 100}%` }}
                 />
               </div>
-              <div className="mt-2 text-xs text-slate-400">
+              <div className="mt-2 text-xs text-base-content opacity-50">
                 Measures quantum coherence (superposition strength)
               </div>
             </div>
 
             {/* Interpretation (if provided by API) */}
             {result.interpretation && (
-              <div className="rounded bg-slate-800 p-4">
-                <h4 className="text-sm font-bold text-slate-300 mb-2">
+              <div className="card bg-base-200 rounded-lg p-4">
+                <h4 className="text-sm font-bold text-base-content mb-2">
                   Interpretation
                 </h4>
-                <p className="text-sm text-slate-400 leading-relaxed">
+                <p className="text-sm text-base-content opacity-80 leading-relaxed">
                   {result.interpretation}
                 </p>
               </div>
             )}
 
             {/* Raw Data (Collapsible) */}
-            <details className="rounded border border-slate-700 bg-slate-800">
-              <summary className="cursor-pointer px-3 py-2 font-medium text-sm text-slate-100 hover:bg-slate-700">
+            <details className="card bg-base-200 rounded-lg border border-base-300">
+              <summary className="cursor-pointer px-3 py-2 font-medium text-sm text-base-content hover:bg-base-100">
                 View Raw Data
               </summary>
               <div className="p-3 space-y-2">
-                <div className="font-mono text-xs">
-                  <div className="text-slate-400">Weights Vector:</div>
-                  <div className="mt-1 text-slate-300">
+                <div className="font-mono text-xs text-base-content opacity-70">
+                  <div className="text-base-content">Weights Vector:</div>
+                  <div className="mt-1 text-base-content">
                     T: {result.weights.T.toFixed(4)} | F: {result.weights.F.toFixed(4)} |{' '}
                     B: {result.weights.B.toFixed(4)} | N: {result.weights.N.toFixed(4)}
                   </div>
-                  <div className="mt-2 text-slate-400">Alpha (Coherence):</div>
-                  <div className="mt-1 text-slate-300">{result.alpha.toFixed(6)}</div>
-                  <div className="mt-2 text-slate-400">Normalization Check:</div>
-                  <div className="mt-1 text-slate-300">
+                  <div className="mt-2 text-base-content">Alpha (Coherence):</div>
+                  <div className="mt-1 text-base-content">{result.alpha.toFixed(6)}</div>
+                  <div className="mt-2 text-base-content">Normalization Check:</div>
+                  <div className="mt-1 text-base-content">
                     Sum = {(result.weights.T + result.weights.F + result.weights.B + result.weights.N).toFixed(6)}
                     {Math.abs((result.weights.T + result.weights.F + result.weights.B + result.weights.N) - 1.0) < 0.01 ? ' ✓' : ' ⚠️'}
                   </div>
@@ -314,7 +314,7 @@ export function POVMPanel() {
         )}
 
         {!result && !isEvaluating && !error && (
-          <div className="text-center text-sm text-slate-400 py-8">
+          <div className="text-center text-sm text-base-content opacity-70 py-8">
             Select an axis and click Evaluate to begin
           </div>
         )}
