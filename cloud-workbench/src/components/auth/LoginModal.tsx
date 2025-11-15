@@ -48,25 +48,15 @@ export function LoginModal({ isOpen, onClose, canDismiss = false }: LoginModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div
-        className="w-full max-w-md rounded-lg p-6 shadow-2xl"
-        style={{
-          background: 'var(--bg-secondary)',
-          color: 'var(--text-primary)',
-          border: '1px solid var(--border-color)',
-        }}
-      >
+    <dialog className="modal" open={isOpen}>
+      <div className="modal-box">
         {/* Header */}
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
-            Login Required
-          </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-2xl">Login Required</h3>
           {canDismiss && (
             <button
               onClick={handleClose}
-              className="transition-colors"
-              style={{ color: 'var(--text-secondary)' }}
+              className="btn btn-sm btn-circle btn-ghost"
             >
               ✕
             </button>
@@ -74,7 +64,7 @@ export function LoginModal({ isOpen, onClose, canDismiss = false }: LoginModalPr
         </div>
 
         {/* Info */}
-        <p className="mb-6 text-sm" style={{ color: 'var(--text-secondary)' }}>
+        <p className="text-sm opacity-70 mb-6">
           Remote API access requires authentication. Enter your credentials to continue.
         </p>
 
@@ -82,8 +72,8 @@ export function LoginModal({ isOpen, onClose, canDismiss = false }: LoginModalPr
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Email */}
           <div>
-            <label htmlFor="email" className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-              Email
+            <label htmlFor="email" className="label">
+              <span className="label-text">Email</span>
             </label>
             <input
               id="email"
@@ -92,19 +82,14 @@ export function LoginModal({ isOpen, onClose, canDismiss = false }: LoginModalPr
               onChange={(e) => setEmail(e.target.value)}
               required
               placeholder="your@email.com"
-              className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
-              style={{
-                background: 'var(--bg-tertiary)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)',
-              }}
+              className="input input-bordered w-full"
             />
           </div>
 
           {/* Password */}
           <div>
-            <label htmlFor="password" className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
-              Password
+            <label htmlFor="password" className="label">
+              <span className="label-text">Password</span>
             </label>
             <input
               id="password"
@@ -113,52 +98,52 @@ export function LoginModal({ isOpen, onClose, canDismiss = false }: LoginModalPr
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="••••••••"
-              className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
-              style={{
-                background: 'var(--bg-tertiary)',
-                color: 'var(--text-primary)',
-                border: '1px solid var(--border-color)',
-              }}
+              className="input input-bordered w-full"
             />
           </div>
 
           {/* Error Display */}
           {error && (
-            <div className="rounded px-3 py-2 text-sm" style={{ background: 'rgba(220, 38, 38, 0.1)', border: '1px solid var(--accent-red)', color: 'var(--accent-red)' }}>
-              {error}
+            <div className="alert alert-error">
+              <span>{error}</span>
             </div>
           )}
 
           {/* Actions */}
-          <div className="flex gap-3">
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="flex-1 rounded px-4 py-2 font-medium text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              style={{ background: 'var(--accent-purple)' }}
-            >
-              {isLoading ? 'Logging in...' : 'Login'}
-            </button>
+          <div className="modal-action">
             {canDismiss && (
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-4 py-2 text-sm transition-colors"
-                style={{ color: 'var(--text-secondary)' }}
+                className="btn btn-ghost"
               >
                 Cancel
               </button>
             )}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="btn btn-primary"
+            >
+              {isLoading ? 'Logging in...' : 'Login'}
+            </button>
           </div>
         </form>
 
         {/* Demo Credentials (for testing) */}
-        <div className="mt-6 rounded p-3 text-xs" style={{ background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' }}>
+        <div className="mt-6 bg-base-200 rounded p-3 text-xs opacity-70">
           <p className="font-medium mb-1">Demo Account:</p>
           <p>Email: demo@humanizer.com</p>
           <p>Password: testpass123</p>
         </div>
       </div>
-    </div>
+
+      {/* Backdrop */}
+      {canDismiss && (
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={handleClose}>close</button>
+        </form>
+      )}
+    </dialog>
   );
 }
