@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { TextSizeProvider } from './contexts/TextSizeContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
 import { ArchivePanel } from './components/panels/ArchivePanel';
@@ -218,9 +219,11 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <TextSizeProvider>
+        <AuthProvider>
+          <AppContent />
+        </AuthProvider>
+      </TextSizeProvider>
     </ThemeProvider>
   );
 }

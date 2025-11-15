@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Icons } from './Icons';
 import { ThemeToggle } from './ThemeToggle';
+import { TextSizeControl } from './TextSizeControl';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Narrative } from '../../types';
 
@@ -154,6 +155,9 @@ export function TopBar({
         >
           <Icons.Tools />
         </button>
+
+        {/* Text size control - only show when authenticated */}
+        {user && <TextSizeControl />}
 
         <ThemeToggle />
       </div>
