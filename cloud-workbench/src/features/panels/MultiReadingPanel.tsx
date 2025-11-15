@@ -101,8 +101,8 @@ export function MultiReadingPanel() {
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
       <div className="panel-header">
-        <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>◈ Multi-Reading Analysis</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+        <h2 className="text-lg font-bold text-base-content">◈ Multi-Reading Analysis</h2>
+        <p className="text-xs mt-1 text-base-content opacity-70">
           Non-binary measurement of meaning states
         </p>
       </div>
@@ -117,7 +117,7 @@ export function MultiReadingPanel() {
       <div className="flex-1 overflow-y-auto p-4">
       {/* Axis Selection */}
       <div className="mb-4">
-        <label className="mb-2 block text-sm font-medium">Select POVM Axes:</label>
+        <label className="mb-2 block text-sm font-medium text-base-content">Select POVM Axes:</label>
         <div className="grid grid-cols-2 gap-2">
           {availableAxes.map((axis) => (
             <label key={axis.id} className="flex items-center gap-2">
@@ -131,11 +131,11 @@ export function MultiReadingPanel() {
                     setSelectedAxes(selectedAxes.filter((a) => a !== axis.id));
                   }
                 }}
-                className="rounded"
+                className="checkbox checkbox-primary checkbox-sm"
               />
               <div>
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>{axis.name}</div>
-                <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>{axis.description}</div>
+                <div className="text-sm font-medium text-base-content">{axis.name}</div>
+                <div className="text-xs text-base-content opacity-70">{axis.description}</div>
               </div>
             </label>
           ))}
@@ -143,9 +143,9 @@ export function MultiReadingPanel() {
       </div>
 
       {/* Canvas Text Info */}
-      <div className="mb-4 card rounded p-3">
-        <div className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Reading from Canvas</div>
-        <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
+      <div className="mb-4 card bg-base-200 rounded-lg p-3">
+        <div className="text-xs mb-1 text-base-content opacity-70">Reading from Canvas</div>
+        <div className="text-sm text-base-content">
           {getActiveText() ? `${getActiveText().substring(0, 100)}...` : 'No text in Canvas'}
         </div>
       </div>
@@ -153,7 +153,7 @@ export function MultiReadingPanel() {
       <button
         onClick={handleAnalyze}
         disabled={!getActiveText() || selectedAxes.length === 0 || loading}
-        className="btn-primary w-full rounded px-4 py-2 font-medium disabled:opacity-50 mb-4"
+        className="btn btn-primary w-full mb-4"
       >
         {loading ? '⏳ Analyzing...' : `◈ Analyze on ${selectedAxes.length} ${selectedAxes.length === 1 ? 'axis' : 'axes'}`}
       </button>
@@ -165,26 +165,26 @@ export function MultiReadingPanel() {
             <button
               onClick={() => setCurrentSentence(Math.max(0, currentSentence - 1))}
               disabled={currentSentence === 0}
-              className="btn-secondary rounded px-3 py-1 text-sm disabled:opacity-50"
+              className="btn btn-ghost btn-sm"
             >
               ← Prev
             </button>
-            <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
+            <span className="text-sm text-base-content">
               Sentence {currentSentence + 1} of {readings.length}
             </span>
             <button
               onClick={() => setCurrentSentence(Math.min(readings.length - 1, currentSentence + 1))}
               disabled={currentSentence === readings.length - 1}
-              className="btn-secondary rounded px-3 py-1 text-sm disabled:opacity-50"
+              className="btn btn-ghost btn-sm"
             >
               Next →
             </button>
           </div>
 
           {/* Current Sentence */}
-          <div className="mb-4 card rounded p-3">
-            <div className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>Current Sentence:</div>
-            <div className="mt-1" style={{ color: 'var(--text-primary)' }}>{current?.sentence}</div>
+          <div className="mb-4 card bg-base-200 rounded-lg p-3">
+            <div className="text-sm font-medium text-base-content opacity-70">Current Sentence:</div>
+            <div className="mt-1 text-base-content">{current?.sentence}</div>
           </div>
 
           {/* Multi-Axis Readings */}
@@ -194,74 +194,47 @@ export function MultiReadingPanel() {
               const reading = current?.readings.find((r) => r.axis === axisId);
 
               return (
-                <div key={axisId} className="card rounded p-3">
-                  <h3 className="mb-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>{axisInfo?.name}</h3>
+                <div key={axisId} className="card bg-base-200 rounded-lg p-3">
+                  <h3 className="mb-2 text-sm font-semibold text-base-content">{axisInfo?.name}</h3>
 
                   {reading ? (
                     <div className="space-y-2">
                       {/* Four-corner grid */}
                       <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div
-                          className="rounded p-2"
-                          style={{
-                            background: 'rgba(220, 38, 38, 0.2)',
-                            color: 'var(--text-primary)',
-                          }}
-                        >
-                          <div className="font-medium">{reading.label_T}</div>
-                          <div className="mt-1 text-lg font-bold">{(reading.T * 100).toFixed(0)}%</div>
+                        <div className="card bg-error/10 border border-error/30 p-2">
+                          <div className="font-medium text-error">{reading.label_T}</div>
+                          <div className="mt-1 text-lg font-bold text-base-content">{(reading.T * 100).toFixed(0)}%</div>
                         </div>
-                        <div
-                          className="rounded p-2"
-                          style={{
-                            background: 'rgba(52, 211, 153, 0.2)',
-                            color: 'var(--text-primary)',
-                          }}
-                        >
-                          <div className="font-medium">{reading.label_F}</div>
-                          <div className="mt-1 text-lg font-bold">{(reading.F * 100).toFixed(0)}%</div>
+                        <div className="card bg-success/10 border border-success/30 p-2">
+                          <div className="font-medium text-success">{reading.label_F}</div>
+                          <div className="mt-1 text-lg font-bold text-base-content">{(reading.F * 100).toFixed(0)}%</div>
                         </div>
-                        <div
-                          className="rounded p-2"
-                          style={{
-                            background: 'rgba(6, 182, 212, 0.2)',
-                            color: 'var(--text-primary)',
-                          }}
-                        >
-                          <div className="font-medium">{reading.label_B}</div>
-                          <div className="mt-1 text-lg font-bold">{(reading.B * 100).toFixed(0)}%</div>
+                        <div className="card bg-info/10 border border-info/30 p-2">
+                          <div className="font-medium text-info">{reading.label_B}</div>
+                          <div className="mt-1 text-lg font-bold text-base-content">{(reading.B * 100).toFixed(0)}%</div>
                         </div>
-                        <div
-                          className="rounded p-2"
-                          style={{
-                            background: 'rgba(167, 139, 250, 0.2)',
-                            color: 'var(--text-primary)',
-                          }}
-                        >
-                          <div className="font-medium">{reading.label_N}</div>
-                          <div className="mt-1 text-lg font-bold">{(reading.N * 100).toFixed(0)}%</div>
+                        <div className="card bg-secondary/10 border border-secondary/30 p-2">
+                          <div className="font-medium text-secondary">{reading.label_N}</div>
+                          <div className="mt-1 text-lg font-bold text-base-content">{(reading.N * 100).toFixed(0)}%</div>
                         </div>
                       </div>
 
                       {/* Alpha (coherence) */}
-                      <div className="rounded p-2" style={{ background: 'var(--bg-tertiary)' }}>
-                        <div className="mb-1 flex justify-between text-xs" style={{ color: 'var(--text-primary)' }}>
+                      <div className="card bg-base-300 rounded-lg p-2">
+                        <div className="mb-1 flex justify-between text-xs text-base-content">
                           <span>Coherence (α)</span>
                           <span className="font-bold">{(reading.alpha * 100).toFixed(0)}%</span>
                         </div>
-                        <div className="h-2 overflow-hidden rounded" style={{ background: 'var(--bg-primary)' }}>
+                        <div className="h-2 overflow-hidden rounded bg-base-100">
                           <div
-                            className="h-full"
-                            style={{
-                              background: 'var(--accent-purple)',
-                              width: `${reading.alpha * 100}%`
-                            }}
+                            className="h-full bg-primary"
+                            style={{ width: `${reading.alpha * 100}%` }}
                           />
                         </div>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>No reading available</div>
+                    <div className="text-xs text-base-content opacity-50">No reading available</div>
                   )}
                 </div>
               );
@@ -269,9 +242,9 @@ export function MultiReadingPanel() {
 
             {/* ρ State (if available) */}
             {current?.rho_state && (
-              <div className="card rounded p-3">
-                <h3 className="mb-2 text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Density Matrix (ρ)</h3>
-                <div className="space-y-2 text-xs" style={{ color: 'var(--text-primary)' }}>
+              <div className="card bg-base-200 rounded-lg p-3">
+                <h3 className="mb-2 text-sm font-semibold text-base-content">Density Matrix (ρ)</h3>
+                <div className="space-y-2 text-xs text-base-content">
                   <div className="flex justify-between">
                     <span>Purity:</span>
                     <span className="font-bold">{current.rho_state.purity.toFixed(3)}</span>

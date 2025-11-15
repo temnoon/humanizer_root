@@ -71,23 +71,17 @@ export function MaieuticPanel() {
     setError(null);
   };
 
-  const getDepthColor = (d: number) => {
-    const colors = [
-      'var(--accent-green)',     // Level 0: Surface
-      'var(--accent-cyan)',      // Level 1: Shallow
-      'var(--accent-purple)',    // Level 2: Moderate
-      '#9333ea',                 // Level 3: Deep (purple)
-      '#ec4899',                 // Level 4: Profound (pink)
-    ];
-    return colors[d] || colors[2];
+  const getDepthBadge = (d: number) => {
+    const badges = ['badge-success', 'badge-info', 'badge-primary', 'badge-secondary', 'badge-accent'];
+    return badges[d] || badges[2];
   };
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* Header */}
       <div className="panel-header">
-        <h2 className="text-lg font-bold" style={{ color: 'var(--text-primary)' }}>🤔 Maieutic Dialogue</h2>
-        <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
+        <h2 className="text-lg font-bold text-base-content">🤔 Maieutic Dialogue</h2>
+        <p className="text-xs mt-1 text-base-content opacity-70">
           Socratic questioning to explore ideas deeply
         </p>
       </div>
@@ -100,16 +94,16 @@ export function MaieuticPanel() {
       />
 
       {/* Config Form */}
-      <div className="border-b p-4 space-y-3" style={{ borderColor: 'var(--border-color)' }}>
+      <div className="border-b border-base-300 p-4 space-y-3">
         {/* Depth Level Selection */}
         <div>
-          <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-primary)' }}>
+          <label className="block text-xs font-medium mb-1 text-base-content">
             Question Depth
           </label>
           <select
             value={depth}
             onChange={(e) => setDepth(parseInt(e.target.value))}
-            className="input w-full rounded px-3 py-2 text-sm"
+            className="select select-bordered w-full text-sm"
           >
             {depthLevels.map((level) => (
               <option key={level.value} value={level.value}>
@@ -118,16 +112,16 @@ export function MaieuticPanel() {
             ))}
           </select>
           {depthLevels.find((l) => l.value === depth) && (
-            <div className="mt-1 text-xs" style={{ color: 'var(--text-secondary)' }}>
+            <div className="mt-1 text-xs text-base-content opacity-70">
               {depthLevels.find((l) => l.value === depth)?.description}
             </div>
           )}
         </div>
 
         {/* Canvas Text Preview */}
-        <div className="card rounded p-3">
-          <div className="text-xs mb-1" style={{ color: 'var(--text-secondary)' }}>Reading from Canvas</div>
-          <div className="text-sm" style={{ color: 'var(--text-primary)' }}>
+        <div className="card bg-base-200 rounded-lg p-3">
+          <div className="text-xs mb-1 text-base-content opacity-70">Reading from Canvas</div>
+          <div className="text-sm text-base-content">
             {getActiveText()
               ? `${getActiveText().substring(0, 100)}${getActiveText().length > 100 ? '...' : ''}`
               : 'No text in Canvas'}
@@ -139,14 +133,14 @@ export function MaieuticPanel() {
           <button
             onClick={handleAskQuestion}
             disabled={!getActiveText() || isQuestioning}
-            className="btn-primary flex-1 rounded px-4 py-2 font-medium disabled:opacity-50"
+            className="btn btn-primary flex-1"
           >
             {isQuestioning ? '⏳ Thinking...' : '🤔 Ask Question'}
           </button>
           {conversationHistory.length > 0 && (
             <button
               onClick={handleReset}
-              className="btn-secondary rounded px-4 py-2 font-medium"
+              className="btn btn-ghost"
               title="Reset conversation"
             >
               🔄
@@ -156,7 +150,7 @@ export function MaieuticPanel() {
 
         {/* Conversation Turn Counter */}
         {conversationHistory.length > 0 && (
-          <div className="text-xs text-center" style={{ color: 'var(--text-secondary)' }}>
+          <div className="text-xs text-center text-base-content opacity-70">
             Turn {Math.floor(conversationHistory.length / 2)} • {conversationHistory.length} messages
           </div>
         )}
@@ -164,14 +158,7 @@ export function MaieuticPanel() {
 
       {/* Error Display */}
       {error && (
-        <div
-          className="border-b px-4 py-3 text-sm"
-          style={{
-            borderColor: 'var(--accent-red)',
-            background: 'rgba(220, 38, 38, 0.2)',
-            color: 'var(--accent-red)',
-          }}
-        >
+        <div className="alert alert-error border-none">
           {error}
         </div>
       )}
@@ -181,30 +168,24 @@ export function MaieuticPanel() {
         {result && (
           <>
             {/* Current Question */}
-            <div
-              className="rounded p-4"
-              style={{
-                background: 'linear-gradient(to bottom right, rgba(167, 139, 250, 0.2), rgba(139, 92, 246, 0.1))',
-                border: '1px solid rgba(167, 139, 250, 0.3)',
-              }}
-            >
+            <div className="card bg-base-200 rounded-lg p-4 border-l-4 border-primary">
               <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-bold" style={{ color: 'var(--accent-purple)' }}>Socratic Question</h3>
-                <span className="text-xs font-medium" style={{ color: getDepthColor(result.depth) }}>
+                <h3 className="text-sm font-bold text-primary">Socratic Question</h3>
+                <span className={`badge ${getDepthBadge(result.depth)}`}>
                   Depth {result.depth}
                 </span>
               </div>
-              <p className="text-base leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+              <p className="text-base leading-relaxed text-base-content">
                 {result.question}
               </p>
             </div>
 
             {/* Reasoning */}
-            <div className="card rounded p-4">
-              <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+            <div className="card bg-base-200 rounded-lg p-4">
+              <h4 className="text-sm font-bold mb-2 text-base-content">
                 Reasoning
               </h4>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-base-content opacity-80">
                 {result.reasoning}
               </p>
             </div>
