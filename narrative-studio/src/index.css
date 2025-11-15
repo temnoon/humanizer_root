@@ -52,17 +52,18 @@
   --text-primary: #1c1917;
   --text-secondary: #57534e;
   --text-tertiary: #78716c;
-  --text-inverse: #fafaf9;
+  --text-inverse: #ffffff;
 
   --border-color: #e7e5e4;
   --border-strong: #d6d3d1;
 
-  --accent-primary: #7c3aed;
-  --accent-primary-hover: #6d28d9;
-  --accent-secondary: #0891b2;
+  --accent-primary: #0891b2;
+  --accent-primary-hover: #0e7490;
+  --accent-primary-gradient: linear-gradient(to bottom, #0e7490, #22d3ee);
+  --accent-secondary: #06b6d4;
   --accent-secondary-hover: #0e7490;
 
-  --success: #059669;
+  --success: #f59e0b;
   --warning: #d97706;
   --error: #dc2626;
 
@@ -83,17 +84,18 @@
   --text-primary: #fafaf9;
   --text-secondary: #d6d3d1;
   --text-tertiary: #a8a29e;
-  --text-inverse: #1c1917;
+  --text-inverse: #000000;
 
   --border-color: #292524;
   --border-strong: #44403c;
 
-  --accent-primary: #a78bfa;
-  --accent-primary-hover: #8b5cf6;
-  --accent-secondary: #22d3ee;
-  --accent-secondary-hover: #06b6d4;
+  --accent-primary: #22d3ee;
+  --accent-primary-hover: #06b6d4;
+  --accent-primary-gradient: linear-gradient(to bottom, #67e8f9, #0e7490);
+  --accent-secondary: #67e8f9;
+  --accent-secondary-hover: #22d3ee;
 
-  --success: #10b981;
+  --success: #fbbf24;
   --warning: #f59e0b;
   --error: #ef4444;
 
@@ -136,6 +138,7 @@ button {
   min-height: 40px;
   padding: var(--space-sm) var(--space-md);
   font-size: 0.9375rem;
+  font-weight: 600;
   cursor: pointer;
   border: none;
   background: none;
@@ -166,13 +169,13 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+  box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
 }
 
 [data-theme='dark'] input:focus,
 [data-theme='dark'] select:focus,
 [data-theme='dark'] textarea:focus {
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+  box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.2);
 }
 
 /* Code elements use mono font */
@@ -537,13 +540,15 @@ samp,
 .tag {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-xs) var(--space-sm);
-  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
   font-weight: 500;
   border-radius: var(--radius-sm);
   transition: all 0.2s ease;
   cursor: pointer;
   font-family: var(--font-ui);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tag:hover {
@@ -557,7 +562,8 @@ samp,
 }
 
 .tag.tag-selected {
-  background-color: var(--accent-primary);
+  background-image: var(--accent-primary-gradient);
+  background-color: transparent;
   color: var(--text-inverse);
-  border: 1px solid var(--accent-primary);
+  border: 1px solid transparent;
 }

@@ -159,16 +159,9 @@ export function LoginPage() {
             disabled={isLoading}
             className="ui-text w-full py-3 px-4 rounded-md font-medium transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              backgroundColor: 'var(--accent-primary)',
+              backgroundImage: 'var(--accent-primary-gradient)',
+              backgroundColor: 'transparent',
               color: 'var(--text-inverse)',
-            }}
-            onMouseEnter={(e) => {
-              if (!isLoading) {
-                e.currentTarget.style.backgroundColor = 'var(--accent-primary-hover)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = 'var(--accent-primary)';
             }}
           >
             {isLoading ? 'Signing in...' : 'Sign In'}

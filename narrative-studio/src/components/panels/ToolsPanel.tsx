@@ -116,10 +116,14 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                   onClick={() => setSelectedType(type.value)}
                   className="card w-full text-left"
                   style={{
-                    backgroundColor:
-                      selectedType === type.value
-                        ? 'var(--accent-primary)'
-                        : 'var(--bg-elevated)',
+                    ...(selectedType === type.value
+                      ? {
+                          backgroundImage: 'var(--accent-primary-gradient)',
+                          backgroundColor: 'transparent',
+                        }
+                      : {
+                          backgroundColor: 'var(--bg-elevated)',
+                        }),
                     color:
                       selectedType === type.value
                         ? 'var(--text-inverse)'
@@ -275,7 +279,8 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
             disabled={isTransforming}
             className="w-full font-medium rounded-md flex items-center justify-center gap-2 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
-              backgroundColor: 'var(--accent-primary)',
+              backgroundImage: 'var(--accent-primary-gradient)',
+              backgroundColor: 'transparent',
               color: 'var(--text-inverse)',
               padding: 'var(--space-md) var(--space-lg)',
               fontSize: '1rem',

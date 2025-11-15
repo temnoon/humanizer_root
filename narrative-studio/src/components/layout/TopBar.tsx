@@ -30,10 +30,12 @@ export function TopBar({
 
   return (
     <header
-      className="h-16 px-4 flex items-center justify-between border-b sticky top-0 z-50"
+      className="h-16 flex items-center justify-between border-b sticky top-0 z-50"
       style={{
         backgroundColor: 'var(--bg-elevated)',
         borderColor: 'var(--border-color)',
+        paddingLeft: 'var(--space-lg)',
+        paddingRight: 'var(--space-lg)',
       }}
     >
       {/* Left: Archive button + Logo */}
@@ -42,7 +44,8 @@ export function TopBar({
           onClick={onToggleArchive}
           className="ui-text p-2 rounded-md transition-smooth hover:opacity-70"
           style={{
-            backgroundColor: archiveOpen ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+            backgroundImage: archiveOpen ? 'var(--accent-primary-gradient)' : 'none',
+            backgroundColor: archiveOpen ? 'transparent' : 'var(--bg-secondary)',
             color: archiveOpen ? 'var(--text-inverse)' : 'var(--text-primary)',
           }}
           aria-label="Toggle archive panel"
@@ -56,19 +59,9 @@ export function TopBar({
         </h1>
       </div>
 
-      {/* Center: Current narrative info */}
-      <div className="hidden md:flex flex-col items-center">
-        {currentNarrative && (
-          <>
-            <div className="ui-text font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
-              {currentNarrative.title}
-            </div>
-            <div className="ui-text text-xs" style={{ color: 'var(--text-tertiary)' }}>
-              {currentNarrative.metadata.wordCount?.toLocaleString()} words
-              {currentNarrative.metadata.source && ` • ${currentNarrative.metadata.source}`}
-            </div>
-          </>
-        )}
+      {/* Center: Empty space for future content (menus, quotes, subtitle, etc.) */}
+      <div className="hidden md:block">
+        {/* Placeholder for future content */}
       </div>
 
       {/* Right: User menu + Tools button + Theme toggle */}
@@ -80,7 +73,8 @@ export function TopBar({
               onClick={() => setUserMenuOpen(!userMenuOpen)}
               className="ui-text flex items-center gap-2 px-3 py-2 rounded-md transition-smooth hover:opacity-70"
               style={{
-                backgroundColor: userMenuOpen ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                backgroundImage: userMenuOpen ? 'var(--accent-primary-gradient)' : 'none',
+                backgroundColor: userMenuOpen ? 'transparent' : 'var(--bg-secondary)',
                 color: userMenuOpen ? 'var(--text-inverse)' : 'var(--text-primary)',
               }}
               aria-label="User menu"
@@ -106,26 +100,36 @@ export function TopBar({
 
                 {/* Menu */}
                 <div
-                  className="absolute right-0 mt-2 w-56 rounded-md shadow-lg z-50"
+                  className="absolute right-0 mt-2 w-56 shadow-lg z-50 overflow-hidden"
                   style={{
                     backgroundColor: 'var(--bg-elevated)',
                     border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    boxShadow: 'var(--shadow-lg)',
                   }}
                 >
-                  <div className="p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-                    <p className="ui-text text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                  <div
+                    className="border-b"
+                    style={{
+                      borderColor: 'var(--border-color)',
+                      padding: 'var(--space-md)',
+                    }}
+                  >
+                    <p className="ui-text font-medium" style={{ color: 'var(--text-primary)', fontSize: '0.9375rem' }}>
                       {user.email}
                     </p>
-                    <p className="ui-text text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                    <p className="ui-text" style={{ color: 'var(--text-tertiary)', fontSize: '0.8125rem', marginTop: 'var(--space-xs)' }}>
                       Role: {user.role}
                     </p>
                   </div>
-                  <div className="p-2">
+                  <div style={{ padding: 'var(--space-sm)' }}>
                     <button
                       onClick={handleLogout}
-                      className="ui-text w-full text-left px-3 py-2 rounded-md text-sm transition-smooth"
+                      className="ui-text w-full text-left rounded-md transition-smooth font-medium"
                       style={{
                         color: 'var(--error)',
+                        padding: 'var(--space-sm) var(--space-md)',
+                        fontSize: '0.9375rem',
                       }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
@@ -134,7 +138,7 @@ export function TopBar({
                         e.currentTarget.style.backgroundColor = 'transparent';
                       }}
                     >
-                      Sign Out
+                      Logout
                     </button>
                   </div>
                 </div>
@@ -147,7 +151,8 @@ export function TopBar({
           onClick={onToggleTools}
           className="ui-text p-2 rounded-md transition-smooth hover:opacity-70"
           style={{
-            backgroundColor: toolsOpen ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+            backgroundImage: toolsOpen ? 'var(--accent-primary-gradient)' : 'none',
+            backgroundColor: toolsOpen ? 'transparent' : 'var(--bg-secondary)',
             color: toolsOpen ? 'var(--text-inverse)' : 'var(--text-primary)',
           }}
           aria-label="Toggle tools panel"
