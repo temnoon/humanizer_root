@@ -28,6 +28,32 @@ function AppContent() {
   const [isTransforming, setIsTransforming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Initialize sample narratives and load from localStorage
+  // NOTE: This must be called before conditional returns (Rules of Hooks)
+  useEffect(() => {
+    if (isAuthenticated) {
+      initializeSampleNarratives();
+      loadNarratives();
+    }
+  }, [isAuthenticated]);
+
+  // Responsive panel behavior
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        // Close panels on mobile by default
+        setArchivePanelOpen(false);
+        setToolsPanelOpen(false);
+      }
+    };
+
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isAuthenticated]);
+
   // Show loading screen while checking authentication
   if (isLoading) {
     return (
@@ -52,27 +78,6 @@ function AppContent() {
   if (!isAuthenticated) {
     return <LoginPage />;
   }
-
-  // Initialize sample narratives and load from localStorage
-  useEffect(() => {
-    initializeSampleNarratives();
-    loadNarratives();
-  }, []);
-
-  // Responsive panel behavior
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 768) {
-        // Close panels on mobile by default
-        setArchivePanelOpen(false);
-        setToolsPanelOpen(false);
-      }
-    };
-
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const loadNarratives = async () => {
     try {
