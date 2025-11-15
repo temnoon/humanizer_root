@@ -31,11 +31,11 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
   if (!isOpen) return null;
 
   return (
-    <>
-      {/* Modal backdrop */}
-      <div className="modal modal-open">
-        <div className="modal-box max-w-md relative border-2 border-base-300 shadow-xl">
-        <h3 className="font-bold text-xl mb-4 text-base-content">Login Required</h3>
+    <dialog className="modal modal-open">
+      <div className="modal-box w-11/12 max-w-md">
+        <h3 className="font-bold text-2xl mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+          Login Required
+        </h3>
 
         <p className="text-base-content/70 mb-6">
           Enter your credentials to access the workbench.
@@ -44,7 +44,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="form-control">
             <label className="label">
-              <span className="label-text">Email</span>
+              <span className="label-text font-semibold">Email</span>
             </label>
             <input
               type="email"
@@ -58,7 +58,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
           <div className="form-control">
             <label className="label">
-              <span className="label-text">Password</span>
+              <span className="label-text font-semibold">Password</span>
             </label>
             <input
               type="password"
@@ -71,6 +71,9 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
           {error && (
             <div className="alert alert-error">
+              <svg xmlns="http://www.w3.org/2000/svg" className="stroke-current shrink-0 h-6 w-6" fill="none" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
               <span>{error}</span>
             </div>
           )}
@@ -78,7 +81,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
           <div className="modal-action">
             <button
               type="button"
-              className="btn btn-outline"
+              className="btn btn-ghost"
               onClick={onClose}
               disabled={isLoading}
             >
@@ -86,11 +89,14 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
             </button>
             <button
               type="submit"
-              className="btn btn-primary btn-wide"
+              className="btn btn-primary"
               disabled={isLoading}
             >
               {isLoading ? (
-                <span className="loading loading-spinner"></span>
+                <>
+                  <span className="loading loading-spinner loading-sm"></span>
+                  Logging in...
+                </>
               ) : (
                 "Login"
               )}
@@ -98,18 +104,21 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
           </div>
         </form>
 
-        <div className="mt-4 p-4 bg-base-200 rounded-lg">
-          <p className="text-sm text-base-content/60">
-            <strong>Demo Account:</strong><br />
-            Email: demo@humanizer.com<br />
-            Password: testpass123
-          </p>
+        <div className="divider">Demo Account</div>
+
+        <div className="alert alert-info">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" className="stroke-current shrink-0 w-6 h-6">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <div className="text-sm">
+            <div><strong>Email:</strong> demo@humanizer.com</div>
+            <div><strong>Password:</strong> testpass123</div>
+          </div>
         </div>
       </div>
-      <form method="dialog" className="modal-backdrop" onClick={onClose}>
-        <button type="button">close</button>
+      <form method="dialog" className="modal-backdrop">
+        <button onClick={onClose}>close</button>
       </form>
-    </div>
-    </>
+    </dialog>
   );
 }
