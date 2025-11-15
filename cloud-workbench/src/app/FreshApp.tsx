@@ -1,54 +1,123 @@
 import { useState } from "react";
-import { LoginModal } from "../features/auth/LoginModal";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 import { SimpleLayout } from "./layout/SimpleLayout";
 import { AuthProvider, useAuth } from "../core/context/AuthContext";
 import { CanvasProvider } from "../core/context/CanvasContext";
 
-function AppContent() {
-  const { isAuthenticated } = useAuth();
-  const [showLogin, setShowLogin] = useState(false);
+function LoginPage({ onLogin }: { onLogin: (email: string, password: string) => Promise<void> }) {
+  const [email, setEmail] = useState("demo@humanizer.com");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  if (!isAuthenticated) {
-    return (
-      <div className="hero min-h-screen bg-gradient-to-br from-base-100 via-base-200 to-base-300">
-        <div className="hero-content text-center">
-          <div className="max-w-md">
-            <h1 className="text-6xl font-bold mb-4">
-              <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-                humanizer.com
-              </span>
-            </h1>
-            <p className="text-xl text-base-content/70 mb-8">
-              Narrative Phenomenology Workbench
-            </p>
-            <p className="text-base-content/60 mb-8">
-              Transform AI-generated text into natural, human-like content
-            </p>
-            <button
-              className="btn btn-primary btn-lg gap-2"
-              onClick={() => setShowLogin(true)}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-              </svg>
-              Login to Continue
-            </button>
-          </div>
-        </div>
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
 
-        {showLogin && (
-          <LoginModal
-            isOpen={showLogin}
-            onClose={() => setShowLogin(false)}
-          />
-        )}
+    try {
+      await onLogin(email, password);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        <div className="absolute top-4 right-4">
+  return (
+    <div className="min-h-screen flex flex-col bg-base-100">
+      {/* Header */}
+      <header className="p-6">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          <h1 className="text-2xl font-bold text-primary">humanizer.com</h1>
           <ThemeToggle />
         </div>
+      </header>
+
+      {/* Centered Login Card */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="card w-full max-w-md bg-base-200 shadow-xl">
+          <div className="card-body">
+            <h2 className="card-title text-3xl font-bold text-center mb-6">Welcome Back</h2>
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-semibold">Email</span>
+                </label>
+                <input
+                  type="email"
+                  className="input input-bordered w-full bg-base-300"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              <div className="form-control">
+                <label className="label">
+                  <span className="label-text font-semibold">Password</span>
+                </label>
+                <input
+                  type="password"
+                  className="input input-bordered w-full bg-base-300"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              {error && (
+                <div className="alert alert-error">
+                  <span>{error}</span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="btn btn-primary w-full"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <span className="loading loading-spinner loading-sm"></span>
+                ) : (
+                  "Log In"
+                )}
+              </button>
+
+              <div className="text-center">
+                <a href="#" className="link link-primary text-sm">
+                  Need an account? Sign up
+                </a>
+              </div>
+
+              <div className="divider text-xs">Demo Account</div>
+
+              <div className="text-center text-sm text-base-content/60">
+                <div>Email: demo@humanizer.com</div>
+                <div>Password: testpass123</div>
+              </div>
+            </form>
+          </div>
+        </div>
       </div>
-    );
+
+      {/* Footer */}
+      <footer className="footer footer-center p-6 text-base-content/60 text-sm">
+        <div>
+          <p>Narrative Projection Engine © 2025 · Transform narratives through allegory, translation, and dialogue</p>
+        </div>
+      </footer>
+    </div>
+  );
+}
+
+function AppContent() {
+  const { isAuthenticated, login } = useAuth();
+
+  if (!isAuthenticated) {
+    return <LoginPage onLogin={login} />;
   }
 
   return (
