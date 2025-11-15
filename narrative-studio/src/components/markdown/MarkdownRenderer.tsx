@@ -14,13 +14,22 @@ interface MarkdownRendererProps {
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
   const { textSize } = useTextSize();
 
+  // Convert ChatGPT-style LaTeX delimiters to standard $ delimiters
+  // ChatGPT uses \(...\) for inline and \[...\] for display
+  // remarkMath expects $...$ for inline and $$...$$ for display
+  const processedContent = content
+    .replace(/\\\[/g, '$$')
+    .replace(/\\\]/g, '$$')
+    .replace(/\\\(/g, '$')
+    .replace(/\\\)/g, '$');
+
   return (
     <div className={`markdown-content text-${textSize} ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath, remarkGfm]}
         rehypePlugins={[rehypeKatex, rehypeHighlight, rehypeRaw]}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );

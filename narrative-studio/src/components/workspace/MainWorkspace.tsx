@@ -75,11 +75,38 @@ export function MainWorkspace({
         style={{ backgroundColor: 'var(--bg-primary)' }}
       >
         <div className="max-w-5xl mx-auto" style={{ padding: 'var(--space-xl)' }}>
-          {/* View mode toggle */}
-          <div className="flex items-center justify-between mb-8">
-            <h1 className="heading-xl" style={{ color: 'var(--text-primary)' }}>
+          {/* Title and metadata panel */}
+          <div
+            className="mb-6 p-4 rounded-lg border"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              borderColor: 'var(--border-color)',
+            }}
+          >
+            <h1 className="heading-xl mb-2" style={{ color: 'var(--text-primary)' }}>
               {narrative.title}
             </h1>
+            <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
+              {narrative.metadata.createdAt && (
+                <span>
+                  {new Date(narrative.metadata.createdAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })}
+                </span>
+              )}
+              {narrative.metadata.wordCount && (
+                <span>{narrative.metadata.wordCount.toLocaleString()} words</span>
+              )}
+              {narrative.metadata.source && (
+                <span>Source: {narrative.metadata.source}</span>
+              )}
+            </div>
+          </div>
+
+          {/* View mode toggle */}
+          <div className="flex items-center justify-end mb-8">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
@@ -92,7 +119,8 @@ export function MainWorkspace({
                 }}
                 className="text-body px-4 rounded-md flex items-center gap-2 transition-smooth"
                 style={{
-                  backgroundColor: originalViewMode === 'markdown' ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+                  backgroundImage: originalViewMode === 'markdown' ? 'var(--accent-primary-gradient)' : 'none',
+                  backgroundColor: originalViewMode === 'markdown' ? 'transparent' : 'var(--bg-secondary)',
                   color: originalViewMode === 'markdown' ? 'var(--text-inverse)' : 'var(--text-primary)',
                   padding: 'var(--space-sm) var(--space-md)',
                 }}
@@ -134,20 +162,52 @@ export function MainWorkspace({
   // Split pane mode
   return (
     <main
-      className="flex-1 flex flex-col md:flex-row overflow-hidden"
+      className="flex-1 flex flex-col overflow-hidden"
       style={{ backgroundColor: 'var(--bg-primary)' }}
     >
-      {/* Left pane: Original */}
+      {/* Title and metadata panel - spans full width */}
       <div
-        className="flex-1 overflow-y-auto border-b md:border-b-0 md:border-r"
-        style={{ borderColor: 'var(--border-color)' }}
+        className="mx-6 mt-6 mb-4 p-4 rounded-lg border"
+        style={{
+          backgroundColor: 'var(--bg-secondary)',
+          borderColor: 'var(--border-color)',
+        }}
       >
-        <div style={{ padding: 'var(--space-xl)' }}>
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
-              Original
-            </h2>
+        <h1 className="heading-lg mb-2" style={{ color: 'var(--text-primary)' }}>
+          {narrative.title}
+        </h1>
+        <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
+          {narrative.metadata.createdAt && (
+            <span>
+              {new Date(narrative.metadata.createdAt).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </span>
+          )}
+          {narrative.metadata.wordCount && (
+            <span>{narrative.metadata.wordCount.toLocaleString()} words</span>
+          )}
+          {narrative.metadata.source && (
+            <span>Source: {narrative.metadata.source}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Split panes container */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        {/* Left pane: Original */}
+        <div
+          className="flex-1 overflow-y-auto border-b md:border-b-0 md:border-r"
+          style={{ borderColor: 'var(--border-color)' }}
+        >
+          <div style={{ padding: 'var(--space-xl)' }}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
+                Original
+              </h2>
             <button
               onClick={() =>
                 setOriginalViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
@@ -276,6 +336,7 @@ export function MainWorkspace({
             </div>
           )}
         </div>
+      </div>
       </div>
     </main>
   );

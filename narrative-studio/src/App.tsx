@@ -94,8 +94,28 @@ function AppContent() {
     }
   };
 
-  const handleSelectNarrative = (id: string) => {
-    setCurrentNarrativeId(id);
+  const handleSelectNarrative = (narrativeOrId: string | Narrative) => {
+    if (typeof narrativeOrId === 'string') {
+      // Selecting by ID (from existing narratives list)
+      setCurrentNarrativeId(narrativeOrId);
+    } else {
+      // Selecting a narrative object (from archive)
+      const narrative = narrativeOrId;
+
+      // Add to narratives if not already present
+      const existingIndex = narratives.findIndex((n) => n.id === narrative.id);
+      if (existingIndex === -1) {
+        setNarratives((prev) => [narrative, ...prev]);
+      } else {
+        // Update existing narrative
+        setNarratives((prev) =>
+          prev.map((n) => (n.id === narrative.id ? narrative : n))
+        );
+      }
+
+      setCurrentNarrativeId(narrative.id);
+    }
+
     setWorkspaceMode('single');
     setError(null);
   };
@@ -170,8 +190,6 @@ function AppContent() {
 
       <div className="flex-1 flex overflow-hidden">
         <ArchivePanel
-          narratives={narratives}
-          currentNarrativeId={currentNarrativeId}
           onSelectNarrative={handleSelectNarrative}
           isOpen={archivePanelOpen}
           onClose={() => setArchivePanelOpen(false)}

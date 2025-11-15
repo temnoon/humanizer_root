@@ -103,3 +103,50 @@ export interface AppState {
   originalViewMode: ViewMode;
   transformedViewMode: ViewMode;
 }
+
+// ============================================================
+// CONVERSATION ARCHIVE TYPES
+// ============================================================
+
+export interface ConversationMetadata {
+  id: string;
+  title: string;
+  folder: string;
+  message_count: number;
+  created_at?: number;
+  updated_at?: number;
+  tags?: string[]; // Auto-generated tags
+}
+
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  created_at?: number;
+  tags?: string[]; // Auto-generated message-level tags
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  folder: string;
+  messages: Message[];
+  created_at?: number;
+  updated_at?: number;
+  tags?: string[]; // Auto-generated conversation-level tags
+}
+
+export interface AutoTags {
+  // Time-based tags
+  year?: string;
+  month?: string;
+  recency?: 'recent' | 'archive';
+
+  // Length-based tags
+  length?: 'brief' | 'medium' | 'extended' | 'deep-dive';
+
+  // Content-based tags
+  hasCode?: boolean;
+  hasImages?: boolean;
+  category?: string; // 'technical', 'creative', etc.
+}
