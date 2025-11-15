@@ -192,33 +192,29 @@ export function MaieuticPanel() {
 
             {/* Conversation History */}
             {conversationHistory.length > 0 && (
-              <div className="card rounded p-4">
-                <h4 className="text-sm font-bold mb-3" style={{ color: 'var(--text-primary)' }}>
+              <div className="card bg-base-200 rounded-lg p-4">
+                <h4 className="text-sm font-bold mb-3 text-base-content">
                   Conversation History
                 </h4>
                 <div className="space-y-3 max-h-96 overflow-y-auto">
                   {conversationHistory.map((msg, i) => (
                     <div
                       key={i}
-                      className="rounded p-3"
-                      style={{
-                        background: msg.role === 'user'
-                          ? 'rgba(6, 182, 212, 0.15)'
-                          : 'rgba(167, 139, 250, 0.15)',
-                        border: msg.role === 'user'
-                          ? '1px solid rgba(6, 182, 212, 0.3)'
-                          : '1px solid rgba(167, 139, 250, 0.3)',
-                      }}
+                      className={`card rounded-lg p-3 ${
+                        msg.role === 'user'
+                          ? 'bg-info/10 border border-info/30'
+                          : 'bg-primary/10 border border-primary/30'
+                      }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-medium uppercase" style={{ color: 'var(--text-secondary)' }}>
+                        <span className="text-xs font-medium uppercase text-base-content opacity-70">
                           {msg.role === 'user' ? '👤 You' : '🤔 Socrates'}
                         </span>
-                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                        <span className="text-xs text-base-content opacity-50">
                           Turn {Math.floor(i / 2) + 1}
                         </span>
                       </div>
-                      <p className="text-sm leading-relaxed" style={{ color: 'var(--text-primary)' }}>
+                      <p className="text-sm leading-relaxed text-base-content">
                         {msg.content}
                       </p>
                     </div>
@@ -228,21 +224,21 @@ export function MaieuticPanel() {
             )}
 
             {/* Guidance */}
-            <div className="card rounded p-4">
-              <h4 className="text-sm font-bold mb-2" style={{ color: 'var(--text-primary)' }}>
+            <div className="card bg-base-200 rounded-lg p-4">
+              <h4 className="text-sm font-bold mb-2 text-base-content">
                 💡 How to Continue
               </h4>
-              <div className="text-xs space-y-2" style={{ color: 'var(--text-secondary)' }}>
+              <div className="text-xs space-y-2 text-base-content opacity-80">
                 <p>
-                  1. <strong style={{ color: 'var(--text-primary)' }}>Reflect</strong> on the question above
+                  1. <strong className="text-base-content">Reflect</strong> on the question above
                 </p>
                 <p>
-                  2. <strong style={{ color: 'var(--text-primary)' }}>Update Canvas</strong> with your response or new thoughts
+                  2. <strong className="text-base-content">Update Canvas</strong> with your response or new thoughts
                 </p>
                 <p>
-                  3. <strong style={{ color: 'var(--text-primary)' }}>Click "Ask Question"</strong> to continue the dialogue
+                  3. <strong className="text-base-content">Click "Ask Question"</strong> to continue the dialogue
                 </p>
-                <p className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border-color)' }}>
+                <p className="mt-3 pt-3 border-t border-base-300">
                   The conversation builds on previous turns, creating a deep exploration of your ideas.
                 </p>
               </div>
@@ -256,7 +252,7 @@ export function MaieuticPanel() {
                   .join('\n\n');
                 navigator.clipboard.writeText(conversation);
               }}
-              className="btn-secondary w-full rounded px-4 py-2 text-sm font-medium"
+              className="btn btn-ghost w-full"
             >
               📄 Copy Full Conversation
             </button>
@@ -264,9 +260,9 @@ export function MaieuticPanel() {
         )}
 
         {!result && !isQuestioning && !error && (
-          <div className="text-center text-sm py-8" style={{ color: 'var(--text-secondary)' }}>
+          <div className="text-center text-sm py-8 text-base-content opacity-70">
             <div className="mb-4 text-4xl">🤔</div>
-            <p className="mb-2" style={{ color: 'var(--text-primary)' }}>Begin your Socratic inquiry</p>
+            <p className="mb-2 text-base-content">Begin your Socratic inquiry</p>
             <p className="text-xs">
               Load text to Canvas, select a depth level, and click Ask Question
             </p>
