@@ -31,15 +31,9 @@ export function UnifiedLayout({
   const pipelineTools = toolRegistry.filter(t => t.kind === "pipeline");
 
   return (
-    <div className="flex flex-col h-screen" style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+    <div className="flex flex-col h-screen bg-base-100">
       {/* Header with Logo, Tool Tabs, Theme Toggle, User */}
-      <header
-        className="flex-shrink-0 border-b"
-        style={{
-          background: 'var(--bg-secondary)',
-          borderColor: 'var(--border-color)',
-        }}
-      >
+      <header className="flex-shrink-0 bg-base-200 border-b border-base-300">
         {/* Mobile Header */}
         <div className="lg:hidden px-4 py-3">
           {/* Top row: Menu, Logo, Tools */}
@@ -47,11 +41,7 @@ export function UnifiedLayout({
             {/* Left: Menu Button */}
             <button
               onClick={() => setLeftOpen(!leftOpen)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
-              style={{
-                background: leftOpen ? 'var(--accent-purple-alpha-10)' : 'transparent',
-                border: '1px solid var(--border-color)',
-              }}
+              className={`btn ${leftOpen ? 'btn-primary' : 'btn-ghost'} btn-sm gap-2`}
               aria-label="Toggle menu"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,11 +55,7 @@ export function UnifiedLayout({
               <ThemeToggle />
               <button
                 onClick={() => setRightOpen(!rightOpen)}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors"
-                style={{
-                  background: rightOpen ? 'var(--accent-purple-alpha-10)' : 'transparent',
-                  border: '1px solid var(--border-color)',
-                }}
+                className={`btn ${rightOpen ? 'btn-primary' : 'btn-ghost'} btn-sm gap-2`}
                 aria-label="Toggle tools"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -116,12 +102,7 @@ export function UnifiedLayout({
                 <button
                   key={tool.id}
                   onClick={() => onToolChange(tool.id)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all font-medium text-sm"
-                  style={{
-                    background: activeTool === tool.id ? 'var(--accent-purple)' : 'transparent',
-                    color: activeTool === tool.id ? 'var(--text-on-accent)' : 'var(--text-secondary)',
-                    border: activeTool === tool.id ? 'none' : '1px solid transparent',
-                  }}
+                  className={`btn ${activeTool === tool.id ? 'btn-primary' : 'btn-ghost'} btn-sm gap-2`}
                   title={tool.label}
                 >
                   {tool.icon}
@@ -130,22 +111,14 @@ export function UnifiedLayout({
               ))}
 
               {/* Separator */}
-              <div
-                className="h-6 w-px mx-2"
-                style={{ background: 'var(--border-color)' }}
-              />
+              <div className="divider divider-horizontal mx-2"></div>
 
               {/* Pipeline Tools (History, Sessions) */}
               {pipelineTools.map((tool) => (
                 <button
                   key={tool.id}
                   onClick={() => onToolChange(tool.id)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all font-medium text-sm"
-                  style={{
-                    background: activeTool === tool.id ? 'var(--accent-purple)' : 'transparent',
-                    color: activeTool === tool.id ? 'var(--text-on-accent)' : 'var(--text-secondary)',
-                    border: activeTool === tool.id ? 'none' : '1px solid transparent',
-                  }}
+                  className={`btn ${activeTool === tool.id ? 'btn-primary' : 'btn-ghost'} btn-sm gap-2`}
                   title={tool.label}
                 >
                   {tool.icon}
@@ -160,20 +133,12 @@ export function UnifiedLayout({
             <ThemeToggle />
             {isAuthenticated && user ? (
               <div className="flex items-center gap-2">
-                <div
-                  className="text-sm"
-                  style={{ color: 'var(--text-secondary)' }}
-                >
+                <div className="text-sm opacity-70">
                   {user.email}
                 </div>
                 <button
                   onClick={logout}
-                  className="text-sm px-3 py-1.5 rounded-lg transition-colors"
-                  style={{
-                    background: 'var(--bg-tertiary)',
-                    color: 'var(--text-secondary)',
-                    border: '1px solid var(--border-color)',
-                  }}
+                  className="btn btn-ghost btn-sm"
                   title="Logout"
                 >
                   Logout
@@ -182,11 +147,7 @@ export function UnifiedLayout({
             ) : (
               <button
                 onClick={() => setShowLoginModal(true)}
-                className="text-sm px-3 py-1.5 rounded-lg transition-colors font-medium"
-                style={{
-                  background: 'var(--accent-purple)',
-                  color: 'var(--text-on-accent)',
-                }}
+                className="btn btn-primary btn-sm"
                 title="Login"
               >
                 Login
@@ -217,21 +178,17 @@ export function UnifiedLayout({
               ${leftOpen ? 'translate-x-0' : '-translate-x-full'}
               md:translate-x-0
               overflow-hidden
-              border-r md:border-r-0
+              border-r md:border-r-0 border-base-300
             `}
             style={{
-              borderColor: 'var(--border-color)',
               marginTop: leftOpen ? '60px' : '0',
             }}
           >
             {/* Mobile close button */}
-            <div className="md:hidden flex justify-end p-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
+            <div className="md:hidden flex justify-end p-2 border-b border-base-300">
               <button
                 onClick={() => setLeftOpen(false)}
-                className="p-2 rounded transition-colors"
-                style={{
-                  background: 'var(--bg-tertiary)',
-                }}
+                className="btn btn-ghost btn-sm btn-circle"
                 aria-label="Close menu"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -258,22 +215,18 @@ export function UnifiedLayout({
               ${rightOpen ? 'translate-x-0' : 'translate-x-full'}
               md:translate-x-0
               overflow-hidden
-              border-l md:border-l-0
+              border-l md:border-l-0 border-base-300
               max-w-full
             `}
             style={{
-              borderColor: 'var(--border-color)',
               marginTop: rightOpen ? '60px' : '0',
             }}
           >
             {/* Mobile close button */}
-            <div className="md:hidden flex justify-end p-2 border-b" style={{ borderColor: 'var(--border-color)' }}>
+            <div className="md:hidden flex justify-end p-2 border-b border-base-300">
               <button
                 onClick={() => setRightOpen(false)}
-                className="p-2 rounded transition-colors"
-                style={{
-                  background: 'var(--bg-tertiary)',
-                }}
+                className="btn btn-ghost btn-sm btn-circle"
                 aria-label="Close tools"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -291,14 +244,13 @@ export function UnifiedLayout({
           {/* Overlay for mobile panels */}
           {(leftOpen || rightOpen) && (
             <div
-              className="md:hidden fixed inset-0 z-30"
+              className="md:hidden fixed inset-0 z-30 bg-black/50"
               onClick={() => {
                 setLeftOpen(false);
                 setRightOpen(false);
               }}
               style={{
                 marginTop: '60px',
-                background: 'rgba(0, 0, 0, 0.5)',
               }}
             />
           )}
