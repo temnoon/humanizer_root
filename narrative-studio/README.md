@@ -92,6 +92,13 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
+**First-Time Login:**
+- Email: `demo@humanizer.com`
+- Password: `testpass123`
+- Or click "Use Demo Account" button
+
+The app will show a login screen on first visit. After authentication, you'll have access to all features.
+
 ### 4. Build for Production
 
 ```bash
@@ -131,20 +138,54 @@ The app integrates with the Humanizer API (`npe-api` Cloudflare Workers backend)
 
 ### Authentication
 
-The API client (`src/utils/api.ts`) handles JWT token authentication:
+The app features a complete authentication system with login UI and session management.
+
+**Login Flow:**
+1. On first visit, users see a login page
+2. Enter credentials (or click "Use Demo Account")
+3. App authenticates with JWT tokens
+4. Token stored in localStorage for persistence
+5. Automatic re-authentication on page reload
+
+**Demo Credentials:**
+- Email: `demo@humanizer.com`
+- Password: `testpass123`
+- Role: PRO (full access to all features)
+
+**User Session:**
+- User info displayed in top-right corner
+- Dropdown menu shows email and role
+- "Sign Out" button clears session
+- Auth state managed via React Context
+
+**API Client Usage:**
 
 ```typescript
 import { api } from './utils/api';
 
-// Login
-await api.login('demo@humanizer.com', 'password');
+// Login programmatically
+await api.login('demo@humanizer.com', 'testpass123');
 
-// Run transformation
+// Check auth status
+const isAuth = api.isAuthenticated();
+
+// Get current user
+const user = await api.me();
+
+// Logout
+await api.logout();
+
+// Run transformation (requires authentication)
 const result = await api.runTransformation(text, {
   type: 'computer-humanizer',
   parameters: { intensity: 'moderate' },
 });
 ```
+
+**Components:**
+- `src/contexts/AuthContext.tsx` - Authentication state management
+- `src/components/auth/LoginPage.tsx` - Login UI
+- `src/components/layout/TopBar.tsx` - User menu and logout
 
 ### Adding New Transformations
 

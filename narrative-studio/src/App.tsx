@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
 import { ArchivePanel } from './components/panels/ArchivePanel';
 import { ToolsPanel } from './components/panels/ToolsPanel';
@@ -14,6 +16,7 @@ import type {
 } from './types';
 
 function AppContent() {
+  const { isAuthenticated, isLoading } = useAuth();
   const [narratives, setNarratives] = useState<Narrative[]>([]);
   const [currentNarrativeId, setCurrentNarrativeId] = useState<string | null>(null);
   const [transformResults, setTransformResults] = useState<Map<string, TransformResult>>(
@@ -24,6 +27,31 @@ function AppContent() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('single');
   const [isTransforming, setIsTransforming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Show loading screen while checking authentication
+  if (isLoading) {
+    return (
+      <div
+        className="h-screen flex items-center justify-center"
+        style={{ backgroundColor: 'var(--bg-primary)' }}
+      >
+        <div className="text-center">
+          <div
+            className="w-12 h-12 rounded-full border-4 border-t-transparent animate-spin mx-auto mb-4"
+            style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }}
+          />
+          <p className="ui-text text-sm" style={{ color: 'var(--text-secondary)' }}>
+            Loading...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
   // Initialize sample narratives and load from localStorage
   useEffect(() => {
@@ -185,7 +213,9 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </ThemeProvider>
   );
 }
