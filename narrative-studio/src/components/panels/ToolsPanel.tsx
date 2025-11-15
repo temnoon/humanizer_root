@@ -61,57 +61,76 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
         aria-hidden="true"
       />
 
-      {/* Panel */}
+      {/* Panel - now with panel styles */}
       <aside
-        className="fixed top-16 right-0 bottom-0 w-80 z-50 md:relative md:top-0 border-l overflow-y-auto"
+        className="fixed top-16 right-0 bottom-0 w-80 md:w-96 z-50 md:relative md:top-0 overflow-hidden panel"
         style={{
-          backgroundColor: 'var(--bg-primary)',
-          borderColor: 'var(--border-color)',
+          backgroundColor: 'var(--bg-panel)',
+          borderLeft: '1px solid var(--border-color)',
+          borderRadius: 0,
         }}
       >
-        {/* Header */}
-        <div className="p-4 border-b" style={{ borderColor: 'var(--border-color)' }}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="ui-text font-semibold text-lg" style={{ color: 'var(--text-primary)' }}>
+        {/* Header - generous padding, sticky */}
+        <div
+          className="panel-header"
+          style={{
+            padding: 'var(--space-lg)',
+            borderBottom: '1px solid var(--border-color)',
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="heading-md" style={{ color: 'var(--text-primary)' }}>
               Tools
             </h2>
             <button
               onClick={onClose}
-              className="md:hidden p-1 rounded hover:opacity-70"
-              style={{ color: 'var(--text-secondary)' }}
+              className="md:hidden p-2 rounded-md hover:opacity-70"
+              style={{
+                color: 'var(--text-secondary)',
+                backgroundColor: 'var(--bg-tertiary)',
+              }}
             >
               <Icons.Close />
             </button>
           </div>
         </div>
 
-        <div className="p-4 space-y-6">
+        {/* Scrollable content area - generous padding */}
+        <div
+          className="overflow-y-auto"
+          style={{
+            height: 'calc(100% - 80px)',
+            padding: 'var(--space-lg)',
+          }}
+        >
+          <div className="space-y-6">
           {/* Transformation Type */}
           <div>
-            <label className="ui-text text-sm font-medium mb-2 block" style={{ color: 'var(--text-primary)' }}>
+            <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
               Transformation Type
             </label>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {TRANSFORM_TYPES.map((type) => (
                 <button
                   key={type.value}
                   onClick={() => setSelectedType(type.value)}
-                  className={`w-full text-left p-3 rounded-md transition-smooth ${
-                    selectedType === type.value ? 'shadow-md' : 'hover:shadow-sm'
-                  }`}
+                  className="card w-full text-left"
                   style={{
                     backgroundColor:
                       selectedType === type.value
                         ? 'var(--accent-primary)'
-                        : 'var(--bg-secondary)',
+                        : 'var(--bg-elevated)',
                     color:
                       selectedType === type.value
                         ? 'var(--text-inverse)'
                         : 'var(--text-primary)',
+                    padding: 'var(--space-md)',
                   }}
                 >
-                  <div className="ui-text font-medium text-sm mb-1">{type.label}</div>
-                  <div className="ui-text text-xs opacity-80">{type.description}</div>
+                  <div className="font-medium mb-2" style={{ fontSize: '1rem' }}>
+                    {type.label}
+                  </div>
+                  <div className="text-small opacity-90">{type.description}</div>
                 </button>
               ))}
             </div>
@@ -119,9 +138,9 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
 
           {/* Computer Humanizer Parameters */}
           {selectedType === 'computer-humanizer' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="ui-text text-sm font-medium mb-2 block" style={{ color: 'var(--text-primary)' }}>
+                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
                   Intensity
                 </label>
                 <select
@@ -129,7 +148,7 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                   onChange={(e) =>
                     setParameters({ ...parameters, intensity: e.target.value as 'light' | 'moderate' | 'aggressive' })
                   }
-                  className="ui-text w-full px-3 py-2 rounded-md"
+                  className="ui-text w-full"
                   style={{
                     backgroundColor: 'var(--bg-secondary)',
                     border: '1px solid var(--border-color)',
@@ -143,12 +162,15 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
               </div>
 
               <div>
-                <label className="flex items-center gap-2 ui-text text-sm" style={{ color: 'var(--text-primary)' }}>
+                <label className="flex items-center gap-3 text-body cursor-pointer" style={{ color: 'var(--text-primary)' }}>
                   <input
                     type="checkbox"
                     checked={parameters.useLLM ?? true}
                     onChange={(e) => setParameters({ ...parameters, useLLM: e.target.checked })}
-                    className="rounded"
+                    className="rounded w-5 h-5"
+                    style={{
+                      accentColor: 'var(--accent-primary)',
+                    }}
                   />
                   Use LLM Polish Pass
                 </label>
@@ -158,15 +180,15 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
 
           {/* Allegorical Parameters */}
           {selectedType === 'allegorical' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="ui-text text-sm font-medium mb-2 block" style={{ color: 'var(--text-primary)' }}>
+                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
                   Persona
                 </label>
                 <select
                   value={parameters.persona || 'holmes_analytical'}
                   onChange={(e) => setParameters({ ...parameters, persona: e.target.value })}
-                  className="ui-text w-full px-3 py-2 rounded-md"
+                  className="ui-text w-full"
                   style={{
                     backgroundColor: 'var(--bg-secondary)',
                     border: '1px solid var(--border-color)',
@@ -180,13 +202,13 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
               </div>
 
               <div>
-                <label className="ui-text text-sm font-medium mb-2 block" style={{ color: 'var(--text-primary)' }}>
+                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
                   Namespace
                 </label>
                 <select
                   value={parameters.namespace || 'enlightenment_science'}
                   onChange={(e) => setParameters({ ...parameters, namespace: e.target.value })}
-                  className="ui-text w-full px-3 py-2 rounded-md"
+                  className="ui-text w-full"
                   style={{
                     backgroundColor: 'var(--bg-secondary)',
                     border: '1px solid var(--border-color)',
@@ -200,13 +222,13 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
               </div>
 
               <div>
-                <label className="ui-text text-sm font-medium mb-2 block" style={{ color: 'var(--text-primary)' }}>
+                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
                   Style
                 </label>
                 <select
                   value={parameters.style || 'austen_precision'}
                   onChange={(e) => setParameters({ ...parameters, style: e.target.value })}
-                  className="ui-text w-full px-3 py-2 rounded-md"
+                  className="ui-text w-full"
                   style={{
                     backgroundColor: 'var(--bg-secondary)',
                     border: '1px solid var(--border-color)',
@@ -223,9 +245,9 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
 
           {/* AI Detection Parameters */}
           {selectedType === 'ai-detection' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="ui-text text-sm font-medium mb-2 block" style={{ color: 'var(--text-primary)' }}>
+                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
                   Detection Threshold
                 </label>
                 <input
@@ -235,9 +257,12 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                   step="0.1"
                   value={parameters.threshold || 0.5}
                   onChange={(e) => setParameters({ ...parameters, threshold: parseFloat(e.target.value) })}
-                  className="w-full"
+                  className="w-full h-2"
+                  style={{
+                    accentColor: 'var(--accent-primary)',
+                  }}
                 />
-                <div className="ui-text text-xs text-center mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                <div className="text-small text-center mt-2" style={{ color: 'var(--text-tertiary)' }}>
                   {((parameters.threshold || 0.5) * 100).toFixed(0)}%
                 </div>
               </div>
@@ -248,15 +273,19 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
           <button
             onClick={handleRun}
             disabled={isTransforming}
-            className="w-full ui-text font-medium py-3 px-4 rounded-md flex items-center justify-center gap-2 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full font-medium rounded-md flex items-center justify-center gap-2 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
               backgroundColor: 'var(--accent-primary)',
               color: 'var(--text-inverse)',
+              padding: 'var(--space-md) var(--space-lg)',
+              fontSize: '1rem',
+              minHeight: '48px',
             }}
           >
             <Icons.Play />
             {isTransforming ? 'Running...' : 'Run Transformation'}
           </button>
+          </div>
         </div>
       </aside>
     </>

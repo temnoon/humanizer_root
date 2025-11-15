@@ -24,14 +24,32 @@ export function MainWorkspace({
   if (!narrative) {
     return (
       <main
-        className="flex-1 flex items-center justify-center p-8"
-        style={{ backgroundColor: 'var(--bg-primary)' }}
+        className="flex-1 flex items-center justify-center"
+        style={{
+          backgroundColor: 'var(--bg-primary)',
+          padding: 'var(--space-xl)',
+        }}
       >
         <div className="text-center">
-          <p className="ui-text text-lg mb-2" style={{ color: 'var(--text-secondary)' }}>
+          <div
+            className="mb-6"
+            style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              backgroundColor: 'var(--bg-tertiary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto',
+            }}
+          >
+            <Icons.Eye />
+          </div>
+          <p className="heading-md mb-3" style={{ color: 'var(--text-secondary)' }}>
             No narrative selected
           </p>
-          <p className="ui-text text-sm" style={{ color: 'var(--text-tertiary)' }}>
+          <p className="text-body" style={{ color: 'var(--text-tertiary)' }}>
             Select a narrative from the Archive to get started
           </p>
         </div>
@@ -56,13 +74,13 @@ export function MainWorkspace({
         className="flex-1 overflow-y-auto"
         style={{ backgroundColor: 'var(--bg-primary)' }}
       >
-        <div className="max-w-5xl mx-auto p-6 md:p-8">
+        <div className="max-w-5xl mx-auto" style={{ padding: 'var(--space-xl)' }}>
           {/* View mode toggle */}
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+          <div className="flex items-center justify-between mb-8">
+            <h1 className="heading-xl" style={{ color: 'var(--text-primary)' }}>
               {narrative.title}
             </h1>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => {
                   if (originalViewMode === 'markdown') {
@@ -72,10 +90,11 @@ export function MainWorkspace({
                     setOriginalViewMode('markdown');
                   }
                 }}
-                className="ui-text px-3 py-1.5 rounded-md text-sm flex items-center gap-2 transition-smooth"
+                className="text-body px-4 rounded-md flex items-center gap-2 transition-smooth"
                 style={{
                   backgroundColor: originalViewMode === 'markdown' ? 'var(--accent-primary)' : 'var(--bg-secondary)',
                   color: originalViewMode === 'markdown' ? 'var(--text-inverse)' : 'var(--text-primary)',
+                  padding: 'var(--space-sm) var(--space-md)',
                 }}
               >
                 {originalViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
@@ -84,10 +103,11 @@ export function MainWorkspace({
               {originalViewMode === 'markdown' && (
                 <button
                   onClick={handleSaveEdit}
-                  className="ui-text px-3 py-1.5 rounded-md text-sm font-medium transition-smooth"
+                  className="text-body font-medium rounded-md transition-smooth"
                   style={{
                     backgroundColor: 'var(--success)',
                     color: 'white',
+                    padding: 'var(--space-sm) var(--space-md)',
                   }}
                 >
                   Save
@@ -118,21 +138,25 @@ export function MainWorkspace({
       style={{ backgroundColor: 'var(--bg-primary)' }}
     >
       {/* Left pane: Original */}
-      <div className="flex-1 overflow-y-auto border-b md:border-b-0 md:border-r" style={{ borderColor: 'var(--border-color)' }}>
-        <div className="p-6 md:p-8">
+      <div
+        className="flex-1 overflow-y-auto border-b md:border-b-0 md:border-r"
+        style={{ borderColor: 'var(--border-color)' }}
+      >
+        <div style={{ padding: 'var(--space-xl)' }}>
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="ui-text font-semibold text-lg" style={{ color: 'var(--text-secondary)' }}>
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
               Original
             </h2>
             <button
               onClick={() =>
                 setOriginalViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
               }
-              className="ui-text px-3 py-1.5 rounded-md text-sm flex items-center gap-2"
+              className="text-body rounded-md flex items-center gap-2 transition-smooth"
               style={{
                 backgroundColor: 'var(--bg-secondary)',
                 color: 'var(--text-primary)',
+                padding: 'var(--space-sm) var(--space-md)',
               }}
             >
               {originalViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
@@ -160,20 +184,21 @@ export function MainWorkspace({
 
       {/* Right pane: Transformed */}
       <div className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div className="p-6 md:p-8">
+        <div style={{ padding: 'var(--space-xl)' }}>
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="ui-text font-semibold text-lg" style={{ color: 'var(--text-secondary)' }}>
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
               Transformed
             </h2>
             <button
               onClick={() =>
                 setTransformedViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
               }
-              className="ui-text px-3 py-1.5 rounded-md text-sm flex items-center gap-2"
+              className="text-body rounded-md flex items-center gap-2 transition-smooth"
               style={{
                 backgroundColor: 'var(--bg-tertiary)',
                 color: 'var(--text-primary)',
+                padding: 'var(--space-sm) var(--space-md)',
               }}
             >
               {transformedViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
@@ -197,16 +222,17 @@ export function MainWorkspace({
           {/* Reflection/Metadata */}
           {transformResult.reflection && (
             <div
-              className="mt-8 p-4 rounded-md"
+              className="mt-8 rounded-md"
               style={{
                 backgroundColor: 'var(--bg-tertiary)',
                 borderLeft: '4px solid var(--accent-secondary)',
+                padding: 'var(--space-md)',
               }}
             >
-              <h3 className="ui-text font-semibold text-sm mb-2" style={{ color: 'var(--text-primary)' }}>
+              <h3 className="text-small font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
                 Reflection
               </h3>
-              <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+              <p className="text-body" style={{ color: 'var(--text-secondary)' }}>
                 {transformResult.reflection}
               </p>
             </div>
@@ -217,26 +243,32 @@ export function MainWorkspace({
             <div className="mt-6 grid grid-cols-2 gap-4">
               {transformResult.metadata.aiConfidenceBefore !== undefined && (
                 <div
-                  className="p-3 rounded-md"
-                  style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                  className="rounded-md"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    padding: 'var(--space-md)',
+                  }}
                 >
-                  <div className="ui-text text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>
+                  <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
                     AI Confidence
                   </div>
-                  <div className="ui-text text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
                     {transformResult.metadata.aiConfidenceBefore}% → {transformResult.metadata.aiConfidenceAfter}%
                   </div>
                 </div>
               )}
               {transformResult.metadata.burstinessBefore !== undefined && (
                 <div
-                  className="p-3 rounded-md"
-                  style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                  className="rounded-md"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    padding: 'var(--space-md)',
+                  }}
                 >
-                  <div className="ui-text text-xs mb-1" style={{ color: 'var(--text-tertiary)' }}>
+                  <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
                     Burstiness
                   </div>
-                  <div className="ui-text text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
                     {transformResult.metadata.burstinessBefore} → {transformResult.metadata.burstinessAfter}
                   </div>
                 </div>
