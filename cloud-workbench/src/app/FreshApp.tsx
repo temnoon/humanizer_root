@@ -7,7 +7,7 @@ import { CanvasProvider } from "../core/context/CanvasContext";
 
 function AppContent() {
   const { isAuthenticated } = useAuth();
-  const [showLogin, setShowLogin] = useState(!isAuthenticated);
+  const [showLogin, setShowLogin] = useState(false);
 
   if (!isAuthenticated) {
     return (

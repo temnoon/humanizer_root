@@ -31,8 +31,10 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="modal modal-open">
-      <div className="modal-box max-w-md">
+    <>
+      {/* Modal backdrop */}
+      <div className="modal modal-open">
+        <div className="modal-box max-w-md relative">
         <h3 className="font-bold text-lg mb-4">Login Required</h3>
 
         <p className="text-base-content/70 mb-6">
@@ -104,6 +106,10 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
           </p>
         </div>
       </div>
+      <form method="dialog" className="modal-backdrop" onClick={onClose}>
+        <button type="button">close</button>
+      </form>
     </div>
+    </>
   );
 }
