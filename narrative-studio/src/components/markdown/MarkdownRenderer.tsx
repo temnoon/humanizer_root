@@ -4,6 +4,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeRaw from 'rehype-raw';
+import { useTextSize } from '../../contexts/TextSizeContext';
 
 interface MarkdownRendererProps {
   content: string;
@@ -11,8 +12,10 @@ interface MarkdownRendererProps {
 }
 
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
+  const { textSize } = useTextSize();
+
   return (
-    <div className={`markdown-content ${className}`}>
+    <div className={`markdown-content text-${textSize} ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath, remarkGfm]}
         rehypePlugins={[rehypeKatex, rehypeHighlight, rehypeRaw]}
