@@ -55,6 +55,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const savedToken = localStorage.getItem('auth_token');
     if (savedToken) {
       setToken(savedToken);
+      setIsLoading(true);
       // Fetch user profile if we have a token
       fetchUserProfile(savedToken);
     }
@@ -78,6 +79,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.error('Error fetching user profile:', err);
       // Invalid token, clear it
       logout();
+    } finally {
+      setIsLoading(false);
     }
   };
 
