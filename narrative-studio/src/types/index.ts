@@ -1,0 +1,105 @@
+// ============================================================
+// CORE TYPES FOR NARRATIVE STUDIO
+// ============================================================
+
+export interface Narrative {
+  id: string;
+  title: string;
+  content: string; // Markdown source
+  metadata: NarrativeMetadata;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface NarrativeMetadata {
+  source?: string; // e.g., "ChatGPT", "Claude", "Manual"
+  date?: string;
+  wordCount?: number;
+  tags?: string[];
+  author?: string;
+  [key: string]: unknown; // Allow additional metadata
+}
+
+export interface TransformConfig {
+  type: TransformationType;
+  parameters: TransformParameters;
+}
+
+export type TransformationType =
+  | 'computer-humanizer'
+  | 'allegorical'
+  | 'ai-detection';
+
+export interface TransformParameters {
+  // Computer Humanizer parameters
+  intensity?: 'light' | 'moderate' | 'aggressive';
+  voiceProfile?: string;
+  useLLM?: boolean;
+
+  // Allegorical transformation parameters
+  persona?: string;
+  namespace?: string;
+  style?: string;
+
+  // AI Detection parameters
+  threshold?: number;
+
+  // Generic parameters for extensibility
+  [key: string]: unknown;
+}
+
+export interface TransformResult {
+  transformation_id: string;
+  original: string;
+  transformed: string;
+  reflection?: string;
+  metadata?: TransformMetadata;
+}
+
+export interface TransformMetadata {
+  // Computer Humanizer metrics
+  aiConfidenceBefore?: number;
+  aiConfidenceAfter?: number;
+  burstinessBefore?: number;
+  burstinessAfter?: number;
+  tellWordsRemoved?: number;
+
+  // AI Detection results
+  aiDetection?: {
+    confidence: number;
+    verdict: 'human' | 'ai' | 'mixed';
+    tellWords: string[];
+  };
+
+  // Allegorical transformation stages
+  stages?: {
+    deconstruct?: string;
+    map?: string;
+    reconstruct?: string;
+    stylize?: string;
+  };
+
+  // Generic metadata for extensibility
+  [key: string]: unknown;
+}
+
+export interface APIError {
+  message: string;
+  status: number;
+  details?: unknown;
+}
+
+export type ViewMode = 'rendered' | 'markdown';
+export type WorkspaceMode = 'single' | 'split';
+export type Theme = 'light' | 'dark';
+
+export interface AppState {
+  currentNarrativeId: string | null;
+  narratives: Narrative[];
+  transformResults: Map<string, TransformResult>;
+  archivePanelOpen: boolean;
+  toolsPanelOpen: boolean;
+  workspaceMode: WorkspaceMode;
+  originalViewMode: ViewMode;
+  transformedViewMode: ViewMode;
+}
