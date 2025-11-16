@@ -87,7 +87,7 @@ export function MainWorkspace({
               {narrative.title}
             </h1>
             <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
-              {narrative.metadata.createdAt && (
+              {narrative.metadata.createdAt && typeof narrative.metadata.createdAt === 'string' ? (
                 <span>
                   {new Date(narrative.metadata.createdAt).toLocaleDateString('en-US', {
                     year: 'numeric',
@@ -95,10 +95,10 @@ export function MainWorkspace({
                     day: 'numeric',
                   })}
                 </span>
-              )}
-              {narrative.metadata.wordCount && (
+              ) : null}
+              {narrative.metadata.wordCount ? (
                 <span>{narrative.metadata.wordCount.toLocaleString()} words</span>
-              )}
+              ) : null}
               {narrative.metadata.source && (
                 <span>Source: {narrative.metadata.source}</span>
               )}
@@ -177,7 +177,7 @@ export function MainWorkspace({
           {narrative.title}
         </h1>
         <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
-          {narrative.metadata.createdAt && (
+          {narrative.metadata.createdAt && typeof narrative.metadata.createdAt === 'string' ? (
             <span>
               {new Date(narrative.metadata.createdAt).toLocaleDateString('en-US', {
                 year: 'numeric',
@@ -185,10 +185,10 @@ export function MainWorkspace({
                 day: 'numeric',
               })}
             </span>
-          )}
-          {narrative.metadata.wordCount && (
+          ) : null}
+          {narrative.metadata.wordCount ? (
             <span>{narrative.metadata.wordCount.toLocaleString()} words</span>
-          )}
+          ) : null}
           {narrative.metadata.source && (
             <span>Source: {narrative.metadata.source}</span>
           )}

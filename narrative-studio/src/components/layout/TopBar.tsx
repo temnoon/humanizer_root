@@ -14,7 +14,7 @@ interface TopBarProps {
 }
 
 export function TopBar({
-  currentNarrative,
+  currentNarrative: _currentNarrative,
   onToggleArchive,
   onToggleTools,
   archiveOpen,
