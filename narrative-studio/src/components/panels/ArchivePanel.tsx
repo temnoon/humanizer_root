@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import type { ConversationMetadata, Conversation, Message } from '../../types';
+import { useState, useEffect, useMemo, useRef } from 'react';
+import type { ConversationMetadata, Conversation } from '../../types';
 import { Icons } from '../layout/Icons';
 import { archiveService } from '../../services/archiveService';
 
@@ -10,6 +10,22 @@ interface ArchivePanelProps {
 }
 
 type ViewMode = 'conversations' | 'messages';
+type FilterCategory = 'date' | 'size' | 'media';
+
+interface ActiveFilters {
+  date?: string;
+  size?: string;
+  media?: string;
+}
+
+interface ArchiveState {
+  searchQuery: string;
+  activeFilters: ActiveFilters;
+  recentSearches: string[];
+}
+
+const STORAGE_KEY = 'archive-panel-state';
+const MAX_RECENT_SEARCHES = 10;
 
 export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePanelProps) {
   const [conversations, setConversations] = useState<ConversationMetadata[]>([]);
@@ -17,9 +33,40 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [selectedMessageIndex, setSelectedMessageIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('conversations');
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterTag, setFilterTag] = useState<string | null>(null);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilters>({});
+  const [showingCategory, setShowingCategory] = useState<FilterCategory | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [recentSearches, setRecentSearches] = useState<string[]>([]);
+  const [showRecentSearches, setShowRecentSearches] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState<number>(0);
+
+  const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
+
+  // Load state from localStorage on mount
+  useEffect(() => {
+    const savedState = localStorage.getItem(STORAGE_KEY);
+    if (savedState) {
+      try {
+        const state: ArchiveState = JSON.parse(savedState);
+        setSearchQuery(state.searchQuery || '');
+        setActiveFilters(state.activeFilters || {});
+        setRecentSearches(state.recentSearches || []);
+      } catch (err) {
+        console.error('Failed to restore archive state:', err);
+      }
+    }
+  }, []);
+
+  // Save state to localStorage
+  useEffect(() => {
+    const state: ArchiveState = {
+      searchQuery,
+      activeFilters,
+      recentSearches,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [searchQuery, activeFilters, recentSearches]);
 
   // Load conversations on mount
   useEffect(() => {
@@ -50,7 +97,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       setSelectedConversation(conv);
       setViewMode('messages');
       setSelectedMessageIndex(null);
-      setSearchQuery('');
+      setFocusedIndex(0); // Reset focus when switching to messages
       console.log(`Loaded "${conv.title}" - ${conv.messages.length} messages`);
     } catch (err: any) {
       console.error('Failed to load conversation:', err);
@@ -60,11 +107,34 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     }
   };
 
-  const loadMessageToCanvas = () => {
-    if (selectedMessageIndex !== null && selectedConversation) {
+  // Add search to recent searches
+  const addToRecentSearches = (query: string) => {
+    if (!query.trim()) return;
+    setRecentSearches(prev => {
+      const filtered = prev.filter(s => s !== query);
+      const updated = [query, ...filtered].slice(0, MAX_RECENT_SEARCHES);
+      return updated;
+    });
+  };
+
+  const handleSearchChange = (query: string) => {
+    setSearchQuery(query);
+    if (query.trim()) {
+      addToRecentSearches(query);
+    }
+  };
+
+  const selectRecentSearch = (query: string) => {
+    setSearchQuery(query);
+    setShowRecentSearches(false);
+  };
+
+  const loadMessageToCanvas = (index: number) => {
+    if (selectedConversation) {
+      setSelectedMessageIndex(index);
       const narrative = archiveService.conversationToNarrative(
         selectedConversation,
-        selectedMessageIndex
+        index
       );
       onSelectNarrative(narrative);
       console.log('Loaded message to canvas');
@@ -79,14 +149,78 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     }
   };
 
-  // Get all unique tags from conversations
-  const allTags = useMemo(() => {
-    const tags = new Set<string>();
+  // Categorize tags from conversations
+  const categorizedTags = useMemo(() => {
+    const dateTags = new Set<string>();
+    const sizeTags = new Set<string>();
+    const mediaTags = new Set<string>();
+
     conversations.forEach((conv) => {
-      conv.tags?.forEach((tag) => tags.add(tag));
+      conv.tags?.forEach((tag) => {
+        // Date tags: years, months, recency
+        if (/^\d{4}$/.test(tag) ||
+            /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s\d{4}$/.test(tag) ||
+            ['This Week', 'This Month', 'Recent', 'Archive'].includes(tag)) {
+          dateTags.add(tag);
+        }
+        // Size tags
+        else if (['Brief', 'Medium', 'Extended', 'Deep Dive'].includes(tag)) {
+          sizeTags.add(tag);
+        }
+        // Media tags
+        else if (['Has Images', 'Has Code'].includes(tag)) {
+          mediaTags.add(tag);
+        }
+      });
     });
-    return Array.from(tags).sort();
+
+    // Sort date tags
+    const sortedDateTags = Array.from(dateTags).sort((a, b) => {
+      const recencyOrder = ['This Week', 'This Month', 'Recent', 'Archive'];
+      const aRecency = recencyOrder.indexOf(a);
+      const bRecency = recencyOrder.indexOf(b);
+
+      if (aRecency !== -1 && bRecency !== -1) return aRecency - bRecency;
+      if (aRecency !== -1) return -1;
+      if (bRecency !== -1) return 1;
+
+      if (/^\d{4}$/.test(a) && /^\d{4}$/.test(b)) {
+        return parseInt(b) - parseInt(a);
+      }
+
+      return b.localeCompare(a);
+    });
+
+    // Sort size tags
+    const sizeOrder = ['Brief', 'Medium', 'Extended', 'Deep Dive'];
+    const sortedSizeTags = Array.from(sizeTags).sort((a, b) =>
+      sizeOrder.indexOf(a) - sizeOrder.indexOf(b)
+    );
+
+    return {
+      date: sortedDateTags,
+      size: sortedSizeTags,
+      media: Array.from(mediaTags),
+    };
   }, [conversations]);
+
+  // Handle filter selection
+  const selectFilter = (category: FilterCategory, tag: string) => {
+    setActiveFilters(prev => ({ ...prev, [category]: tag }));
+    setShowingCategory(null);
+  };
+
+  // Handle filter removal
+  const removeFilter = (category: FilterCategory) => {
+    setActiveFilters(prev => {
+      const next = { ...prev };
+      delete next[category];
+      return next;
+    });
+  };
+
+  // Check if any filters are active
+  const hasActiveFilters = Object.keys(activeFilters).length > 0;
 
   // Filter conversations
   const filteredConversations = useMemo(() => {
@@ -96,11 +230,14 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         conv.folder.toLowerCase().includes(searchQuery.toLowerCase());
 
-      const matchesTag = !filterTag || conv.tags?.includes(filterTag);
+      // AND logic: must match all active filters
+      const matchesFilters = Object.entries(activeFilters).every(([_, tag]) => {
+        return conv.tags?.includes(tag);
+      });
 
-      return matchesSearch && matchesTag;
+      return matchesSearch && matchesFilters;
     });
-  }, [conversations, searchQuery, filterTag]);
+  }, [conversations, searchQuery, activeFilters]);
 
   // Filter messages
   const filteredMessages = useMemo(() => {
@@ -109,6 +246,72 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       !searchQuery || msg.content.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [selectedConversation, searchQuery]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't interfere if user is typing in search
+      if (document.activeElement?.tagName === 'INPUT') return;
+
+      const items = viewMode === 'conversations' ? filteredConversations : filteredMessages;
+      if (items.length === 0) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setFocusedIndex(prev => Math.min(prev + 1, items.length - 1));
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setFocusedIndex(prev => Math.max(prev - 1, 0));
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (viewMode === 'conversations') {
+            const conv = filteredConversations[focusedIndex];
+            if (conv) {
+              loadConversation(conv.folder);
+              if (window.innerWidth < 768) {
+                onClose();
+              }
+            }
+          } else {
+            const msg = filteredMessages[focusedIndex];
+            if (msg) {
+              const originalIndex = selectedConversation!.messages.findIndex(m => m.id === msg.id);
+              loadMessageToCanvas(originalIndex);
+            }
+          }
+          break;
+        case 'Escape':
+          if (viewMode === 'messages') {
+            setViewMode('conversations');
+            setFocusedIndex(0);
+          } else {
+            onClose();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, viewMode, filteredConversations, filteredMessages, focusedIndex, selectedConversation]);
+
+  // Auto-scroll focused item into view
+  useEffect(() => {
+    const element = itemRefs.current.get(focusedIndex);
+    if (element) {
+      element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  }, [focusedIndex]);
+
+  // Reset focused index when filters change
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [searchQuery, activeFilters, viewMode]);
 
   if (!isOpen) return null;
 
@@ -180,18 +383,47 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                onFocus={() => setShowRecentSearches(true)}
+                onBlur={() => setTimeout(() => setShowRecentSearches(false), 200)}
                 placeholder="Search messages..."
-                className="ui-text w-full pl-11 pr-4"
+                className="ui-text w-full pr-4"
                 style={{
                   backgroundColor: 'var(--bg-secondary)',
                   border: '1px solid var(--border-color)',
                   color: 'var(--text-primary)',
+                  paddingLeft: '2.75rem',
                 }}
               />
-              <div className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }}>
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
                 <Icons.Search />
               </div>
+              {showRecentSearches && recentSearches.length > 0 && (
+                <div
+                  className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto"
+                  style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-color)',
+                  }}
+                >
+                  {recentSearches.map((search, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => selectRecentSearch(search)}
+                      className="w-full text-left px-4 py-2 text-small hover:opacity-70"
+                      style={{
+                        color: 'var(--text-primary)',
+                        backgroundColor: idx === 0 ? 'var(--bg-tertiary)' : 'transparent',
+                      }}
+                    >
+                      <span style={{ display: 'inline-block', marginRight: '8px', color: 'var(--text-tertiary)' }}>
+                        <Icons.Search />
+                      </span>
+                      {search}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Action buttons */}
@@ -229,23 +461,35 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               {filteredMessages.map((msg, idx) => {
                 const originalIndex = selectedConversation.messages.findIndex(m => m.id === msg.id);
                 const isSelected = selectedMessageIndex === originalIndex;
+                const isFocused = focusedIndex === idx;
 
                 return (
                   <div
                     key={msg.id}
-                    onClick={() => setSelectedMessageIndex(originalIndex)}
-                    className="card cursor-pointer"
+                    ref={(el) => {
+                      if (el) itemRefs.current.set(idx, el);
+                      else itemRefs.current.delete(idx);
+                    }}
+                    onClick={() => loadMessageToCanvas(originalIndex)}
+                    className="card cursor-pointer transition-all"
                     style={{
                       ...(isSelected
                         ? {
                             backgroundImage: 'var(--accent-primary-gradient)',
                             backgroundColor: 'transparent',
                           }
+                        : isFocused
+                        ? {
+                            backgroundColor: 'var(--bg-tertiary)',
+                            borderColor: 'var(--accent-primary)',
+                          }
                         : {
                             backgroundColor: 'var(--bg-elevated)',
                           }),
                       color: isSelected ? 'var(--text-inverse)' : 'var(--text-primary)',
                       padding: 'var(--space-sm)',
+                      border: '2px solid',
+                      borderColor: isFocused ? 'var(--accent-primary)' : 'transparent',
                     }}
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -281,35 +525,6 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               })}
             </div>
           </div>
-
-          {/* Load button (sticky bottom) */}
-          {selectedMessageIndex !== null && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: 0,
-                left: 0,
-                right: 0,
-                padding: 'var(--space-md)',
-                borderTop: '1px solid var(--border-color)',
-                backgroundColor: 'var(--bg-panel)',
-              }}
-            >
-              <button
-                onClick={loadMessageToCanvas}
-                className="w-full font-medium rounded-md transition-smooth"
-                style={{
-                  backgroundImage: 'var(--accent-primary-gradient)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-inverse)',
-                  padding: 'var(--space-md)',
-                  fontSize: '1rem',
-                }}
-              >
-                Load Message to Canvas →
-              </button>
-            </div>
-          )}
         </aside>
       </>
     );
@@ -363,49 +578,160 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              onFocus={() => setShowRecentSearches(true)}
+              onBlur={() => setTimeout(() => setShowRecentSearches(false), 200)}
               placeholder="Search conversations..."
-              className="ui-text w-full pl-11 pr-4"
+              className="ui-text w-full pr-4"
               style={{
                 backgroundColor: 'var(--bg-secondary)',
                 border: '1px solid var(--border-color)',
                 color: 'var(--text-primary)',
+                paddingLeft: '2.75rem',
               }}
             />
-            <div className="absolute left-4 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)' }}>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
               <Icons.Search />
             </div>
-          </div>
-
-          {/* Tag filters - horizontal scrolling */}
-          {allTags.length > 0 && (
-            <div>
-              <p className="text-small mb-2" style={{ color: 'var(--text-secondary)' }}>
-                Filter by tag:
-              </p>
-              <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-                <button
-                  onClick={() => setFilterTag(null)}
-                  className={!filterTag ? 'tag tag-selected' : 'tag tag-default'}
-                >
-                  All
-                </button>
-                {allTags.map((tag) => (
+            {showRecentSearches && recentSearches.length > 0 && (
+              <div
+                className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                {recentSearches.map((search, idx) => (
                   <button
-                    key={tag}
-                    onClick={() => setFilterTag(tag)}
-                    className={filterTag === tag ? 'tag tag-selected' : 'tag tag-default'}
+                    key={idx}
+                    onClick={() => selectRecentSearch(search)}
+                    className="w-full text-left px-4 py-2 text-small hover:opacity-70"
+                    style={{
+                      color: 'var(--text-primary)',
+                      backgroundColor: idx === 0 ? 'var(--bg-tertiary)' : 'transparent',
+                    }}
                   >
-                    {tag}
+                    <span style={{ display: 'inline-block', marginRight: '8px', color: 'var(--text-tertiary)' }}>
+                      <Icons.Search />
+                    </span>
+                    {search}
                   </button>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* Filter UI - single line */}
+          <div className="mb-4">
+            <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
+              {/* Show "All" button when no filters active */}
+              {!hasActiveFilters && (
+                <button
+                  className="tag"
+                  style={{
+                    backgroundColor: 'var(--accent-primary)',
+                    color: 'var(--text-inverse)',
+                    border: '1px solid var(--accent-primary)',
+                    fontWeight: 600,
+                  }}
+                >
+                  All
+                </button>
+              )}
+
+              {/* Show active filter chips */}
+              {Object.entries(activeFilters).map(([category, tag]) => (
+                <button
+                  key={category}
+                  onClick={() => removeFilter(category as FilterCategory)}
+                  className="tag"
+                  style={{
+                    backgroundImage: 'var(--accent-primary-gradient)',
+                    backgroundColor: 'transparent',
+                    color: 'var(--text-inverse)',
+                    border: '1px solid transparent',
+                    fontWeight: 600,
+                  }}
+                >
+                  {tag} ✕
+                </button>
+              ))}
+
+              {/* Show category buttons for unselected categories */}
+              {!activeFilters.date && (
+                <button
+                  onClick={() => setShowingCategory(showingCategory === 'date' ? null : 'date')}
+                  className="tag"
+                  style={{
+                    backgroundColor: showingCategory === 'date' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                    color: showingCategory === 'date' ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                    border: '1px solid',
+                    borderColor: showingCategory === 'date' ? 'var(--accent-primary)' : 'var(--border-color)',
+                    fontWeight: 600,
+                  }}
+                >
+                  Date {showingCategory === 'date' ? '▼' : '+'}
+                </button>
+              )}
+
+              {!activeFilters.size && (
+                <button
+                  onClick={() => setShowingCategory(showingCategory === 'size' ? null : 'size')}
+                  className="tag"
+                  style={{
+                    backgroundColor: showingCategory === 'size' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                    color: showingCategory === 'size' ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                    border: '1px solid',
+                    borderColor: showingCategory === 'size' ? 'var(--accent-primary)' : 'var(--border-color)',
+                    fontWeight: 600,
+                  }}
+                >
+                  Size {showingCategory === 'size' ? '▼' : '+'}
+                </button>
+              )}
+
+              {!activeFilters.media && categorizedTags.media.length > 0 && (
+                <button
+                  onClick={() => setShowingCategory(showingCategory === 'media' ? null : 'media')}
+                  className="tag"
+                  style={{
+                    backgroundColor: showingCategory === 'media' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                    color: showingCategory === 'media' ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                    border: '1px solid',
+                    borderColor: showingCategory === 'media' ? 'var(--accent-primary)' : 'var(--border-color)',
+                    fontWeight: 600,
+                  }}
+                >
+                  Media {showingCategory === 'media' ? '▼' : '+'}
+                </button>
+              )}
+
+              {/* Show tag options for selected category */}
+              {showingCategory && (
+                <>
+                  <div style={{ width: '1px', backgroundColor: 'var(--border-color)', margin: '4px 0' }} />
+                  {categorizedTags[showingCategory].map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => selectFilter(showingCategory, tag)}
+                      className="tag"
+                      style={{
+                        backgroundColor: 'var(--bg-elevated)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-color)',
+                      }}
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Stats */}
-          <div className="mt-4 text-small" style={{ color: 'var(--text-secondary)' }}>
-            {searchQuery || filterTag
+          <div className="text-small" style={{ color: 'var(--text-secondary)' }}>
+            {searchQuery || hasActiveFilters
               ? `${filteredConversations.length} of ${conversations.length}`
               : `${conversations.length} conversations`}
           </div>
@@ -415,7 +741,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         <div
           className="overflow-y-auto"
           style={{
-            height: 'calc(100% - 280px)',
+            height: 'calc(100% - 260px)',
             padding: 'var(--space-lg)',
           }}
         >
@@ -480,7 +806,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 No conversations found
               </p>
               <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
-                {searchQuery || filterTag
+                {searchQuery || hasActiveFilters
                   ? 'Try adjusting your search or filters'
                   : 'Make sure the archive server is running'}
               </p>
@@ -489,31 +815,42 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
           {!loading && !error && filteredConversations.length > 0 && (
             <div className="space-y-2">
-              {filteredConversations.map((conv) => {
+              {filteredConversations.map((conv, idx) => {
                 const isSelected = selectedConversation?.id === conv.id;
+                const isFocused = focusedIndex === idx;
 
                 return (
                   <button
                     key={conv.folder}
+                    ref={(el) => {
+                      if (el) itemRefs.current.set(idx, el);
+                      else itemRefs.current.delete(idx);
+                    }}
                     onClick={() => {
                       loadConversation(conv.folder);
-                      // Close panel on mobile after selection
                       if (window.innerWidth < 768) {
                         onClose();
                       }
                     }}
-                    className="card w-full text-left"
+                    className="card w-full text-left transition-all"
                     style={{
                       ...(isSelected
                         ? {
                             backgroundImage: 'var(--accent-primary-gradient)',
                             backgroundColor: 'transparent',
                           }
+                        : isFocused
+                        ? {
+                            backgroundColor: 'var(--bg-tertiary)',
+                            borderColor: 'var(--accent-primary)',
+                          }
                         : {
                             backgroundColor: 'var(--bg-elevated)',
                           }),
                       color: isSelected ? 'var(--text-inverse)' : 'var(--text-primary)',
                       padding: 'var(--space-sm)',
+                      border: '2px solid',
+                      borderColor: isFocused ? 'var(--accent-primary)' : 'transparent',
                     }}
                   >
                     <div className="font-medium mb-2 line-clamp-2" style={{ fontSize: '0.9375rem' }}>

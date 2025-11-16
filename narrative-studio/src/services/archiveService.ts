@@ -9,7 +9,7 @@ const ARCHIVE_API = 'http://localhost:3002';
 /**
  * Generate time-based tags from folder name or timestamp
  */
-function generateTimeTags(folder: string, timestamp?: number): string[] {
+function generateTimeTags(folder: string, _timestamp?: number): string[] {
   const tags: string[] = [];
 
   // Extract date from folder name (format: YYYY-MM-DD-*)
@@ -69,8 +69,8 @@ function generateContentTags(messages: Message[]): string[] {
     tags.push('Has Code');
   }
 
-  // Check for images
-  if (allContent.includes('[image:')) {
+  // Check for images (case insensitive)
+  if (allContent.toLowerCase().includes('[image:') || allContent.includes('![')) {
     tags.push('Has Images');
   }
 
