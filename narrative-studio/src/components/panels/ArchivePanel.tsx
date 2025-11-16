@@ -92,6 +92,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
   const loadConversation = async (folder: string) => {
     setLoading(true);
+    // Save search when user clicks a conversation (meaningful action)
+    saveCurrentSearch();
     try {
       const conv = await archiveService.fetchConversation(folder);
       setSelectedConversation(conv);
@@ -119,9 +121,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query);
-    if (query.trim()) {
-      addToRecentSearches(query);
-    }
+    // Don't save on every keystroke - only save when user actually uses the search
   };
 
   const selectRecentSearch = (query: string) => {
@@ -129,8 +129,16 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     setShowRecentSearches(false);
   };
 
+  const saveCurrentSearch = () => {
+    if (searchQuery.trim()) {
+      addToRecentSearches(searchQuery.trim());
+    }
+  };
+
   const loadMessageToCanvas = (index: number) => {
     if (selectedConversation) {
+      // Save search when user clicks a message (meaningful action)
+      saveCurrentSearch();
       setSelectedMessageIndex(index);
       const narrative = archiveService.conversationToNarrative(
         selectedConversation,
@@ -269,6 +277,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           break;
         case 'Enter':
           e.preventDefault();
+          // saveCurrentSearch is called inside loadConversation/loadMessageToCanvas
           if (viewMode === 'conversations') {
             const conv = filteredConversations[focusedIndex];
             if (conv) {
