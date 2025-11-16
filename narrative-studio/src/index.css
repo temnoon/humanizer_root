@@ -62,6 +62,8 @@
   --accent-primary-gradient: linear-gradient(to bottom, #0e7490, #22d3ee);
   --accent-secondary: #06b6d4;
   --accent-secondary-hover: #0e7490;
+  --accent-salmon: #FF6B6B;
+  --accent-salmon-hover: #FF5252;
 
   --success: #f59e0b;
   --warning: #d97706;
@@ -94,6 +96,8 @@
   --accent-primary-gradient: linear-gradient(to bottom, #67e8f9, #0e7490);
   --accent-secondary: #67e8f9;
   --accent-secondary-hover: #22d3ee;
+  --accent-salmon: #FF8A80;
+  --accent-salmon-hover: #FF5252;
 
   --success: #fbbf24;
   --warning: #f59e0b;

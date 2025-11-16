@@ -258,6 +258,130 @@ app.get('/api/conversations/:folder/media/:filename', async (req, res) => {
   }
 });
 
+// Helper: Parse code blocks from message content
+function parseCodeBlocks(content) {
+  const blocks = {};
+  // Match code blocks: ```language or just ```
+  const codeBlockRegex = /```(\w+)?\n[\s\S]*?```/g;
+  const matches = content.matchAll(codeBlockRegex);
+
+  for (const match of matches) {
+    const language = match[1] || 'text';
+    blocks[language] = (blocks[language] || 0) + 1;
+  }
+
+  return blocks;
+}
+
+// Helper: Detect media types from message content
+function detectMediaTypes(messages) {
+  const mediaTypes = new Set();
+  let mediaCount = 0;
+
+  for (const msg of messages) {
+    // Check for image references
+    if (msg.content.includes('![') || msg.content.includes('file-service://file') || msg.content.includes('sediment://')) {
+      mediaTypes.add('image');
+      mediaCount++;
+    }
+    // Check for audio references
+    if (msg.content.includes('.mp3') || msg.content.includes('.wav') || msg.content.includes('.m4a')) {
+      mediaTypes.add('audio');
+      mediaCount++;
+    }
+  }
+
+  return { mediaTypes: Array.from(mediaTypes), mediaCount };
+}
+
+// Get or generate archive index
+app.get('/api/archive-index', async (req, res) => {
+  try {
+    const indexPath = path.join(ARCHIVE_ROOT, '.archive-index.json');
+
+    // Check if index exists and is fresh
+    try {
+      const indexStat = await fs.stat(indexPath);
+      const convStat = await fs.stat(ARCHIVE_ROOT);
+
+      // If index is newer than archive root, return cached index
+      if (indexStat.mtimeMs > convStat.mtimeMs) {
+        const indexData = await fs.readFile(indexPath, 'utf-8');
+        return res.json(JSON.parse(indexData));
+      }
+    } catch (err) {
+      // Index doesn't exist, will generate below
+    }
+
+    // Generate new index
+    console.log('📊 Generating archive index...');
+    const folders = await fs.readdir(ARCHIVE_ROOT);
+    const conversationStats = [];
+
+    for (const folder of folders) {
+      if (folder.startsWith('_') || folder.startsWith('.') || !/^\d{4}-\d{2}-\d{2}/.test(folder)) {
+        continue;
+      }
+
+      try {
+        const jsonPath = path.join(ARCHIVE_ROOT, folder, 'conversation.json');
+        const data = await fs.readFile(jsonPath, 'utf-8');
+        const parsed = JSON.parse(data);
+
+        const codeBlocks = {};
+        const messages = [];
+
+        // Extract messages and parse code blocks
+        if (parsed.mapping) {
+          Object.values(parsed.mapping).forEach(node => {
+            if (node.message && node.message.content?.parts?.length > 0) {
+              const role = node.message.author?.role || 'unknown';
+              const content = node.message.content.parts.join('\n');
+
+              messages.push({ role, content });
+
+              // Only parse code blocks from assistant messages
+              if (role === 'assistant') {
+                const blocks = parseCodeBlocks(content);
+                for (const [lang, count] of Object.entries(blocks)) {
+                  codeBlocks[lang] = (codeBlocks[lang] || 0) + count;
+                }
+              }
+            }
+          });
+        }
+
+        const { mediaTypes, mediaCount } = detectMediaTypes(messages);
+
+        conversationStats.push({
+          id: parsed.id || folder,
+          folder,
+          code_blocks: codeBlocks,
+          media_types: mediaTypes,
+          media_count: mediaCount,
+        });
+      } catch (err) {
+        console.warn(`Skipping ${folder}: ${err.message}`);
+      }
+    }
+
+    const index = {
+      version: 1,
+      generated_at: new Date().toISOString(),
+      conversations: conversationStats,
+    };
+
+    // Save index
+    await fs.writeFile(indexPath, JSON.stringify(index, null, 2));
+    console.log(`✅ Generated index for ${conversationStats.length} conversations`);
+
+    res.json(index);
+  } catch (error) {
+    console.error('Error generating archive index:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = 3002;
 app.listen(PORT, () => {
   console.log(`🗂️  Archive server running on http://localhost:${PORT}`);

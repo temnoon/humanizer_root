@@ -2,6 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import type { ConversationMetadata, Conversation } from '../../types';
 import { Icons } from '../layout/Icons';
 import { archiveService } from '../../services/archiveService';
+import { VerticalDropdown } from './VerticalDropdown';
+import { SplitClickButton } from './SplitClickButton';
 
 interface ArchivePanelProps {
   onSelectNarrative: (narrative: any) => void;
@@ -10,18 +12,42 @@ interface ArchivePanelProps {
 }
 
 type ViewMode = 'conversations' | 'messages';
-type FilterCategory = 'date' | 'size' | 'media';
+type FilterCategory = 'date' | 'size' | 'media' | 'blocks';
 
 interface ActiveFilters {
   date?: string;
   size?: string;
   media?: string;
+  blocks?: string;
+}
+
+interface SortState {
+  field: 'date' | 'size' | null;
+  direction: 'asc' | 'desc';
+}
+
+interface DropdownState {
+  category: FilterCategory | null;
+  position: { top: number; left: number } | null;
+}
+
+interface ArchiveIndex {
+  version: number;
+  generated_at: string;
+  conversations: Array<{
+    id: string;
+    folder: string;
+    code_blocks: Record<string, number>;
+    media_types: string[];
+    media_count: number;
+  }>;
 }
 
 interface ArchiveState {
   searchQuery: string;
   activeFilters: ActiveFilters;
   recentSearches: string[];
+  sortState: SortState;
 }
 
 const STORAGE_KEY = 'archive-panel-state';
@@ -40,8 +66,12 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [showRecentSearches, setShowRecentSearches] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
+  const [sortState, setSortState] = useState<SortState>({ field: null, direction: 'desc' });
+  const [archiveIndex, setArchiveIndex] = useState<ArchiveIndex | null>(null);
+  const [dropdownState, setDropdownState] = useState<DropdownState>({ category: null, position: null });
 
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const dropdownButtonRefs = useRef<Map<FilterCategory, HTMLButtonElement>>(new Map());
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -52,6 +82,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         setSearchQuery(state.searchQuery || '');
         setActiveFilters(state.activeFilters || {});
         setRecentSearches(state.recentSearches || []);
+        setSortState(state.sortState || { field: null, direction: 'desc' });
       } catch (err) {
         console.error('Failed to restore archive state:', err);
       }
@@ -64,9 +95,25 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       searchQuery,
       activeFilters,
       recentSearches,
+      sortState,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [searchQuery, activeFilters, recentSearches]);
+  }, [searchQuery, activeFilters, recentSearches, sortState]);
+
+  // Load archive index on mount
+  useEffect(() => {
+    if (isOpen && !archiveIndex) {
+      fetch('http://localhost:3002/api/archive-index')
+        .then(res => res.json())
+        .then(data => {
+          console.log('📊 Loaded archive index:', data);
+          setArchiveIndex(data);
+        })
+        .catch(err => {
+          console.error('Failed to load archive index:', err);
+        });
+    }
+  }, [isOpen, archiveIndex]);
 
   // Load conversations on mount
   useEffect(() => {
@@ -134,6 +181,57 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       addToRecentSearches(searchQuery.trim());
     }
   };
+
+  // Helper: Calculate frequency category
+  const calculateFrequency = (count: number): string => {
+    if (count === 1) return '1';
+    if (count <= 5) return 'few';
+    return 'many';
+  };
+
+  // Helper: Show dropdown
+  const showDropdown = (category: FilterCategory, buttonElement: HTMLButtonElement) => {
+    const rect = buttonElement.getBoundingClientRect();
+    const dropdownHeight = 150; // Approximate
+    setDropdownState({
+      category,
+      position: {
+        top: rect.top - dropdownHeight,
+        left: rect.left,
+      },
+    });
+  };
+
+  // Helper: Close dropdown
+  const closeDropdown = () => {
+    setDropdownState({ category: null, position: null });
+  };
+
+  // Helper: Handle dropdown selection
+  const handleDropdownSelect = (category: FilterCategory, option: string) => {
+    setActiveFilters(prev => ({ ...prev, [category]: option }));
+    closeDropdown();
+  };
+
+  // Get detected languages from index
+  const detectedLanguages = useMemo(() => {
+    if (!archiveIndex) return [];
+    const languages = new Set<string>();
+    archiveIndex.conversations.forEach(conv => {
+      Object.keys(conv.code_blocks).forEach(lang => languages.add(lang));
+    });
+    return Array.from(languages).sort();
+  }, [archiveIndex]);
+
+  // Get detected media types from index
+  const detectedMediaTypes = useMemo(() => {
+    if (!archiveIndex) return [];
+    const types = new Set<string>();
+    archiveIndex.conversations.forEach(conv => {
+      conv.media_types.forEach(type => types.add(type));
+    });
+    return Array.from(types).sort();
+  }, [archiveIndex]);
 
   const loadMessageToCanvas = (index: number) => {
     if (selectedConversation) {
@@ -230,22 +328,62 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   // Check if any filters are active
   const hasActiveFilters = Object.keys(activeFilters).length > 0;
 
-  // Filter conversations
+  // Filter and sort conversations
   const filteredConversations = useMemo(() => {
-    return conversations.filter((conv) => {
+    // First, filter
+    let filtered = conversations.filter((conv) => {
       const matchesSearch =
         !searchQuery ||
         conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         conv.folder.toLowerCase().includes(searchQuery.toLowerCase());
 
-      // AND logic: must match all active filters
-      const matchesFilters = Object.entries(activeFilters).every(([_, tag]) => {
+      // Match tag-based filters (date, size, existing media tags)
+      const matchesTagFilters = Object.entries(activeFilters).every(([category, tag]) => {
+        if (category === 'blocks' || category === 'media') return true; // Handle separately
         return conv.tags?.includes(tag);
       });
 
-      return matchesSearch && matchesFilters;
+      // Match blocks filter (uses archive index)
+      const matchesBlocksFilter = !activeFilters.blocks || (() => {
+        if (!archiveIndex) return false;
+        const convIndex = archiveIndex.conversations.find(c => c.folder === conv.folder);
+        if (!convIndex) return false;
+        return activeFilters.blocks in convIndex.code_blocks;
+      })();
+
+      // Match media filter (uses archive index)
+      const matchesMediaFilter = !activeFilters.media || (() => {
+        if (!archiveIndex) return false;
+        const convIndex = archiveIndex.conversations.find(c => c.folder === conv.folder);
+        if (!convIndex) return false;
+        if (activeFilters.media === 'all') return convIndex.media_types.length > 0;
+        return convIndex.media_types.includes(activeFilters.media);
+      })();
+
+      return matchesSearch && matchesTagFilters && matchesBlocksFilter && matchesMediaFilter;
     });
-  }, [conversations, searchQuery, activeFilters]);
+
+    // Then, sort
+    if (sortState.field) {
+      filtered = [...filtered].sort((a, b) => {
+        if (sortState.field === 'date') {
+          const aDate = new Date(a.created_at || 0);
+          const bDate = new Date(b.created_at || 0);
+          const diff = aDate.getTime() - bDate.getTime();
+          return sortState.direction === 'asc' ? diff : -diff;
+        }
+
+        if (sortState.field === 'size') {
+          const diff = (a.message_count || 0) - (b.message_count || 0);
+          return sortState.direction === 'asc' ? diff : -diff;
+        }
+
+        return 0;
+      });
+    }
+
+    return filtered;
+  }, [conversations, searchQuery, activeFilters, sortState, archiveIndex]);
 
   // Filter messages
   const filteredMessages = useMemo(() => {
@@ -633,8 +771,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           {/* Filter UI - single line */}
           <div className="mb-4">
             <div className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-              {/* Show "All" button when no filters active */}
-              {!hasActiveFilters && (
+              {/* Show "All" button when no filters and no sort */}
+              {!hasActiveFilters && !sortState.field && (
                 <button
                   className="tag"
                   style={{
@@ -666,57 +804,64 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 </button>
               ))}
 
-              {/* Show category buttons for unselected categories */}
+              {/* Date button with sorting */}
               {!activeFilters.date && (
-                <button
-                  onClick={() => setShowingCategory(showingCategory === 'date' ? null : 'date')}
-                  className="tag"
-                  style={{
-                    backgroundColor: showingCategory === 'date' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                    color: showingCategory === 'date' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                    border: '1px solid',
-                    borderColor: showingCategory === 'date' ? 'var(--accent-primary)' : 'var(--border-color)',
-                    fontWeight: 600,
-                  }}
-                >
-                  Date {showingCategory === 'date' ? '▼' : '+'}
-                </button>
+                <SplitClickButton
+                  label="Date"
+                  onTopClick={() => setSortState({ field: 'date', direction: 'asc' })}
+                  onBottomClick={() => setSortState({ field: 'date', direction: 'desc' })}
+                  sortDirection={sortState.field === 'date' ? sortState.direction : null}
+                  isActive={sortState.field === 'date'}
+                />
               )}
 
+              {/* Size button with sorting */}
               {!activeFilters.size && (
+                <SplitClickButton
+                  label="Size"
+                  onTopClick={() => setSortState({ field: 'size', direction: 'asc' })}
+                  onBottomClick={() => setSortState({ field: 'size', direction: 'desc' })}
+                  sortDirection={sortState.field === 'size' ? sortState.direction : null}
+                  isActive={sortState.field === 'size'}
+                />
+              )}
+
+              {/* Media button with dropdown */}
+              {!activeFilters.media && detectedMediaTypes.length > 0 && (
                 <button
-                  onClick={() => setShowingCategory(showingCategory === 'size' ? null : 'size')}
+                  ref={(el) => { if (el) dropdownButtonRefs.current.set('media', el); }}
+                  onClick={(e) => showDropdown('media', e.currentTarget)}
                   className="tag"
                   style={{
-                    backgroundColor: showingCategory === 'size' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                    color: showingCategory === 'size' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                    border: '1px solid',
-                    borderColor: showingCategory === 'size' ? 'var(--accent-primary)' : 'var(--border-color)',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-color)',
                     fontWeight: 600,
                   }}
                 >
-                  Size {showingCategory === 'size' ? '▼' : '+'}
+                  Media +
                 </button>
               )}
 
-              {!activeFilters.media && categorizedTags.media.length > 0 && (
+              {/* Blocks button with dropdown */}
+              {!activeFilters.blocks && detectedLanguages.length > 0 && (
                 <button
-                  onClick={() => setShowingCategory(showingCategory === 'media' ? null : 'media')}
+                  ref={(el) => { if (el) dropdownButtonRefs.current.set('blocks', el); }}
+                  onClick={(e) => showDropdown('blocks', e.currentTarget)}
                   className="tag"
                   style={{
-                    backgroundColor: showingCategory === 'media' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                    color: showingCategory === 'media' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                    border: '1px solid',
-                    borderColor: showingCategory === 'media' ? 'var(--accent-primary)' : 'var(--border-color)',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    color: 'var(--text-secondary)',
+                    border: '1px solid var(--border-color)',
                     fontWeight: 600,
                   }}
                 >
-                  Media {showingCategory === 'media' ? '▼' : '+'}
+                  Blocks +
                 </button>
               )}
 
-              {/* Show tag options for selected category */}
-              {showingCategory && (
+              {/* Show tag options for old-style category selection */}
+              {showingCategory && categorizedTags[showingCategory] && (
                 <>
                   <div style={{ width: '1px', backgroundColor: 'var(--border-color)', margin: '4px 0' }} />
                   {categorizedTags[showingCategory].map((tag) => (
@@ -736,6 +881,27 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 </>
               )}
             </div>
+
+            {/* Vertical dropdowns */}
+            {dropdownState.category === 'media' && dropdownState.position && (
+              <VerticalDropdown
+                options={['all', ...detectedMediaTypes]}
+                position={dropdownState.position}
+                onSelect={(option) => handleDropdownSelect('media', option)}
+                onClose={closeDropdown}
+                autoHideMs={5000}
+              />
+            )}
+
+            {dropdownState.category === 'blocks' && dropdownState.position && (
+              <VerticalDropdown
+                options={detectedLanguages}
+                position={dropdownState.position}
+                onSelect={(option) => handleDropdownSelect('blocks', option)}
+                onClose={closeDropdown}
+                autoHideMs={5000}
+              />
+            )}
           </div>
 
           {/* Stats */}
