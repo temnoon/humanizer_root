@@ -7,12 +7,24 @@
 import type { TransformConfig, TransformResult } from '../types';
 
 // Environment detection
-const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE = isLocal
-  ? 'http://localhost:3002/api'
-  : 'https://npe-api.tem-527.workers.dev';
+// NOTE: Always use deployed backend for now (no local backend running)
+const API_BASE = 'https://npe-api.tem-527.workers.dev';
 
-console.log(`[TransformationService] Using ${isLocal ? 'LOCAL' : 'CLOUD'} backend: ${API_BASE}`);
+console.log(`[TransformationService] Using DEPLOYED backend: ${API_BASE}`);
+
+// Helper to get auth token
+function getAuthToken(): string | null {
+  return localStorage.getItem('narrative-studio-auth-token');
+}
+
+// Helper to get auth headers
+function getAuthHeaders(): HeadersInit {
+  const token = getAuthToken();
+  return {
+    'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 // ============================================================
 // COMPUTER HUMANIZER
@@ -46,9 +58,9 @@ export async function computerHumanizer(
   text: string,
   options: ComputerHumanizerOptions
 ): Promise<ComputerHumanizerResult> {
-  const response = await fetch(`${API_BASE}/transform/computer-humanizer`, {
+  const response = await fetch(`${API_BASE}/transformations/computer-humanizer`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ text, ...options }),
   });
 
@@ -85,9 +97,9 @@ export async function aiDetection(
   text: string,
   options: AIDetectionOptions = {}
 ): Promise<AIDetectionResult> {
-  const response = await fetch(`${API_BASE}/transform/ai-detection`, {
+  const response = await fetch(`${API_BASE}/ai-detection/detect`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ text, ...options }),
   });
 
@@ -113,8 +125,13 @@ export async function personaTransform(
 ): Promise<TransformResult> {
   const response = await fetch(`${API_BASE}/transformations/persona`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, ...options }),
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      text,
+      persona: options.persona,
+      preserveLength: true,
+      enableValidation: true,
+    }),
   });
 
   if (!response.ok) {
@@ -122,7 +139,20 @@ export async function personaTransform(
     throw new Error(error.message || 'Persona transformation failed');
   }
 
-  return response.json();
+  const data = await response.json();
+
+  // Map backend response to TransformResult format
+  return {
+    transformation_id: data.transformation_id,
+    original: text,
+    transformed: data.transformed_text,
+    metadata: {
+      aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
+      aiConfidenceAfter: data.final?.detection?.aiConfidence,
+      burstinessBefore: data.baseline?.detection?.burstinessScore,
+      burstinessAfter: data.final?.detection?.burstinessScore,
+    },
+  };
 }
 
 // ============================================================
@@ -139,8 +169,13 @@ export async function styleTransform(
 ): Promise<TransformResult> {
   const response = await fetch(`${API_BASE}/transformations/style`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, ...options }),
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      text,
+      style: options.style,
+      preserveLength: true,
+      enableValidation: true,
+    }),
   });
 
   if (!response.ok) {
@@ -148,7 +183,20 @@ export async function styleTransform(
     throw new Error(error.message || 'Style transformation failed');
   }
 
-  return response.json();
+  const data = await response.json();
+
+  // Map backend response to TransformResult format
+  return {
+    transformation_id: data.transformation_id,
+    original: text,
+    transformed: data.transformed_text,
+    metadata: {
+      aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
+      aiConfidenceAfter: data.final?.detection?.aiConfidence,
+      burstinessBefore: data.baseline?.detection?.burstinessScore,
+      burstinessAfter: data.final?.detection?.burstinessScore,
+    },
+  };
 }
 
 // ============================================================
@@ -165,8 +213,13 @@ export async function namespaceTransform(
 ): Promise<TransformResult> {
   const response = await fetch(`${API_BASE}/transformations/namespace`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, ...options }),
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      text,
+      namespace: options.namespace,
+      preserveLength: true,
+      enableValidation: true,
+    }),
   });
 
   if (!response.ok) {
@@ -174,7 +227,20 @@ export async function namespaceTransform(
     throw new Error(error.message || 'Namespace transformation failed');
   }
 
-  return response.json();
+  const data = await response.json();
+
+  // Map backend response to TransformResult format
+  return {
+    transformation_id: data.transformation_id,
+    original: text,
+    transformed: data.transformed_text,
+    metadata: {
+      aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
+      aiConfidenceAfter: data.final?.detection?.aiConfidence,
+      burstinessBefore: data.baseline?.detection?.burstinessScore,
+      burstinessAfter: data.final?.detection?.burstinessScore,
+    },
+  };
 }
 
 // ============================================================
