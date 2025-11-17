@@ -327,7 +327,7 @@ export function MainWorkspace({
                     AI Confidence
                   </span>
                   <span className="heading-lg font-bold" style={{ color: 'var(--text-primary)' }}>
-                    {(transformResult.metadata.aiDetection.confidence * 100).toFixed(1)}%
+                    {transformResult.metadata.aiDetection.confidence.toFixed(1)}%
                   </span>
                 </div>
                 <div
@@ -337,11 +337,11 @@ export function MainWorkspace({
                   <div
                     className="h-full transition-all"
                     style={{
-                      width: `${transformResult.metadata.aiDetection.confidence * 100}%`,
+                      width: `${transformResult.metadata.aiDetection.confidence}%`,
                       backgroundColor:
-                        transformResult.metadata.aiDetection.confidence > 0.7
+                        transformResult.metadata.aiDetection.confidence > 70
                           ? 'var(--accent-red)'
-                          : transformResult.metadata.aiDetection.confidence < 0.2
+                          : transformResult.metadata.aiDetection.confidence < 20
                           ? 'var(--accent-green)'
                           : 'var(--accent-yellow)',
                     }}
