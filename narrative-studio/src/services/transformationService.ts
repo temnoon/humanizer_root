@@ -69,7 +69,29 @@ export async function computerHumanizer(
     throw new Error(error.message || 'Computer Humanizer failed');
   }
 
-  return response.json();
+  const data = await response.json();
+
+  // Map backend response to TransformResult format
+  return {
+    transformation_id: crypto.randomUUID(),
+    original: text,
+    transformed: data.humanizedText,  // Backend returns humanizedText
+    metadata: {
+      aiConfidenceBefore: data.baseline?.detection?.aiConfidence || 0,
+      aiConfidenceAfter: data.final?.detection?.aiConfidence || 0,
+      burstinessBefore: data.baseline?.detection?.burstinessScore || 0,
+      burstinessAfter: data.final?.detection?.burstinessScore || 0,
+      tellWordsRemoved: data.improvement?.tellWordsRemoved || 0,
+      tellWordsFound: data.baseline?.detection?.tellWords || [],
+      processingTime: data.processing?.totalDurationMs || 0,
+      stages: {
+        original: text,
+        tellWordsRemoved: data.stages?.tellWordsRemoved || '',
+        burstinessEnhanced: data.stages?.burstinessEnhanced || '',
+        llmPolished: data.stages?.llmPolished,
+      },
+    },
+  };
 }
 
 // ============================================================
@@ -118,11 +140,11 @@ export async function aiDetection(
     transformed: text, // Detection doesn't change the text
     metadata: {
       aiDetection: {
-        confidence: data.aiConfidence || 0,
+        confidence: data.confidence || 0,
         verdict: data.verdict || 'uncertain',
         tellWords: data.tellWords || [],
-        burstiness: data.burstinessScore || 0,
-        perplexity: data.perplexityScore || 0,
+        burstiness: data.burstiness || 0,
+        perplexity: data.perplexity || 0,
         reasoning: data.reasoning || '',
       },
     },
