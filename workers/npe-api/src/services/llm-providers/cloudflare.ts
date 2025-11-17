@@ -219,6 +219,15 @@ export class CloudflareProvider implements LLMProvider {
     return cleaned.trim();
   }
 
+  async generateText(prompt: string, options: { max_tokens: number; temperature: number }): Promise<string> {
+    const response = await this.call({
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: options.max_tokens,
+      temperature: options.temperature
+    });
+    return response.response;
+  }
+
   getProviderName(): string {
     return 'cloudflare';
   }
