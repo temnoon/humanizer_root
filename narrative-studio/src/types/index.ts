@@ -63,12 +63,28 @@ export interface TransformMetadata {
   burstinessBefore?: number;
   burstinessAfter?: number;
   tellWordsRemoved?: number;
+  usedLLM?: boolean;
+
+  // Human-in-the-loop features
+  manualReviewSuggestions?: Array<{
+    phrase: string;
+    reason: string;
+    severity: 'high' | 'medium' | 'low';
+    suggestion: string;
+  }>;
+  userGuidance?: Array<{
+    type: 'success' | 'good' | 'warning' | 'tip' | 'action' | 'insight';
+    message: string;
+  }>;
 
   // AI Detection results
   aiDetection?: {
     confidence: number;
     verdict: 'human' | 'ai' | 'mixed';
     tellWords: string[];
+    burstiness: number;
+    perplexity: number;
+    reasoning: string;
   };
 
   // Allegorical transformation stages
