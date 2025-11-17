@@ -425,6 +425,29 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     );
   }, [selectedConversation, messageSearch]);
 
+  // Format message content (handle DALL-E prompts)
+  const formatMessageContent = (content: string): JSX.Element | string => {
+    // Try to detect and parse DALL-E prompt JSON
+    if (content.trim().startsWith('{') && content.includes('"prompt"')) {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.prompt) {
+          return (
+            <div>
+              <div className="text-tiny" style={{ fontWeight: 600, marginBottom: 'var(--space-xs)', opacity: 0.7 }}>
+                Prompt:
+              </div>
+              <div>{parsed.prompt}</div>
+            </div>
+          );
+        }
+      } catch (e) {
+        // Not valid JSON, return as-is
+      }
+    }
+    return content;
+  };
+
   // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
@@ -697,7 +720,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                       </span>
                     </div>
                     <div className="text-small line-clamp-3" style={{ opacity: isSelected ? 1 : 0.9 }}>
-                      {msg.content}
+                      {formatMessageContent(msg.content)}
                     </div>
                   </div>
                 );

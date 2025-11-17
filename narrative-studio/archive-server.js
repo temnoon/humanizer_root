@@ -124,7 +124,8 @@ app.get('/api/conversations/:folder', async (req, res) => {
       Object.values(parsed.mapping).forEach((node) => {
         if (node.message?.content?.parts) {
           node.message.content.parts.forEach(part => {
-            if (part && part.content_type === 'image_asset_pointer') {
+            // Handle both images and audio
+            if (part && (part.content_type === 'image_asset_pointer' || part.content_type === 'audio_asset_pointer')) {
               const assetPointer = part.asset_pointer || '';
               // Match both file- (hyphen) and file_ (underscore) formats
               const fileIdMatch = assetPointer.match(/:\/\/(file[-_][A-Za-z0-9]+)/);
@@ -155,13 +156,24 @@ app.get('/api/conversations/:folder', async (req, res) => {
         if (node.message && node.message.content?.parts?.length > 0) {
           const role = node.message.author?.role || 'unknown';
 
-          // Handle multimodal content (text + images)
+          // Handle multimodal content (text + images + audio)
           const parts = node.message.content.parts;
           const textParts = parts.map(part => {
             if (typeof part === 'string') {
               return part;
             } else if (typeof part === 'object' && part !== null) {
-              // Handle image asset pointers and other objects
+              // Handle audio transcriptions
+              if (part.content_type === 'audio_transcription') {
+                return part.text || '';
+              }
+              // Handle audio asset pointers
+              if (part.content_type === 'audio_asset_pointer') {
+                const assetPointer = part.asset_pointer || '';
+                const fileIdMatch = assetPointer.match(/:\/\/(file[-_][A-Za-z0-9]+)/);
+                const fileId = fileIdMatch ? fileIdMatch[1] : 'audio';
+                return `[Audio: ${fileId}.${part.format || 'wav'}]`;
+              }
+              // Handle image asset pointers
               if (part.content_type === 'image_asset_pointer') {
                 const assetPointer = part.asset_pointer || '';
                 // Match both file- (hyphen) and file_ (underscore) formats
@@ -169,7 +181,8 @@ app.get('/api/conversations/:folder', async (req, res) => {
                 const fileId = fileIdMatch ? fileIdMatch[1] : 'image';
                 return `[Image: ${fileId}]`;
               }
-              return JSON.stringify(part);
+              // Skip other object types (like real_time_user_audio_video_asset_pointer)
+              return '';
             }
             return '';
           }).filter(p => p.length > 0);
@@ -196,6 +209,29 @@ app.get('/api/conversations/:folder', async (req, res) => {
             });
             if (replacementCount > 0) {
               console.log(`📸 Total images replaced in message: ${replacementCount}`);
+            }
+          }
+
+          // Replace [Audio: file-XXXXX.wav] placeholders with actual audio players
+          if (content.includes('[Audio:') && Object.keys(fileIdToHashedName).length > 0) {
+            let replacementCount = 0;
+            // Match both file- (hyphen) and file_ (underscore) formats
+            content = content.replace(/\[Audio:\s*(file[-_][A-Za-z0-9]+)\.(wav|mp3|m4a)\]/g, (match, fileId, ext) => {
+              // Get hashed filename directly from multi-strategy mapping
+              const hashedName = fileIdToHashedName[fileId];
+              if (!hashedName) {
+                console.warn(`❌ No mapping found for audio file ID: ${fileId}`);
+                return match;
+              }
+
+              // Build absolute URL to archive server (URL-encode filename for spaces and special chars)
+              const audioUrl = `http://localhost:3002/api/conversations/${encodeURIComponent(req.params.folder)}/media/${encodeURIComponent(hashedName)}`;
+              replacementCount++;
+              console.log(`✅ Replaced audio ${replacementCount}: ${fileId.substring(0, 20)}... -> ${hashedName.substring(0, 40)}...`);
+              return `[AUDIO:${audioUrl}]`;
+            });
+            if (replacementCount > 0) {
+              console.log(`🎵 Total audio files replaced in message: ${replacementCount}`);
             }
           }
 
