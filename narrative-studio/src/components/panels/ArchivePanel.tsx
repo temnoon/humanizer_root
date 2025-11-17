@@ -23,6 +23,7 @@ interface ArchiveState {
   messageSearch: string;
   activeFilters: ActiveFilters;
   recentSearches: string[];
+  sortDirection: 'ascending' | 'descending';
 }
 
 const STORAGE_KEY = 'archive-panel-state';
@@ -42,6 +43,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [showRecentSearches, setShowRecentSearches] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
+  const [sortDirection, setSortDirection] = useState<'ascending' | 'descending'>('descending');
 
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
 
@@ -55,6 +57,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         setMessageSearch(state.messageSearch || '');
         setActiveFilters(state.activeFilters || {});
         setRecentSearches(state.recentSearches || []);
+        setSortDirection(state.sortDirection || 'descending');
       } catch (err) {
         console.error('Failed to restore archive state:', err);
       }
@@ -68,9 +71,10 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       messageSearch,
       activeFilters,
       recentSearches,
+      sortDirection,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [conversationSearch, messageSearch, activeFilters, recentSearches]);
+  }, [conversationSearch, messageSearch, activeFilters, recentSearches, sortDirection]);
 
   // Load conversations on mount
   useEffect(() => {
@@ -213,14 +217,33 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       const aRecency = recencyOrder.indexOf(a);
       const bRecency = recencyOrder.indexOf(b);
 
+      // Recency tags first, in order
       if (aRecency !== -1 && bRecency !== -1) return aRecency - bRecency;
       if (aRecency !== -1) return -1;
       if (bRecency !== -1) return 1;
 
+      // Year tags: newest first
       if (/^\d{4}$/.test(a) && /^\d{4}$/.test(b)) {
         return parseInt(b) - parseInt(a);
       }
 
+      // Month tags: parse and sort by date (newest first)
+      const monthPattern = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s(\d{4})$/;
+      const aMatch = a.match(monthPattern);
+      const bMatch = b.match(monthPattern);
+
+      if (aMatch && bMatch) {
+        const monthOrder = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const aYear = parseInt(aMatch[2]);
+        const bYear = parseInt(bMatch[2]);
+        const aMonth = monthOrder.indexOf(aMatch[1]);
+        const bMonth = monthOrder.indexOf(bMatch[1]);
+
+        if (aYear !== bYear) return bYear - aYear; // Newer year first
+        return bMonth - aMonth; // Newer month first
+      }
+
+      // Fallback to alphabetical
       return b.localeCompare(a);
     });
 
@@ -230,12 +253,16 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       sizeOrder.indexOf(a) - sizeOrder.indexOf(b)
     );
 
+    // Apply sort direction
+    const finalDateTags = sortDirection === 'ascending' ? [...sortedDateTags].reverse() : sortedDateTags;
+    const finalSizeTags = sortDirection === 'ascending' ? [...sortedSizeTags].reverse() : sortedSizeTags;
+
     return {
-      date: sortedDateTags,
-      size: sortedSizeTags,
+      date: finalDateTags,
+      size: finalSizeTags,
       media: Array.from(mediaTags),
     };
-  }, [conversations]);
+  }, [conversations, sortDirection]);
 
   // Handle filter selection
   const selectFilter = (category: FilterCategory, tag: string) => {
@@ -257,7 +284,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
   // Filter conversations
   const filteredConversations = useMemo(() => {
-    return conversations.filter((conv) => {
+    const filtered = conversations.filter((conv) => {
       const matchesSearch =
         !conversationSearch ||
         conv.title.toLowerCase().includes(conversationSearch.toLowerCase()) ||
@@ -270,7 +297,31 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
       return matchesSearch && matchesFilters;
     });
-  }, [conversations, conversationSearch, activeFilters]);
+
+    // Sort based on active filters and sort direction
+    const sorted = [...filtered].sort((a, b) => {
+      // If date filter is active, sort by date
+      if (activeFilters.date) {
+        const aTime = a.created_at || 0;
+        const bTime = b.created_at || 0;
+        return sortDirection === 'descending' ? bTime - aTime : aTime - bTime;
+      }
+
+      // If size filter is active, sort by message count
+      if (activeFilters.size) {
+        const aCount = a.message_count || 0;
+        const bCount = b.message_count || 0;
+        return sortDirection === 'descending' ? bCount - aCount : aCount - bCount;
+      }
+
+      // Default: sort by date (newest first if descending)
+      const aTime = a.created_at || 0;
+      const bTime = b.created_at || 0;
+      return sortDirection === 'descending' ? bTime - aTime : aTime - bTime;
+    });
+
+    return sorted;
+  }, [conversations, conversationSearch, activeFilters, sortDirection]);
 
   // Filter messages
   const filteredMessages = useMemo(() => {
@@ -593,7 +644,14 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="heading-md" style={{ color: 'var(--text-primary)' }}>
-              Archive
+              Archive{' '}
+              <span
+                className="text-small"
+                style={{ color: 'var(--text-tertiary)' }}
+                title="/Users/tem/openai-export-parser/output_v13_final"
+              >
+                (output_v13_final)
+              </span>
             </h2>
             <button
               onClick={onClose}
@@ -739,6 +797,22 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                   Media {showingCategory === 'media' ? '▼' : '+'}
                 </button>
               )}
+
+              {/* Sort direction toggle */}
+              <div style={{ width: '1px', backgroundColor: 'var(--border-color)', margin: '4px 0' }} />
+              <button
+                onClick={() => setSortDirection(sortDirection === 'descending' ? 'ascending' : 'descending')}
+                className="tag"
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border-color)',
+                  fontWeight: 600,
+                }}
+                title={sortDirection === 'descending' ? 'Newest first' : 'Oldest first'}
+              >
+                {sortDirection === 'descending' ? '↓ Descending' : '↑ Ascending'}
+              </button>
 
               {/* Show tag options for selected category */}
               {showingCategory && (
