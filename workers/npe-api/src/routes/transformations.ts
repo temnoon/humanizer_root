@@ -6,6 +6,9 @@ import { RoundTripTranslationService } from '../services/round_trip';
 import { MaieuticDialogueService } from '../services/maieutic';
 import { transformWithPersonalizer, getTransformationHistory } from '../services/personalizer';
 import { humanizeText, analyzeForHumanization, type HumanizationOptions } from '../services/computer-humanizer';
+import { transformPersona } from '../services/persona-transformation';
+import { transformNamespace } from '../services/namespace-transformation';
+import { transformStyle } from '../services/style-transformation';
 import { checkQuota, updateUsage } from '../middleware/tier-check';
 import { saveTransformationToHistory, updateTransformationHistory } from '../utils/transformation-history-helper';
 import type {
@@ -641,6 +644,180 @@ transformationRoutes.post('/computer-humanizer/analyze', optionalLocalAuth(), as
     }, 200);
   } catch (error) {
     console.error('Computer humanizer analyze error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Internal server error'
+    }, 500);
+  }
+});
+
+/**
+ * POST /transformations/persona - Transform narrative voice/perspective
+ *
+ * Single-dimension transformation: Changes ONLY the narrative voice
+ * Preserves content, setting, and writing style
+ */
+transformationRoutes.post('/persona', optionalLocalAuth(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const body = await c.req.json();
+    const { text, persona, preserveLength, enableValidation } = body;
+
+    // Validate input
+    if (!text || !persona) {
+      return c.json({ error: 'Missing required fields: text, persona' }, 400);
+    }
+
+    if (text.length > 10000) {
+      return c.json({ error: 'Text too long (max 10,000 characters)' }, 400);
+    }
+
+    // Fetch persona
+    const personaRecord = await c.env.DB.prepare(
+      'SELECT * FROM personas WHERE name = ?'
+    ).bind(persona).first();
+
+    if (!personaRecord) {
+      return c.json({ error: `Persona "${persona}" not found` }, 404);
+    }
+
+    // Transform
+    const result = await transformPersona(
+      c.env,
+      text,
+      personaRecord as any,  // Type assertion - DB returns correct shape
+      auth.userId,
+      {
+        preserveLength: preserveLength !== false,
+        enableValidation: enableValidation !== false
+      }
+    );
+
+    return c.json({
+      transformation_id: result.transformationId,
+      transformed_text: result.transformedText,
+      baseline: result.baseline,
+      final: result.final,
+      improvement: result.improvement,
+      processing: result.processing
+    }, 200);
+  } catch (error) {
+    console.error('Persona transformation error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Internal server error'
+    }, 500);
+  }
+});
+
+/**
+ * POST /transformations/namespace - Transform narrative universe/setting
+ *
+ * Single-dimension transformation: Changes ONLY the conceptual framework
+ * Preserves narrative voice and writing style
+ */
+transformationRoutes.post('/namespace', optionalLocalAuth(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const body = await c.req.json();
+    const { text, namespace, preserveLength, enableValidation } = body;
+
+    // Validate input
+    if (!text || !namespace) {
+      return c.json({ error: 'Missing required fields: text, namespace' }, 400);
+    }
+
+    if (text.length > 10000) {
+      return c.json({ error: 'Text too long (max 10,000 characters)' }, 400);
+    }
+
+    // Fetch namespace
+    const namespaceRecord = await c.env.DB.prepare(
+      'SELECT * FROM namespaces WHERE name = ?'
+    ).bind(namespace).first();
+
+    if (!namespaceRecord) {
+      return c.json({ error: `Namespace "${namespace}" not found` }, 404);
+    }
+
+    // Transform
+    const result = await transformNamespace(
+      c.env,
+      text,
+      namespaceRecord as any,  // Type assertion - DB returns correct shape
+      auth.userId,
+      {
+        preserveLength: preserveLength !== false,
+        enableValidation: enableValidation !== false
+      }
+    );
+
+    return c.json({
+      transformation_id: result.transformationId,
+      transformed_text: result.transformedText,
+      baseline: result.baseline,
+      final: result.final,
+      improvement: result.improvement,
+      processing: result.processing
+    }, 200);
+  } catch (error) {
+    console.error('Namespace transformation error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Internal server error'
+    }, 500);
+  }
+});
+
+/**
+ * POST /transformations/style - Transform writing patterns
+ *
+ * Single-dimension transformation: Changes ONLY the writing style
+ * Preserves content, voice, and setting
+ */
+transformationRoutes.post('/style', optionalLocalAuth(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const body = await c.req.json();
+    const { text, style, preserveLength, enableValidation } = body;
+
+    // Validate input
+    if (!text || !style) {
+      return c.json({ error: 'Missing required fields: text, style' }, 400);
+    }
+
+    if (text.length > 10000) {
+      return c.json({ error: 'Text too long (max 10,000 characters)' }, 400);
+    }
+
+    // Fetch style
+    const styleRecord = await c.env.DB.prepare(
+      'SELECT * FROM styles WHERE name = ?'
+    ).bind(style).first();
+
+    if (!styleRecord) {
+      return c.json({ error: `Style "${style}" not found` }, 404);
+    }
+
+    // Transform
+    const result = await transformStyle(
+      c.env,
+      text,
+      styleRecord as any,  // Type assertion - DB returns correct shape
+      auth.userId,
+      {
+        preserveLength: preserveLength !== false,
+        enableValidation: enableValidation !== false
+      }
+    );
+
+    return c.json({
+      transformation_id: result.transformationId,
+      transformed_text: result.transformedText,
+      baseline: result.baseline,
+      final: result.final,
+      improvement: result.improvement,
+      processing: result.processing
+    }, 200);
+  } catch (error) {
+    console.error('Style transformation error:', error);
     return c.json({
       error: error instanceof Error ? error.message : 'Internal server error'
     }, 500);
