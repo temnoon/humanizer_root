@@ -122,8 +122,9 @@ const TELL_WORD_REPLACEMENTS: Record<string, string[]> = {
 /**
  * Enhance burstiness by varying sentence lengths
  * Target: 50-70/100 (human-like variation)
- * Strategy: Split long sentences, add short emphatic sentences, vary structure
- * PRESERVES: Paragraph breaks (double newlines)
+ * Strategy: Mix short (8-12 word) and long (20-30 word) sentences
+ * PRESERVES: Paragraph breaks, markdown formatting
+ * NOTE: This is a PLACEHOLDER - should be replaced with LLM-based approach for production
  */
 export function enhanceBurstiness(text: string, targetScore: number = 60): string {
   const currentScore = calculateBurstiness(text);
@@ -132,6 +133,10 @@ export function enhanceBurstiness(text: string, targetScore: number = 60): strin
   if (currentScore >= targetScore - 5) {
     return text;
   }
+
+  // SIMPLIFIED: Just vary sentence lengths using rule-based splitting
+  // For production, this should use LLM to rewrite with varied sentence lengths
+  // (local working version uses Ollama with prompt to mix short and long sentences)
 
   // Split into paragraphs first (preserve paragraph breaks)
   const paragraphs = text.split(/\n\n+/);
@@ -154,13 +159,13 @@ export function enhanceBurstiness(text: string, targetScore: number = 60): strin
         const splitResult = splitLongSentence(sentence);
         transformed.push(...splitResult);
       }
-      // Split moderately long sentences (>22 words) with some probability
-      else if (wordCount > 22 && Math.random() > 0.5) {
+      // Split moderately long sentences (>25 words) occasionally
+      else if (wordCount > 25 && Math.random() > 0.6) {
         const splitResult = splitLongSentence(sentence);
         transformed.push(...splitResult);
       }
-      // Add short emphatic sentence after key points (10% probability)
-      else if (wordCount > 12 && Math.random() > 0.9) {
+      // Add short emphatic sentence after some sentences (5% probability)
+      else if (wordCount > 15 && Math.random() > 0.95) {
         transformed.push(sentence);
         const emphatic = createEmphaticSentence(sentence);
         if (emphatic) {
@@ -252,12 +257,13 @@ function createEmphaticSentence(sentence: string): string | null {
 }
 
 /**
- * Replace tell-words with more natural alternatives
+ * Remove tell-words from text (SIMPLIFIED - matches local working version)
  * Intensity: 'light' (30% removal), 'moderate' (60% removal), 'aggressive' (90% removal)
  */
 export function replaceTellWords(text: string, intensity: 'light' | 'moderate' | 'aggressive' = 'moderate'): string {
   let result = text;
-  const removalRate = intensity === 'light' ? 0.3 : intensity === 'moderate' ? 0.6 : 0.9;
+  const intensityMap = { light: 0.3, moderate: 0.6, aggressive: 0.9 };
+  const removalRate = intensityMap[intensity];
 
   // Get all tell-words
   const allTellWords = getAllTellWords();
@@ -265,54 +271,30 @@ export function replaceTellWords(text: string, intensity: 'light' | 'moderate' |
   // Sort by length (longest first) to handle phrases before individual words
   const sortedTellWords = allTellWords.sort((a, b) => b.length - a.length);
 
+  // Detect which tell-words are present
+  const found: string[] = [];
   for (const tellWord of sortedTellWords) {
-    // Skip if no replacement available
-    if (!TELL_WORD_REPLACEMENTS[tellWord]) {
-      continue;
-    }
-
-    // Create case-insensitive regex with word boundaries
     const regex = new RegExp(`\\b${escapeRegex(tellWord)}\\b`, 'gi');
-
-    result = result.replace(regex, (match) => {
-      // Apply removal rate probability
-      if (Math.random() > removalRate) {
-        return match; // Keep original
-      }
-
-      const replacements = TELL_WORD_REPLACEMENTS[tellWord.toLowerCase()];
-
-      // Filter out empty string replacements based on intensity
-      const validReplacements = intensity === 'aggressive'
-        ? replacements
-        : replacements.filter(r => r.length > 0);
-
-      if (validReplacements.length === 0) {
-        return match; // No valid replacement
-      }
-
-      // Pick random replacement
-      const replacement = validReplacements[Math.floor(Math.random() * validReplacements.length)];
-
-      // If replacement is empty, remove the word (and clean up extra spaces)
-      if (replacement === '') {
-        return '';
-      }
-
-      // Preserve case (capitalize if original was capitalized)
-      if (match.charAt(0) === match.charAt(0).toUpperCase()) {
-        return replacement.charAt(0).toUpperCase() + replacement.slice(1);
-      }
-
-      return replacement;
-    });
+    if (regex.test(result)) {
+      found.push(tellWord);
+    }
   }
 
-  // Clean up multiple spaces and spaces before punctuation
-  // PRESERVE newlines - only collapse spaces on same line
-  result = result.replace(/[^\S\n]+/g, ' '); // Collapse spaces but not newlines
-  result = result.replace(/\s+([.,!?;:])/g, '$1');
-  result = result.trim();
+  // Remove tell-words based on intensity
+  const toRemove = found.slice(0, Math.ceil(found.length * removalRate));
+
+  toRemove.forEach(phrase => {
+    // Remove the phrase and clean up extra spaces/punctuation
+    const regex = new RegExp(`\\b${escapeRegex(phrase)}[,.]?\\s*`, 'gi');
+    result = result.replace(regex, ' ');
+  });
+
+  // Clean up multiple spaces
+  result = result.replace(/\s{2,}/g, ' ').trim();
+
+  // Clean up awkward punctuation
+  result = result.replace(/\s+([.,;:!?])/g, '$1');
+  result = result.replace(/([.!?])\s*([.!?])/g, '$1');
 
   return result;
 }
