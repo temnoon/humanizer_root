@@ -59,7 +59,7 @@ export class PersonaTransformationService {
     private env: Env,
     private persona: NPEPersona,
     private userId: string,
-    private modelId: string = '@cf/meta/llama-3.1-8b-instruct'
+    private modelId: string = '@cf/meta/llama-3.1-70b-instruct'
   ) {}
 
   /**
