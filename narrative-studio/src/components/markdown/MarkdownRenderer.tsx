@@ -14,6 +14,11 @@ interface MarkdownRendererProps {
 export function MarkdownRenderer({ content, className = '' }: MarkdownRendererProps) {
   const { textSize } = useTextSize();
 
+  // Safety check for undefined/null content
+  if (!content) {
+    return <div className={className}>No content available</div>;
+  }
+
   // Format DALL-E prompts (extract prompt from JSON)
   let formattedContent = content;
   if (content.trim().startsWith('{') && content.includes('"prompt"')) {

@@ -108,7 +108,25 @@ export async function aiDetection(
     throw new Error(error.message || 'AI Detection failed');
   }
 
-  return response.json();
+  const data = await response.json();
+
+  // Map backend AI detection response to TransformResult format
+  // AI detection doesn't transform text, so transformed === original
+  return {
+    transformation_id: crypto.randomUUID(),
+    original: text,
+    transformed: text, // Detection doesn't change the text
+    metadata: {
+      aiDetection: {
+        confidence: data.aiConfidence || 0,
+        verdict: data.verdict || 'uncertain',
+        tellWords: data.tellWords || [],
+        burstiness: data.burstinessScore || 0,
+        perplexity: data.perplexityScore || 0,
+        reasoning: data.reasoning || '',
+      },
+    },
+  };
 }
 
 // ============================================================
