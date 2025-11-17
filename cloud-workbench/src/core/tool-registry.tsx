@@ -11,6 +11,9 @@ import { HistoryPanel } from "../features/history/HistoryPanel";
 import { SessionBrowser } from "../features/quantum/SessionBrowser";
 import { AIDetectionPanel } from "../features/panels/ai-detection/AIDetectionPanel";
 import { ComputerHumanizerPanel } from "../features/panels/computer-humanizer/ComputerHumanizerPanel";
+import { PersonaPanel } from "../features/panels/persona/PersonaPanel";
+import { NamespacePanel } from "../features/panels/namespace/NamespacePanel";
+import { StylePanel } from "../features/panels/style/StylePanel";
 
 export type ToolKind = "analysis" | "transform" | "pipeline";
 
@@ -26,6 +29,9 @@ export const toolRegistry: ToolDef[] = [
   // Transformations (Working Tools Only)
   { id: "computer-humanizer", kind: "transform", icon: <span>🖥️</span>, label: "Computer Humanizer", panel: ComputerHumanizerPanel },
   { id: "allegorical", kind: "transform", icon: <span>🌟</span>, label: "Allegorical", panel: AllegoricalPanel },
+  { id: "persona", kind: "transform", icon: <span>🎭</span>, label: "Persona", panel: PersonaPanel },
+  { id: "namespace", kind: "transform", icon: <span>🌍</span>, label: "Namespace", panel: NamespacePanel },
+  { id: "style", kind: "transform", icon: <span>✍️</span>, label: "Style", panel: StylePanel },
   { id: "ai-detection", kind: "transform", icon: <span>🔍</span>, label: "AI Detection", panel: AIDetectionPanel },
 
   // Broken tools removed (Nov 14 testing - see /tmp/TOOL_TESTING_RESULTS.md)

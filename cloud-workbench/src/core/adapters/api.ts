@@ -372,6 +372,28 @@ export interface WorkbenchAPI {
     targetLexicalDiversity?: number;
   }): Promise<any>;
 
+  // Single-dimension transformations
+  transformPersona(input: {
+    text: string;
+    persona: string;
+    preserveLength?: boolean;
+    enableValidation?: boolean;
+  }): Promise<any>;
+
+  transformNamespace(input: {
+    text: string;
+    namespace: string;
+    preserveLength?: boolean;
+    enableValidation?: boolean;
+  }): Promise<any>;
+
+  transformStyle(input: {
+    text: string;
+    style: string;
+    preserveLength?: boolean;
+    enableValidation?: boolean;
+  }): Promise<any>;
+
   maieutic(input: {
     text: string;
     depth: number;
@@ -637,6 +659,40 @@ const implementation: WorkbenchAPI = {
       targetLexicalDiversity: b.targetLexicalDiversity
     };
     const r = await http.post(`transformations/computer-humanizer`, { json: payload }).json<any>();
+    return r;
+  },
+
+  // Single-dimension transformations
+  async transformPersona(b) {
+    const payload = {
+      text: b.text,
+      persona: b.persona,
+      preserveLength: b.preserveLength !== false,
+      enableValidation: b.enableValidation !== false
+    };
+    const r = await http.post(`transformations/persona`, { json: payload }).json<any>();
+    return r;
+  },
+
+  async transformNamespace(b) {
+    const payload = {
+      text: b.text,
+      namespace: b.namespace,
+      preserveLength: b.preserveLength !== false,
+      enableValidation: b.enableValidation !== false
+    };
+    const r = await http.post(`transformations/namespace`, { json: payload }).json<any>();
+    return r;
+  },
+
+  async transformStyle(b) {
+    const payload = {
+      text: b.text,
+      style: b.style,
+      preserveLength: b.preserveLength !== false,
+      enableValidation: b.enableValidation !== false
+    };
+    const r = await http.post(`transformations/style`, { json: payload }).json<any>();
     return r;
   },
 
