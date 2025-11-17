@@ -258,6 +258,114 @@ app.get('/api/conversations/:folder/media/:filename', async (req, res) => {
   }
 });
 
+// Gallery endpoint - returns all images from conversations with media
+app.get('/api/gallery', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const withMediaPath = path.join(ARCHIVE_ROOT, '_with_media');
+
+    // Read all conversation folders in _with_media
+    const folders = await fs.readdir(withMediaPath);
+    const images = [];
+
+    for (const folder of folders) {
+      try {
+        // Resolve symlink to actual conversation folder
+        const symlinkPath = path.join(withMediaPath, folder);
+        const stats = await fs.lstat(symlinkPath);
+
+        if (!stats.isSymbolicLink() && !stats.isDirectory()) continue;
+
+        const actualPath = stats.isSymbolicLink()
+          ? await fs.realpath(symlinkPath)
+          : symlinkPath;
+
+        // Read conversation.json
+        const conversationJsonPath = path.join(actualPath, 'conversation.json');
+        const conversationData = JSON.parse(await fs.readFile(conversationJsonPath, 'utf-8'));
+
+        // Read media files
+        const mediaPath = path.join(actualPath, 'media');
+        try {
+          const mediaFiles = await fs.readdir(mediaPath);
+
+          // Filter to image files only
+          const imageFiles = mediaFiles.filter(file => {
+            const ext = path.extname(file).toLowerCase();
+            return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext);
+          });
+
+          // Get image metadata from conversation messages
+          const messages = Object.values(conversationData.mapping || {})
+            .filter(node => node.message && node.message.content)
+            .map(node => node.message);
+
+          for (const imageFile of imageFiles) {
+            // Find which message contains this image
+            let messageIndex = -1;
+            let imageMetadata = null;
+
+            for (let i = 0; i < messages.length; i++) {
+              const msg = messages[i];
+              if (msg.content && msg.content.parts) {
+                for (const part of msg.content.parts) {
+                  if (typeof part === 'object' && part.content_type === 'image_asset_pointer') {
+                    imageMetadata = {
+                      width: part.width,
+                      height: part.height,
+                      size_bytes: part.size_bytes
+                    };
+                    messageIndex = i;
+                    break;
+                  }
+                }
+              }
+              if (messageIndex !== -1) break;
+            }
+
+            images.push({
+              url: `http://localhost:3002/api/conversations/${encodeURIComponent(folder)}/media/${encodeURIComponent(imageFile)}`,
+              filename: imageFile,
+              conversationFolder: folder,
+              conversationTitle: conversationData.title || folder,
+              conversationCreatedAt: conversationData.create_time || null,
+              messageIndex: messageIndex,
+              width: imageMetadata?.width,
+              height: imageMetadata?.height,
+              sizeBytes: imageMetadata?.size_bytes
+            });
+          }
+        } catch (err) {
+          // No media folder or can't read it, skip
+          continue;
+        }
+      } catch (err) {
+        console.error(`Error processing ${folder}:`, err.message);
+        continue;
+      }
+    }
+
+    // Sort by conversation creation date (newest first)
+    images.sort((a, b) => (b.conversationCreatedAt || 0) - (a.conversationCreatedAt || 0));
+
+    // Paginate
+    const paginatedImages = images.slice(offset, offset + limit);
+
+    res.json({
+      images: paginatedImages,
+      total: images.length,
+      offset,
+      limit,
+      hasMore: offset + limit < images.length
+    });
+  } catch (error) {
+    console.error('Error fetching gallery:', error);
+    res.status(500).json({ error: 'Failed to fetch gallery' });
+  }
+});
+
 // ============================================================
 // TRANSFORMATION ENDPOINTS - Ollama Integration
 // ============================================================

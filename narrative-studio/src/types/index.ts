@@ -152,6 +152,26 @@ export interface Conversation {
   tags?: string[]; // Auto-generated conversation-level tags
 }
 
+export interface GalleryImage {
+  url: string;
+  filename: string;
+  conversationFolder: string;
+  conversationTitle: string;
+  conversationCreatedAt: number | null;
+  messageIndex: number;
+  width?: number;
+  height?: number;
+  sizeBytes?: number;
+}
+
+export interface GalleryResponse {
+  images: GalleryImage[];
+  total: number;
+  offset: number;
+  limit: number;
+  hasMore: boolean;
+}
+
 export interface AutoTags {
   // Time-based tags
   year?: string;
