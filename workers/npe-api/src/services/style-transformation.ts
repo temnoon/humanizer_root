@@ -60,7 +60,7 @@ export class StyleTransformationService {
     private env: Env,
     private style: NPEStyle,
     private userId: string,
-    private modelId: string = '@cf/meta/llama-3.1-8b-instruct'
+    private modelId: string = '@cf/meta/llama-3.1-70b-instruct'
   ) {}
 
   /**
