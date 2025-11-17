@@ -111,7 +111,7 @@ export async function personaTransform(
   text: string,
   options: PersonaOptions
 ): Promise<TransformResult> {
-  const response = await fetch(`${API_BASE}/transform/persona`, {
+  const response = await fetch(`${API_BASE}/transformations/persona`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, ...options }),
@@ -137,7 +137,7 @@ export async function styleTransform(
   text: string,
   options: StyleOptions
 ): Promise<TransformResult> {
-  const response = await fetch(`${API_BASE}/transform/style`, {
+  const response = await fetch(`${API_BASE}/transformations/style`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, ...options }),
@@ -163,7 +163,7 @@ export async function namespaceTransform(
   text: string,
   options: NamespaceOptions
 ): Promise<TransformResult> {
-  const response = await fetch(`${API_BASE}/transform/namespace`, {
+  const response = await fetch(`${API_BASE}/transformations/namespace`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text, ...options }),
@@ -193,6 +193,21 @@ export async function runTransform(config: TransformConfig, text: string): Promi
     case 'ai-detection':
       return aiDetection(text, {
         threshold: config.parameters.threshold,
+      });
+
+    case 'persona':
+      return personaTransform(text, {
+        persona: config.parameters.persona || 'holmes_analytical',
+      });
+
+    case 'namespace':
+      return namespaceTransform(text, {
+        namespace: config.parameters.namespace || 'enlightenment_science',
+      });
+
+    case 'style':
+      return styleTransform(text, {
+        style: config.parameters.style || 'austen_precision',
       });
 
     case 'allegorical':
