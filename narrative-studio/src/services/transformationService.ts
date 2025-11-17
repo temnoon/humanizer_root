@@ -77,10 +77,10 @@ export async function computerHumanizer(
     original: text,
     transformed: data.humanizedText,  // Backend returns humanizedText
     metadata: {
-      aiConfidenceBefore: data.baseline?.detection?.aiConfidence || 0,
-      aiConfidenceAfter: data.final?.detection?.aiConfidence || 0,
-      burstinessBefore: data.baseline?.detection?.burstinessScore || 0,
-      burstinessAfter: data.final?.detection?.burstinessScore || 0,
+      aiConfidenceBefore: data.baseline?.detection?.confidence || 0,
+      aiConfidenceAfter: data.final?.detection?.confidence || 0,
+      burstinessBefore: data.baseline?.detection?.burstiness || 0,
+      burstinessAfter: data.final?.detection?.burstiness || 0,
       tellWordsRemoved: data.improvement?.tellWordsRemoved || 0,
       tellWordsFound: data.baseline?.detection?.tellWords || [],
       processingTime: data.processing?.totalDurationMs || 0,
@@ -142,10 +142,10 @@ export async function aiDetection(
       aiDetection: {
         confidence: data.confidence || 0,
         verdict: data.verdict || 'uncertain',
-        tellWords: data.tellWords || [],
-        burstiness: data.burstiness || 0,
-        perplexity: data.perplexity || 0,
-        reasoning: data.reasoning || '',
+        tellWords: data.detectedTellWords || [],
+        burstiness: data.signals?.burstiness || 0,
+        perplexity: data.signals?.lexicalDiversity || 0,
+        reasoning: data.explanation || '',
       },
     },
   };
