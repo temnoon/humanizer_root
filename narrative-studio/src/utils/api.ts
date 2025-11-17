@@ -86,6 +86,12 @@ class HumanizerAPI {
         return '/transformations/computer-humanizer';
       case 'allegorical':
         return '/transformations/allegorical';
+      case 'persona':
+        return '/transformations/persona';
+      case 'namespace':
+        return '/transformations/namespace';
+      case 'style':
+        return '/transformations/style';
       case 'ai-detection':
         return '/transformations/ai-detection';
       default:

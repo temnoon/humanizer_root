@@ -28,6 +28,9 @@ export interface TransformConfig {
 export type TransformationType =
   | 'computer-humanizer'
   | 'allegorical'
+  | 'persona'
+  | 'namespace'
+  | 'style'
   | 'ai-detection';
 
 export interface TransformParameters {
