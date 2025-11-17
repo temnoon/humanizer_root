@@ -254,40 +254,27 @@ export async function humanizeText(
 }
 
 /**
- * LLM polish pass using Claude
+ * LLM polish pass using Llama 70b
  * Ensures natural flow while preserving humanization improvements
  */
 async function llmPolishPass(env: Env, text: string): Promise<string> {
-  // Use Workers AI Claude binding
-  const systemPrompt = `You are a text refinement assistant. Your task is to polish the given text to ensure it flows naturally and reads smoothly, while preserving its current structure and avoiding AI "tell-words".
+  // Use Workers AI Llama 70b (Claude not available on Cloudflare Workers AI)
+  const wordCount = text.split(/\s+/).length;
+  const prompt = `Make this text sound natural and conversational, like a real person wrote it. Use simpler words. Remove any remaining formal or robotic language. Keep it around ${wordCount} words (±10%). Don't add new facts or explanations. Return ONLY the polished text.
 
-CRITICAL RULES:
-1. DO NOT add these AI tell-words: delve, robust, leverage, tapestry, landscape, realm, intricate, comprehensive, holistic, paradigm, multifaceted, nuanced, meticulously, pivotal, crucial, quintessential
-2. DO NOT use phrases like "it's worth noting", "in today's landscape", "in conclusion", "moreover", "furthermore"
-3. PRESERVE the current sentence length variation (don't make all sentences uniform)
-4. PRESERVE any contractions (don't, can't, won't, etc.)
-5. PRESERVE any casual or conversational tone
-6. DO NOT make the text more formal or academic
-7. Only fix grammar, awkward phrasing, and ensure smooth transitions
-8. Keep the same meaning and key points
+Text:
+${text}
 
-Your goal: Make it read naturally while keeping its "human-like" qualities intact.`;
-
-  const userPrompt = `Please polish this text according to the rules:
-
-${text}`;
+Polished:`;
 
   try {
-    const response = await env.AI.run('@cf/anthropic/claude-3-5-sonnet-20241022', {
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
+    const response = await env.AI.run('@cf/meta/llama-3-70b-instruct', {
+      prompt,
       max_tokens: 4096,
-      temperature: 0.3  // Lower temperature for more consistent output
+      temperature: 0.7
     });
 
-    const polished = (response as any).response || text;
+    const polished = (response as any).response?.trim() || text;
 
     // Safety check: If LLM reintroduced tell-words, return unpolished version
     const reintroducedDetection = await detectAILocal(polished);
