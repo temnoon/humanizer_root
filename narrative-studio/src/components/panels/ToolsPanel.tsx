@@ -16,11 +16,6 @@ const TRANSFORM_TYPES: { value: TransformationType; label: string; description: 
     description: 'Remove AI tell-words and improve text naturalness',
   },
   {
-    value: 'allegorical',
-    label: 'Allegorical Transformation',
-    description: 'Transform narrative through phenomenological perspective shift',
-  },
-  {
     value: 'persona',
     label: 'Persona Transformation',
     description: 'Change narrative voice/perspective only',
@@ -198,71 +193,6 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                   LLM polish may help simple narratives but can hurt technical content.
                   We'll highlight phrases for you to manually polish - your personal touch works best.
                 </p>
-              </div>
-            </div>
-          )}
-
-          {/* Allegorical Parameters */}
-          {selectedType === 'allegorical' && (
-            <div className="space-y-5">
-              <div>
-                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
-                  Persona
-                </label>
-                <select
-                  value={parameters.persona || 'holmes_analytical'}
-                  onChange={(e) => setParameters({ ...parameters, persona: e.target.value })}
-                  className="ui-text w-full"
-                  style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="holmes_analytical">Holmes (Analytical)</option>
-                  <option value="austen_observant">Austen (Observant)</option>
-                  <option value="darwin_empirical">Darwin (Empirical)</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
-                  Namespace
-                </label>
-                <select
-                  value={parameters.namespace || 'enlightenment_science'}
-                  onChange={(e) => setParameters({ ...parameters, namespace: e.target.value })}
-                  className="ui-text w-full"
-                  style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="enlightenment_science">Enlightenment Science</option>
-                  <option value="victorian_society">Victorian Society</option>
-                  <option value="ancient_philosophy">Ancient Philosophy</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
-                  Style
-                </label>
-                <select
-                  value={parameters.style || 'austen_precision'}
-                  onChange={(e) => setParameters({ ...parameters, style: e.target.value })}
-                  className="ui-text w-full"
-                  style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="austen_precision">Austen Precision</option>
-                  <option value="holmes_deduction">Holmes Deduction</option>
-                  <option value="darwin_observation">Darwin Observation</option>
-                </select>
               </div>
             </div>
           )}

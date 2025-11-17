@@ -216,14 +216,14 @@ function AppContent() {
       {/* Error toast */}
       {error && (
         <div
-          className="fixed bottom-6 left-1/2 transform -translate-x-1/2 px-6 py-4 rounded-lg shadow-2xl max-w-2xl z-50"
+          className="fixed bottom-6 left-1/2 transform -translate-x-1/2 px-8 py-4 rounded-lg shadow-2xl max-w-2xl z-50"
           style={{
             backgroundColor: 'var(--error)',
             color: 'white',
           }}
         >
           <div className="flex items-center justify-between gap-4">
-            <p className="ui-text text-sm text-center flex-1">{error}</p>
+            <p className="ui-text text-sm text-center flex-1" style={{ paddingLeft: '8px' }}>{error}</p>
             <button
               onClick={() => setError(null)}
               className="ui-text text-sm font-semibold hover:opacity-80 flex-shrink-0"
