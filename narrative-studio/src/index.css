@@ -567,3 +567,28 @@ samp,
   color: var(--text-inverse);
   border: 1px solid transparent;
 }
+
+/* ============================================================
+   GALLERY STYLES
+   ============================================================ */
+
+.gallery-image-item {
+  position: relative;
+}
+
+.gallery-image-item:hover {
+  opacity: 0.9;
+}
+
+.gallery-image-overlay {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.gallery-image-item:hover .gallery-image-overlay {
+  opacity: 1;
+}
+
+.lightbox-nav-button:hover {
+  background-color: rgba(0, 0, 0, 0.7) !important;
+}

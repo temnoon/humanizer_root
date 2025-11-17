@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import type { ConversationMetadata, Conversation } from '../../types';
+import type { ConversationMetadata, Conversation, GalleryImage } from '../../types';
 import { Icons } from '../layout/Icons';
 import { archiveService } from '../../services/archiveService';
+import { galleryService } from '../../services/galleryService';
+import { ImageLightbox } from './ImageLightbox';
 
 interface ArchivePanelProps {
   onSelectNarrative: (narrative: any) => void;
@@ -9,7 +11,7 @@ interface ArchivePanelProps {
   onClose: () => void;
 }
 
-type ViewMode = 'conversations' | 'messages';
+type ViewMode = 'conversations' | 'messages' | 'gallery';
 type FilterCategory = 'date' | 'size' | 'media';
 
 interface ActiveFilters {
@@ -44,6 +46,14 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [showRecentSearches, setShowRecentSearches] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
   const [sortDirection, setSortDirection] = useState<'ascending' | 'descending'>('descending');
+
+  // Gallery state
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [galleryOffset, setGalleryOffset] = useState(0);
+  const [galleryTotal, setGalleryTotal] = useState(0);
+  const [galleryHasMore, setGalleryHasMore] = useState(true);
+  const [galleryLoading, setGalleryLoading] = useState(false);
+  const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
 
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
 
@@ -117,6 +127,90 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         onSelectNarrative(narrative);
         setSelectedMessageIndex(0);
         console.log('Auto-loaded first message to canvas');
+      }
+    } catch (err: any) {
+      console.error('Failed to load conversation:', err);
+      alert(`Could not load conversation: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load gallery images
+  const loadGalleryImages = async (reset = false) => {
+    if (galleryLoading) return;
+
+    setGalleryLoading(true);
+    setError(null);
+    try {
+      const offset = reset ? 0 : galleryOffset;
+      const data = await galleryService.fetchImages(50, offset);
+
+      if (reset) {
+        setGalleryImages(data.images);
+        setGalleryOffset(data.limit);
+      } else {
+        setGalleryImages(prev => [...prev, ...data.images]);
+        setGalleryOffset(prev => prev + data.limit);
+      }
+
+      setGalleryTotal(data.total);
+      setGalleryHasMore(data.hasMore);
+      console.log(`Loaded ${data.images.length} images (${data.offset}-${data.offset + data.images.length} of ${data.total})`);
+    } catch (err: any) {
+      setError(err.message);
+      console.error('Failed to load gallery:', err);
+    } finally {
+      setGalleryLoading(false);
+    }
+  };
+
+  // Load gallery when view mode changes to gallery
+  useEffect(() => {
+    if (viewMode === 'gallery' && galleryImages.length === 0 && !galleryLoading) {
+      loadGalleryImages(true);
+    }
+  }, [viewMode]);
+
+  // Listen for lightbox navigation events
+  useEffect(() => {
+    const handleNavigate = (e: Event) => {
+      const customEvent = e as CustomEvent<GalleryImage>;
+      setLightboxImage(customEvent.detail);
+    };
+
+    const handleLoadMore = () => {
+      if (galleryHasMore && !galleryLoading) {
+        console.log('Auto-loading more images for navigation...');
+        loadGalleryImages(false);
+      }
+    };
+
+    window.addEventListener('lightbox-navigate', handleNavigate);
+    window.addEventListener('gallery-load-more', handleLoadMore);
+    return () => {
+      window.removeEventListener('lightbox-navigate', handleNavigate);
+      window.removeEventListener('gallery-load-more', handleLoadMore);
+    };
+  }, [galleryHasMore, galleryLoading]);
+
+  // Handle viewing a conversation from the lightbox
+  const handleViewConversation = async (image: GalleryImage) => {
+    try {
+      setLoading(true);
+      const conv = await archiveService.fetchConversation(image.conversationFolder);
+      setSelectedConversation(conv);
+      setViewMode('messages');
+      setMessageSearch('');
+      setSelectedMessageIndex(image.messageIndex);
+      setFocusedIndex(image.messageIndex);
+      setLightboxImage(null); // Close lightbox
+
+      // Load the specific message to canvas
+      if (image.messageIndex >= 0 && image.messageIndex < conv.messages.length) {
+        const narrative = archiveService.conversationToNarrative(conv, image.messageIndex);
+        onSelectNarrative(narrative);
+        console.log(`Loaded message ${image.messageIndex + 1} from "${conv.title}" to canvas`);
       }
     } catch (err: any) {
       console.error('Failed to load conversation:', err);
@@ -615,6 +709,131 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     );
   }
 
+  // GALLERY VIEW
+  if (viewMode === 'gallery') {
+    return (
+      <>
+        {/* Mobile backdrop */}
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+
+        {/* Panel */}
+        <aside
+          className="fixed top-16 left-0 bottom-0 w-80 md:w-96 z-50 md:relative md:top-0 overflow-hidden panel"
+          style={{
+            backgroundColor: 'var(--bg-panel)',
+            borderRight: '1px solid var(--border-color)',
+            borderRadius: 0,
+          }}
+        >
+          {/* Gallery content */}
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* Header */}
+            <div style={{ padding: 'var(--space-lg)', borderBottom: '1px solid var(--border-color)' }}>
+              <h3 className="heading-sm mb-2" style={{ color: 'var(--text-primary)' }}>
+                Media Gallery
+              </h3>
+              <div className="text-small" style={{ color: 'var(--text-secondary)' }}>
+                {galleryTotal.toLocaleString()} images • {galleryImages.length} loaded
+              </div>
+            </div>
+
+            {/* Gallery grid */}
+            <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)' }}>
+              {galleryLoading && galleryImages.length === 0 ? (
+                <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: 'var(--space-xl)' }}>
+                  Loading images...
+                </div>
+              ) : (
+                <>
+                  {/* Image grid - 2 columns on mobile, 3 on desktop */}
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                      gap: 'var(--space-sm)',
+                    }}
+                  >
+                    {galleryImages.map((img, idx) => (
+                      <div
+                        key={idx}
+                        className="gallery-image-item"
+                        onClick={() => setLightboxImage(img)}
+                        style={{
+                          position: 'relative',
+                          aspectRatio: '1',
+                          overflow: 'hidden',
+                          borderRadius: '4px',
+                          backgroundColor: 'var(--bg-tertiary)',
+                          cursor: 'pointer',
+                          transition: 'opacity 0.2s',
+                        }}
+                      >
+                        <img
+                          src={img.url}
+                          alt={img.conversationTitle}
+                          loading="lazy"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                          }}
+                        />
+                        {/* Hover overlay with title */}
+                        <div
+                          className="gallery-image-overlay"
+                          style={{
+                            position: 'absolute',
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
+                            padding: 'var(--space-xs)',
+                            pointerEvents: 'none',
+                          }}
+                        >
+                          <div className="text-tiny" style={{ color: 'white', fontWeight: 600 }}>
+                            {img.conversationTitle}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {galleryHasMore && (
+                    <button
+                      onClick={() => loadGalleryImages(false)}
+                      disabled={galleryLoading}
+                      className="btn-secondary mt-4 w-full"
+                      style={{
+                        opacity: galleryLoading ? 0.5 : 1,
+                      }}
+                    >
+                      {galleryLoading ? 'Loading...' : `Load More (${galleryImages.length} of ${galleryTotal})`}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        {/* Lightbox */}
+        {lightboxImage && (
+          <ImageLightbox
+            image={lightboxImage}
+            images={galleryImages}
+            onClose={() => setLightboxImage(null)}
+            onViewConversation={handleViewConversation}
+          />
+        )}
+      </>
+    );
+  }
+
   // CONVERSATIONS VIEW
   return (
     <>
@@ -662,6 +881,34 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               }}
             >
               <Icons.Close />
+            </button>
+          </div>
+
+          {/* View Mode Tabs */}
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setViewMode('conversations')}
+              className="tag"
+              style={{
+                backgroundColor: viewMode === 'conversations' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                color: viewMode === 'conversations' ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                border: `1px solid ${viewMode === 'conversations' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                fontWeight: 600,
+              }}
+            >
+              📄 Conversations
+            </button>
+            <button
+              onClick={() => setViewMode('gallery')}
+              className="tag"
+              style={{
+                backgroundColor: viewMode === 'gallery' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                color: viewMode === 'gallery' ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                border: `1px solid ${viewMode === 'gallery' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                fontWeight: 600,
+              }}
+            >
+              🖼️ Gallery
             </button>
           </div>
 
