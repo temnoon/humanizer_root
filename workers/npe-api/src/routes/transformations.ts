@@ -673,7 +673,7 @@ transformationRoutes.post('/persona', optionalLocalAuth(), async (c) => {
 
     // Fetch persona
     const personaRecord = await c.env.DB.prepare(
-      'SELECT * FROM personas WHERE name = ?'
+      'SELECT * FROM npe_personas WHERE name = ?'
     ).bind(persona).first();
 
     if (!personaRecord) {
@@ -731,7 +731,7 @@ transformationRoutes.post('/namespace', optionalLocalAuth(), async (c) => {
 
     // Fetch namespace
     const namespaceRecord = await c.env.DB.prepare(
-      'SELECT * FROM namespaces WHERE name = ?'
+      'SELECT * FROM npe_namespaces WHERE name = ?'
     ).bind(namespace).first();
 
     if (!namespaceRecord) {
@@ -789,7 +789,7 @@ transformationRoutes.post('/style', optionalLocalAuth(), async (c) => {
 
     // Fetch style
     const styleRecord = await c.env.DB.prepare(
-      'SELECT * FROM styles WHERE name = ?'
+      'SELECT * FROM npe_styles WHERE name = ?'
     ).bind(style).first();
 
     if (!styleRecord) {
