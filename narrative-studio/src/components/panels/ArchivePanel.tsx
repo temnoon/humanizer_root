@@ -19,7 +19,8 @@ interface ActiveFilters {
 }
 
 interface ArchiveState {
-  searchQuery: string;
+  conversationSearch: string;
+  messageSearch: string;
   activeFilters: ActiveFilters;
   recentSearches: string[];
 }
@@ -32,7 +33,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [selectedMessageIndex, setSelectedMessageIndex] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('conversations');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [messageSearch, setMessageSearch] = useState('');
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({});
   const [showingCategory, setShowingCategory] = useState<FilterCategory | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,7 +51,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     if (savedState) {
       try {
         const state: ArchiveState = JSON.parse(savedState);
-        setSearchQuery(state.searchQuery || '');
+        setConversationSearch(state.conversationSearch || '');
+        setMessageSearch(state.messageSearch || '');
         setActiveFilters(state.activeFilters || {});
         setRecentSearches(state.recentSearches || []);
       } catch (err) {
@@ -61,12 +64,13 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   // Save state to localStorage
   useEffect(() => {
     const state: ArchiveState = {
-      searchQuery,
+      conversationSearch,
+      messageSearch,
       activeFilters,
       recentSearches,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [searchQuery, activeFilters, recentSearches]);
+  }, [conversationSearch, messageSearch, activeFilters, recentSearches]);
 
   // Load conversations on mount
   useEffect(() => {
@@ -98,9 +102,18 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       const conv = await archiveService.fetchConversation(folder);
       setSelectedConversation(conv);
       setViewMode('messages');
+      setMessageSearch(''); // Clear message search when entering conversation
       setSelectedMessageIndex(null);
       setFocusedIndex(0); // Reset focus when switching to messages
       console.log(`Loaded "${conv.title}" - ${conv.messages.length} messages`);
+
+      // Auto-load first message to canvas
+      if (conv.messages.length > 0) {
+        const narrative = archiveService.conversationToNarrative(conv, 0);
+        onSelectNarrative(narrative);
+        setSelectedMessageIndex(0);
+        console.log('Auto-loaded first message to canvas');
+      }
     } catch (err: any) {
       console.error('Failed to load conversation:', err);
       alert(`Could not load conversation: ${err.message}`);
@@ -120,20 +133,32 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   };
 
   const handleSearchChange = (query: string) => {
-    setSearchQuery(query);
+    if (viewMode === 'conversations') {
+      setConversationSearch(query);
+    } else {
+      setMessageSearch(query);
+    }
     // Don't save on every keystroke - only save when user actually uses the search
   };
 
   const selectRecentSearch = (query: string) => {
-    setSearchQuery(query);
+    if (viewMode === 'conversations') {
+      setConversationSearch(query);
+    } else {
+      setMessageSearch(query);
+    }
     setShowRecentSearches(false);
   };
 
   const saveCurrentSearch = () => {
-    if (searchQuery.trim()) {
-      addToRecentSearches(searchQuery.trim());
+    const query = viewMode === 'conversations' ? conversationSearch : messageSearch;
+    if (query.trim()) {
+      addToRecentSearches(query.trim());
     }
   };
+
+  // Get the current search query based on view mode
+  const currentSearchQuery = viewMode === 'conversations' ? conversationSearch : messageSearch;
 
   const loadMessageToCanvas = (index: number) => {
     if (selectedConversation) {
@@ -234,9 +259,9 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const filteredConversations = useMemo(() => {
     return conversations.filter((conv) => {
       const matchesSearch =
-        !searchQuery ||
-        conv.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        conv.folder.toLowerCase().includes(searchQuery.toLowerCase());
+        !conversationSearch ||
+        conv.title.toLowerCase().includes(conversationSearch.toLowerCase()) ||
+        conv.folder.toLowerCase().includes(conversationSearch.toLowerCase());
 
       // AND logic: must match all active filters
       const matchesFilters = Object.entries(activeFilters).every(([_, tag]) => {
@@ -245,15 +270,15 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
       return matchesSearch && matchesFilters;
     });
-  }, [conversations, searchQuery, activeFilters]);
+  }, [conversations, conversationSearch, activeFilters]);
 
   // Filter messages
   const filteredMessages = useMemo(() => {
     if (!selectedConversation) return [];
     return selectedConversation.messages.filter((msg) =>
-      !searchQuery || msg.content.toLowerCase().includes(searchQuery.toLowerCase())
+      !messageSearch || msg.content.toLowerCase().includes(messageSearch.toLowerCase())
     );
-  }, [selectedConversation, searchQuery]);
+  }, [selectedConversation, messageSearch]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -320,7 +345,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   // Reset focused index when filters change
   useEffect(() => {
     setFocusedIndex(0);
-  }, [searchQuery, activeFilters, viewMode]);
+  }, [currentSearchQuery, activeFilters, viewMode]);
 
   if (!isOpen) return null;
 
@@ -391,7 +416,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             <div className="relative mb-4">
               <input
                 type="text"
-                value={searchQuery}
+                value={currentSearchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => setShowRecentSearches(true)}
                 onBlur={() => setTimeout(() => setShowRecentSearches(false), 200)}
@@ -438,7 +463,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             {/* Action buttons */}
             <div className="flex items-center justify-between text-small" style={{ color: 'var(--text-secondary)' }}>
               <span>
-                {searchQuery
+                {currentSearchQuery
                   ? `${filteredMessages.length} of ${selectedConversation.messages.length}`
                   : `${selectedConversation.messages.length} messages`}
               </span>
@@ -586,7 +611,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           <div className="relative mb-4">
             <input
               type="text"
-              value={searchQuery}
+              value={currentSearchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
               onFocus={() => setShowRecentSearches(true)}
               onBlur={() => setTimeout(() => setShowRecentSearches(false), 200)}
@@ -740,7 +765,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
           {/* Stats */}
           <div className="text-small" style={{ color: 'var(--text-secondary)' }}>
-            {searchQuery || hasActiveFilters
+            {currentSearchQuery || hasActiveFilters
               ? `${filteredConversations.length} of ${conversations.length}`
               : `${conversations.length} conversations`}
           </div>
@@ -815,7 +840,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 No conversations found
               </p>
               <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
-                {searchQuery || hasActiveFilters
+                {currentSearchQuery || hasActiveFilters
                   ? 'Try adjusting your search or filters'
                   : 'Make sure the archive server is running'}
               </p>

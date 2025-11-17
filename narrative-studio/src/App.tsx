@@ -8,6 +8,7 @@ import { ArchivePanel } from './components/panels/ArchivePanel';
 import { ToolsPanel } from './components/panels/ToolsPanel';
 import { MainWorkspace } from './components/workspace/MainWorkspace';
 import { api } from './utils/api';
+import { runTransform } from './services/transformationService';
 import { initializeSampleNarratives } from './data/sampleNarratives';
 import type {
   Narrative,
@@ -156,7 +157,9 @@ function AppContent() {
     setError(null);
 
     try {
-      const result = await api.runTransformation(narrative.content, config);
+      // Use local transformation service (Ollama) instead of cloud API
+      console.log('[App] Running transformation:', config.type);
+      const result = await runTransform(config, narrative.content);
 
       setTransformResults((prev) => {
         const next = new Map(prev);

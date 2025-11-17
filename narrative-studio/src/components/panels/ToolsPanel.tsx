@@ -32,7 +32,7 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
   const [parameters, setParameters] = useState<TransformParameters>({
     // Computer Humanizer defaults
     intensity: 'moderate',
-    useLLM: true,
+    useLLM: false,
 
     // Allegorical defaults
     persona: 'holmes_analytical',
@@ -40,7 +40,7 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
     style: 'austen_precision',
 
     // AI Detection defaults
-    threshold: 0.5,
+    threshold: 0.2,
   });
 
   const handleRun = () => {
@@ -169,15 +169,20 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                 <label className="flex items-center gap-3 text-body cursor-pointer" style={{ color: 'var(--text-primary)' }}>
                   <input
                     type="checkbox"
-                    checked={parameters.useLLM ?? true}
+                    checked={parameters.useLLM ?? false}
                     onChange={(e) => setParameters({ ...parameters, useLLM: e.target.checked })}
                     className="rounded w-5 h-5"
                     style={{
                       accentColor: 'var(--accent-primary)',
                     }}
                   />
-                  Use LLM Polish Pass
+                  Use LLM Polish Pass (optional)
                 </label>
+                <p className="text-small mt-2" style={{ color: 'var(--text-tertiary)', marginLeft: '32px' }}>
+                  Our core pipeline (tell-word removal + burstiness) achieves 0% AI detection on real content.
+                  LLM polish may help simple narratives but can hurt technical content.
+                  We'll highlight phrases for you to manually polish - your personal touch works best.
+                </p>
               </div>
             </div>
           )}

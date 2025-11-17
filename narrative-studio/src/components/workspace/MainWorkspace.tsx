@@ -244,32 +244,247 @@ export function MainWorkspace({
 
       {/* Right pane: Transformed */}
       <div className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div style={{ padding: 'var(--space-xl)' }}>
+        <div style={{ padding: 'var(--space-xl)', paddingBottom: '120px' }}>
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
-              Transformed
+              {transformResult.metadata?.aiDetection ? 'AI Detection Analysis' : 'Transformed'}
             </h2>
-            <button
-              onClick={() =>
-                setTransformedViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
-              }
-              className="text-body rounded-md flex items-center gap-2 transition-smooth"
-              style={{
-                backgroundColor: 'var(--bg-tertiary)',
-                color: 'var(--text-primary)',
-                padding: 'var(--space-sm) var(--space-md)',
-              }}
-            >
-              {transformedViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
-              {transformedViewMode === 'markdown' ? 'Preview' : 'Source'}
-            </button>
+            {!transformResult.metadata?.aiDetection && (
+              <button
+                onClick={() =>
+                  setTransformedViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
+                }
+                className="text-body rounded-md flex items-center gap-2 transition-smooth"
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  color: 'var(--text-primary)',
+                  padding: 'var(--space-sm) var(--space-md)',
+                }}
+              >
+                {transformedViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
+                {transformedViewMode === 'markdown' ? 'Preview' : 'Source'}
+              </button>
+            )}
           </div>
+
+          {/* AI Detection Results - MOVED TO TOP */}
+          {transformResult.metadata?.aiDetection && (
+            <div className="mb-8 space-y-6">
+              {/* Verdict Badge */}
+              <div className="text-center">
+                <div
+                  className="inline-block px-8 py-4 rounded-lg"
+                  style={{
+                    backgroundColor:
+                      transformResult.metadata.aiDetection.verdict === 'ai'
+                        ? 'var(--accent-red)'
+                        : transformResult.metadata.aiDetection.verdict === 'human'
+                        ? 'var(--accent-green)'
+                        : 'var(--accent-yellow)',
+                    color: 'white',
+                  }}
+                >
+                  <div className="text-small mb-1" style={{ opacity: 0.9 }}>
+                    Verdict
+                  </div>
+                  <div className="heading-lg font-bold uppercase">
+                    {transformResult.metadata.aiDetection.verdict === 'ai'
+                      ? '🤖 AI Generated'
+                      : transformResult.metadata.aiDetection.verdict === 'human'
+                      ? '✍️ Human Written'
+                      : '🔀 Mixed/Uncertain'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Confidence Bar */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-small font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    AI Confidence
+                  </span>
+                  <span className="heading-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                    {(transformResult.metadata.aiDetection.confidence * 100).toFixed(1)}%
+                  </span>
+                </div>
+                <div
+                  className="h-4 rounded-full overflow-hidden"
+                  style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                >
+                  <div
+                    className="h-full transition-all"
+                    style={{
+                      width: `${transformResult.metadata.aiDetection.confidence * 100}%`,
+                      backgroundColor:
+                        transformResult.metadata.aiDetection.confidence > 0.7
+                          ? 'var(--accent-red)'
+                          : transformResult.metadata.aiDetection.confidence < 0.2
+                          ? 'var(--accent-green)'
+                          : 'var(--accent-yellow)',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <div
+                  className="rounded-md"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    padding: 'var(--space-md)',
+                  }}
+                >
+                  <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                    Burstiness
+                  </div>
+                  <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
+                    {transformResult.metadata.aiDetection.burstiness}/100
+                  </div>
+                  <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                    {transformResult.metadata.aiDetection.burstiness > 60
+                      ? 'Human-like variation'
+                      : 'AI-like uniformity'}
+                  </div>
+                </div>
+
+                <div
+                  className="rounded-md"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    padding: 'var(--space-md)',
+                  }}
+                >
+                  <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                    Perplexity
+                  </div>
+                  <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
+                    {transformResult.metadata.aiDetection.perplexity}/100
+                  </div>
+                  <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                    {transformResult.metadata.aiDetection.perplexity > 60
+                      ? 'Varied vocabulary'
+                      : 'Predictable patterns'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tell Words */}
+              {transformResult.metadata.aiDetection.tellWords &&
+                transformResult.metadata.aiDetection.tellWords.length > 0 && (
+                  <div>
+                    <div className="text-small font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
+                      AI Tell-Words Found ({transformResult.metadata.aiDetection.tellWords.length})
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {transformResult.metadata.aiDetection.tellWords.map((word, idx) => (
+                        <span
+                          key={idx}
+                          className="px-3 py-1 rounded-full text-small"
+                          style={{
+                            backgroundColor: 'var(--accent-red)20',
+                            color: 'var(--accent-red)',
+                            border: '1px solid',
+                            borderColor: 'var(--accent-red)40',
+                          }}
+                        >
+                          {word}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {/* Reasoning */}
+              {transformResult.metadata.aiDetection.reasoning && (
+                <div
+                  className="rounded-md"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    borderLeft: '4px solid var(--accent-primary)',
+                    padding: 'var(--space-md)',
+                  }}
+                >
+                  <div className="text-small font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                    Analysis
+                  </div>
+                  <p className="text-body" style={{ color: 'var(--text-secondary)' }}>
+                    {transformResult.metadata.aiDetection.reasoning}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* User Guidance */}
+          {transformResult.metadata?.userGuidance && transformResult.metadata.userGuidance.length > 0 && (
+            <div className="mb-6 space-y-3">
+              {transformResult.metadata.userGuidance.map((guidance, idx) => {
+                const bgColor =
+                  guidance.type === 'success' ? 'var(--success)' :
+                  guidance.type === 'good' ? 'var(--accent-green)' :
+                  guidance.type === 'warning' ? 'var(--accent-yellow)' :
+                  'var(--accent-primary)';
+                const borderColor =
+                  guidance.type === 'success' ? 'var(--success)' :
+                  guidance.type === 'good' ? 'var(--accent-green)' :
+                  guidance.type === 'warning' ? 'var(--accent-yellow)' :
+                  'var(--accent-secondary)';
+
+                return (
+                  <div
+                    key={idx}
+                    className="rounded-md"
+                    style={{
+                      backgroundColor: `${bgColor}20`,
+                      borderLeft: `4px solid ${borderColor}`,
+                      padding: 'var(--space-md)',
+                    }}
+                  >
+                    <p className="text-body" style={{ color: 'var(--text-primary)' }}>
+                      {guidance.message}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Content */}
           <div className="max-w-3xl">
             {transformedViewMode === 'rendered' ? (
-              <MarkdownRenderer content={transformResult.transformed} />
+              transformResult.metadata?.manualReviewSuggestions && transformResult.metadata.manualReviewSuggestions.length > 0 ? (
+                <div className="prose" style={{ color: 'var(--text-primary)' }}>
+                  {(() => {
+                    // Highlight suspicious phrases in the transformed text
+                    let highlightedText = transformResult.transformed;
+                    const phrases = transformResult.metadata.manualReviewSuggestions;
+
+                    // Sort phrases by length (longest first) to avoid partial replacements
+                    const sortedPhrases = [...phrases].sort((a, b) => b.phrase.length - a.phrase.length);
+
+                    // Replace each phrase with highlighted version
+                    sortedPhrases.forEach((suggestion) => {
+                      const phrase = suggestion.phrase;
+                      const color = suggestion.severity === 'high' ? 'var(--accent-red)' :
+                                   suggestion.severity === 'medium' ? 'var(--accent-yellow)' :
+                                   'var(--accent-cyan)';
+
+                      // Case-insensitive replacement with highlight
+                      const regex = new RegExp(`\\b(${phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b`, 'gi');
+                      highlightedText = highlightedText.replace(
+                        regex,
+                        `<mark style="background-color: ${color}40; padding: 2px 4px; border-radius: 3px; border-bottom: 2px solid ${color};">$1</mark>`
+                      );
+                    });
+
+                    return <div dangerouslySetInnerHTML={{ __html: highlightedText }} />;
+                  })()}
+                </div>
+              ) : (
+                <MarkdownRenderer content={transformResult.transformed} />
+              )
             ) : (
               <MarkdownEditor
                 content={transformResult.transformed}
@@ -298,8 +513,9 @@ export function MainWorkspace({
             </div>
           )}
 
-          {/* Metrics */}
-          {transformResult.metadata && (
+
+          {/* Computer Humanizer Metrics */}
+          {transformResult.metadata && !transformResult.metadata.aiDetection && (
             <div className="mt-6 grid grid-cols-2 gap-4">
               {transformResult.metadata.aiConfidenceBefore !== undefined && (
                 <div
@@ -333,6 +549,61 @@ export function MainWorkspace({
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Manual Review Suggestions */}
+          {transformResult.metadata?.manualReviewSuggestions && transformResult.metadata.manualReviewSuggestions.length > 0 && (
+            <div className="mt-8">
+              <h3 className="heading-md mb-4" style={{ color: 'var(--text-primary)' }}>
+                Manual Review Suggestions
+              </h3>
+              <div className="space-y-3">
+                {transformResult.metadata.manualReviewSuggestions.map((suggestion, idx) => {
+                  const severityColor =
+                    suggestion.severity === 'high' ? 'var(--accent-red)' :
+                    suggestion.severity === 'medium' ? 'var(--accent-yellow)' :
+                    'var(--accent-cyan)';
+                  const severityLabel =
+                    suggestion.severity === 'high' ? 'High Priority' :
+                    suggestion.severity === 'medium' ? 'Medium' :
+                    'Low';
+
+                  return (
+                    <div
+                      key={idx}
+                      className="rounded-md"
+                      style={{
+                        backgroundColor: 'var(--bg-tertiary)',
+                        borderLeft: `4px solid ${severityColor}`,
+                        padding: 'var(--space-md)',
+                      }}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="font-mono text-body" style={{ color: 'var(--accent-primary)' }}>
+                          "{suggestion.phrase}"
+                        </div>
+                        <span
+                          className="text-small px-2 py-1 rounded"
+                          style={{
+                            backgroundColor: `${severityColor}20`,
+                            color: severityColor,
+                            fontSize: '0.75rem',
+                          }}
+                        >
+                          {severityLabel}
+                        </span>
+                      </div>
+                      <p className="text-small mb-2" style={{ color: 'var(--text-secondary)' }}>
+                        {suggestion.reason}
+                      </p>
+                      <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
+                        💡 {suggestion.suggestion}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
