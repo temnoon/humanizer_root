@@ -400,7 +400,7 @@ export function MainWorkspace({
                       AI Tell-Words Found ({transformResult.metadata.aiDetection.tellWords.length})
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {transformResult.metadata.aiDetection.tellWords.map((word, idx) => (
+                      {transformResult.metadata.aiDetection.tellWords.map((wordObj, idx) => (
                         <span
                           key={idx}
                           className="px-3 py-1 rounded-full text-small"
@@ -411,7 +411,7 @@ export function MainWorkspace({
                             borderColor: 'var(--accent-red)40',
                           }}
                         >
-                          {word}
+                          {typeof wordObj === 'string' ? wordObj : wordObj.word}
                         </span>
                       ))}
                     </div>
