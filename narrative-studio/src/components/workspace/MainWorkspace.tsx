@@ -87,20 +87,31 @@ export function MainWorkspace({
               {narrative.title}
             </h1>
             <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
-              {narrative.metadata.createdAt && typeof narrative.metadata.createdAt === 'string' ? (
+              {narrative.createdAt && (
                 <span>
-                  {new Date(narrative.metadata.createdAt).toLocaleDateString('en-US', {
+                  Created {new Date(narrative.createdAt).toLocaleDateString('en-US', {
                     year: 'numeric',
-                    month: 'long',
+                    month: 'short',
                     day: 'numeric',
                   })}
                 </span>
-              ) : null}
+              )}
+              {narrative.updatedAt && narrative.createdAt !== narrative.updatedAt && (
+                <span>
+                  • Last message {new Date(narrative.updatedAt).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </span>
+              )}
               {narrative.metadata.wordCount ? (
-                <span>{narrative.metadata.wordCount.toLocaleString()} words</span>
+                <span>• {narrative.metadata.wordCount.toLocaleString()} words</span>
               ) : null}
               {narrative.metadata.source && (
-                <span>Source: {narrative.metadata.source}</span>
+                <span>• Source: {narrative.metadata.source}</span>
               )}
             </div>
           </div>
@@ -177,20 +188,31 @@ export function MainWorkspace({
           {narrative.title}
         </h1>
         <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
-          {narrative.metadata.createdAt && typeof narrative.metadata.createdAt === 'string' ? (
+          {narrative.createdAt && (
             <span>
-              {new Date(narrative.metadata.createdAt).toLocaleDateString('en-US', {
+              Created {new Date(narrative.createdAt).toLocaleDateString('en-US', {
                 year: 'numeric',
-                month: 'long',
+                month: 'short',
                 day: 'numeric',
               })}
             </span>
-          ) : null}
+          )}
+          {narrative.updatedAt && narrative.createdAt !== narrative.updatedAt && (
+            <span>
+              • Last message {new Date(narrative.updatedAt).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+              })}
+            </span>
+          )}
           {narrative.metadata.wordCount ? (
-            <span>{narrative.metadata.wordCount.toLocaleString()} words</span>
+            <span>• {narrative.metadata.wordCount.toLocaleString()} words</span>
           ) : null}
           {narrative.metadata.source && (
-            <span>Source: {narrative.metadata.source}</span>
+            <span>• Source: {narrative.metadata.source}</span>
           )}
         </div>
       </div>
