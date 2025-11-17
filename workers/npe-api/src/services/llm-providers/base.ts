@@ -38,6 +38,11 @@ export interface LLMProvider {
    * Check if this provider is available (e.g., API key configured)
    */
   isAvailable(): Promise<boolean>;
+
+  /**
+   * Simple text generation (convenience method)
+   */
+  generateText(prompt: string, options: { max_tokens: number; temperature: number }): Promise<string>;
 }
 
 /**
