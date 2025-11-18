@@ -1,14 +1,59 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 14, 2025, 6:15 PM - 🎨 **THEME DETECTION FIXED!**
-**Status**: ✅ Computer Humanizer Working | ✅ Light/Dark Mode Fixed | ⏳ Testing Needed
-**Latest**: Node 22.21.1, Wrangler 4.47.0 ✅, React 19, Vite 7.2, pnpm 10.12.4
+**Last Updated**: Nov 18, 2025, 11:30 AM - ✅ **NARRATIVE STUDIO NOW DEFAULT!**
+**Status**: ✅ JSON Import Working | ✅ narrative-studio is Primary Interface
+**Latest**: Node 22.21.1 (set as default), Vite 7.2
+**Primary Interface**: **narrative-studio** (localhost:5173) - Use this!
+**Archived**: cloud-workbench (reference only, see README_ARCHIVED.md)
+**Git**: `aaaa5b1` (main branch, clean, pushed)
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
-**Production API**: https://npe-api.tem-527.workers.dev (Version: **571cc86a**) ✅ **WITH PARAGRAPH FIX**
-**Workbench**: https://feb19bce.workbench-4ec.pages.dev ✅ **LATEST - Theme Detection Fixed**
-**Git**: `d50bf17` (committed and pushed to main)
+**Production API**: https://npe-api.tem-527.workers.dev
 **Humanizer.com**: https://humanizer.com (REFERENCE for design/theme)
-**Safety Tag**: `pre-cleanup-safety` (restore point before branch cleanup)
+
+---
+
+## ✅ **NARRATIVE STUDIO JSON IMPORT** (Nov 18, 2025, 11:30 AM)
+
+### **Feature Complete - Tested and Merged to Main**
+
+**What Was Built**:
+- ✅ JSON import button in Archive panel (narrative-studio)
+- ✅ POST /api/import/conversation endpoint (10MB limit)
+- ✅ Folder naming: `YYYY-MM-DD_imported_{title}_{random}`
+- ✅ Accurate message counting (text-only, not all nodes)
+- ✅ Synchronous file write (prevents race conditions)
+- ✅ Full error handling and validation
+
+**Interface Change** - **IMPORTANT**:
+- ✅ **narrative-studio** is now the PRIMARY interface
+- ✅ **cloud-workbench** is ARCHIVED (reference only)
+- ✅ Root README.md updated to point to narrative-studio
+- ✅ Node 22 set as default: `nvm alias default 22`
+- ✅ Added `.nvmrc` to narrative-studio
+
+**Quick Start** (NEW DEFAULT):
+```bash
+cd narrative-studio
+nvm use  # Automatically uses Node 22
+node archive-server.js &  # Port 3002
+npm run dev  # Port 5173
+```
+
+**Git Status**:
+- Commits: `aaaa5b1`, `61de487`, `93cab8c` (pushed to main)
+- Branch: feat/local-json-import (deleted after merge)
+- Working tree: clean
+
+**Testing**:
+- ✅ Imported 535KB conversation.json successfully
+- ✅ Folder created with correct title
+- ✅ Message count accurate (29 messages)
+- ✅ No 500 errors on first load
+
+**Session Docs**:
+- `/tmp/SESSION_HANDOFF_NOV18_JSON_IMPORT.md` - Full handoff
+- `/tmp/NARRATIVE_STUDIO_NOW_DEFAULT.md` - Summary
+- `/tmp/NARRATIVE_STUDIO_IMPORT_PLAN.md` - 5-phase plan
 
 ---
 
