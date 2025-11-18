@@ -45,6 +45,42 @@ The interface learns your subjective patterns:
 
 ---
 
+---
+
+## Getting Started
+
+### Narrative Studio (Primary Interface)
+
+**Use the narrative-studio interface** for the best experience:
+
+```bash
+cd narrative-studio
+nvm use  # Automatically uses Node 22 from .nvmrc
+npm install
+npm run dev
+```
+
+Open http://localhost:5173
+
+**Features**:
+- Beautiful, polished UI
+- Archive browser with JSON import
+- Conversation management
+- Transformation tools
+
+**Note**: Requires Node.js 22+ (specified in `.nvmrc`)
+
+### Archive Server (Optional)
+
+To use the archive browser, start the archive server:
+
+```bash
+cd narrative-studio
+node archive-server.js  # Runs on port 3002
+```
+
+---
+
 ## Architecture
 
 ```
