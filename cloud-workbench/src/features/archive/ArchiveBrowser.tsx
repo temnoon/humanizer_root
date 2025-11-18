@@ -69,6 +69,51 @@ export function ArchiveBrowser() {
     }
   };
 
+  // Import conversation.json file
+  const handleImportJSON = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      // Read file content
+      const content = await file.text();
+      const conversation = JSON.parse(content);
+
+      // Send to archive server
+      const response = await fetch(`${ARCHIVE_API}/api/import/conversation`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversation,
+          filename: file.name
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Import failed');
+      }
+
+      const result = await response.json();
+      console.log('✓ Imported:', result);
+
+      // Show success message
+      alert(`✓ Imported: ${result.title}\n${result.message_count} messages`);
+
+      // Reload conversations list
+      await loadConversations();
+
+      // Reset file input
+      event.target.value = '';
+    } catch (error: any) {
+      console.error('Import error:', error);
+      alert(`Import failed: ${error.message}`);
+      event.target.value = '';
+    }
+  };
+
   // Filtering
   const filteredConversations = conversations.filter((conv) =>
     conv.title.toLowerCase().includes(filter.toLowerCase()) ||
@@ -200,16 +245,27 @@ export function ArchiveBrowser() {
       {/* Tab Content - Completely replaces based on active tab */}
       {leftTab === 'conversations' ? (
         <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Filter */}
+          {/* Filter + Import */}
           <div className="flex-shrink-0 border-b p-3" style={{ borderColor: 'var(--border-color)' }}>
-            <input
-              type="text"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              placeholder="Filter conversations..."
-              className="input w-full rounded px-2 py-1 text-xs"
-            />
-            <div className="mt-2 text-xs">
+            <div className="mb-2 flex gap-2">
+              <input
+                type="text"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Filter conversations..."
+                className="input flex-1 rounded px-2 py-1 text-xs"
+              />
+              <label className="btn-secondary cursor-pointer rounded px-3 py-1 text-xs font-medium">
+                📥 Import JSON
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportJSON}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            <div className="text-xs" style={{ color: 'var(--text-secondary)' }}>
               {filter ? `${filteredConversations.length} of ${conversations.length}` : `${conversations.length} total`}
             </div>
           </div>

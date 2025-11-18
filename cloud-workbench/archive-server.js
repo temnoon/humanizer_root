@@ -481,6 +481,96 @@ app.get('/api/conversations/:folder/media/:filename', async (req, res) => {
   }
 });
 
+// Import a conversation.json file into the archive
+app.post('/api/import/conversation', async (req, res) => {
+  try {
+    const { conversation, filename } = req.body;
+
+    if (!conversation) {
+      return res.status(400).json({ error: 'No conversation data provided' });
+    }
+
+    // Parse if string, or use directly if object
+    let parsed;
+    try {
+      parsed = typeof conversation === 'string' ? JSON.parse(conversation) : conversation;
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid JSON format', details: err.message });
+    }
+
+    // Validate required fields
+    if (!parsed.id && !parsed.title) {
+      return res.status(400).json({ error: 'conversation.json must have at least an id or title field' });
+    }
+
+    // Generate folder name
+    const timestamp = Date.now();
+    const date = new Date(parsed.create_time ? parsed.create_time * 1000 : timestamp);
+    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+    const uuid = parsed.id || `imported_${timestamp}`;
+    const folderName = `${dateStr}_imported_${uuid.substring(0, 8)}`;
+
+    // Check if already exists
+    const folderPath = path.join(ARCHIVE_ROOT, folderName);
+    try {
+      await fs.access(folderPath);
+      return res.status(409).json({
+        error: 'Conversation already imported',
+        folder: folderName
+      });
+    } catch {
+      // Folder doesn't exist, continue with import
+    }
+
+    // Create folder and save conversation.json
+    await fs.mkdir(folderPath, { recursive: true });
+    const jsonPath = path.join(folderPath, 'conversation.json');
+    await fs.writeFile(jsonPath, JSON.stringify(parsed, null, 2), 'utf-8');
+
+    // Create media folder if conversation has media references
+    let hasMedia = false;
+    if (parsed.mapping) {
+      for (const node of Object.values(parsed.mapping)) {
+        if (node.message?.content?.parts) {
+          for (const part of node.message.content.parts) {
+            if (typeof part === 'object' && part.content_type === 'image_asset_pointer') {
+              hasMedia = true;
+              break;
+            }
+          }
+        }
+        if (hasMedia) break;
+      }
+    }
+
+    if (hasMedia) {
+      const mediaPath = path.join(folderPath, 'media');
+      await fs.mkdir(mediaPath, { recursive: true });
+    }
+
+    // Count messages
+    let messageCount = 0;
+    if (parsed.mapping) {
+      messageCount = Object.values(parsed.mapping).filter(
+        node => node.message && node.message.content?.parts?.length > 0
+      ).length;
+    }
+
+    console.log(`✓ Imported conversation: ${parsed.title || 'Untitled'} (${messageCount} messages) → ${folderName}`);
+
+    res.json({
+      success: true,
+      folder: folderName,
+      title: parsed.title || 'Untitled',
+      message_count: messageCount,
+      has_media: hasMedia
+    });
+  } catch (error) {
+    console.error('Error importing conversation:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = 3002;
 app.listen(PORT, () => {
   console.log(`🗂️  Archive server running on http://localhost:${PORT}`);
