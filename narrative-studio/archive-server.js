@@ -6,7 +6,7 @@ import { JSDOM } from 'jsdom';
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' })); // Allow large conversation.json files
 
 const ARCHIVE_ROOT = '/Users/tem/openai-export-parser/output_v13_final';
 
@@ -1066,6 +1066,116 @@ app.post('/api/transform/ai-detection', async (req, res) => {
     });
   } catch (error) {
     console.error('❌ AI Detection error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Import a conversation.json file into the archive
+app.post('/api/import/conversation', async (req, res) => {
+  try {
+    const { conversation, filename } = req.body;
+
+    if (!conversation) {
+      return res.status(400).json({ error: 'No conversation data provided' });
+    }
+
+    // Parse if string, or use directly if object
+    let parsed;
+    try {
+      parsed = typeof conversation === 'string' ? JSON.parse(conversation) : conversation;
+    } catch (err) {
+      return res.status(400).json({ error: 'Invalid JSON format', details: err.message });
+    }
+
+    // Validate required fields
+    if (!parsed.id && !parsed.title) {
+      return res.status(400).json({ error: 'conversation.json must have at least an id or title field' });
+    }
+
+    // Generate folder name from title
+    const timestamp = Date.now();
+    const date = new Date(parsed.create_time ? parsed.create_time * 1000 : timestamp);
+    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+
+    // Sanitize title for folder name (remove special chars, limit length)
+    const sanitizedTitle = (parsed.title || 'Untitled')
+      .replace(/[^a-zA-Z0-9\s-]/g, '') // Remove special chars
+      .replace(/\s+/g, '_') // Replace spaces with underscores
+      .substring(0, 50); // Limit length
+
+    // Use title + random suffix to avoid collisions
+    const randomSuffix = Math.random().toString(36).substring(2, 7);
+    const folderName = `${dateStr}_imported_${sanitizedTitle}_${randomSuffix}`;
+
+    // Check if already exists
+    const folderPath = path.join(ARCHIVE_ROOT, folderName);
+    try {
+      await fs.access(folderPath);
+      return res.status(409).json({
+        error: 'Conversation already imported',
+        folder: folderName
+      });
+    } catch {
+      // Folder doesn't exist, continue with import
+    }
+
+    // Create folder and save conversation.json (use writeFileSync for immediate completion)
+    await fs.mkdir(folderPath, { recursive: true });
+    const jsonPath = path.join(folderPath, 'conversation.json');
+
+    // Write synchronously to ensure file is completely written before returning
+    const fsSync = await import('fs');
+    fsSync.writeFileSync(jsonPath, JSON.stringify(parsed, null, 2), 'utf-8');
+
+    // Create media folder if conversation has media references
+    let hasMedia = false;
+    if (parsed.mapping) {
+      for (const node of Object.values(parsed.mapping)) {
+        if (node.message?.content?.parts) {
+          for (const part of node.message.content.parts) {
+            if (typeof part === 'object' && part.content_type === 'image_asset_pointer') {
+              hasMedia = true;
+              break;
+            }
+          }
+        }
+        if (hasMedia) break;
+      }
+    }
+
+    if (hasMedia) {
+      const mediaPath = path.join(folderPath, 'media');
+      await fs.mkdir(mediaPath, { recursive: true });
+    }
+
+    // Count actual messages (only nodes with text content)
+    let messageCount = 0;
+    if (parsed.mapping) {
+      messageCount = Object.values(parsed.mapping).filter(node => {
+        if (!node.message || !node.message.content?.parts) return false;
+        // Only count messages with actual text content
+        const hasTextContent = node.message.content.parts.some(part => {
+          if (typeof part === 'string' && part.trim().length > 0) return true;
+          if (typeof part === 'object' && part !== null && part.content_type === 'text') {
+            return part.parts?.[0]?.trim().length > 0;
+          }
+          return false;
+        });
+        return hasTextContent;
+      }).length;
+    }
+
+    console.log(`✓ Imported conversation: ${parsed.title || 'Untitled'} (${messageCount} messages) → ${folderName}`);
+
+    res.json({
+      success: true,
+      folder: folderName,
+      title: parsed.title || 'Untitled',
+      message_count: messageCount,
+      has_media: hasMedia
+    });
+  } catch (error) {
+    console.error('Error importing conversation:', error);
     res.status(500).json({ error: error.message });
   }
 });

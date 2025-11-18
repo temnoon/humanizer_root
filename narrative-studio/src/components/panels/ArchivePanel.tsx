@@ -280,6 +280,54 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     }
   };
 
+  // Import conversation.json file
+  const handleImportJSON = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setLoading(true);
+      // Read file content
+      const content = await file.text();
+      const conversation = JSON.parse(content);
+
+      // Send to archive server
+      const response = await fetch('http://localhost:3002/api/import/conversation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conversation,
+          filename: file.name
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Import failed');
+      }
+
+      const result = await response.json();
+      console.log('✓ Imported:', result);
+
+      // Show success message
+      alert(`✓ Imported: ${result.title}\n${result.message_count} messages`);
+
+      // Reload conversations list
+      await loadConversations();
+
+      // Reset file input
+      event.target.value = '';
+    } catch (error: any) {
+      console.error('Import error:', error);
+      alert(`Import failed: ${error.message}`);
+      event.target.value = '';
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Categorize tags from conversations
   const categorizedTags = useMemo(() => {
     const dateTags = new Set<string>();
@@ -982,6 +1030,30 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               </div>
             )}
           </div>
+
+          {/* Import JSON Button */}
+          {viewMode === 'conversations' && (
+            <div className="mb-4">
+              <label
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-md cursor-pointer transition-colors"
+                style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-primary)',
+                }}
+              >
+                <span>📥</span>
+                <span className="ui-text font-medium">Import JSON</span>
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleImportJSON}
+                  className="hidden"
+                  disabled={loading}
+                />
+              </label>
+            </div>
+          )}
 
           {/* Filter UI - single line */}
           <div className="mb-4">
