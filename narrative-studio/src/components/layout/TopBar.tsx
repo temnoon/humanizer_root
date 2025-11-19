@@ -30,10 +30,10 @@ export function TopBar({
 
   return (
     <header
-      className="h-16 flex items-center justify-between border-b sticky top-0 z-50"
+      className="h-16 flex items-center justify-between sticky top-0 z-50"
       style={{
         backgroundColor: 'var(--bg-elevated)',
-        borderColor: 'var(--border-color)',
+        borderBottom: '1px solid var(--border-color)',
         paddingLeft: 'var(--space-lg)',
         paddingRight: 'var(--space-lg)',
       }}
@@ -109,9 +109,8 @@ export function TopBar({
                   }}
                 >
                   <div
-                    className="border-b"
                     style={{
-                      borderColor: 'var(--border-color)',
+                      borderBottom: '1px solid var(--border-color)',
                       padding: 'var(--space-md)',
                     }}
                   >

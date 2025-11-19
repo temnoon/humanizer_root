@@ -592,3 +592,11 @@ samp,
 .lightbox-nav-button:hover {
   background-color: rgba(0, 0, 0, 0.7) !important;
 }
+
+/* Responsive border switcher for split panes */
+@media (min-width: 768px) {
+  .md-border-switch {
+    border-bottom: none !important;
+    border-right: 1px solid var(--border-color) !important;
+  }
+}

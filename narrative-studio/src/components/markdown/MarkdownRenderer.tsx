@@ -19,13 +19,19 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
     return <div className={className}>No content available</div>;
   }
 
-  // Format DALL-E prompts (extract prompt from JSON)
+  // Format DALL-E prompts and document transcripts (extract from JSON)
   let formattedContent = content;
-  if (content.trim().startsWith('{') && content.includes('"prompt"')) {
+  if (content.trim().startsWith('{')) {
     try {
       const parsed = JSON.parse(content);
+
+      // Handle DALL-E prompts
       if (parsed.prompt) {
         formattedContent = `**Prompt:**\n\n${parsed.prompt}`;
+      }
+      // Handle document transcripts (e.g., audio transcriptions, image text extraction)
+      else if (parsed.content && typeof parsed.content === 'string') {
+        formattedContent = parsed.content;
       }
     } catch (e) {
       // Not valid JSON, use original content
@@ -50,7 +56,11 @@ export function MarkdownRenderer({ content, className = '' }: MarkdownRendererPr
     <div className={`markdown-content text-${textSize} ${className}`}>
       <ReactMarkdown
         remarkPlugins={[remarkMath, remarkGfm]}
-        rehypePlugins={[rehypeKatex, rehypeHighlight, rehypeRaw]}
+        rehypePlugins={[
+          [rehypeKatex, { strict: false, trust: true }],
+          rehypeHighlight,
+          rehypeRaw
+        ]}
       >
         {processedContent}
       </ReactMarkdown>

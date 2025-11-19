@@ -117,6 +117,17 @@ app.get('/api/conversations/:folder', async (req, res) => {
       console.warn(`Could not scan media folder for ${req.params.folder}:`, mediaErr.message);
     }
 
+    // Try to load media_manifest.json for conversations with original filename mappings
+    let mediaManifest = {};
+    try {
+      const manifestPath = path.join(ARCHIVE_ROOT, req.params.folder, 'media_manifest.json');
+      const manifestData = await fs.readFile(manifestPath, 'utf-8');
+      mediaManifest = JSON.parse(manifestData);
+      console.log(`📋 Loaded media_manifest.json with ${Object.keys(mediaManifest).length} entries`);
+    } catch (manifestErr) {
+      // No manifest file - that's okay, not all conversations have it
+    }
+
     // Build file ID to hashed filename mapping using assetPointerMap
     const fileIdToHashedName = {};
 
@@ -144,7 +155,31 @@ app.get('/api/conversations/:folder', async (req, res) => {
       });
     }
 
-    console.log(`🔗 Built mapping for ${Object.keys(fileIdToHashedName).length}/${Object.keys(assetPointerMap).length} file IDs`);
+    // Supplement with media_manifest.json mapping (for conversations with original filenames)
+    if (Object.keys(mediaManifest).length > 0 && parsed.mapping) {
+      Object.values(parsed.mapping).forEach((node) => {
+        // Check if this message has attachments metadata
+        if (node.message?.metadata?.attachments) {
+          node.message.metadata.attachments.forEach(attachment => {
+            const fileId = attachment.id; // e.g. "file-Jgm6LLn3ENzfwxpRMBH7tq"
+            const originalName = attachment.name; // e.g. "IMG_0765 3.JPG"
+
+            if (!fileId || !originalName) return;
+
+            // Skip if already mapped
+            if (fileIdToHashedName[fileId]) return;
+
+            // Look up the hashed filename in the manifest
+            if (mediaManifest[originalName]) {
+              fileIdToHashedName[fileId] = mediaManifest[originalName];
+              console.log(`📋 Manifest mapping: ${fileId} → ${originalName} → ${mediaManifest[originalName]}`);
+            }
+          });
+        }
+      });
+    }
+
+    console.log(`🔗 Built mapping for ${Object.keys(fileIdToHashedName).length}/${Object.keys(assetPointerMap).length + Object.keys(mediaManifest).length} file IDs`);
     if (Object.keys(fileIdToHashedName).length > 0) {
       console.log('Sample mappings:', Object.keys(fileIdToHashedName).slice(0, 3).map(id => `${id.substring(0, 25)}... → ${fileIdToHashedName[id].substring(0, 45)}...`));
     }
