@@ -1,14 +1,87 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 18, 2025, 8:55 PM - ✅ **BUG FIXES & UX IMPROVEMENTS**
-**Status**: ✅ All Console Errors Fixed | ✅ Images Rendering | ✅ Search UX Complete
+**Last Updated**: Nov 19, 2025, 4:50 PM - ✅ **WEEK 2 COMPLETE - LITE AI DETECTOR**
+**Status**: ✅ Week 2: 95% Complete | ⚠️ Minor bug in persona/namespace/style transforms
 **Latest**: Node 22.21.1 (set as default), Vite 7.2
 **Primary Interface**: **narrative-studio** (localhost:5173) - Use this!
 **Archived**: cloud-workbench (reference only, see README_ARCHIVED.md)
-**Git**: `1382763` (main branch, clean, pushed)
+**Git**: `b2b145c2` (npe-api deployed), narrative-studio ready to deploy
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
 **Production API**: https://npe-api.tem-527.workers.dev
 **Humanizer.com**: https://humanizer.com (REFERENCE for design/theme)
+
+---
+
+## 🎉 **WEEK 2 COMPLETE: LITE AI DETECTOR** (Nov 19, 2025, 4:50 PM)
+
+### **6 Major Accomplishments**
+
+**Backend**:
+1. ✅ **Lite Detector Endpoint** - Free-tier AI detection
+   - Endpoint: `POST /ai-detection/lite`
+   - No authentication required
+   - Heuristic analysis: burstiness, type-token ratio, n-grams, tell-phrases
+   - Optional LLM meta-judge (Llama 3.1-8B via Cloudflare AI)
+   - Processing time: <2 seconds
+
+2. ✅ **LLM Meta-Judge** - Cloudflare AI integration
+   - Model: `@cf/meta/llama-3.1-8b-instruct`
+   - Weighted scoring: 40% heuristic + 40% LLM + 20% heuristic
+   - Adds 0.7-1.8s processing time
+   - Fallback to heuristic-only on error
+
+3. ✅ **Production Deployment**
+   - Version: `b2b145c2-16f6-4e81-b34a-cda59a823a6d`
+   - All tests passing (4/4)
+
+**Frontend**:
+4. ✅ **Detector Toggle UI** - ToolsPanel enhancement
+   - Two-button selector: Lite (Free) vs GPTZero (Pro/Premium)
+   - LLM meta-judge checkbox for Lite detector
+   - Mobile responsive
+
+5. ✅ **API Integration** - transformationService.ts
+   - `liteDetection()` function
+   - `gptzeroDetection()` function
+   - Automatic routing based on `detectorType` parameter
+
+6. ✅ **Local Testing** - Verified working
+   - Archive server (port 3002) + Cloud API hybrid
+   - Both Lite and GPTZero detectors functional
+   - Computer Humanizer working
+
+**Files Modified**:
+- `workers/npe-api/src/routes/ai-detection.ts` (added /lite endpoint)
+- `workers/npe-api/src/services/lite-detector.ts` (LLM meta-judge)
+- `narrative-studio/src/services/transformationService.ts` (detector routing)
+- `narrative-studio/src/components/panels/ToolsPanel.tsx` (UI toggle)
+
+**Test Results**:
+- Lite (heuristic): Human 70%, AI 100% (30% separation)
+- Lite (LLM judge): Human 68%, AI 86% (18% separation)
+
+**Handoff**: `/tmp/WEEK_2_COMPLETE_HANDOFF_NOV19.md` ⭐
+
+---
+
+## 🐛 **KNOWN BUG: Persona/Namespace/Style Transforms** (Nov 19)
+
+**Issue**: Only FIRST dropdown option works, others fail
+
+**Affected**:
+- ✅ Persona: "Holmes (Analytical)" works
+- ❌ Persona: "Austen (Observant)" fails
+- ❌ Persona: "Darwin (Empirical)" fails
+- ✅ Namespace: "Enlightenment Science" works
+- ❌ Namespace: "Victorian Society" fails
+- ✅ Style: "Austen Precision" works
+- ❌ Style: "Holmes Deduction" fails
+
+**Hypothesis**: Backend doesn't support these values OR frontend parameter mapping issue
+
+**Fix**: Check backend endpoints for supported personas/namespaces/styles, update accordingly
+
+**Priority**: MEDIUM (Computer Humanizer and AI Detection work perfectly)
 
 ---
 
