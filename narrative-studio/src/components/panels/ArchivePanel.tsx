@@ -637,17 +637,29 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 onFocus={() => setShowRecentSearches(true)}
                 onBlur={() => setTimeout(() => setShowRecentSearches(false), 200)}
                 placeholder="Search messages..."
-                className="ui-text w-full pr-4"
+                className="ui-text w-full"
                 style={{
                   backgroundColor: 'var(--bg-secondary)',
                   border: '1px solid var(--border-color)',
                   color: 'var(--text-primary)',
                   paddingLeft: '2.75rem',
+                  paddingRight: currentSearchQuery ? '2.75rem' : '1rem',
                 }}
               />
               <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
                 <Icons.Search />
               </div>
+              {currentSearchQuery && (
+                <button
+                  onClick={() => handleSearchChange('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:opacity-70 transition-opacity"
+                  style={{ color: 'var(--text-tertiary)' }}
+                  title="Clear search"
+                  aria-label="Clear search"
+                >
+                  <Icons.Close />
+                </button>
+              )}
               {showRecentSearches && recentSearches.length > 0 && (
                 <div
                   className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto"
@@ -992,17 +1004,29 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               onFocus={() => setShowRecentSearches(true)}
               onBlur={() => setTimeout(() => setShowRecentSearches(false), 200)}
               placeholder="Search conversations..."
-              className="ui-text w-full pr-4"
+              className="ui-text w-full"
               style={{
                 backgroundColor: 'var(--bg-secondary)',
                 border: '1px solid var(--border-color)',
                 color: 'var(--text-primary)',
                 paddingLeft: '2.75rem',
+                paddingRight: currentSearchQuery ? '2.75rem' : '1rem',
               }}
             />
             <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
               <Icons.Search />
             </div>
+            {currentSearchQuery && (
+              <button
+                onClick={() => handleSearchChange('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:opacity-70 transition-opacity"
+                style={{ color: 'var(--text-tertiary)' }}
+                title="Clear search"
+                aria-label="Clear search"
+              >
+                <Icons.Close />
+              </button>
+            )}
             {showRecentSearches && recentSearches.length > 0 && (
               <div
                 className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto"

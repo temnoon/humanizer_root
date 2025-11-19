@@ -77,10 +77,10 @@ export function MainWorkspace({
         <div className="max-w-5xl mx-auto" style={{ padding: 'var(--space-xl)' }}>
           {/* Title and metadata panel */}
           <div
-            className="mb-6 p-4 rounded-lg border"
+            className="mb-6 p-4 rounded-lg"
             style={{
               backgroundColor: 'var(--bg-secondary)',
-              borderColor: 'var(--border-color)',
+              border: '1px solid var(--border-color)',
             }}
           >
             <h1 className="heading-xl mb-2" style={{ color: 'var(--text-primary)' }}>
@@ -178,10 +178,10 @@ export function MainWorkspace({
     >
       {/* Title and metadata panel - spans full width */}
       <div
-        className="mx-6 mt-6 mb-4 p-4 rounded-lg border"
+        className="mx-6 mt-6 mb-4 p-4 rounded-lg"
         style={{
           backgroundColor: 'var(--bg-secondary)',
-          borderColor: 'var(--border-color)',
+          border: '1px solid var(--border-color)',
         }}
       >
         <h1 className="heading-lg mb-2" style={{ color: 'var(--text-primary)' }}>
@@ -221,8 +221,10 @@ export function MainWorkspace({
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left pane: Original */}
         <div
-          className="flex-1 overflow-y-auto border-b md:border-b-0 md:border-r"
-          style={{ borderColor: 'var(--border-color)' }}
+          className="flex-1 overflow-y-auto md-border-switch"
+          style={{
+            borderBottom: '1px solid var(--border-color)',
+          }}
         >
           <div style={{ padding: 'var(--space-xl)' }}>
             {/* Header */}
