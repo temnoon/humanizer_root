@@ -86,10 +86,8 @@ function AppContent() {
       const loaded = await api.getNarratives();
       setNarratives(loaded);
 
-      // Auto-select first narrative if none selected
-      if (!currentNarrativeId && loaded.length > 0) {
-        setCurrentNarrativeId(loaded[0].id);
-      }
+      // Don't auto-select sample narratives - let the Archive panel handle loading
+      // the first message of the most recent conversation instead
     } catch (err) {
       console.error('Failed to load narratives:', err);
     }

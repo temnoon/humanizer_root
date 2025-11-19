@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Narrative, TransformResult, ViewMode, WorkspaceMode } from '../../types';
 import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
 import { MarkdownEditor } from '../markdown/MarkdownEditor';
@@ -20,6 +20,50 @@ export function MainWorkspace({
   const [originalViewMode, setOriginalViewMode] = useState<ViewMode>('rendered');
   const [transformedViewMode, setTransformedViewMode] = useState<ViewMode>('rendered');
   const [editedContent, setEditedContent] = useState('');
+
+  // Refs for scrollable containers to reset scroll position
+  const singlePaneRef = useRef<HTMLDivElement>(null);
+  const leftPaneRef = useRef<HTMLDivElement>(null);
+  const rightPaneRef = useRef<HTMLDivElement>(null);
+
+  // Reset scroll position when narrative changes, or scroll to specific image
+  useEffect(() => {
+    if (narrative) {
+      // Check if we should scroll to a specific image
+      const scrollToImageUrl = narrative.metadata.scrollToImageUrl as string | undefined;
+
+      if (scrollToImageUrl) {
+        // Wait for images to load, then scroll to the target image
+        setTimeout(() => {
+          const container = singlePaneRef.current || leftPaneRef.current;
+          if (container) {
+            // Find all images in the content
+            const images = container.querySelectorAll('img');
+            const targetImage = Array.from(images).find(img =>
+              img.src.includes(encodeURIComponent(scrollToImageUrl))
+            );
+
+            if (targetImage) {
+              // Scroll the image into view with some offset
+              targetImage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              console.log('Scrolled to image:', scrollToImageUrl);
+            }
+          }
+        }, 500); // Give images time to render
+      } else {
+        // Default: scroll to top
+        if (singlePaneRef.current) {
+          singlePaneRef.current.scrollTop = 0;
+        }
+        if (leftPaneRef.current) {
+          leftPaneRef.current.scrollTop = 0;
+        }
+        if (rightPaneRef.current) {
+          rightPaneRef.current.scrollTop = 0;
+        }
+      }
+    }
+  }, [narrative?.id, narrative?.metadata.scrollToImageUrl]); // Run when narrative ID or scroll hint changes
 
   if (!narrative) {
     return (
@@ -71,6 +115,7 @@ export function MainWorkspace({
   if (mode === 'single' || !transformResult) {
     return (
       <main
+        ref={singlePaneRef}
         className="flex-1 overflow-y-auto"
         style={{ backgroundColor: 'var(--bg-primary)' }}
       >
@@ -221,6 +266,7 @@ export function MainWorkspace({
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left pane: Original */}
         <div
+          ref={leftPaneRef}
           className="flex-1 overflow-y-auto md-border-switch"
           style={{
             borderBottom: '1px solid var(--border-color)',
@@ -267,7 +313,7 @@ export function MainWorkspace({
       </div>
 
       {/* Right pane: Transformed */}
-      <div className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+      <div ref={rightPaneRef} className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--bg-secondary)' }}>
         <div style={{ padding: 'var(--space-xl)', paddingBottom: '120px' }}>
           {/* Header */}
           <div className="flex items-center justify-between mb-8">

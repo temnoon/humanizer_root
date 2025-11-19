@@ -334,6 +334,8 @@ app.get('/api/gallery', async (req, res) => {
   try {
     const limit = parseInt(req.query.limit) || 50;
     const offset = parseInt(req.query.offset) || 0;
+    const filterFolder = req.query.folder; // Optional: filter by specific conversation folder
+    const searchQuery = req.query.search?.toLowerCase(); // Optional: search by filename or title
 
     const withMediaPath = path.join(ARCHIVE_ROOT, '_with_media');
 
@@ -343,6 +345,9 @@ app.get('/api/gallery', async (req, res) => {
 
     for (const folder of folders) {
       try {
+        // If filterFolder is specified, skip folders that don't match
+        if (filterFolder && folder !== filterFolder) continue;
+
         // Resolve symlink to actual conversation folder
         const symlinkPath = path.join(withMediaPath, folder);
         const stats = await fs.lstat(symlinkPath);
@@ -396,7 +401,7 @@ app.get('/api/gallery', async (req, res) => {
               if (messageIndex !== -1) break;
             }
 
-            images.push({
+            const image = {
               url: `http://localhost:3002/api/conversations/${encodeURIComponent(folder)}/media/${encodeURIComponent(imageFile)}`,
               filename: imageFile,
               conversationFolder: folder,
@@ -406,7 +411,18 @@ app.get('/api/gallery', async (req, res) => {
               width: imageMetadata?.width,
               height: imageMetadata?.height,
               sizeBytes: imageMetadata?.size_bytes
-            });
+            };
+
+            // Apply search filter if specified
+            if (searchQuery) {
+              const matchesSearch =
+                imageFile.toLowerCase().includes(searchQuery) ||
+                (conversationData.title || '').toLowerCase().includes(searchQuery);
+
+              if (!matchesSearch) continue;
+            }
+
+            images.push(image);
           }
         } catch (err) {
           // No media folder or can't read it, skip
