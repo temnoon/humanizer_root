@@ -1,14 +1,61 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 18, 2025, 11:30 AM - ✅ **NARRATIVE STUDIO NOW DEFAULT!**
-**Status**: ✅ JSON Import Working | ✅ narrative-studio is Primary Interface
+**Last Updated**: Nov 18, 2025, 8:55 PM - ✅ **BUG FIXES & UX IMPROVEMENTS**
+**Status**: ✅ All Console Errors Fixed | ✅ Images Rendering | ✅ Search UX Complete
 **Latest**: Node 22.21.1 (set as default), Vite 7.2
 **Primary Interface**: **narrative-studio** (localhost:5173) - Use this!
 **Archived**: cloud-workbench (reference only, see README_ARCHIVED.md)
-**Git**: `aaaa5b1` (main branch, clean, pushed)
+**Git**: `1382763` (main branch, clean, pushed)
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
 **Production API**: https://npe-api.tem-527.workers.dev
 **Humanizer.com**: https://humanizer.com (REFERENCE for design/theme)
+
+---
+
+## ✅ **EVENING SESSION: BUG FIXES** (Nov 18, 2025, 8:55 PM)
+
+### **5 Critical Fixes Completed**
+
+**What Was Fixed**:
+1. ✅ **React Border Conflicts** - Eliminated console warnings
+   - Fixed TopBar.tsx and MainWorkspace.tsx
+   - Changed `border-b` class to inline `borderBottom` styles
+   - Added responsive border CSS for split panes
+
+2. ✅ **Search Clear Buttons** - Standard UX pattern added
+   - "X" button appears when search has text
+   - Clears search on click
+   - Both conversation and message search
+
+3. ✅ **KaTeX Unicode Warnings** - Suppressed harmless warnings
+   - Configured KaTeX with `strict: false`
+   - No more en-dash warnings
+
+4. ✅ **Image Rendering** - Fixed conversations with media_manifest.json
+   - "Text and Subjectivity" images now render
+   - Added support for `media_manifest.json` mapping
+   - Extract metadata from `message.metadata.attachments`
+
+5. ✅ **JSON Transcript Display** - Clean text instead of raw JSON
+   - Message #4 now shows transcript text
+   - Extract `content` field from JSON documents
+
+**Files Changed**:
+- `narrative-studio/archive-server.js` (+61 lines)
+- `narrative-studio/src/components/layout/TopBar.tsx` (±2 lines)
+- `narrative-studio/src/components/workspace/MainWorkspace.tsx` (+7 lines)
+- `narrative-studio/src/index.css` (+7 lines)
+- `narrative-studio/src/components/panels/ArchivePanel.tsx` (+28 lines)
+- `narrative-studio/src/components/markdown/MarkdownRenderer.tsx` (+4 lines)
+
+**Testing**:
+- ✅ No React warnings in console
+- ✅ Search clear buttons work in both views
+- ✅ "Text and Subjectivity" - 13 images render correctly
+- ✅ "Campsite Coding Adventure" - multiple images work
+- ✅ Message #4 transcript shows clean text
+
+**Handoff**: `/tmp/SESSION_HANDOFF_NOV18_BUGFIXES.md` ⭐
 
 ---
 
