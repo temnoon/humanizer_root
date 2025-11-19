@@ -200,7 +200,7 @@ export const archiveService = {
   /**
    * Convert a conversation to a Narrative for display in canvas
    */
-  conversationToNarrative(conversation: Conversation, messageIndex?: number) {
+  conversationToNarrative(conversation: Conversation, messageIndex?: number, scrollToImageUrl?: string) {
     let content: string;
     let title: string;
 
@@ -231,6 +231,7 @@ export const archiveService = {
         date: conversation.created_at
           ? new Date(conversation.created_at * 1000).toISOString()
           : undefined,
+        scrollToImageUrl, // Add scroll hint for image navigation from lightbox
       },
       createdAt: conversation.created_at
         ? new Date(conversation.created_at * 1000)

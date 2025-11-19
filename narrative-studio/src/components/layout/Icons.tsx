@@ -67,4 +67,18 @@ export const Icons = {
       <path d="M13 13l5 5" strokeWidth="2" strokeLinecap="round" />
     </svg>
   ),
+
+  Image: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <rect x="2" y="2" width="16" height="16" rx="2" strokeWidth="2" />
+      <circle cx="7" cy="7" r="2" strokeWidth="2" />
+      <path d="M18 13l-4-4-6 6-4-4-2 2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+
+  ArrowLeft: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <path d="M15 10H5M5 10l4 4M5 10l4-4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
 };
