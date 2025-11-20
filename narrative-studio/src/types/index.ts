@@ -86,18 +86,46 @@ export interface TransformMetadata {
   aiDetection?: {
     confidence: number;
     verdict: 'human' | 'ai' | 'mixed';
-    tellWords: string[];
+    tellWords: Array<{
+      word: string;
+      category: string;
+      count: number;
+      weight: number;
+    }>;
     burstiness: number;
     perplexity: number;
     reasoning: string;
+    method?: 'lite' | 'gptzero'; // Which detector was used
+    // GPTZero Premium fields:
+    highlightedSentences?: string[]; // AI-flagged sentences
+    paraphrasedProbability?: number; // Average paraphrased detection probability
+    confidenceCategory?: string; // "low" | "medium" | "high"
+    subclassType?: string; // "pure_ai" | "ai_paraphrased"
+    paragraphScores?: Array<{
+      start_sentence_index: number;
+      num_sentences: number;
+      completely_generated_prob: number;
+    }>;
+    modelVersion?: string; // GPTZero model version
+    processingTimeMs?: number; // Processing time
   };
 
-  // Allegorical transformation stages
+  // Transformation stages (different for each transformation type)
   stages?: {
+    // Allegorical transformation stages
     deconstruct?: string;
     map?: string;
     reconstruct?: string;
     stylize?: string;
+
+    // Computer Humanizer stages
+    original?: string;
+    tellWordsRemoved?: string;
+    burstinessEnhanced?: string;
+    llmPolished?: string;
+
+    // Allow other stage types
+    [key: string]: string | undefined;
   };
 
   // Generic metadata for extensibility

@@ -600,3 +600,76 @@ samp,
     border-right: 1px solid var(--border-color) !important;
   }
 }
+
+/* ============================================================
+   GPTZERO AI DETECTION HIGHLIGHTS
+   ============================================================ */
+
+.gptzero-highlighted-text {
+  color: var(--text-primary);
+}
+
+.gptzero-highlight {
+  background-color: transparent;
+  padding: 2px 4px;
+  padding-left: 8px;
+  border-radius: 3px;
+  border-left: 3px solid var(--error);
+  background: linear-gradient(90deg,
+    rgba(220, 38, 38, 0.12) 0%,
+    rgba(220, 38, 38, 0.04) 100%
+  );
+  color: var(--text-primary);
+}
+
+/* Dark mode adjustments for better visibility */
+[data-theme='dark'] .gptzero-highlight {
+  background: linear-gradient(90deg,
+    rgba(239, 68, 68, 0.20) 0%,
+    rgba(239, 68, 68, 0.08) 100%
+  );
+  border-left-color: var(--error);
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   LITE DETECTOR TELL-WORD HIGHLIGHTS
+   ============================================================ */
+
+.lite-highlight {
+  background: linear-gradient(90deg,
+    rgba(251, 191, 36, 0.15) 0%,
+    rgba(251, 191, 36, 0.05) 100%
+  );
+  border-bottom: 2px solid var(--warning);
+  color: var(--text-primary);
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+[data-theme='dark'] .lite-highlight {
+  background: linear-gradient(90deg,
+    rgba(245, 158, 11, 0.20) 0%,
+    rgba(245, 158, 11, 0.08) 100%
+  );
+  border-bottom-color: var(--warning);
+}
+
+/* ============================================================
+   RESIZABLE PANELS
+   ============================================================ */
+
+.resize-handle {
+  background: transparent;
+  transition: background-color 0.2s;
+}
+
+.resize-handle:hover {
+  background-color: var(--accent-primary);
+  opacity: 0.5;
+}
+
+.resize-handle:active {
+  background-color: var(--accent-primary);
+  opacity: 0.7;
+}

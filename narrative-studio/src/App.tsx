@@ -27,6 +27,19 @@ function AppContent() {
   const [archivePanelOpen, setArchivePanelOpen] = useState(true);
   const [toolsPanelOpen, setToolsPanelOpen] = useState(true);
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('single');
+  const [viewPreference, setViewPreference] = useState<'split' | 'tabs'>(() => {
+    const saved = localStorage.getItem('narrative-studio-view-preference');
+    return (saved === 'split' || saved === 'tabs') ? saved : 'split';
+  });
+  const [archivePanelWidth, setArchivePanelWidth] = useState(() => {
+    const saved = localStorage.getItem('narrative-studio-archive-width');
+    return saved ? Number(saved) : 300;
+  });
+  const [toolsPanelWidth, setToolsPanelWidth] = useState(() => {
+    const saved = localStorage.getItem('narrative-studio-tools-width');
+    return saved ? Number(saved) : 350;
+  });
+  const [isResizing, setIsResizing] = useState<'archive' | 'tools' | null>(null);
   const [isTransforming, setIsTransforming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,6 +51,20 @@ function AppContent() {
       loadNarratives();
     }
   }, [isAuthenticated]);
+
+  // Persist view preference to localStorage
+  useEffect(() => {
+    localStorage.setItem('narrative-studio-view-preference', viewPreference);
+  }, [viewPreference]);
+
+  // Persist panel widths to localStorage
+  useEffect(() => {
+    localStorage.setItem('narrative-studio-archive-width', String(archivePanelWidth));
+  }, [archivePanelWidth]);
+
+  useEffect(() => {
+    localStorage.setItem('narrative-studio-tools-width', String(toolsPanelWidth));
+  }, [toolsPanelWidth]);
 
   // Responsive panel behavior
   useEffect(() => {
@@ -55,6 +82,38 @@ function AppContent() {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [isAuthenticated]);
+
+  // Resize handlers for panels
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (isResizing === 'archive') {
+        const newWidth = Math.max(200, Math.min(600, e.clientX));
+        setArchivePanelWidth(newWidth);
+      } else if (isResizing === 'tools') {
+        const newWidth = Math.max(200, Math.min(600, window.innerWidth - e.clientX));
+        setToolsPanelWidth(newWidth);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(null);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   // Show loading screen while checking authentication
   if (isLoading) {
@@ -165,7 +224,13 @@ function AppContent() {
         return next;
       });
 
-      setWorkspaceMode('split');
+      // AI detection is analysis (not transformation), so use single-pane mode
+      // Other transformations use split mode to show original vs transformed
+      if (result.metadata?.aiDetection) {
+        setWorkspaceMode('single');
+      } else {
+        setWorkspaceMode('split');
+      }
     } catch (err: any) {
       console.error('Transformation failed:', err);
       setError(err.message || 'Transformation failed');
@@ -185,30 +250,102 @@ function AppContent() {
         currentNarrative={currentNarrative}
         onToggleArchive={() => setArchivePanelOpen((o) => !o)}
         onToggleTools={() => setToolsPanelOpen((o) => !o)}
+        onToggleView={() => setViewPreference((v) => (v === 'split' ? 'tabs' : 'split'))}
         archiveOpen={archivePanelOpen}
         toolsOpen={toolsPanelOpen}
+        viewPreference={viewPreference}
+        workspaceMode={workspaceMode}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        <ArchivePanel
-          onSelectNarrative={handleSelectNarrative}
-          isOpen={archivePanelOpen}
-          onClose={() => setArchivePanelOpen(false)}
-        />
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Archive Panel */}
+        {archivePanelOpen && (
+          <div
+            className="relative flex-shrink-0"
+            style={{
+              width: `${archivePanelWidth}px`,
+              minWidth: `${archivePanelWidth}px`,
+              maxWidth: `${archivePanelWidth}px`,
+              height: '100%'
+            }}
+          >
+          <ArchivePanel
+            onSelectNarrative={handleSelectNarrative}
+            isOpen={archivePanelOpen}
+            onClose={() => setArchivePanelOpen(false)}
+          />
+          <div
+            className="resize-handle resize-handle-right hidden md:block"
+            onMouseDown={() => setIsResizing('archive')}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent-primary)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              right: -4,
+              width: '8px',
+              cursor: 'col-resize',
+              zIndex: 10,
+              backgroundColor: 'transparent',
+              transition: 'background-color 0.2s',
+            }}
+          />
+          </div>
+        )}
 
-        <MainWorkspace
-          narrative={currentNarrative}
-          transformResult={currentTransformResult}
-          mode={workspaceMode}
-          onUpdateNarrative={handleUpdateNarrative}
-        />
+        <div
+          className="flex-1 min-w-0 flex flex-col"
+          style={{
+            minHeight: 0,
+            height: '100%',
+          }}
+        >
+          <MainWorkspace
+            narrative={currentNarrative}
+            transformResult={currentTransformResult}
+            mode={workspaceMode}
+            viewPreference={viewPreference}
+            onUpdateNarrative={handleUpdateNarrative}
+          />
+        </div>
 
-        <ToolsPanel
-          isOpen={toolsPanelOpen}
-          onClose={() => setToolsPanelOpen(false)}
-          onRunTransform={handleRunTransform}
-          isTransforming={isTransforming}
-        />
+        {/* Tools Panel */}
+        {toolsPanelOpen && (
+          <div
+            className="relative flex-shrink-0"
+            style={{
+              width: `${toolsPanelWidth}px`,
+              minWidth: `${toolsPanelWidth}px`,
+              maxWidth: `${toolsPanelWidth}px`,
+              height: '100%'
+            }}
+          >
+          <div
+            className="resize-handle resize-handle-left hidden md:block"
+            onMouseDown={() => setIsResizing('tools')}
+            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = 'var(--accent-primary)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: -4,
+              width: '8px',
+              cursor: 'col-resize',
+              zIndex: 10,
+              backgroundColor: 'transparent',
+              transition: 'background-color 0.2s',
+            }}
+          />
+          <ToolsPanel
+            isOpen={toolsPanelOpen}
+            onClose={() => setToolsPanelOpen(false)}
+            onRunTransform={handleRunTransform}
+            isTransforming={isTransforming}
+          />
+          </div>
+        )}
       </div>
 
       {/* Error toast */}

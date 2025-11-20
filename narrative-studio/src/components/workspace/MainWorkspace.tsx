@@ -8,6 +8,7 @@ interface MainWorkspaceProps {
   narrative: Narrative | null;
   transformResult: TransformResult | null;
   mode: WorkspaceMode;
+  viewPreference: 'split' | 'tabs';
   onUpdateNarrative: (content: string) => void;
 }
 
@@ -15,11 +16,13 @@ export function MainWorkspace({
   narrative,
   transformResult,
   mode,
+  viewPreference,
   onUpdateNarrative,
 }: MainWorkspaceProps) {
   const [originalViewMode, setOriginalViewMode] = useState<ViewMode>('rendered');
   const [transformedViewMode, setTransformedViewMode] = useState<ViewMode>('rendered');
   const [editedContent, setEditedContent] = useState('');
+  const [activeTab, setActiveTab] = useState<'original' | 'transformed'>('original');
 
   // Refs for scrollable containers to reset scroll position
   const singlePaneRef = useRef<HTMLDivElement>(null);
@@ -116,10 +119,13 @@ export function MainWorkspace({
     return (
       <main
         ref={singlePaneRef}
-        className="flex-1 overflow-y-auto"
-        style={{ backgroundColor: 'var(--bg-primary)' }}
+        className="flex-1 overflow-y-auto flex flex-col items-center"
+        style={{
+          backgroundColor: 'var(--bg-primary)',
+          minHeight: 0,
+        }}
       >
-        <div className="max-w-5xl mx-auto" style={{ padding: 'var(--space-xl)' }}>
+        <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)' }}>
           {/* Title and metadata panel */}
           <div
             className="mb-6 p-4 rounded-lg"
@@ -161,54 +167,245 @@ export function MainWorkspace({
             </div>
           </div>
 
-          {/* View mode toggle */}
-          <div className="flex items-center justify-end mb-8">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => {
-                  if (originalViewMode === 'markdown') {
-                    handleCancelEdit();
-                  } else {
-                    setEditedContent(narrative.content);
-                    setOriginalViewMode('markdown');
-                  }
-                }}
-                className="text-body px-4 rounded-md flex items-center gap-2 transition-smooth"
-                style={{
-                  backgroundImage: originalViewMode === 'markdown' ? 'var(--accent-primary-gradient)' : 'none',
-                  backgroundColor: originalViewMode === 'markdown' ? 'transparent' : 'var(--bg-secondary)',
-                  color: originalViewMode === 'markdown' ? 'var(--text-inverse)' : 'var(--text-primary)',
-                  padding: 'var(--space-sm) var(--space-md)',
-                }}
-              >
-                {originalViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
-                {originalViewMode === 'markdown' ? 'Preview' : 'Edit'}
-              </button>
-              {originalViewMode === 'markdown' && (
-                <button
-                  onClick={handleSaveEdit}
-                  className="text-body font-medium rounded-md transition-smooth"
-                  style={{
-                    backgroundColor: 'var(--success)',
-                    color: 'white',
-                    padding: 'var(--space-sm) var(--space-md)',
-                  }}
-                >
-                  Save
-                </button>
-              )}
-            </div>
-          </div>
+          {/* AI Detection Results - Show inline when detection exists */}
+          {transformResult?.metadata?.aiDetection ? (
+            <>
+              {/* Analysis Results Panel */}
+              <div className="mb-8 space-y-6">
+                {/* Verdict Badge */}
+                <div className="text-center">
+                  <div
+                    className="inline-block px-8 py-4 rounded-lg"
+                    style={{
+                      backgroundColor:
+                        transformResult.metadata.aiDetection.verdict === 'ai'
+                          ? 'var(--accent-red)'
+                          : transformResult.metadata.aiDetection.verdict === 'human'
+                          ? 'var(--accent-green)'
+                          : 'var(--accent-yellow)',
+                      color: 'white',
+                    }}
+                  >
+                    <div className="text-small mb-1" style={{ opacity: 0.9 }}>
+                      Verdict
+                    </div>
+                    <div className="heading-lg font-bold uppercase">
+                      {transformResult.metadata.aiDetection.verdict === 'ai'
+                        ? '🤖 AI Generated'
+                        : transformResult.metadata.aiDetection.verdict === 'human'
+                        ? '✍️ Human Written'
+                        : '🔀 Mixed/Uncertain'}
+                    </div>
+                  </div>
+                </div>
 
-          {/* Content */}
-          {originalViewMode === 'rendered' ? (
-            <MarkdownRenderer content={narrative.content} />
+                {/* Confidence Bar */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-small font-medium" style={{ color: 'var(--text-secondary)' }}>
+                      AI Confidence
+                    </span>
+                    <span className="heading-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                      {transformResult.metadata.aiDetection.confidence.toFixed(3)}%
+                    </span>
+                  </div>
+                  <div
+                    className="h-4 rounded-full overflow-hidden"
+                    style={{ backgroundColor: 'var(--bg-tertiary)' }}
+                  >
+                    <div
+                      className="h-full transition-all"
+                      style={{
+                        width: `${transformResult.metadata.aiDetection.confidence}%`,
+                        backgroundColor:
+                          transformResult.metadata.aiDetection.confidence > 70
+                            ? 'var(--accent-red)'
+                            : transformResult.metadata.aiDetection.confidence < 20
+                            ? 'var(--accent-green)'
+                            : 'var(--accent-yellow)',
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* GPTZero Premium - Show count of flagged sentences */}
+                {transformResult.metadata.aiDetection.method === 'gptzero' &&
+                  transformResult.metadata.aiDetection.highlightedSentences?.length > 0 && (
+                  <div
+                    className="rounded-md"
+                    style={{
+                      backgroundColor: 'var(--bg-tertiary)',
+                      padding: 'var(--space-md)',
+                    }}
+                  >
+                    <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                      AI-Flagged Sentences
+                    </div>
+                    <div className="heading-md" style={{ color: 'var(--accent-red)' }}>
+                      {transformResult.metadata.aiDetection.highlightedSentences.length} sentences flagged
+                    </div>
+                    <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                      Highlighted in red below
+                    </div>
+                  </div>
+                )}
+
+                {/* Tell Words for Lite Detector */}
+                {transformResult.metadata.aiDetection.tellWords &&
+                  transformResult.metadata.aiDetection.tellWords.length > 0 && (
+                    <div>
+                      <div className="text-small font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
+                        AI Tell-Words Found ({transformResult.metadata.aiDetection.tellWords.length})
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {transformResult.metadata.aiDetection.tellWords
+                          .filter(w => w && w.word && typeof w.word === 'string')
+                          .map((wordObj, idx) => (
+                          <span
+                            key={idx}
+                            className="px-3 py-1 rounded-full text-small"
+                            style={{
+                              backgroundColor: 'var(--accent-yellow)20',
+                              color: 'var(--accent-yellow)',
+                              border: '1px solid var(--accent-yellow)40',
+                            }}
+                          >
+                            {wordObj.word}
+                          </span>
+                        ))}
+                      </div>
+                      <div className="text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
+                        Highlighted in amber below
+                      </div>
+                    </div>
+                  )}
+
+                {/* Reasoning */}
+                {transformResult.metadata.aiDetection.reasoning && (
+                  <div
+                    className="rounded-md"
+                    style={{
+                      backgroundColor: 'var(--bg-tertiary)',
+                      borderLeft: '4px solid var(--accent-primary)',
+                      padding: 'var(--space-md)',
+                    }}
+                  >
+                    <div className="text-small font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                      Analysis
+                    </div>
+                    <p className="text-body" style={{ color: 'var(--text-secondary)' }}>
+                      {transformResult.metadata.aiDetection.reasoning}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Original Text with Inline Highlights */}
+              <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                {transformResult.metadata.aiDetection.method === 'gptzero' &&
+                transformResult.metadata.aiDetection.highlightedSentences?.length > 0 ? (
+                  // GPTZero: Highlight flagged sentences
+                  <div className="gptzero-highlighted-text">
+                    {(() => {
+                      let highlightedText = narrative.content;
+                      const sentences = transformResult.metadata.aiDetection.highlightedSentences;
+                      const sortedSentences = [...sentences].sort((a, b) => b.length - a.length);
+                      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                      sortedSentences.forEach((sentence) => {
+                        const escapedSentence = escapeRegex(sentence);
+                        const regex = new RegExp(`(${escapedSentence})`, 'gi');
+                        highlightedText = highlightedText.replace(
+                          regex,
+                          `<mark class="gptzero-highlight">$1</mark>`
+                        );
+                      });
+
+                      return <div dangerouslySetInnerHTML={{ __html: highlightedText }} />;
+                    })()}
+                  </div>
+                ) : transformResult.metadata.aiDetection.tellWords?.length > 0 ? (
+                  // Lite Detector: Highlight tell-words
+                  <div className="lite-highlighted-text">
+                    {(() => {
+                      let highlightedText = narrative.content;
+                      const tellWords = transformResult.metadata.aiDetection.tellWords;
+                      // Filter out invalid entries and sort by word length
+                      const sortedWords = [...tellWords]
+                        .filter(w => w && w.word && typeof w.word === 'string')
+                        .sort((a, b) => b.word.length - a.word.length);
+                      const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                      sortedWords.forEach((wordObj) => {
+                        const escapedWord = escapeRegex(wordObj.word);
+                        const regex = new RegExp(`\\b(${escapedWord})\\b`, 'gi');
+                        highlightedText = highlightedText.replace(
+                          regex,
+                          `<mark class="lite-highlight">$1</mark>`
+                        );
+                      });
+
+                      return <div dangerouslySetInnerHTML={{ __html: highlightedText }} />;
+                    })()}
+                  </div>
+                ) : (
+                  // No highlights available, show original
+                  <MarkdownRenderer content={narrative.content} />
+                )}
+              </div>
+            </>
           ) : (
-            <MarkdownEditor
-              content={editedContent}
-              onChange={setEditedContent}
-              placeholder="Enter markdown content..."
-            />
+            <>
+              {/* View mode toggle - Only show when NOT in AI detection mode */}
+              <div className="flex items-center justify-end mb-8">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      if (originalViewMode === 'markdown') {
+                        handleCancelEdit();
+                      } else {
+                        setEditedContent(narrative.content);
+                        setOriginalViewMode('markdown');
+                      }
+                    }}
+                    className="text-body px-4 rounded-md flex items-center gap-2 transition-smooth"
+                    style={{
+                      backgroundImage: originalViewMode === 'markdown' ? 'var(--accent-primary-gradient)' : 'none',
+                      backgroundColor: originalViewMode === 'markdown' ? 'transparent' : 'var(--bg-secondary)',
+                      color: originalViewMode === 'markdown' ? 'var(--text-inverse)' : 'var(--text-primary)',
+                      padding: 'var(--space-sm) var(--space-md)',
+                    }}
+                  >
+                    {originalViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
+                    {originalViewMode === 'markdown' ? 'Preview' : 'Edit'}
+                  </button>
+                  {originalViewMode === 'markdown' && (
+                    <button
+                      onClick={handleSaveEdit}
+                      className="text-body font-medium rounded-md transition-smooth"
+                      style={{
+                        backgroundColor: 'var(--success)',
+                        color: 'white',
+                        padding: 'var(--space-sm) var(--space-md)',
+                      }}
+                    >
+                      Save
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Content - Normal view without AI detection */}
+              {originalViewMode === 'rendered' ? (
+                <MarkdownRenderer content={narrative.content} />
+              ) : (
+                <MarkdownEditor
+                  content={editedContent}
+                  onChange={setEditedContent}
+                  placeholder="Enter markdown content..."
+                />
+              )}
+            </>
           )}
         </div>
       </main>
@@ -218,20 +415,24 @@ export function MainWorkspace({
   // Split pane mode
   return (
     <main
-      className="flex-1 flex flex-col overflow-hidden"
-      style={{ backgroundColor: 'var(--bg-primary)' }}
+      className="flex-1 flex flex-col"
+      style={{
+        backgroundColor: 'var(--bg-primary)',
+        minHeight: 0,
+      }}
     >
-      {/* Title and metadata panel - spans full width */}
-      <div
-        className="mx-6 mt-6 mb-4 p-4 rounded-lg"
-        style={{
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-        }}
-      >
-        <h1 className="heading-lg mb-2" style={{ color: 'var(--text-primary)' }}>
-          {narrative.title}
-        </h1>
+      {/* Title and metadata panel - centered with max-width */}
+      <div className="flex justify-center w-full">
+        <div
+          className="mx-6 mt-6 mb-4 p-4 rounded-lg w-full max-w-5xl"
+          style={{
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border-color)',
+          }}
+        >
+          <h1 className="heading-lg mb-2" style={{ color: 'var(--text-primary)' }}>
+            {narrative.title}
+          </h1>
         <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
           {narrative.createdAt && (
             <span>
@@ -259,64 +460,94 @@ export function MainWorkspace({
           {narrative.metadata.source && (
             <span>• Source: {narrative.metadata.source}</span>
           )}
+          </div>
         </div>
       </div>
 
-      {/* Split panes container */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Left pane: Original */}
-        <div
-          ref={leftPaneRef}
-          className="flex-1 overflow-y-auto md-border-switch"
-          style={{
-            borderBottom: '1px solid var(--border-color)',
-          }}
-        >
-          <div style={{ padding: 'var(--space-xl)' }}>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
-                Original
-              </h2>
-            <button
-              onClick={() =>
-                setOriginalViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
-              }
-              className="text-body rounded-md flex items-center gap-2 transition-smooth"
+      {/* Desktop: Split or Tabs based on preference */}
+      {viewPreference === 'split' ? (
+        /* Side-by-side layout (desktop only) */
+        <div className="hidden md:flex flex-1 flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
+          {/* Left pane: Original */}
+          <div
+            ref={leftPaneRef}
+            className="flex-1 md-border-switch flex flex-col"
+            style={{
+              borderBottom: '1px solid var(--border-color)',
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Scrollable content container */}
+            <div
+              className="flex-1 overflow-y-auto"
               style={{
-                backgroundColor: 'var(--bg-secondary)',
-                color: 'var(--text-primary)',
-                padding: 'var(--space-sm) var(--space-md)',
+                width: '100%',
+                minHeight: 0,
               }}
             >
-              {originalViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
-              {originalViewMode === 'markdown' ? 'Preview' : 'Edit'}
-            </button>
-          </div>
-
-          {/* Content */}
-          <div className="max-w-3xl">
-            {originalViewMode === 'rendered' ? (
-              <MarkdownRenderer content={narrative.content} />
-            ) : (
-              <MarkdownEditor
-                content={editedContent || narrative.content}
-                onChange={(content) => {
-                  setEditedContent(content);
-                  onUpdateNarrative(content);
+              <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', minHeight: 0, margin: '0 auto' }}>
+                {/* Header */}
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
+                    Original
+                  </h2>
+              <button
+                onClick={() =>
+                  setOriginalViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
+                }
+                className="text-body rounded-md flex items-center gap-2 transition-smooth"
+                style={{
+                  backgroundColor: 'var(--bg-secondary)',
+                  color: 'var(--text-primary)',
+                  padding: 'var(--space-sm) var(--space-md)',
                 }}
-                placeholder="Original content..."
-              />
-            )}
-          </div>
-        </div>
-      </div>
+              >
+                {originalViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
+                {originalViewMode === 'markdown' ? 'Preview' : 'Edit'}
+              </button>
+                </div>
 
-      {/* Right pane: Transformed */}
-      <div ref={rightPaneRef} className="flex-1 overflow-y-auto" style={{ backgroundColor: 'var(--bg-secondary)' }}>
-        <div style={{ padding: 'var(--space-xl)', paddingBottom: '120px' }}>
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+                {/* Content */}
+                <div className="w-full">
+              {originalViewMode === 'rendered' ? (
+                <MarkdownRenderer content={narrative.content} />
+              ) : (
+                <MarkdownEditor
+                  content={editedContent || narrative.content}
+                  onChange={(content) => {
+                    setEditedContent(content);
+                    onUpdateNarrative(content);
+                  }}
+                  placeholder="Original content..."
+                />
+              )}
+            </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right pane: Transformed */}
+          <div
+            ref={rightPaneRef}
+            className="flex-1 flex flex-col"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
+            {/* Scrollable content container */}
+            <div
+              className="flex-1 overflow-y-auto"
+              style={{
+                width: '100%',
+                minHeight: 0,
+              }}
+            >
+              <div className="w-full max-w-5xl" style={{ paddingTop: 'var(--space-xl)', paddingRight: 'var(--space-xl)', paddingBottom: '120px', paddingLeft: 'var(--space-xl)', minHeight: 0, margin: '0 auto' }}>
+              {/* Header */}
+              <div className="flex items-center justify-between mb-8">
             <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
               {transformResult.metadata?.aiDetection ? 'AI Detection Analysis' : 'Transformed'}
             </h2>
@@ -397,28 +628,54 @@ export function MainWorkspace({
                 </div>
               </div>
 
-              {/* Metrics Grid */}
-              <div className="grid grid-cols-2 gap-4">
-                <div
-                  className="rounded-md"
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    padding: 'var(--space-md)',
-                  }}
-                >
-                  <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
-                    Burstiness
+              {/* Metrics Grid - Only show for Lite Detector */}
+              {transformResult.metadata.aiDetection.method !== 'gptzero' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div
+                    className="rounded-md"
+                    style={{
+                      backgroundColor: 'var(--bg-tertiary)',
+                      padding: 'var(--space-md)',
+                    }}
+                  >
+                    <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                      Burstiness
+                    </div>
+                    <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
+                      {Math.round(transformResult.metadata.aiDetection.burstiness)}/100
+                    </div>
+                    <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                      {transformResult.metadata.aiDetection.burstiness > 60
+                        ? 'Human-like variation'
+                        : 'AI-like uniformity'}
+                    </div>
                   </div>
-                  <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
-                    {transformResult.metadata.aiDetection.burstiness}/100
-                  </div>
-                  <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
-                    {transformResult.metadata.aiDetection.burstiness > 60
-                      ? 'Human-like variation'
-                      : 'AI-like uniformity'}
-                  </div>
-                </div>
 
+                  <div
+                    className="rounded-md"
+                    style={{
+                      backgroundColor: 'var(--bg-tertiary)',
+                      padding: 'var(--space-md)',
+                    }}
+                  >
+                    <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                      Perplexity
+                    </div>
+                    <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
+                      {Math.round(transformResult.metadata.aiDetection.perplexity)}/100
+                    </div>
+                    <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                      {transformResult.metadata.aiDetection.perplexity > 60
+                        ? 'Varied vocabulary'
+                        : 'Predictable patterns'}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* GPTZero Premium - Show count of flagged sentences */}
+              {transformResult.metadata.aiDetection.method === 'gptzero' &&
+                transformResult.metadata.aiDetection.highlightedSentences?.length > 0 && (
                 <div
                   className="rounded-md"
                   style={{
@@ -427,18 +684,16 @@ export function MainWorkspace({
                   }}
                 >
                   <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
-                    Perplexity
+                    AI-Flagged Sentences
                   </div>
-                  <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
-                    {transformResult.metadata.aiDetection.perplexity}/100
+                  <div className="heading-md" style={{ color: 'var(--accent-red)' }}>
+                    {transformResult.metadata.aiDetection.highlightedSentences.length} sentences flagged
                   </div>
                   <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
-                    {transformResult.metadata.aiDetection.perplexity > 60
-                      ? 'Varied vocabulary'
-                      : 'Predictable patterns'}
+                    Highlighted in text below
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Tell Words */}
               {transformResult.metadata.aiDetection.tellWords &&
@@ -448,18 +703,19 @@ export function MainWorkspace({
                       AI Tell-Words Found ({transformResult.metadata.aiDetection.tellWords.length})
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {transformResult.metadata.aiDetection.tellWords.map((wordObj, idx) => (
+                      {transformResult.metadata.aiDetection.tellWords
+                        .filter(w => w && w.word && typeof w.word === 'string')
+                        .map((wordObj, idx) => (
                         <span
                           key={idx}
                           className="px-3 py-1 rounded-full text-small"
                           style={{
                             backgroundColor: 'var(--accent-red)20',
                             color: 'var(--accent-red)',
-                            border: '1px solid',
-                            borderColor: 'var(--accent-red)40',
+                            border: '1px solid var(--accent-red)40',
                           }}
                         >
-                          {typeof wordObj === 'string' ? wordObj : wordObj.word}
+                          {wordObj.word}
                         </span>
                       ))}
                     </div>
@@ -524,7 +780,40 @@ export function MainWorkspace({
           {/* Content */}
           <div className="max-w-3xl">
             {transformedViewMode === 'rendered' ? (
-              transformResult.metadata?.manualReviewSuggestions && transformResult.metadata.manualReviewSuggestions.length > 0 ? (
+              // GPTZero highlighted sentences (inline highlighting)
+              transformResult.metadata?.aiDetection?.method === 'gptzero' &&
+              transformResult.metadata?.aiDetection?.highlightedSentences?.length > 0 ? (
+                <div className="prose" style={{ color: 'var(--text-primary)' }}>
+                  {(() => {
+                    // Highlight flagged sentences in the original text
+                    let highlightedText = transformResult.transformed;
+                    const sentences = transformResult.metadata.aiDetection.highlightedSentences;
+
+                    // Sort sentences by length (longest first) to avoid partial replacements
+                    const sortedSentences = [...sentences].sort((a, b) => b.length - a.length);
+
+                    // Escape regex special characters in sentences
+                    const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                    // Replace each flagged sentence with highlighted version
+                    sortedSentences.forEach((sentence) => {
+                      const escapedSentence = escapeRegex(sentence);
+                      const regex = new RegExp(`(${escapedSentence})`, 'gi');
+                      highlightedText = highlightedText.replace(
+                        regex,
+                        `<mark class="gptzero-highlight">$1</mark>`
+                      );
+                    });
+
+                    return (
+                      <div
+                        className="gptzero-highlighted-text"
+                        dangerouslySetInnerHTML={{ __html: highlightedText }}
+                      />
+                    );
+                  })()}
+                </div>
+              ) : transformResult.metadata?.manualReviewSuggestions && transformResult.metadata.manualReviewSuggestions.length > 0 ? (
                 <div className="prose" style={{ color: 'var(--text-primary)' }}>
                   {(() => {
                     // Highlight suspicious phrases in the transformed text
@@ -676,8 +965,154 @@ export function MainWorkspace({
               </div>
             </div>
           )}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        /* Tab View on desktop when viewPreference === 'tabs' */
+        <div className="hidden md:flex flex-1 flex-col">
+          {/* Tab buttons */}
+          <div className="flex border-b" style={{ borderColor: 'var(--border-color)', paddingLeft: 'var(--space-lg)' }}>
+            <button
+              className={`transform-tab ${activeTab === 'original' ? 'active' : ''}`}
+              onClick={() => setActiveTab('original')}
+              style={{
+                padding: 'var(--space-md) var(--space-lg)',
+                borderBottom: activeTab === 'original' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                backgroundColor: activeTab === 'original' ? 'var(--bg-primary)' : 'transparent',
+                color: activeTab === 'original' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'original' ? '600' : '400',
+                transition: 'all 0.2s',
+              }}
+            >
+              Original
+            </button>
+            <button
+              className={`transform-tab ${activeTab === 'transformed' ? 'active' : ''}`}
+              onClick={() => setActiveTab('transformed')}
+              style={{
+                padding: 'var(--space-md) var(--space-lg)',
+                borderBottom: activeTab === 'transformed' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                backgroundColor: activeTab === 'transformed' ? 'var(--bg-primary)' : 'transparent',
+                color: activeTab === 'transformed' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                fontWeight: activeTab === 'transformed' ? '600' : '400',
+                transition: 'all 0.2s',
+              }}
+            >
+              {transformResult?.metadata?.aiDetection ? 'Analysis' : 'Transformed'}
+            </button>
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto">
+            {activeTab === 'original' ? (
+              <div style={{ padding: 'var(--space-xl)' }}>
+                <div className="max-w-3xl">
+                  {originalViewMode === 'rendered' ? (
+                    <MarkdownRenderer content={narrative.content} />
+                  ) : (
+                    <MarkdownEditor
+                      content={editedContent || narrative.content}
+                      onChange={(content) => {
+                        setEditedContent(content);
+                        onUpdateNarrative(content);
+                      }}
+                      placeholder="Original content..."
+                    />
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: 'var(--space-xl)', paddingBottom: '120px', backgroundColor: 'var(--bg-secondary)' }}>
+                <div className="max-w-3xl">
+                  {transformedViewMode === 'rendered' ? (
+                    <MarkdownRenderer content={transformResult?.transformed || ''} />
+                  ) : (
+                    <MarkdownEditor
+                      content={transformResult?.transformed || ''}
+                      onChange={() => {}}
+                      placeholder="Transformed content..."
+                    />
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile: Always use tabs */}
+      <div className="md:hidden flex-1 flex flex-col">
+        {/* Tab buttons */}
+        <div className="flex border-b" style={{ borderColor: 'var(--border-color)' }}>
+          <button
+            className={`transform-tab ${activeTab === 'original' ? 'active' : ''}`}
+            onClick={() => setActiveTab('original')}
+            style={{
+              flex: 1,
+              padding: 'var(--space-md)',
+              borderBottom: activeTab === 'original' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+              backgroundColor: activeTab === 'original' ? 'var(--bg-primary)' : 'transparent',
+              color: activeTab === 'original' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              fontWeight: activeTab === 'original' ? '600' : '400',
+              transition: 'all 0.2s',
+            }}
+          >
+            Original
+          </button>
+          <button
+            className={`transform-tab ${activeTab === 'transformed' ? 'active' : ''}`}
+            onClick={() => setActiveTab('transformed')}
+            style={{
+              flex: 1,
+              padding: 'var(--space-md)',
+              borderBottom: activeTab === 'transformed' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+              backgroundColor: activeTab === 'transformed' ? 'var(--bg-primary)' : 'transparent',
+              color: activeTab === 'transformed' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              fontWeight: activeTab === 'transformed' ? '600' : '400',
+              transition: 'all 0.2s',
+            }}
+          >
+            {transformResult?.metadata?.aiDetection ? 'Analysis' : 'Transformed'}
+          </button>
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto">
+          {activeTab === 'original' ? (
+            <div style={{ padding: 'var(--space-md)' }}>
+              <div className="max-w-3xl">
+                {originalViewMode === 'rendered' ? (
+                  <MarkdownRenderer content={narrative.content} />
+                ) : (
+                  <MarkdownEditor
+                    content={editedContent || narrative.content}
+                    onChange={(content) => {
+                      setEditedContent(content);
+                      onUpdateNarrative(content);
+                    }}
+                    placeholder="Original content..."
+                  />
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: 'var(--space-md)', backgroundColor: 'var(--bg-secondary)' }}>
+              <div className="max-w-3xl">
+                {transformedViewMode === 'rendered' ? (
+                  <MarkdownRenderer content={transformResult?.transformed || ''} />
+                ) : (
+                  <MarkdownEditor
+                    content={transformResult?.transformed || ''}
+                    onChange={() => {}}
+                    placeholder="Transformed content..."
+                  />
+                )}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </main>
   );

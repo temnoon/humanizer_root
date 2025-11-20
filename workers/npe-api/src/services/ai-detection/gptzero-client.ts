@@ -3,15 +3,25 @@
 
 export interface GPTZeroDetectionResult {
   verdict: 'human' | 'ai' | 'mixed';
-  confidence: number; // 0-100 (0 = human, 100 = AI)
+  confidence: number; // 0-100 with 3 decimal places (0 = human, 100 = AI)
   details: {
     completely_generated_prob: number; // Probability entirely AI
     average_generated_prob: number; // Average probability across sentences
     sentences: Array<{
       sentence: string;
       generated_prob: number;
+      highlight_sentence_for_ai: boolean; // Premium: which sentences are flagged as AI
+      paraphrased_prob: number; // Premium: paraphrased detection probability
+    }>;
+    paragraphs: Array<{
+      start_sentence_index: number;
+      num_sentences: number;
+      completely_generated_prob: number;
     }>;
   };
+  result_message: string; // GPTZero's human-readable explanation
+  confidence_category: string; // "low" | "medium" | "high"
+  subclass_type: string; // "pure_ai" | "ai_paraphrased"
   processingTimeMs: number;
   method: 'gptzero';
   classVersion: string;
@@ -22,20 +32,39 @@ interface GPTZeroAPIResponse {
   documents: Array<{
     completely_generated_prob: number;
     average_generated_prob: number;
+    confidence_category: string; // "low" | "medium" | "high"
+    result_message: string; // GPTZero's explanation
     sentences: Array<{
       sentence: string;
       generated_prob: number;
+      highlight_sentence_for_ai: boolean; // Which sentences are flagged
+      class_probabilities: {
+        ai: number;
+        human: number;
+        paraphrased: number; // Paraphrased detection
+      };
       perplexity: number | null;
-      perplexity_per_line: number | null;
+      perplexity_per_line?: number | null;
+    }>;
+    paragraphs: Array<{
+      start_sentence_index: number;
+      num_sentences: number;
+      completely_generated_prob: number;
     }>;
     class_probabilities: {
       ai: number;
       human: number;
       mixed: number;
     };
+    subclass: {
+      ai: {
+        predicted_class: string; // "pure_ai" | "ai_paraphrased"
+        confidence_score: number;
+      };
+    };
   }>;
-  class_version: string;
-  model_version: string;
+  neatVersion: string; // GPTZero's classifier version (was: class_version)
+  version: string;     // Model version (was: model_version)
 }
 
 /**
@@ -75,7 +104,7 @@ export async function detectAIWithGPTZero(
       },
       body: JSON.stringify({
         document: text,
-        version: '2024-01-09' // API version
+        version: '2025-11-13-base' // Latest GPTZero model version
       })
     });
 
@@ -114,8 +143,8 @@ export async function detectAIWithGPTZero(
       verdict = 'mixed';
     }
 
-    // Convert to 0-100 confidence scale (higher = more AI-like)
-    const confidence = Math.round(doc.completely_generated_prob * 100);
+    // Convert to 0-100 confidence scale with 3 decimal places (higher = more AI-like)
+    const confidence = Math.round(doc.completely_generated_prob * 100000) / 1000;
 
     const processingTimeMs = Date.now() - startTime;
 
@@ -127,13 +156,19 @@ export async function detectAIWithGPTZero(
         average_generated_prob: doc.average_generated_prob,
         sentences: doc.sentences.map(s => ({
           sentence: s.sentence,
-          generated_prob: s.generated_prob
-        }))
+          generated_prob: s.generated_prob,
+          highlight_sentence_for_ai: s.highlight_sentence_for_ai,
+          paraphrased_prob: s.class_probabilities?.paraphrased || 0
+        })),
+        paragraphs: doc.paragraphs || []
       },
+      result_message: doc.result_message || '',
+      confidence_category: doc.confidence_category || 'unknown',
+      subclass_type: doc.subclass?.ai?.predicted_class || 'unknown',
       processingTimeMs,
       method: 'gptzero',
-      classVersion: data.class_version,
-      modelVersion: data.model_version
+      classVersion: data.neatVersion,  // Fixed: was data.class_version
+      modelVersion: data.version       // Fixed: was data.model_version
     };
   } catch (error) {
     if (error instanceof Error) {

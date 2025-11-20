@@ -3,22 +3,28 @@ import { Icons } from './Icons';
 import { ThemeToggle } from './ThemeToggle';
 import { TextSizeControl } from './TextSizeControl';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Narrative } from '../../types';
+import type { Narrative, WorkspaceMode } from '../../types';
 
 interface TopBarProps {
   currentNarrative: Narrative | null;
   onToggleArchive: () => void;
   onToggleTools: () => void;
+  onToggleView: () => void;
   archiveOpen: boolean;
   toolsOpen: boolean;
+  viewPreference: 'split' | 'tabs';
+  workspaceMode: WorkspaceMode;
 }
 
 export function TopBar({
   currentNarrative: _currentNarrative,
   onToggleArchive,
   onToggleTools,
+  onToggleView,
   archiveOpen,
   toolsOpen,
+  viewPreference,
+  workspaceMode,
 }: TopBarProps) {
   const { user, logout } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -144,6 +150,22 @@ export function TopBar({
               </>
             )}
           </div>
+        )}
+
+        {/* View toggle button - Only show in split mode */}
+        {workspaceMode === 'split' && (
+          <button
+            onClick={onToggleView}
+            className="ui-text p-2 rounded-md transition-smooth hover:opacity-70"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+            }}
+            aria-label="Toggle split/tabs view"
+            title={viewPreference === 'split' ? 'Switch to tabs' : 'Switch to split view'}
+          >
+            {viewPreference === 'split' ? <Icons.Tabs /> : <Icons.Split />}
+          </button>
         )}
 
         <button

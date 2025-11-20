@@ -81,4 +81,18 @@ export const Icons = {
       <path d="M15 10H5M5 10l4 4M5 10l4-4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
+
+  Split: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <rect x="2" y="3" width="16" height="14" rx="1" strokeWidth="2" />
+      <path d="M10 3v14" strokeWidth="2" />
+    </svg>
+  ),
+
+  Tabs: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <rect x="2" y="7" width="16" height="10" rx="1" strokeWidth="2" />
+      <path d="M2 7h5v-2h0a1 1 0 011-1h4a1 1 0 011 1h0v2h5" strokeWidth="2" />
+    </svg>
+  ),
 };
