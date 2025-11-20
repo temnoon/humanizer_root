@@ -46,6 +46,8 @@ export interface TransformParameters {
 
   // AI Detection parameters
   threshold?: number;
+  detectorType?: 'lite' | 'gptzero';
+  useLLMJudge?: boolean; // For Lite detector LLM meta-judge
 
   // Generic parameters for extensibility
   [key: string]: unknown;

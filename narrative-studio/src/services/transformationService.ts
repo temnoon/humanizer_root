@@ -7,10 +7,14 @@
 import type { TransformConfig, TransformResult } from '../types';
 
 // Environment detection
-// NOTE: Always use deployed backend for now (no local backend running)
-const API_BASE = 'https://npe-api.tem-527.workers.dev';
+// Use local backend (wrangler dev on :8787) when on localhost
+// Use cloud backend (Cloudflare Workers) when on production domain
+const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+const API_BASE = isLocalhost
+  ? 'http://localhost:8787'  // Local wrangler dev server
+  : 'https://npe-api.tem-527.workers.dev';  // Cloud production
 
-console.log(`[TransformationService] Using DEPLOYED backend: ${API_BASE}`);
+console.log(`[TransformationService] Using ${isLocalhost ? 'LOCAL' : 'CLOUD'} backend: ${API_BASE}`);
 
 // Helper to get auth token
 function getAuthToken(): string | null {
@@ -100,6 +104,8 @@ export async function computerHumanizer(
 
 export interface AIDetectionOptions {
   threshold?: number;
+  detectorType?: 'lite' | 'gptzero';
+  useLLMJudge?: boolean;
 }
 
 export interface AIDetectionResult extends TransformResult {
@@ -119,6 +125,78 @@ export async function aiDetection(
   text: string,
   options: AIDetectionOptions = {}
 ): Promise<AIDetectionResult> {
+  const detectorType = options.detectorType || 'lite';
+
+  // Route to appropriate detector
+  if (detectorType === 'lite') {
+    return liteDetection(text, options);
+  } else {
+    return gptzeroDetection(text, options);
+  }
+}
+
+/**
+ * Lite AI Detector (Free tier - heuristic analysis)
+ */
+async function liteDetection(
+  text: string,
+  options: AIDetectionOptions
+): Promise<AIDetectionResult> {
+  const response = await fetch(`${API_BASE}/ai-detection/lite`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({
+      text,
+      useLLMJudge: options.useLLMJudge ?? false,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Lite Detection failed');
+  }
+
+  const data = await response.json();
+
+  // Convert ai_likelihood (0-1) to confidence percentage (0-100)
+  const confidence = data.ai_likelihood * 100;
+
+  // Map label to verdict
+  const verdict: 'human' | 'ai' | 'mixed' =
+    data.label === 'likely_human' ? 'human' :
+    data.label === 'likely_ai' ? 'ai' :
+    'mixed';
+
+  // Extract tell-words from phraseHits
+  const tellWords = data.phraseHits?.map((hit: any) => hit.phrase) || [];
+
+  // Map to TransformResult format
+  return {
+    transformation_id: crypto.randomUUID(),
+    original: text,
+    transformed: text, // Detection doesn't change the text
+    metadata: {
+      aiDetection: {
+        confidence,
+        verdict,
+        tellWords,
+        burstiness: data.metrics?.burstiness || 0,
+        perplexity: (data.metrics?.typeTokenRatio || 0) * 100, // Convert 0-1 to 0-100
+        reasoning: data.llmScore !== undefined
+          ? `Lite detector (with LLM meta-judge): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`
+          : `Lite detector (heuristic only): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`,
+      },
+    },
+  };
+}
+
+/**
+ * GPTZero Detector (Pro/Premium - professional API)
+ */
+async function gptzeroDetection(
+  text: string,
+  options: AIDetectionOptions
+): Promise<AIDetectionResult> {
   const response = await fetch(`${API_BASE}/ai-detection/detect`, {
     method: 'POST',
     headers: getAuthHeaders(),
@@ -127,13 +205,12 @@ export async function aiDetection(
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || 'AI Detection failed');
+    throw new Error(error.message || 'GPTZero Detection failed');
   }
 
   const data = await response.json();
 
   // Map backend AI detection response to TransformResult format
-  // AI detection doesn't transform text, so transformed === original
   return {
     transformation_id: crypto.randomUUID(),
     original: text,
@@ -299,6 +376,8 @@ export async function runTransform(config: TransformConfig, text: string): Promi
     case 'ai-detection':
       return aiDetection(text, {
         threshold: config.parameters.threshold,
+        detectorType: config.parameters.detectorType || 'lite',
+        useLLMJudge: config.parameters.useLLMJudge ?? false,
       });
 
     case 'persona':
