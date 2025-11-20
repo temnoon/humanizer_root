@@ -199,6 +199,34 @@ class HumanizerAPI {
   }
 
   // ============================================================
+  // CONFIGURATION - Personas, Namespaces, Styles
+  // ============================================================
+
+  async getPersonas(): Promise<Array<{ id: number; name: string; description: string }>> {
+    const response = await fetch(`${this.baseURL}/config/personas`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch personas');
+    }
+    return response.json();
+  }
+
+  async getNamespaces(): Promise<Array<{ id: number; name: string; description: string }>> {
+    const response = await fetch(`${this.baseURL}/config/namespaces`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch namespaces');
+    }
+    return response.json();
+  }
+
+  async getStyles(): Promise<Array<{ id: number; name: string; style_prompt: string }>> {
+    const response = await fetch(`${this.baseURL}/config/styles`);
+    if (!response.ok) {
+      throw new Error('Failed to fetch styles');
+    }
+    return response.json();
+  }
+
+  // ============================================================
   // HELPER METHODS
   // ============================================================
 

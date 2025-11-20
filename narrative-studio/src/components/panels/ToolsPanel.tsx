@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { TransformConfig, TransformationType, TransformParameters } from '../../types';
 import { Icons } from '../layout/Icons';
+import { api } from '../../utils/api';
 
 interface ToolsPanelProps {
   isOpen: boolean;
@@ -44,14 +45,53 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
     intensity: 'moderate',
     useLLM: false,
 
-    // Allegorical defaults
-    persona: 'holmes_analytical',
-    namespace: 'enlightenment_science',
-    style: 'austen_precision',
+    // Allegorical defaults (will be updated from API)
+    persona: '',
+    namespace: '',
+    style: '',
 
     // AI Detection defaults
     threshold: 0.2,
   });
+
+  // Dynamic attribute lists from API
+  const [personas, setPersonas] = useState<Array<{ id: number; name: string; description: string }>>([]);
+  const [namespaces, setNamespaces] = useState<Array<{ id: number; name: string; description: string }>>([]);
+  const [styles, setStyles] = useState<Array<{ id: number; name: string; style_prompt: string }>>([]);
+  const [loadingAttributes, setLoadingAttributes] = useState(true);
+
+  // Fetch attributes on mount
+  useEffect(() => {
+    const fetchAttributes = async () => {
+      try {
+        const [personasData, namespacesData, stylesData] = await Promise.all([
+          api.getPersonas(),
+          api.getNamespaces(),
+          api.getStyles(),
+        ]);
+
+        setPersonas(personasData);
+        setNamespaces(namespacesData);
+        setStyles(stylesData);
+
+        // Set first item as default if we don't have a selection yet
+        if (!parameters.persona && personasData.length > 0) {
+          setParameters((prev) => ({
+            ...prev,
+            persona: personasData[0].name,
+            namespace: namespacesData[0]?.name || '',
+            style: stylesData[0]?.name || '',
+          }));
+        }
+      } catch (error) {
+        console.error('Failed to fetch attributes:', error);
+      } finally {
+        setLoadingAttributes(false);
+      }
+    };
+
+    fetchAttributes();
+  }, []);
 
   const handleRun = () => {
     onRunTransform({
@@ -204,20 +244,33 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                 <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
                   Select Persona
                 </label>
-                <select
-                  value={parameters.persona || 'holmes_analytical'}
-                  onChange={(e) => setParameters({ ...parameters, persona: e.target.value })}
-                  className="ui-text w-full"
-                  style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="holmes_analytical">Holmes (Analytical)</option>
-                  <option value="austen_observant">Austen (Observant)</option>
-                  <option value="darwin_empirical">Darwin (Empirical)</option>
-                </select>
+                {loadingAttributes ? (
+                  <div className="text-small" style={{ color: 'var(--text-tertiary)', padding: 'var(--space-md)' }}>
+                    Loading personas...
+                  </div>
+                ) : (
+                  <select
+                    value={parameters.persona || ''}
+                    onChange={(e) => setParameters({ ...parameters, persona: e.target.value })}
+                    className="ui-text w-full"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {personas.map((persona) => (
+                      <option key={persona.id} value={persona.name}>
+                        {persona.description}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!loadingAttributes && personas.length > 0 && (
+                  <p className="text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
+                    {personas.length} personas available from Project Gutenberg classics
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -229,20 +282,33 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                 <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
                   Select Namespace
                 </label>
-                <select
-                  value={parameters.namespace || 'enlightenment_science'}
-                  onChange={(e) => setParameters({ ...parameters, namespace: e.target.value })}
-                  className="ui-text w-full"
-                  style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="enlightenment_science">Enlightenment Science</option>
-                  <option value="victorian_society">Victorian Society</option>
-                  <option value="ancient_philosophy">Ancient Philosophy</option>
-                </select>
+                {loadingAttributes ? (
+                  <div className="text-small" style={{ color: 'var(--text-tertiary)', padding: 'var(--space-md)' }}>
+                    Loading namespaces...
+                  </div>
+                ) : (
+                  <select
+                    value={parameters.namespace || ''}
+                    onChange={(e) => setParameters({ ...parameters, namespace: e.target.value })}
+                    className="ui-text w-full"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {namespaces.map((namespace) => (
+                      <option key={namespace.id} value={namespace.name}>
+                        {namespace.description}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!loadingAttributes && namespaces.length > 0 && (
+                  <p className="text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
+                    {namespaces.length} universes from classic literature
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -254,20 +320,33 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                 <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
                   Select Style
                 </label>
-                <select
-                  value={parameters.style || 'austen_precision'}
-                  onChange={(e) => setParameters({ ...parameters, style: e.target.value })}
-                  className="ui-text w-full"
-                  style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                  }}
-                >
-                  <option value="austen_precision">Austen Precision</option>
-                  <option value="holmes_deduction">Holmes Deduction</option>
-                  <option value="darwin_observation">Darwin Observation</option>
-                </select>
+                {loadingAttributes ? (
+                  <div className="text-small" style={{ color: 'var(--text-tertiary)', padding: 'var(--space-md)' }}>
+                    Loading styles...
+                  </div>
+                ) : (
+                  <select
+                    value={parameters.style || ''}
+                    onChange={(e) => setParameters({ ...parameters, style: e.target.value })}
+                    className="ui-text w-full"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    {styles.map((style) => (
+                      <option key={style.id} value={style.name}>
+                        {style.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {!loadingAttributes && styles.length > 0 && (
+                  <p className="text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
+                    {styles.length} writing styles from master authors
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -275,26 +354,109 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
           {/* AI Detection Parameters */}
           {selectedType === 'ai-detection' && (
             <div className="space-y-5">
+              {/* Detector Type Selection */}
               <div>
                 <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
-                  Detection Threshold
+                  Detector Type
                 </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={parameters.threshold || 0.5}
-                  onChange={(e) => setParameters({ ...parameters, threshold: parseFloat(e.target.value) })}
-                  className="w-full h-2"
-                  style={{
-                    accentColor: 'var(--accent-primary)',
-                  }}
-                />
-                <div className="text-small text-center mt-2" style={{ color: 'var(--text-tertiary)' }}>
-                  {((parameters.threshold || 0.5) * 100).toFixed(0)}%
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setParameters({ ...parameters, detectorType: 'lite' })}
+                    className="card w-full text-left"
+                    style={{
+                      ...(parameters.detectorType !== 'gptzero'
+                        ? {
+                            backgroundImage: 'var(--accent-primary-gradient)',
+                            backgroundColor: 'transparent',
+                          }
+                        : {
+                            backgroundColor: 'var(--bg-elevated)',
+                          }),
+                      color:
+                        parameters.detectorType !== 'gptzero'
+                          ? 'var(--text-inverse)'
+                          : 'var(--text-primary)',
+                      padding: 'var(--space-md)',
+                    }}
+                  >
+                    <div className="font-medium mb-2" style={{ fontSize: '1rem' }}>
+                      Lite Detector (Free)
+                    </div>
+                    <div className="text-small opacity-90">
+                      Heuristic analysis with optional LLM refinement
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setParameters({ ...parameters, detectorType: 'gptzero' })}
+                    className="card w-full text-left"
+                    style={{
+                      ...(parameters.detectorType === 'gptzero'
+                        ? {
+                            backgroundImage: 'var(--accent-primary-gradient)',
+                            backgroundColor: 'transparent',
+                          }
+                        : {
+                            backgroundColor: 'var(--bg-elevated)',
+                          }),
+                      color:
+                        parameters.detectorType === 'gptzero'
+                          ? 'var(--text-inverse)'
+                          : 'var(--text-primary)',
+                      padding: 'var(--space-md)',
+                    }}
+                  >
+                    <div className="font-medium mb-2" style={{ fontSize: '1rem' }}>
+                      GPTZero (Pro/Premium)
+                    </div>
+                    <div className="text-small opacity-90">
+                      Professional AI detection with sentence-level analysis
+                    </div>
+                  </button>
                 </div>
               </div>
+
+              {/* Lite Detector Options */}
+              {parameters.detectorType !== 'gptzero' && (
+                <div>
+                  <label className="flex items-center gap-3 text-body cursor-pointer" style={{ color: 'var(--text-primary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={parameters.useLLMJudge ?? false}
+                      onChange={(e) => setParameters({ ...parameters, useLLMJudge: e.target.checked })}
+                      className="rounded w-5 h-5"
+                      style={{
+                        accentColor: 'var(--accent-primary)',
+                      }}
+                    />
+                    Use LLM Meta-Judge (optional)
+                  </label>
+                  <p className="text-small mt-2" style={{ color: 'var(--text-tertiary)', marginLeft: '32px' }}>
+                    Adds AI refinement to heuristic analysis. Increases processing time by ~1-2 seconds.
+                  </p>
+                </div>
+              )}
+
+              {/* GPTZero Info */}
+              {parameters.detectorType === 'gptzero' && (
+                <div
+                  className="card"
+                  style={{
+                    backgroundColor: 'var(--bg-elevated)',
+                    padding: 'var(--space-md)',
+                    borderLeft: '3px solid var(--accent-primary)',
+                  }}
+                >
+                  <div className="text-small" style={{ color: 'var(--text-primary)' }}>
+                    <div className="font-medium mb-2">Professional Detection</div>
+                    <ul className="space-y-1" style={{ color: 'var(--text-tertiary)' }}>
+                      <li>• Sentence-level AI probability</li>
+                      <li>• Advanced burstiness analysis</li>
+                      <li>• Word quota tracking</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
