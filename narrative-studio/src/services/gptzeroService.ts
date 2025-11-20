@@ -45,13 +45,14 @@ export interface DetectionRequest {
 }
 
 export class GPTZeroError extends Error {
-  constructor(
-    message: string,
-    public statusCode?: number,
-    public quota?: QuotaInfo
-  ) {
+  statusCode?: number;
+  quota?: QuotaInfo;
+
+  constructor(message: string, statusCode?: number, quota?: QuotaInfo) {
     super(message);
     this.name = 'GPTZeroError';
+    this.statusCode = statusCode;
+    this.quota = quota;
   }
 }
 

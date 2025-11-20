@@ -113,7 +113,12 @@ export interface AIDetectionResult extends TransformResult {
     aiDetection: {
       confidence: number;
       verdict: 'human' | 'ai' | 'mixed';
-      tellWords: string[];
+      tellWords: Array<{
+        word: string;
+        category: string;
+        count: number;
+        weight: number;
+      }>;
       burstiness: number;
       perplexity: number;
       reasoning: string;
@@ -168,7 +173,7 @@ async function liteDetection(
     'mixed';
 
   // Extract tell-words from phraseHits
-  const tellWords = data.phraseHits?.map((hit: any) => hit.phrase) || [];
+  const tellWords = data.phraseHits?.map((hit: any) => ({ word: hit.phrase })) || [];
 
   // Map to TransformResult format
   return {
@@ -185,44 +190,115 @@ async function liteDetection(
         reasoning: data.llmScore !== undefined
           ? `Lite detector (with LLM meta-judge): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`
           : `Lite detector (heuristic only): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`,
+        method: 'lite', // Add method so UI knows which detector was used
       },
     },
   };
 }
 
 /**
- * GPTZero Detector (Pro/Premium - professional API)
+ * Strip markdown formatting from text for GPTZero analysis
+ * GPTZero flags markdown syntax as AI-like, so we send plain text
+ */
+function stripMarkdown(text: string): string {
+  return text
+    // Remove bold/italic markers
+    .replace(/\*\*\*(.*?)\*\*\*/g, '$1')  // ***bold italic***
+    .replace(/\*\*(.*?)\*\*/g, '$1')      // **bold**
+    .replace(/\*(.*?)\*/g, '$1')          // *italic*
+    .replace(/__(.*?)__/g, '$1')          // __bold__
+    .replace(/_(.*?)_/g, '$1')            // _italic_
+    // Remove headers
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove code blocks
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove links
+    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+    // Remove images
+    .replace(/!\[([^\]]*)\]\([^\)]+\)/g, '')
+    // Remove blockquotes
+    .replace(/^>\s+/gm, '')
+    // Remove horizontal rules
+    .replace(/^[-*_]{3,}$/gm, '')
+    // Remove list markers
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+\.\s+/gm, '');
+}
+
+/**
+ * GPTZero Detector (Pro/Premium - ALWAYS calls GPTZero API)
  */
 async function gptzeroDetection(
   text: string,
   options: AIDetectionOptions
 ): Promise<AIDetectionResult> {
+  // Strip markdown formatting before sending to GPTZero
+  // (markdown syntax gets flagged as AI-like)
+  const plainText = stripMarkdown(text);
+
   const response = await fetch(`${API_BASE}/ai-detection/detect`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ text, ...options }),
+    body: JSON.stringify({ text: plainText }),
   });
 
   if (!response.ok) {
     const error = await response.json();
-    throw new Error(error.message || 'GPTZero Detection failed');
+
+    // Return HONEST error to user - no mock results
+    if (error.apiKeyMissing) {
+      throw new Error('GPTZero API not configured. Please contact support.');
+    }
+    if (error.apiCallFailed) {
+      throw new Error(`GPTZero API failed: ${error.error}. This is a real error, not a fallback result.`);
+    }
+    if (error.upgradeRequired) {
+      throw new Error('GPTZero detection requires Pro or Premium subscription.');
+    }
+
+    throw new Error(error.error || 'GPTZero Detection failed');
   }
 
   const data = await response.json();
 
-  // Map backend AI detection response to TransformResult format
+  // Verify API was actually called
+  if (data.method !== 'gptzero') {
+    throw new Error('Internal error: GPTZero endpoint did not call GPTZero API');
+  }
+
+  // Extract highlighted sentences (premium feature)
+  const highlightedSentences = data.details?.sentences
+    ?.filter((s: any) => s.highlight_sentence_for_ai)
+    .map((s: any) => s.sentence) || [];
+
+  // Calculate average paraphrased probability
+  const paraphrasedProb = data.details?.sentences?.length
+    ? data.details.sentences.reduce((sum: number, s: any) =>
+        sum + (s.paraphrased_prob || 0), 0) / data.details.sentences.length
+    : 0;
+
+  // Map GPTZero API response to TransformResult format with premium features
   return {
     transformation_id: crypto.randomUUID(),
     original: text,
     transformed: text, // Detection doesn't change the text
     metadata: {
       aiDetection: {
-        confidence: data.confidence || 0,
-        verdict: data.verdict || 'uncertain',
-        tellWords: data.detectedTellWords || [],
-        burstiness: data.signals?.burstiness || 0,
-        perplexity: data.signals?.lexicalDiversity || 0,
-        reasoning: data.explanation || '',
+        confidence: data.confidence || 0, // Now includes 3 decimal places
+        verdict: data.verdict || 'mixed',
+        tellWords: [], // GPTZero doesn't provide tell-words (that's local detection)
+        burstiness: 0, // GPTZero API doesn't provide this metric
+        perplexity: 0, // GPTZero API doesn't provide this metric
+        reasoning: data.result_message || data.explanation || 'No explanation provided',
+        method: 'gptzero', // Add method so UI knows which detector was used
+        highlightedSentences, // Premium: AI-flagged sentences
+        paraphrasedProbability: paraphrasedProb, // Premium: paraphrased detection
+        confidenceCategory: data.confidence_category, // "low" | "medium" | "high"
+        subclassType: data.subclass_type, // "pure_ai" | "ai_paraphrased"
+        paragraphScores: data.details?.paragraphs || [],
+        modelVersion: `${data.classVersion || 'unknown'} (${data.modelVersion || 'unknown'})`,
+        processingTimeMs: data.processingTimeMs,
       },
     },
   };

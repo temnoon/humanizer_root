@@ -4,7 +4,6 @@
 import { Hono } from 'hono';
 import type { Env } from '../../shared/types';
 import { requireAuth, optionalLocalAuth, getAuthContext } from '../middleware/auth';
-import { detectAI, explainResult, HybridDetectionResult } from '../services/ai-detection/hybrid-orchestrator';
 import { saveTransformationToHistory, updateTransformationHistory } from '../utils/transformation-history-helper';
 import { detectWithLite } from '../services/lite-detector';
 
@@ -31,52 +30,55 @@ app.post('/test-detect', async (c) => {
 
 /**
  * POST /ai-detection/detect
- * Detect if text is AI-generated
+ * GPTZero Pro/Premium AI Detection - ALWAYS calls GPTZero API
  *
  * Request:
  * {
- *   text: string,            // Text to analyze (min 20 words)
- *   useAPI?: boolean         // Opt-in to GPTZero API (default: false)
+ *   text: string            // Text to analyze (min 20 words, max 50k chars)
  * }
  *
  * Response:
  * {
- *   verdict: 'human' | 'ai' | 'uncertain',
- *   confidence: number,      // 0-100
+ *   verdict: 'human' | 'ai' | 'mixed',
+ *   confidence: number,      // 0-100 (from GPTZero completely_generated_prob)
  *   explanation: string,     // Human-readable explanation
- *   method: 'local' | 'gptzero' | 'hybrid',
- *   signals: {               // Detailed signal breakdown
- *     burstiness: number,
- *     tellWordScore: number,
- *     readabilityPattern: number,
- *     lexicalDiversity: number
+ *   method: 'gptzero',       // Always 'gptzero' - never falls back
+ *   details: {
+ *     completely_generated_prob: number,
+ *     average_generated_prob: number,
+ *     sentences: Array<{sentence, generated_prob}>
  *   },
- *   metrics: {               // Raw statistics
- *     fleschReadingEase: number,
- *     gunningFog: number,
- *     wordCount: number,
- *     sentenceCount: number,
- *     avgSentenceLength: number
- *   },
- *   detectedTellWords: Array<{word, category, count}>,
+ *   classVersion: string,    // GPTZero model version
+ *   modelVersion: string,    // GPTZero model version
  *   processingTimeMs: number,
- *   message?: string         // Optional info message
+ *   apiCallLogged: boolean   // Confirms API was actually called
  * }
  */
 app.post('/detect', optionalLocalAuth(), async (c) => {
-  console.log('[AI Detection Route] Handler called');
+  console.log('[GPTZero Detection] Handler called');
+  const startTime = Date.now();
+
   try {
     // Get user info from auth context
     const auth = getAuthContext(c);
-    console.log('[AI Detection Route] User:', auth.email, auth.role);
+    console.log('[GPTZero Detection] User:', auth.email, auth.role);
     if (!auth) {
       return c.json({ error: 'Authentication required' }, 401);
     }
 
+    // Check user tier (Pro/Premium/Admin only)
+    if (auth.role !== 'pro' && auth.role !== 'premium' && auth.role !== 'admin') {
+      return c.json({
+        error: 'GPTZero detection requires Pro or Premium subscription',
+        userTier: auth.role,
+        upgradeRequired: true
+      }, 403);
+    }
+
     // Parse request body
     const body = await c.req.json();
-    const { text, useAPI = false } = body;
-    console.log('[AI Detection Route] Request body parsed, text length:', text?.length);
+    const { text } = body;
+    console.log('[GPTZero Detection] Request body parsed, text length:', text?.length);
 
     // Validate input
     if (!text || typeof text !== 'string') {
@@ -93,59 +95,77 @@ app.post('/detect', optionalLocalAuth(), async (c) => {
       return c.json({ error: 'Text must be at least 20 words for accurate detection' }, 400);
     }
 
+    if (trimmedText.length > 50000) {
+      return c.json({ error: 'Text too long (max 50,000 characters for GPTZero)' }, 400);
+    }
+
+    // Get GPTZero API key from environment (REQUIRED)
+    const apiKey = c.env.GPTZERO_API_KEY;
+    if (!apiKey) {
+      console.error('[GPTZero Detection] API key not configured');
+      return c.json({
+        error: 'GPTZero API not configured. Please contact support.',
+        apiKeyMissing: true
+      }, 503);
+    }
+
     // Generate transformation ID
     const transformationId = crypto.randomUUID();
+
+    // Log API call START
+    console.log('[GPTZero Detection] CALLING GPTZERO API', {
+      transformationId,
+      userId: auth.userId,
+      textLength: trimmedText.length,
+      wordCount: words.length,
+      timestamp: new Date().toISOString()
+    });
 
     // Save to history before starting
     try {
       await saveTransformationToHistory(c.env.DB, {
         id: transformationId,
         user_id: auth.userId,
-        transformation_type: 'ai-detection',
+        transformation_type: 'ai-detection-gptzero',
         input_text: trimmedText,
-        input_params: { useAPI }
+        input_params: { method: 'gptzero', apiCalled: true }
       });
     } catch (err) {
       console.error('[Transformation History] Failed to save:', err);
     }
 
-    // Get GPTZero API key from environment (optional)
-    const apiKey = c.env.GPTZERO_API_KEY;
-
-    console.log('[AI Detection] Starting detection, words:', words.length, 'useAPI:', useAPI, 'tier:', auth.role);
-
-    // Run detection
+    // ALWAYS call GPTZero API - NO FALLBACK
     try {
-      const result: HybridDetectionResult = await detectAI(trimmedText, {
-        useAPI: useAPI === true,
-        userTier: auth.role,
-        apiKey: apiKey
-      });
+      const { detectAIWithGPTZero } = await import('../services/ai-detection/gptzero-client');
+      const result = await detectAIWithGPTZero(trimmedText, apiKey);
 
-      console.log('[AI Detection] Result:', result.verdict, result.confidence, result.method);
+      const processingTimeMs = Date.now() - startTime;
 
-      // Format response with detailed breakdown
-      const response = {
+      // Log API call SUCCESS
+      console.log('[GPTZero Detection] API CALL SUCCESSFUL', {
+        transformationId,
         verdict: result.verdict,
         confidence: result.confidence,
-        explanation: explainResult(result),
-        method: result.method,
-        signals: result.local?.signals || {
-          burstiness: 0,
-          tellWordScore: 0,
-          readabilityPattern: 0,
-          lexicalDiversity: 0
-        },
-        metrics: result.local?.metrics || {
-          fleschReadingEase: 0,
-          gunningFog: 0,
-          wordCount: words.length,
-          sentenceCount: 0,
-          avgSentenceLength: 0
-        },
-        detectedTellWords: result.local?.detectedTellWords || [],
-        processingTimeMs: result.processingTimeMs,
-        message: result.message
+        processingTimeMs,
+        classVersion: result.classVersion,
+        modelVersion: result.modelVersion,
+        timestamp: new Date().toISOString()
+      });
+
+      // Format response with premium GPTZero features
+      const response = {
+        verdict: result.verdict,
+        confidence: result.confidence, // Now includes 3 decimal places
+        explanation: result.result_message || `GPTZero API: ${result.verdict === 'ai' ? 'Likely AI-generated' : result.verdict === 'human' ? 'Likely human-written' : 'Mixed/Uncertain'}`,
+        method: 'gptzero' as const,
+        details: result.details, // Now includes highlighted sentences and paragraphs
+        result_message: result.result_message,
+        confidence_category: result.confidence_category,
+        subclass_type: result.subclass_type,
+        classVersion: result.classVersion,
+        modelVersion: result.modelVersion,
+        processingTimeMs,
+        apiCallLogged: true
       };
 
       // Update history on success
@@ -161,22 +181,42 @@ app.post('/detect', optionalLocalAuth(), async (c) => {
       }
 
       return c.json(response);
-    } catch (detectError) {
-      // Update history on failure
+
+    } catch (apiError) {
+      const processingTimeMs = Date.now() - startTime;
+
+      // Log API call FAILURE
+      console.error('[GPTZero Detection] API CALL FAILED', {
+        transformationId,
+        error: apiError instanceof Error ? apiError.message : 'Unknown error',
+        processingTimeMs,
+        timestamp: new Date().toISOString()
+      });
+
+      // Update history with error
       try {
         await updateTransformationHistory(c.env.DB, {
           id: transformationId,
           user_id: auth.userId,
           status: 'failed',
-          error_message: detectError instanceof Error ? detectError.message : 'Detection failed'
+          error_message: apiError instanceof Error ? apiError.message : 'GPTZero API call failed'
         });
       } catch (err) {
         console.error('[Transformation History] Failed to update error:', err);
       }
-      throw detectError;
+
+      // Return HONEST error to user - NO MOCK RESULTS
+      const errorMessage = apiError instanceof Error ? apiError.message : 'Unknown API error';
+      return c.json({
+        error: `GPTZero API Error: ${errorMessage}`,
+        method: 'gptzero',
+        apiCallFailed: true,
+        processingTimeMs
+      }, 500);
     }
+
   } catch (error) {
-    console.error('AI detection error:', error);
+    console.error('[GPTZero Detection] Unexpected error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return c.json({ error: errorMessage }, 500);
   }

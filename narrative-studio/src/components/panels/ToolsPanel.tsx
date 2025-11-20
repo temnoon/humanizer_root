@@ -113,7 +113,7 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
 
       {/* Panel - now with panel styles */}
       <aside
-        className="fixed top-16 right-0 bottom-0 w-80 md:w-96 z-50 md:relative md:top-0 overflow-hidden panel"
+        className="fixed top-16 right-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 overflow-y-auto panel"
         style={{
           backgroundColor: 'var(--bg-panel)',
           borderLeft: '1px solid var(--border-color)',
@@ -383,7 +383,7 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                       Lite Detector (Free)
                     </div>
                     <div className="text-small opacity-90">
-                      Heuristic analysis with optional LLM refinement
+                      Our heuristic algorithm analyzing burstiness, tell-words, and lexical patterns
                     </div>
                   </button>
 
@@ -410,7 +410,7 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                       GPTZero (Pro/Premium)
                     </div>
                     <div className="text-small opacity-90">
-                      Professional AI detection with sentence-level analysis
+                      Professional GPTZero API - ALWAYS calls external API, reports real results or errors
                     </div>
                   </button>
                 </div>
