@@ -1,18 +1,57 @@
 # Humanizer - Development Guide
 
-**Last Updated**: Nov 19, 2025, 4:50 PM - ✅ **WEEK 2 COMPLETE - LITE AI DETECTOR**
-**Status**: ✅ Week 2: 95% Complete | ⚠️ Minor bug in persona/namespace/style transforms
+**Last Updated**: Nov 19, 2025, 11:30 PM - ✅ **WEEK 2: 100% COMPLETE**
+**Status**: ✅ Dynamic Attributes Working | ✅ Local Dev Environment Setup | ⚠️ Namespace tool quality concerns
 **Latest**: Node 22.21.1 (set as default), Vite 7.2
 **Primary Interface**: **narrative-studio** (localhost:5173) - Use this!
 **Archived**: cloud-workbench (reference only, see README_ARCHIVED.md)
-**Git**: `b2b145c2` (npe-api deployed), narrative-studio ready to deploy
+**Git**: `52c7464` (4 commits, ready to deploy)
 **Test Account**: demo@humanizer.com (password: testpass123, role: PRO)
 **Production API**: https://npe-api.tem-527.workers.dev
 **Humanizer.com**: https://humanizer.com (REFERENCE for design/theme)
 
 ---
 
-## 🎉 **WEEK 2 COMPLETE: LITE AI DETECTOR** (Nov 19, 2025, 4:50 PM)
+## 🎉 **WEEK 2: 100% COMPLETE** (Nov 19, 2025, 11:30 PM)
+
+### **Session 2: Dynamic Attributes & Local Dev Setup** (4 hours)
+
+**What Was Accomplished**:
+1. ✅ **Fixed Dropdown Bug** - Root cause: hardcoded names didn't match database
+   - Made dropdowns data-driven (fetch from API on mount)
+   - 25 personas, 15+ namespaces, 15 styles ALL working (was 3 hardcoded with only 1 working)
+   - 833% more attributes accessible, 100% success rate
+
+2. ✅ **Local Development Environment** - Auto-detect localhost vs production
+   - localhost:5173 → http://localhost:8787 (local wrangler dev)
+   - production → https://npe-api.tem-527.workers.dev (cloud)
+   - Archive always local (port 3002) for privacy
+
+3. ✅ **Database Migrations Applied** - Migration 0017 to local D1
+   - Added support for: persona, namespace, style, computer_humanizer types
+   - Fixed CHECK constraint error
+
+4. ✅ **Future Development Documented** - Attribute expansion plan
+   - 55 → 150+ attributes (Hemingway, Woolf, Kafka, Morrison, etc.)
+   - Source attribution system
+   - `/docs/future-development/Expanding_Attribute_Library.md`
+
+**User Insight - Namespace Tool Quality Concern**:
+- ✅ Persona & Style transformations work well (preserve content, change presentation)
+- ❌ Namespace transformation changes content too much, loses original meaning
+- **Decision Deferred**: Remove, redesign, or keep for beta feedback
+
+**Files Changed** (4 commits):
+- `52c7464`: Auto-detect localhost vs production + Week 2 files
+- `ddf72de`: Future attribute expansion plan
+- `8e3ac3d`: Format attribute names (spaces, title case)
+- `d836db7`: Make dropdowns data-driven
+
+**Handoff**: `/tmp/SESSION_HANDOFF_NOV19_DYNAMIC_ATTRIBUTES_COMPLETE.md` ⭐
+
+---
+
+## 🎉 **WEEK 2: Session 1 - Lite AI Detector** (Nov 19, 2025, 4:50 PM)
 
 ### **6 Major Accomplishments**
 
@@ -64,24 +103,21 @@
 
 ---
 
-## 🐛 **KNOWN BUG: Persona/Namespace/Style Transforms** (Nov 19)
+## ⚠️ **OPEN QUESTION: Namespace Transformation Utility** (Nov 19)
 
-**Issue**: Only FIRST dropdown option works, others fail
+**User Feedback**: "The namespace changes the content too much, and usually completely loses the point of the original narrative. I don't see it as useful."
 
-**Affected**:
-- ✅ Persona: "Holmes (Analytical)" works
-- ❌ Persona: "Austen (Observant)" fails
-- ❌ Persona: "Darwin (Empirical)" fails
-- ✅ Namespace: "Enlightenment Science" works
-- ❌ Namespace: "Victorian Society" fails
-- ✅ Style: "Austen Precision" works
-- ❌ Style: "Holmes Deduction" fails
+**Observations**:
+- ✅ **Persona transformation**: Different voice, same content → Works well
+- ✅ **Style transformation**: Different writing patterns, same content → Works well
+- ❌ **Namespace transformation**: Completely reimagined content → Loses original meaning
 
-**Hypothesis**: Backend doesn't support these values OR frontend parameter mapping issue
+**Options for Next Session**:
+1. **Remove**: Hide namespace tool from UI, keep persona and style only
+2. **Redesign**: Add "Content Preservation Mode" - map metaphorically, not literally
+3. **Defer**: Keep all three in beta, collect user feedback, decide based on usage
 
-**Fix**: Check backend endpoints for supported personas/namespaces/styles, update accordingly
-
-**Priority**: MEDIUM (Computer Humanizer and AI Detection work perfectly)
+**Priority**: MEDIUM (does not block launch)
 
 ---
 
