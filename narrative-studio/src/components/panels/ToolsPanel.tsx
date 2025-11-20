@@ -261,7 +261,7 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                   >
                     {personas.map((persona) => (
                       <option key={persona.id} value={persona.name}>
-                        {persona.description}
+                        {persona.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} - {persona.description}
                       </option>
                     ))}
                   </select>
@@ -299,7 +299,7 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                   >
                     {namespaces.map((namespace) => (
                       <option key={namespace.id} value={namespace.name}>
-                        {namespace.description}
+                        {namespace.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} - {namespace.description}
                       </option>
                     ))}
                   </select>
