@@ -1,0 +1,16 @@
+name = "gptzero-api"
+main = "src/index.ts"
+compatibility_date = "2025-11-19"
+
+# KV namespace for quota tracking
+# Usage format: usage:<userId>:<YYYY-MM> = { used: number, limit: number, resetDate: string }
+[[kv_namespaces]]
+binding = "USAGE_KV"
+id = "e791269e24bb4d5d81eb39bd86987889"
+
+# CORS configuration for narrative-studio
+[vars]
+ALLOWED_ORIGINS = "http://localhost:5173,https://workbench.humanizer.com,https://humanizer.com"
+
+# Secrets (set with: wrangler secret put GPTZERO_API_KEY)
+# GPTZERO_API_KEY = "..."
