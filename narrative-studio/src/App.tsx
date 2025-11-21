@@ -42,6 +42,11 @@ function AppContent() {
   const [isResizing, setIsResizing] = useState<'archive' | 'tools' | null>(null);
   const [isTransforming, setIsTransforming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedText, setSelectedText] = useState<{
+    text: string;
+    start: number;
+    end: number;
+  } | null>(null);
 
   // Initialize sample narratives and load from localStorage
   // NOTE: This must be called before conditional returns (Rules of Hooks)
@@ -214,9 +219,24 @@ function AppContent() {
     setError(null);
 
     try {
-      // Use local transformation service (Ollama) instead of cloud API
-      console.log('[App] Running transformation:', config.type);
-      const result = await runTransform(config, narrative.content);
+      // Use selected text if available, otherwise full document
+      const textToTransform = selectedText?.text || narrative.content;
+      console.log('[App] Running transformation:', config.type, selectedText ? '(selection)' : '(full)');
+      const result = await runTransform(config, textToTransform);
+
+      // If scoped transformation, add metadata about the selection
+      if (selectedText) {
+        result.metadata = {
+          ...result.metadata,
+          scopedTransformation: {
+            originalSelection: selectedText.text,
+            transformedSelection: result.transformed,
+            fullDocument: narrative.content,
+            selectionStart: selectedText.start,
+            selectionEnd: selectedText.end,
+          },
+        };
+      }
 
       setTransformResults((prev) => {
         const next = new Map(prev);
@@ -231,6 +251,9 @@ function AppContent() {
       } else {
         setWorkspaceMode('split');
       }
+
+      // Clear selection after transform
+      setSelectedText(null);
     } catch (err: any) {
       console.error('Transformation failed:', err);
       setError(err.message || 'Transformation failed');
@@ -307,6 +330,8 @@ function AppContent() {
             mode={workspaceMode}
             viewPreference={viewPreference}
             onUpdateNarrative={handleUpdateNarrative}
+            selectedText={selectedText}
+            onTextSelection={setSelectedText}
           />
         </div>
 

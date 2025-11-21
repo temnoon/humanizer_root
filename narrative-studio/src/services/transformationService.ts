@@ -199,8 +199,9 @@ async function liteDetection(
 /**
  * Strip markdown formatting from text for GPTZero analysis
  * GPTZero flags markdown syntax as AI-like, so we send plain text
+ * Also used for "Copy as Plain Text" functionality
  */
-function stripMarkdown(text: string): string {
+export function stripMarkdown(text: string): string {
   return text
     // Remove bold/italic markers
     .replace(/\*\*\*(.*?)\*\*\*/g, '$1')  // ***bold italic***

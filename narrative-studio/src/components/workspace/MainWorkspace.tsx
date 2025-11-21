@@ -3,6 +3,7 @@ import type { Narrative, TransformResult, ViewMode, WorkspaceMode } from '../../
 import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
 import { MarkdownEditor } from '../markdown/MarkdownEditor';
 import { Icons } from '../layout/Icons';
+import { stripMarkdown } from '../../services/transformationService';
 
 interface MainWorkspaceProps {
   narrative: Narrative | null;
@@ -10,6 +11,8 @@ interface MainWorkspaceProps {
   mode: WorkspaceMode;
   viewPreference: 'split' | 'tabs';
   onUpdateNarrative: (content: string) => void;
+  selectedText: { text: string; start: number; end: number } | null;
+  onTextSelection: (selection: { text: string; start: number; end: number } | null) => void;
 }
 
 export function MainWorkspace({
@@ -18,11 +21,14 @@ export function MainWorkspace({
   mode,
   viewPreference,
   onUpdateNarrative,
+  selectedText,
+  onTextSelection,
 }: MainWorkspaceProps) {
   const [originalViewMode, setOriginalViewMode] = useState<ViewMode>('rendered');
   const [transformedViewMode, setTransformedViewMode] = useState<ViewMode>('rendered');
   const [editedContent, setEditedContent] = useState('');
   const [activeTab, setActiveTab] = useState<'original' | 'transformed'>('original');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Refs for scrollable containers to reset scroll position
   const singlePaneRef = useRef<HTMLDivElement>(null);
@@ -114,6 +120,34 @@ export function MainWorkspace({
     setOriginalViewMode('rendered');
   };
 
+  // Copy to clipboard with toast notification
+  const copyToClipboard = async (text: string, format: 'plain' | 'markdown') => {
+    try {
+      const content = format === 'plain' ? stripMarkdown(text) : text;
+      await navigator.clipboard.writeText(content);
+      setToastMessage(format === 'plain' ? 'Plain text copied!' : 'Markdown copied!');
+      setTimeout(() => setToastMessage(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      setToastMessage('Failed to copy');
+      setTimeout(() => setToastMessage(null), 2000);
+    }
+  };
+
+  // Handle text selection for scoped transformations
+  const handleTextSelection = () => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 0) {
+      const text = selection.toString();
+      const range = selection.getRangeAt(0);
+      onTextSelection({
+        text,
+        start: range.startOffset,
+        end: range.endOffset,
+      });
+    }
+  };
+
   // Single pane mode
   if (mode === 'single' || !transformResult) {
     return (
@@ -134,9 +168,27 @@ export function MainWorkspace({
               border: '1px solid var(--border-color)',
             }}
           >
-            <h1 className="heading-xl mb-2" style={{ color: 'var(--text-primary)' }}>
-              {narrative.title}
-            </h1>
+            <div className="flex items-start justify-between mb-2">
+              <h1 className="heading-xl" style={{ color: 'var(--text-primary)' }}>
+                {narrative.title}
+              </h1>
+              <div className="flex items-center gap-2">
+                <button
+                  className="copy-button"
+                  onClick={() => copyToClipboard(narrative.content, 'plain')}
+                  title="Copy as plain text"
+                >
+                  <Icons.Copy /> Text
+                </button>
+                <button
+                  className="copy-button"
+                  onClick={() => copyToClipboard(narrative.content, 'markdown')}
+                  title="Copy as markdown"
+                >
+                  <Icons.Code /> MD
+                </button>
+              </div>
+            </div>
             <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
               {narrative.createdAt && (
                 <span>
@@ -395,19 +447,40 @@ export function MainWorkspace({
                 </div>
               </div>
 
-              {/* Content - Normal view without AI detection */}
-              {originalViewMode === 'rendered' ? (
-                <MarkdownRenderer content={narrative.content} />
-              ) : (
-                <MarkdownEditor
-                  content={editedContent}
-                  onChange={setEditedContent}
-                  placeholder="Enter markdown content..."
-                />
+              {/* Selection banner */}
+              {selectedText && (
+                <div className="selection-banner">
+                  <Icons.Highlight />
+                  <span className="word-count">
+                    {selectedText.text.split(/\s+/).filter(Boolean).length} words selected
+                  </span>
+                  <button onClick={() => onTextSelection(null)}>Clear</button>
+                </div>
               )}
+
+              {/* Content - Normal view without AI detection */}
+              <div onMouseUp={handleTextSelection}>
+                {originalViewMode === 'rendered' ? (
+                  <MarkdownRenderer content={narrative.content} />
+                ) : (
+                  <MarkdownEditor
+                    content={editedContent}
+                    onChange={setEditedContent}
+                    placeholder="Enter markdown content..."
+                  />
+                )}
+              </div>
             </>
           )}
         </div>
+
+        {/* Toast notification */}
+        {toastMessage && (
+          <div className="toast">
+            <Icons.Check />
+            {toastMessage}
+          </div>
+        )}
       </main>
     );
   }
@@ -492,33 +565,62 @@ export function MainWorkspace({
                   <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
                     Original
                   </h2>
-              <button
-                onClick={() =>
-                  setOriginalViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
-                }
-                className="text-body rounded-md flex items-center gap-2 transition-smooth"
-                style={{
-                  backgroundColor: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  padding: 'var(--space-sm) var(--space-md)',
-                }}
-              >
-                {originalViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
-                {originalViewMode === 'markdown' ? 'Preview' : 'Edit'}
-              </button>
+                  <div className="flex items-center gap-2">
+                    {/* Copy buttons */}
+                    <button
+                      className="copy-button"
+                      onClick={() => copyToClipboard(narrative.content, 'plain')}
+                      title="Copy as plain text"
+                    >
+                      <Icons.Copy /> Text
+                    </button>
+                    <button
+                      className="copy-button"
+                      onClick={() => copyToClipboard(narrative.content, 'markdown')}
+                      title="Copy as markdown"
+                    >
+                      <Icons.Code /> MD
+                    </button>
+                    {/* Edit/Preview toggle */}
+                    <button
+                      onClick={() =>
+                        setOriginalViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
+                      }
+                      className="text-body rounded-md flex items-center gap-2 transition-smooth"
+                      style={{
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        padding: 'var(--space-sm) var(--space-md)',
+                      }}
+                    >
+                      {originalViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
+                      {originalViewMode === 'markdown' ? 'Preview' : 'Edit'}
+                    </button>
+                  </div>
                 </div>
 
+                {/* Selection banner */}
+                {selectedText && (
+                  <div className="selection-banner">
+                    <Icons.Highlight />
+                    <span className="word-count">
+                      {selectedText.text.split(/\s+/).filter(Boolean).length} words selected
+                    </span>
+                    <button onClick={() => onTextSelection(null)}>Clear</button>
+                  </div>
+                )}
+
                 {/* Content */}
-                <div className="w-full">
-              {originalViewMode === 'rendered' ? (
-                <MarkdownRenderer content={narrative.content} />
-              ) : (
-                <MarkdownEditor
-                  content={editedContent || narrative.content}
-                  onChange={(content) => {
-                    setEditedContent(content);
-                    onUpdateNarrative(content);
-                  }}
+                <div className="w-full" onMouseUp={handleTextSelection}>
+                  {originalViewMode === 'rendered' ? (
+                    <MarkdownRenderer content={narrative.content} />
+                  ) : (
+                    <MarkdownEditor
+                      content={editedContent || narrative.content}
+                      onChange={(content) => {
+                        setEditedContent(content);
+                        onUpdateNarrative(content);
+                      }}
                   placeholder="Original content..."
                 />
               )}
@@ -548,26 +650,44 @@ export function MainWorkspace({
               <div className="w-full max-w-5xl" style={{ paddingTop: 'var(--space-xl)', paddingRight: 'var(--space-xl)', paddingBottom: '120px', paddingLeft: 'var(--space-xl)', minHeight: 0, margin: '0 auto' }}>
               {/* Header */}
               <div className="flex items-center justify-between mb-8">
-            <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
-              {transformResult.metadata?.aiDetection ? 'AI Detection Analysis' : 'Transformed'}
-            </h2>
-            {!transformResult.metadata?.aiDetection && (
-              <button
-                onClick={() =>
-                  setTransformedViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
-                }
-                className="text-body rounded-md flex items-center gap-2 transition-smooth"
-                style={{
-                  backgroundColor: 'var(--bg-tertiary)',
-                  color: 'var(--text-primary)',
-                  padding: 'var(--space-sm) var(--space-md)',
-                }}
-              >
-                {transformedViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
-                {transformedViewMode === 'markdown' ? 'Preview' : 'Source'}
-              </button>
-            )}
-          </div>
+                <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
+                  {transformResult.metadata?.aiDetection ? 'AI Detection Analysis' : 'Transformed'}
+                </h2>
+                <div className="flex items-center gap-2">
+                  {/* Copy buttons */}
+                  <button
+                    className="copy-button"
+                    onClick={() => copyToClipboard(transformResult.transformed, 'plain')}
+                    title="Copy as plain text"
+                  >
+                    <Icons.Copy /> Text
+                  </button>
+                  <button
+                    className="copy-button"
+                    onClick={() => copyToClipboard(transformResult.transformed, 'markdown')}
+                    title="Copy as markdown"
+                  >
+                    <Icons.Code /> MD
+                  </button>
+                  {/* View toggle (only for non-AI detection) */}
+                  {!transformResult.metadata?.aiDetection && (
+                    <button
+                      onClick={() =>
+                        setTransformedViewMode((m) => (m === 'rendered' ? 'markdown' : 'rendered'))
+                      }
+                      className="text-body rounded-md flex items-center gap-2 transition-smooth"
+                      style={{
+                        backgroundColor: 'var(--bg-tertiary)',
+                        color: 'var(--text-primary)',
+                        padding: 'var(--space-sm) var(--space-md)',
+                      }}
+                    >
+                      {transformedViewMode === 'markdown' ? <Icons.Eye /> : <Icons.Edit />}
+                      {transformedViewMode === 'markdown' ? 'Preview' : 'Source'}
+                    </button>
+                  )}
+                </div>
+              </div>
 
           {/* AI Detection Results - MOVED TO TOP */}
           {transformResult.metadata?.aiDetection && (
@@ -1114,6 +1234,14 @@ export function MainWorkspace({
           )}
         </div>
       </div>
+
+      {/* Toast notification */}
+      {toastMessage && (
+        <div className="toast">
+          <Icons.Check />
+          {toastMessage}
+        </div>
+      )}
     </main>
   );
 }
