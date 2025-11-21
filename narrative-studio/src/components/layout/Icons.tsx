@@ -95,4 +95,30 @@ export const Icons = {
       <path d="M2 7h5v-2h0a1 1 0 011-1h4a1 1 0 011 1h0v2h5" strokeWidth="2" />
     </svg>
   ),
+
+  Copy: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <rect x="6" y="6" width="12" height="12" rx="2" strokeWidth="2" />
+      <path d="M14 6V4a2 2 0 00-2-2H4a2 2 0 00-2 2v8a2 2 0 002 2h2" strokeWidth="2" />
+    </svg>
+  ),
+
+  Code: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <path d="M6 6L2 10l4 4M14 6l4 4-4 4M8 16l4-12" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+
+  Check: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <path d="M4 10l4 4 8-8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+
+  Highlight: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <path d="M12 2l6 6-10 10H2v-6L12 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M2 18h18" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
 };

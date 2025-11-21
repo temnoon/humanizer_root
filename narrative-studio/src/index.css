@@ -673,3 +673,109 @@ samp,
   background-color: var(--accent-primary);
   opacity: 0.7;
 }
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+
+.toast {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--success);
+  color: white;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  animation: toast-in 0.3s ease-out;
+  z-index: 1000;
+  font-size: var(--text-size-sm);
+  font-weight: 500;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* Copy button styles */
+.copy-button {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-md);
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: var(--text-size-sm);
+  transition: all 0.2s ease;
+  border: none;
+  cursor: pointer;
+}
+
+.copy-button:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.copy-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ============================================================
+   TEXT SELECTION BANNER
+   ============================================================ */
+
+.selection-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  margin-bottom: var(--space-md);
+  background: linear-gradient(90deg,
+    rgba(139, 92, 246, 0.15) 0%,
+    rgba(139, 92, 246, 0.05) 100%
+  );
+  border: 1px solid var(--accent-primary);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-size-sm);
+}
+
+.selection-banner svg {
+  width: 16px;
+  height: 16px;
+  color: var(--accent-primary);
+}
+
+.selection-banner .word-count {
+  flex: 1;
+  color: var(--text-secondary);
+}
+
+.selection-banner button {
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  font-size: var(--text-size-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.selection-banner button:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
