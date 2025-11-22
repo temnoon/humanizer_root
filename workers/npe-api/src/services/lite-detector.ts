@@ -7,6 +7,13 @@
 
 import { distance } from 'fastest-levenshtein';
 import aiPhrases from '../data/ai-tell-phrases.json';
+import {
+  stripInlineMarkdown,
+  createPositionMap,
+  adjustHighlightPositions,
+  applyHighlightsToMarkdown,
+  type HighlightRange
+} from './markdown-preserver';
 
 // Types
 export interface LiteDetectionResult {
@@ -416,4 +423,45 @@ function createHighlights(
   return highlights
     .sort((a, b) => b.score - a.score)
     .slice(0, 10);
+}
+
+/**
+ * Markdown-aware AI detection wrapper
+ * Strips markdown before analysis, then restores it with highlights
+ *
+ * @param markdownText - Original text with markdown formatting
+ * @param useLLMJudge - Whether to use LLM meta-judge
+ * @param aiBinding - Cloudflare AI binding (optional)
+ * @returns Detection result with markdown-aware highlights
+ */
+export async function detectWithLiteMarkdown(
+  markdownText: string,
+  useLLMJudge: boolean = false,
+  aiBinding?: any
+): Promise<LiteDetectionResult & { highlightedMarkdown: string }> {
+  // 1. Create position map BEFORE stripping
+  const positionMap = createPositionMap(markdownText);
+
+  // 2. Strip markdown for analysis
+  const plainText = stripInlineMarkdown(markdownText);
+
+  // 3. Run detection on plain text
+  const result = await detectWithLite(plainText, useLLMJudge, aiBinding);
+
+  // 4. Adjust highlight positions to account for markdown
+  const highlightRanges: HighlightRange[] = result.highlights.map(h => ({
+    start: h.start,
+    end: h.end,
+    reason: h.reason
+  }));
+
+  const adjustedHighlights = adjustHighlightPositions(highlightRanges, positionMap);
+
+  // 5. Apply highlights to original markdown
+  const highlightedMarkdown = applyHighlightsToMarkdown(markdownText, adjustedHighlights);
+
+  return {
+    ...result,
+    highlightedMarkdown
+  };
 }

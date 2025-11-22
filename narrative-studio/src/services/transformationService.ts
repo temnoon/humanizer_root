@@ -62,18 +62,40 @@ export async function computerHumanizer(
   text: string,
   options: ComputerHumanizerOptions
 ): Promise<ComputerHumanizerResult> {
-  const response = await fetch(`${API_BASE}/transformations/computer-humanizer`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ text, ...options }),
-  });
+  // Add timeout to prevent hanging on slow requests
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout (can be slow with LLM)
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Computer Humanizer failed');
+  try {
+    const response = await fetch(`${API_BASE}/transformations/computer-humanizer`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ text, ...options }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Computer Humanizer failed');
+    }
+
+    const data = await response.json();
+    return mapComputerHumanizerResponse(data, text);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Computer Humanizer timed out after 2 minutes. Try using a shorter text.');
+    }
+    throw error;
   }
+}
 
-  const data = await response.json();
+/**
+ * Map Computer Humanizer API response to TransformResult format
+ */
+function mapComputerHumanizerResponse(data: any, text: string): ComputerHumanizerResult {
 
   // Map backend response to TransformResult format
   return {
@@ -122,6 +144,7 @@ export interface AIDetectionResult extends TransformResult {
       burstiness: number;
       perplexity: number;
       reasoning: string;
+      highlightedMarkdown?: string; // Markdown with <mark> tags for highlights
     };
   };
 }
@@ -147,21 +170,43 @@ async function liteDetection(
   text: string,
   options: AIDetectionOptions
 ): Promise<AIDetectionResult> {
-  const response = await fetch(`${API_BASE}/ai-detection/lite`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      text,
-      useLLMJudge: options.useLLMJudge ?? false,
-    }),
-  });
+  // Add timeout to prevent hanging on slow requests
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Lite Detection failed');
+  try {
+    const response = await fetch(`${API_BASE}/ai-detection/lite`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text,
+        useLLMJudge: options.useLLMJudge ?? false,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Lite Detection failed');
+    }
+
+    const data = await response.json();
+    return mapLiteDetectionResponse(data, text);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('AI Detection timed out after 60 seconds. Try using a shorter text or the GPTZero detector.');
+    }
+    throw error;
   }
+}
 
-  const data = await response.json();
+/**
+ * Map lite detection API response to TransformResult format
+ */
+function mapLiteDetectionResponse(data: any, text: string): AIDetectionResult {
 
   // Convert ai_likelihood (0-1) to confidence percentage (0-100)
   const confidence = data.ai_likelihood * 100;
@@ -191,6 +236,7 @@ async function liteDetection(
           ? `Lite detector (with LLM meta-judge): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`
           : `Lite detector (heuristic only): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`,
         method: 'lite', // Add method so UI knows which detector was used
+        highlightedMarkdown: data.highlightedMarkdown, // Pass through from API
       },
     },
   };
@@ -238,31 +284,57 @@ async function gptzeroDetection(
   // (markdown syntax gets flagged as AI-like)
   const plainText = stripMarkdown(text);
 
-  const response = await fetch(`${API_BASE}/ai-detection/detect`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({ text: plainText }),
-  });
+  // Add timeout to prevent hanging on slow requests
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout
 
-  if (!response.ok) {
-    const error = await response.json();
+  try {
+    const response = await fetch(`${API_BASE}/ai-detection/detect`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ text: plainText }),
+      signal: controller.signal,
+    });
 
-    // Return HONEST error to user - no mock results
-    if (error.apiKeyMissing) {
-      throw new Error('GPTZero API not configured. Please contact support.');
-    }
-    if (error.apiCallFailed) {
-      throw new Error(`GPTZero API failed: ${error.error}. This is a real error, not a fallback result.`);
-    }
-    if (error.upgradeRequired) {
-      throw new Error('GPTZero detection requires Pro or Premium subscription.');
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      return handleGPTZeroError(error);
     }
 
-    throw new Error(error.error || 'GPTZero Detection failed');
+    const data = await response.json();
+    return mapGPTZeroResponse(data, text);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('GPTZero detection timed out after 90 seconds. Try using a shorter text.');
+    }
+    throw error;
   }
+}
 
-  const data = await response.json();
+/**
+ * Handle GPTZero API errors
+ */
+function handleGPTZeroError(error: any): never {
+  // Return HONEST error to user - no mock results
+  if (error.apiKeyMissing) {
+    throw new Error('GPTZero API not configured. Please contact support.');
+  }
+  if (error.apiCallFailed) {
+    throw new Error(`GPTZero API failed: ${error.error}. This is a real error, not a fallback result.`);
+  }
+  if (error.upgradeRequired) {
+    throw new Error('GPTZero detection requires Pro or Premium subscription.');
+  }
+  throw new Error(error.error || 'GPTZero Detection failed');
+}
 
+/**
+ * Map GPTZero API response to TransformResult format
+ */
+function mapGPTZeroResponse(data: any, text: string): AIDetectionResult {
   // Verify API was actually called
   if (data.method !== 'gptzero') {
     throw new Error('Internal error: GPTZero endpoint did not call GPTZero API');
@@ -294,6 +366,7 @@ async function gptzeroDetection(
         reasoning: data.result_message || data.explanation || 'No explanation provided',
         method: 'gptzero', // Add method so UI knows which detector was used
         highlightedSentences, // Premium: AI-flagged sentences
+        highlightedMarkdown: data.highlightedMarkdown, // Markdown with <mark> tags for AI sentences
         paraphrasedProbability: paraphrasedProb, // Premium: paraphrased detection
         confidenceCategory: data.confidence_category, // "low" | "medium" | "high"
         subclassType: data.subclass_type, // "pure_ai" | "ai_paraphrased"
@@ -471,6 +544,39 @@ export async function runTransform(config: TransformConfig, text: string): Promi
       return styleTransform(text, {
         style: config.parameters.style || 'austen_precision',
       });
+
+    case 'round-trip': {
+      const response = await fetch(`${API_BASE}/transformations/round-trip`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          text,
+          intermediate_language: config.parameters.intermediateLanguage || 'spanish',
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Round-trip translation failed');
+      }
+
+      const data = await response.json();
+
+      return {
+        transformation_id: data.transformation_id || crypto.randomUUID(),
+        original: text,
+        transformed: data.backward_translation,
+        metadata: {
+          transformationType: 'round-trip',
+          intermediateLanguage: config.parameters.intermediateLanguage,
+          forwardTranslation: data.forward_translation,
+          semanticDrift: data.semantic_drift,
+          preservedElements: data.preserved_elements,
+          lostElements: data.lost_elements,
+          gainedElements: data.gained_elements,
+        },
+      };
+    }
 
     case 'allegorical':
       // Legacy support - will be removed

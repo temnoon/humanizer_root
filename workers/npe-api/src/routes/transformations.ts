@@ -222,7 +222,7 @@ transformationRoutes.post('/round-trip', optionalLocalAuth(), async (c) => {
     }
 
     // Create service
-    const service = new RoundTripTranslationService(c.env);
+    const service = new RoundTripTranslationService(c.env, auth.userId);
 
     // Run round-trip
     try {

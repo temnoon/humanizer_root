@@ -17,14 +17,14 @@ const TRANSFORM_TYPES: { value: TransformationType; label: string; description: 
     description: 'Remove AI tell-words and improve text naturalness',
   },
   {
+    value: 'ai-detection',
+    label: 'AI Detection',
+    description: 'Analyze text for AI-generated patterns',
+  },
+  {
     value: 'persona',
     label: 'Persona Transformation',
     description: 'Change narrative voice/perspective only',
-  },
-  {
-    value: 'namespace',
-    label: 'Namespace Transformation',
-    description: 'Change universe/setting only',
   },
   {
     value: 'style',
@@ -32,9 +32,9 @@ const TRANSFORM_TYPES: { value: TransformationType; label: string; description: 
     description: 'Change writing patterns only',
   },
   {
-    value: 'ai-detection',
-    label: 'AI Detection',
-    description: 'Analyze text for AI-generated patterns',
+    value: 'round-trip',
+    label: 'Round-Trip Translation',
+    description: 'Translate through intermediate language to analyze semantic drift',
   },
 ];
 
@@ -47,8 +47,10 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
 
     // Allegorical defaults (will be updated from API)
     persona: '',
-    namespace: '',
     style: '',
+
+    // Round-Trip Translation defaults
+    intermediateLanguage: 'spanish',
 
     // AI Detection defaults
     threshold: 0.2,
@@ -56,7 +58,6 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
 
   // Dynamic attribute lists from API
   const [personas, setPersonas] = useState<Array<{ id: number; name: string; description: string }>>([]);
-  const [namespaces, setNamespaces] = useState<Array<{ id: number; name: string; description: string }>>([]);
   const [styles, setStyles] = useState<Array<{ id: number; name: string; style_prompt: string }>>([]);
   const [loadingAttributes, setLoadingAttributes] = useState(true);
 
@@ -64,14 +65,12 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
   useEffect(() => {
     const fetchAttributes = async () => {
       try {
-        const [personasData, namespacesData, stylesData] = await Promise.all([
+        const [personasData, stylesData] = await Promise.all([
           api.getPersonas(),
-          api.getNamespaces(),
           api.getStyles(),
         ]);
 
         setPersonas(personasData);
-        setNamespaces(namespacesData);
         setStyles(stylesData);
 
         // Set first item as default if we don't have a selection yet
@@ -79,7 +78,6 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
           setParameters((prev) => ({
             ...prev,
             persona: personasData[0].name,
-            namespace: namespacesData[0]?.name || '',
             style: stylesData[0]?.name || '',
           }));
         }
@@ -275,44 +273,6 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
             </div>
           )}
 
-          {/* Namespace Parameters */}
-          {selectedType === 'namespace' && (
-            <div className="space-y-5">
-              <div>
-                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
-                  Select Namespace
-                </label>
-                {loadingAttributes ? (
-                  <div className="text-small" style={{ color: 'var(--text-tertiary)', padding: 'var(--space-md)' }}>
-                    Loading namespaces...
-                  </div>
-                ) : (
-                  <select
-                    value={parameters.namespace || ''}
-                    onChange={(e) => setParameters({ ...parameters, namespace: e.target.value })}
-                    className="ui-text w-full"
-                    style={{
-                      backgroundColor: 'var(--bg-secondary)',
-                      border: '1px solid var(--border-color)',
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    {namespaces.map((namespace) => (
-                      <option key={namespace.id} value={namespace.name}>
-                        {namespace.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())} - {namespace.description}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {!loadingAttributes && namespaces.length > 0 && (
-                  <p className="text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
-                    {namespaces.length} universes from classic literature
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* Style Parameters */}
           {selectedType === 'style' && (
             <div className="space-y-5">
@@ -347,6 +307,68 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
                     {styles.length} writing styles from master authors
                   </p>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Round-Trip Translation Parameters */}
+          {selectedType === 'round-trip' && (
+            <div className="space-y-5">
+              <div>
+                <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
+                  Intermediate Language
+                </label>
+                <select
+                  value={parameters.intermediateLanguage || 'spanish'}
+                  onChange={(e) => setParameters({ ...parameters, intermediateLanguage: e.target.value })}
+                  className="ui-text w-full"
+                  style={{
+                    backgroundColor: 'var(--bg-secondary)',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <option value="spanish">Spanish</option>
+                  <option value="french">French</option>
+                  <option value="german">German</option>
+                  <option value="italian">Italian</option>
+                  <option value="portuguese">Portuguese</option>
+                  <option value="russian">Russian</option>
+                  <option value="chinese">Chinese</option>
+                  <option value="japanese">Japanese</option>
+                  <option value="korean">Korean</option>
+                  <option value="arabic">Arabic</option>
+                  <option value="hebrew">Hebrew</option>
+                  <option value="hindi">Hindi</option>
+                  <option value="dutch">Dutch</option>
+                  <option value="swedish">Swedish</option>
+                  <option value="norwegian">Norwegian</option>
+                  <option value="danish">Danish</option>
+                  <option value="polish">Polish</option>
+                  <option value="czech">Czech</option>
+                </select>
+                <p className="text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
+                  Text will be translated to this language and back to English to analyze semantic drift
+                </p>
+              </div>
+
+              <div
+                className="card"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  padding: 'var(--space-md)',
+                  borderLeft: '3px solid var(--accent-primary)',
+                }}
+              >
+                <div className="text-small" style={{ color: 'var(--text-primary)' }}>
+                  <div className="font-medium mb-2">Analysis Output</div>
+                  <ul className="space-y-1" style={{ color: 'var(--text-tertiary)' }}>
+                    <li>• Forward & backward translations</li>
+                    <li>• Semantic drift score (0-100%)</li>
+                    <li>• Preserved/lost/gained elements</li>
+                    <li>• Max 5,000 characters</li>
+                  </ul>
+                </div>
               </div>
             </div>
           )}

@@ -48,7 +48,7 @@ export interface LLMProvider {
 /**
  * Determine which provider to use based on model ID
  */
-export function getProviderType(modelId: string): 'cloudflare' | 'openai' | 'anthropic' | 'google' {
+export function getProviderType(modelId: string): 'cloudflare' | 'openai' | 'anthropic' | 'google' | 'ollama' {
   if (modelId.startsWith('@cf/')) {
     return 'cloudflare';
   }
@@ -60,6 +60,9 @@ export function getProviderType(modelId: string): 'cloudflare' | 'openai' | 'ant
   }
   if (modelId.startsWith('gemini-')) {
     return 'google';
+  }
+  if (modelId.startsWith('ollama/') || modelId.startsWith('local/')) {
+    return 'ollama';
   }
 
   // Default to Cloudflare if unknown

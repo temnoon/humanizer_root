@@ -29,9 +29,9 @@ export type TransformationType =
   | 'computer-humanizer'
   | 'allegorical'
   | 'persona'
-  | 'namespace'
   | 'style'
-  | 'ai-detection';
+  | 'ai-detection'
+  | 'round-trip';
 
 export interface TransformParameters {
   // Computer Humanizer parameters
@@ -41,8 +41,10 @@ export interface TransformParameters {
 
   // Allegorical transformation parameters
   persona?: string;
-  namespace?: string;
   style?: string;
+
+  // Round-Trip Translation parameters
+  intermediateLanguage?: string;
 
   // AI Detection parameters
   threshold?: number;
@@ -109,6 +111,15 @@ export interface TransformMetadata {
     modelVersion?: string; // GPTZero model version
     processingTimeMs?: number; // Processing time
   };
+
+  // Round-Trip Translation results
+  transformationType?: string;
+  intermediateLanguage?: string;
+  forwardTranslation?: string;
+  semanticDrift?: number;
+  preservedElements?: string[];
+  lostElements?: string[];
+  gainedElements?: string[];
 
   // Transformation stages (different for each transformation type)
   stages?: {
