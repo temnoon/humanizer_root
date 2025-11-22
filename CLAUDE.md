@@ -1,8 +1,31 @@
 # Humanizer - Development Guide
 
-**Updated**: Nov 22, 2025, Late Evening (Final Session)
-**Status**: ✅ Backend Complete | ⚠️ Frontend 70% (3 bugs to fix)
+**Updated**: Nov 22, 2025, Night Session
+**Status**: ✅ GPTZero Markdown Complete | 🚧 Session History Planning Complete
+**Branch**: `feature/session-history-and-buffers`
 **Signups**: 239 waiting
+
+---
+
+## 🚧 IN PROGRESS: Session History & Buffer System
+
+**Branch**: `feature/session-history-and-buffers`
+**Status**: Planning complete, ready for Phase 1 implementation
+**Total Time**: 42-59 hours across 10 phases
+
+**Features**:
+- Auto-save transformation/analysis results
+- Chain operations (original → transform → analyze → transform)
+- Buffer tabs with split/single pane views
+- Archive/Sessions toggle in left panel
+- Session export (JSON + ZIP)
+- Tier-based limits (Free: 10, Pro: 100, Premium: 1000)
+
+**Key Docs**:
+- `/tmp/SESSION_HANDOFF_PHASE1_NOV22_NIGHT.md` **← START HERE FOR PHASE 1**
+- `IMPLEMENTATION_PLAN_SESSION_HISTORY.md` **← Full 10-phase plan**
+
+**Next Step**: Begin Phase 1 (Core Infrastructure) - 4-6 hours
 
 ---
 
