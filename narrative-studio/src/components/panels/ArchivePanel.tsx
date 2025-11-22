@@ -1474,6 +1474,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               })}
             </div>
           )}
+        </div>
         </>
       )}
 
