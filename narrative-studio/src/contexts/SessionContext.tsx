@@ -1,7 +1,7 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useBufferManager } from '../hooks/useBufferManager';
 import { useSessionManager } from '../hooks/useSessionManager';
-import { Session, Buffer, Edit } from '../services/sessionStorage';
+import { Session, SessionBuffer, Edit } from '../services/sessionStorage';
 
 interface SessionContextValue {
   // Session Manager
@@ -10,8 +10,8 @@ interface SessionContextValue {
   isLoading: boolean;
   error: string | null;
   hasSession: boolean;
-  createSession: (name?: string, buffers?: Buffer[], sourceMessageId?: string) => Promise<Session | null>;
-  autoCreateSession: (buffers: Buffer[], sourceMessageId?: string) => Promise<Session | null>;
+  createSession: (name?: string, buffers?: SessionBuffer[], sourceMessageId?: string) => Promise<Session | null>;
+  autoCreateSession: (buffers: SessionBuffer[], sourceMessageId?: string) => Promise<Session | null>;
   loadSession: (sessionId: string) => Promise<Session | null>;
   refreshSessions: () => Promise<Session[]>;
   updateSession: (updates: Partial<Session>) => void;
@@ -21,32 +21,32 @@ interface SessionContextValue {
   closeSession: () => Promise<void>;
 
   // Buffer Manager
-  buffers: Buffer[];
+  buffers: SessionBuffer[];
   activeBufferId: string;
   sourceBufferForNextOp: string | null;
   isChainMode: boolean;
-  createBuffer: (bufferData: Partial<Buffer>) => Buffer | null;
-  createOriginalBuffer: (text: string, archiveRef: string, messageId?: string) => Buffer | null;
+  createBuffer: (bufferData: Partial<SessionBuffer>) => SessionBuffer | null;
+  createOriginalBuffer: (text: string, archiveRef: string, messageId?: string) => SessionBuffer | null;
   createTransformationBuffer: (
     tool: string,
     settings: Record<string, any>,
     resultText: string,
     sourceBufferId?: string
-  ) => Buffer | null;
+  ) => SessionBuffer | null;
   createAnalysisBuffer: (
     tool: string,
     analysisResult: any,
     sourceBufferId?: string
-  ) => Buffer | null;
-  getActiveBuffer: () => Buffer | null;
-  getBuffer: (bufferId: string) => Buffer | null;
+  ) => SessionBuffer | null;
+  getActiveBuffer: () => SessionBuffer | null;
+  getBuffer: (bufferId: string) => SessionBuffer | null;
   setActiveBuffer: (bufferId: string) => void;
   enableChainMode: () => void;
   disableChainMode: () => void;
   addEdit: (bufferId: string, edit: Edit) => void;
   updateBufferText: (bufferId: string, newText: string, oldText: string) => void;
   closeBuffer: (bufferId: string) => void;
-  loadBuffers: (buffers: Buffer[], activeBufferId: string) => void;
+  loadBuffers: (buffers: SessionBuffer[], activeBufferId: string) => void;
   clearBuffers: () => void;
 }
 

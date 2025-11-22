@@ -7,12 +7,12 @@ export interface Session {
   updated: string;
   sourceArchive: string;
   sourceMessageId?: string;
-  buffers: Buffer[];
+  buffers: SessionBuffer[];
   activeBufferId: string;
   viewMode: 'split' | 'single-original' | 'single-transformed';
 }
 
-export interface Buffer {
+export interface SessionBuffer {
   bufferId: string;
   type: 'original' | 'transformation' | 'analysis' | 'edited';
   displayName: string;

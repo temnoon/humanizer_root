@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Session, Buffer, sessionStorage } from '../services/sessionStorage';
+import { Session, SessionBuffer, sessionStorage } from '../services/sessionStorage';
 import { APP_CONFIG } from '../config/app-config';
 import { getSessionLimit } from '../config/session-limits';
 
@@ -47,7 +47,7 @@ export function useSessionManager(userTier: string = 'free', archiveName: string
   // Create new session
   const createSession = useCallback(async (
     name?: string,
-    buffers: Buffer[] = [],
+    buffers: SessionBuffer[] = [],
     sourceMessageId?: string
   ): Promise<Session | null> => {
     // Check session limit
@@ -101,7 +101,7 @@ export function useSessionManager(userTier: string = 'free', archiveName: string
 
   // Auto-create session on first operation (if enabled)
   const autoCreateSession = useCallback(async (
-    buffers: Buffer[],
+    buffers: SessionBuffer[],
     sourceMessageId?: string
   ): Promise<Session | null> => {
     if (!APP_CONFIG.autoCreateSession) {
@@ -190,7 +190,7 @@ export function useSessionManager(userTier: string = 'free', archiveName: string
   }, [state.currentSession, autoSave]);
 
   // Update buffers in current session
-  const updateBuffers = useCallback((buffers: Buffer[], activeBufferId: string) => {
+  const updateBuffers = useCallback((buffers: SessionBuffer[], activeBufferId: string) => {
     updateSession({ buffers, activeBufferId });
   }, [updateSession]);
 
