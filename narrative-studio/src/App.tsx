@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TextSizeProvider } from './contexts/TextSizeContext';
+import { SessionProvider } from './contexts/SessionContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
 import { ArchivePanel } from './components/panels/ArchivePanel';
@@ -18,7 +19,7 @@ import type {
 } from './types';
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const [narratives, setNarratives] = useState<Narrative[]>([]);
   const [currentNarrativeId, setCurrentNarrativeId] = useState<string | null>(null);
   const [transformResults, setTransformResults] = useState<Map<string, TransformResult>>(
@@ -398,12 +399,23 @@ function AppContent() {
   );
 }
 
+function AppWithSession() {
+  const { user } = useAuth();
+  const userTier = user?.role || 'free';
+
+  return (
+    <SessionProvider userTier={userTier} archiveName="main">
+      <AppContent />
+    </SessionProvider>
+  );
+}
+
 export default function App() {
   return (
     <ThemeProvider>
       <TextSizeProvider>
         <AuthProvider>
-          <AppContent />
+          <AppWithSession />
         </AuthProvider>
       </TextSizeProvider>
     </ThemeProvider>
