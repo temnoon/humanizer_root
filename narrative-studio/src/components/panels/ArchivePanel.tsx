@@ -1302,8 +1302,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="text-small" style={{ color: 'var(--text-secondary)' }}>
+        {/* Stats */}
+        <div className="text-small" style={{ color: 'var(--text-secondary)' }}>
             {currentSearchQuery || hasActiveFilters
               ? `${filteredConversations.length} of ${conversations.length}`
               : `${conversations.length} conversations`}
@@ -1475,8 +1475,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               })}
             </div>
           )}
-            </>
-          )}
+        </>
+      )}
 
           {/* Sessions View */}
           {viewMode === 'sessions' && (
