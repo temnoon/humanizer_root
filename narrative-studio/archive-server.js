@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'fs/promises';
 import path from 'path';
+import os from 'os';
 import { JSDOM } from 'jsdom';
 
 const app = express();
@@ -9,6 +10,17 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Allow large conversation.json files
 
 const ARCHIVE_ROOT = '/Users/tem/openai-export-parser/output_v13_final';
+const SESSION_STORAGE_DIR = path.join(os.homedir(), '.humanizer', 'sessions');
+
+// Ensure sessions directory exists
+(async () => {
+  try {
+    await fs.mkdir(SESSION_STORAGE_DIR, { recursive: true });
+    console.log(`📁 Session storage directory ready: ${SESSION_STORAGE_DIR}`);
+  } catch (error) {
+    console.error('Failed to create session storage directory:', error);
+  }
+})();
 
 // Get list of all conversations (metadata only)
 app.get('/api/conversations', async (req, res) => {
@@ -1231,9 +1243,130 @@ app.post('/api/import/conversation', async (req, res) => {
   }
 });
 
+// ============================================================
+// SESSION ENDPOINTS - Session History & Buffer System
+// ============================================================
+
+// POST /sessions - Create new session
+app.post('/sessions', async (req, res) => {
+  try {
+    const session = req.body;
+    const sessionPath = path.join(SESSION_STORAGE_DIR, `${session.sessionId}.json`);
+
+    await fs.writeFile(sessionPath, JSON.stringify(session, null, 2));
+
+    console.log(`✓ Created session: ${session.sessionId} (${session.name})`);
+    res.json({ success: true, sessionId: session.sessionId });
+  } catch (error) {
+    console.error('Error creating session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /sessions - List all sessions
+app.get('/sessions', async (req, res) => {
+  try {
+    const files = await fs.readdir(SESSION_STORAGE_DIR);
+    const sessionFiles = files.filter(f => f.endsWith('.json'));
+
+    const sessions = await Promise.all(
+      sessionFiles.map(async (file) => {
+        const content = await fs.readFile(
+          path.join(SESSION_STORAGE_DIR, file),
+          'utf-8'
+        );
+        return JSON.parse(content);
+      })
+    );
+
+    // Sort by updated timestamp (most recent first)
+    sessions.sort((a, b) =>
+      new Date(b.updated).getTime() - new Date(a.updated).getTime()
+    );
+
+    console.log(`📋 Listed ${sessions.length} sessions`);
+    res.json(sessions);
+  } catch (error) {
+    console.error('Error listing sessions:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /sessions/:id - Get specific session
+app.get('/sessions/:id', async (req, res) => {
+  try {
+    const sessionPath = path.join(SESSION_STORAGE_DIR, `${req.params.id}.json`);
+    const content = await fs.readFile(sessionPath, 'utf-8');
+
+    console.log(`✓ Retrieved session: ${req.params.id}`);
+    res.json(JSON.parse(content));
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      console.warn(`❌ Session not found: ${req.params.id}`);
+      res.status(404).json({ error: 'Session not found' });
+    } else {
+      console.error('Error getting session:', error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+});
+
+// PUT /sessions/:id - Update session
+app.put('/sessions/:id', async (req, res) => {
+  try {
+    const session = req.body;
+    const sessionPath = path.join(SESSION_STORAGE_DIR, `${req.params.id}.json`);
+
+    await fs.writeFile(sessionPath, JSON.stringify(session, null, 2));
+
+    console.log(`✓ Updated session: ${req.params.id} (${session.name})`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error updating session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /sessions/:id - Delete session
+app.delete('/sessions/:id', async (req, res) => {
+  try {
+    const sessionPath = path.join(SESSION_STORAGE_DIR, `${req.params.id}.json`);
+    await fs.unlink(sessionPath);
+
+    console.log(`🗑️  Deleted session: ${req.params.id}`);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /sessions/:id/rename - Rename session
+app.put('/sessions/:id/rename', async (req, res) => {
+  try {
+    const { name } = req.body;
+    const sessionPath = path.join(SESSION_STORAGE_DIR, `${req.params.id}.json`);
+
+    const content = await fs.readFile(sessionPath, 'utf-8');
+    const session = JSON.parse(content);
+
+    session.name = name;
+    session.updated = new Date().toISOString();
+
+    await fs.writeFile(sessionPath, JSON.stringify(session, null, 2));
+
+    console.log(`✏️  Renamed session: ${req.params.id} → "${name}"`);
+    res.json({ success: true, session });
+  } catch (error) {
+    console.error('Error renaming session:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = 3002;
 app.listen(PORT, () => {
   console.log(`🗂️  Archive server running on http://localhost:${PORT}`);
   console.log(`📂 Serving: ${ARCHIVE_ROOT}`);
   console.log(`🤖 Ollama integration: http://localhost:11434`);
+  console.log(`💾 Session storage: ${SESSION_STORAGE_DIR}`);
 });
