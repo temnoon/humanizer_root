@@ -1308,7 +1308,6 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               ? `${filteredConversations.length} of ${conversations.length}`
               : `${conversations.length} conversations`}
           </div>
-        </div>
 
         {/* Conversations list */}
         <div
