@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useSession } from '../../contexts/SessionContext';
 import { SessionListItem } from './SessionListItem';
-import { Session } from '../../services/sessionStorage';
+import type { Session } from '../../services/sessionStorage';
 
 interface SessionsViewProps {
   onSelectSession: (session: Session) => void;

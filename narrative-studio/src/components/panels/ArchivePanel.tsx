@@ -5,7 +5,7 @@ import { archiveService } from '../../services/archiveService';
 import { galleryService } from '../../services/galleryService';
 import { ImageLightbox } from './ImageLightbox';
 import { SessionsView } from '../archive/SessionsView';
-import { Session } from '../../services/sessionStorage';
+import type { Session } from '../../services/sessionStorage';
 
 interface ArchivePanelProps {
   onSelectNarrative: (narrative: any) => void;

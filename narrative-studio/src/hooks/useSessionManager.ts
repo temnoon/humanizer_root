@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Session, SessionBuffer, sessionStorage } from '../services/sessionStorage';
+import type { Session, SessionBuffer } from '../services/sessionStorage';
+import { sessionStorage } from '../services/sessionStorage';
 import { APP_CONFIG } from '../config/app-config';
 import { getSessionLimit } from '../config/session-limits';
 
