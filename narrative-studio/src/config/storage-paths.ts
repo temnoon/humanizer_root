@@ -1,6 +1,7 @@
 export const STORAGE_PATHS = {
   // Local storage (configurable)
-  localSessionsDir: process.env.SESSION_STORAGE_PATH || '~/.humanizer/sessions',
+  // Note: This is used by the archive server (Node.js), not the browser
+  localSessionsDir: '~/.humanizer/sessions',
 
   // Cloud storage
   cloudTableName: 'sessions',
