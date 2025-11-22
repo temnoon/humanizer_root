@@ -2,6 +2,8 @@
 // Adapted from LPE translation_roundtrip.py for Cloudflare Workers
 
 import type { Env } from '../../shared/types';
+import { createLLMProvider, type LLMProvider } from './llm-providers';
+import { hasCloudflareAI, detectEnvironment, getModelForUseCase } from '../config/llm-models';
 
 export interface RoundTripResult {
   transformation_id: string;
@@ -38,7 +40,20 @@ export class RoundTripTranslationService {
     'dutch', 'swedish', 'norwegian', 'danish', 'polish', 'czech'
   ];
 
-  constructor(private env: Env) {}
+  private llmProvider: LLMProvider | null = null;
+  private modelId: string;
+
+  constructor(
+    private env: Env,
+    private userId: string = 'anonymous'
+  ) {
+    // Detect environment and select appropriate model
+    const hasAI = hasCloudflareAI(env);
+    const environment = detectEnvironment(hasAI);
+    this.modelId = getModelForUseCase('roundTrip', environment);
+
+    console.log(`[RoundTrip] Environment: ${environment}, Model: ${this.modelId}`);
+  }
 
   /**
    * Check if language is supported
@@ -151,7 +166,12 @@ ${text}
 Translation:`;
 
     try {
-      const response = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      // Initialize provider if needed
+      if (!this.llmProvider) {
+        this.llmProvider = await createLLMProvider(this.modelId, this.env, this.userId);
+      }
+
+      const response = await this.llmProvider.call({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
@@ -186,7 +206,12 @@ Final: ${final}
 Semantic similarity score (0.0-1.0):`;
 
     try {
-      const response = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      // Initialize provider if needed
+      if (!this.llmProvider) {
+        this.llmProvider = await createLLMProvider(this.modelId, this.env, this.userId);
+      }
+
+      const response = await this.llmProvider.call({
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }

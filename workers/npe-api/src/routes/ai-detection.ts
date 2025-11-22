@@ -5,7 +5,7 @@ import { Hono } from 'hono';
 import type { Env } from '../../shared/types';
 import { requireAuth, optionalLocalAuth, getAuthContext } from '../middleware/auth';
 import { saveTransformationToHistory, updateTransformationHistory } from '../utils/transformation-history-helper';
-import { detectWithLite } from '../services/lite-detector';
+import { detectWithLite, detectWithLiteMarkdown } from '../services/lite-detector';
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -134,10 +134,10 @@ app.post('/detect', optionalLocalAuth(), async (c) => {
       console.error('[Transformation History] Failed to save:', err);
     }
 
-    // ALWAYS call GPTZero API - NO FALLBACK
+    // ALWAYS call GPTZero API - NO FALLBACK (with markdown awareness)
     try {
-      const { detectAIWithGPTZero } = await import('../services/ai-detection/gptzero-client');
-      const result = await detectAIWithGPTZero(trimmedText, apiKey);
+      const { detectAIWithGPTZeroMarkdown } = await import('../services/ai-detection/gptzero-client');
+      const result = await detectAIWithGPTZeroMarkdown(trimmedText, apiKey);
 
       const processingTimeMs = Date.now() - startTime;
 
@@ -152,7 +152,7 @@ app.post('/detect', optionalLocalAuth(), async (c) => {
         timestamp: new Date().toISOString()
       });
 
-      // Format response with premium GPTZero features
+      // Format response with premium GPTZero features (including markdown highlights)
       const response = {
         verdict: result.verdict,
         confidence: result.confidence, // Now includes 3 decimal places
@@ -164,6 +164,7 @@ app.post('/detect', optionalLocalAuth(), async (c) => {
         subclass_type: result.subclass_type,
         classVersion: result.classVersion,
         modelVersion: result.modelVersion,
+        highlightedMarkdown: result.highlightedMarkdown, // Markdown with <mark> tags for AI sentences
         processingTimeMs,
         apiCallLogged: true
       };
@@ -286,9 +287,9 @@ app.post('/lite', async (c) => {
 
     console.log('[Lite Detection] Starting detection, words:', words.length, 'useLLMJudge:', useLLMJudge);
 
-    // Run Lite detection
+    // Run Lite detection (markdown-aware)
     const startTime = Date.now();
-    const result = await detectWithLite(trimmedText, useLLMJudge, c.env.AI);
+    const result = await detectWithLiteMarkdown(trimmedText, useLLMJudge, c.env.AI);
     const processingTimeMs = Date.now() - startTime;
 
     console.log('[Lite Detection] Result:', result.label, result.ai_likelihood, result.confidence);

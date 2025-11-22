@@ -354,9 +354,12 @@ export function MainWorkspace({
 
               {/* Original Text with Inline Highlights */}
               <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
-                {transformResult.metadata.aiDetection.method === 'gptzero' &&
+                {transformResult.metadata.aiDetection.highlightedMarkdown ? (
+                  // Use pre-highlighted markdown from API (preserves markdown formatting + highlights)
+                  <MarkdownRenderer content={transformResult.metadata.aiDetection.highlightedMarkdown} />
+                ) : transformResult.metadata.aiDetection.method === 'gptzero' &&
                 transformResult.metadata.aiDetection.highlightedSentences?.length > 0 ? (
-                  // GPTZero: Highlight flagged sentences
+                  // GPTZero: Fallback to manual highlighting if API didn't provide highlightedMarkdown
                   <div className="gptzero-highlighted-text">
                     {(() => {
                       let highlightedText = narrative.content;
@@ -377,7 +380,7 @@ export function MainWorkspace({
                     })()}
                   </div>
                 ) : transformResult.metadata.aiDetection.tellWords?.length > 0 ? (
-                  // Lite Detector: Highlight tell-words
+                  // Lite Detector: Fallback to manual highlighting
                   <div className="lite-highlighted-text">
                     {(() => {
                       let highlightedText = narrative.content;
@@ -858,6 +861,102 @@ export function MainWorkspace({
                   <p className="text-body" style={{ color: 'var(--text-secondary)' }}>
                     {transformResult.metadata.aiDetection.reasoning}
                   </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Round-Trip Translation Results */}
+          {transformResult.metadata?.transformationType === 'round-trip' && (
+            <div className="mb-8 space-y-6">
+              {/* Semantic Drift Badge */}
+              <div className="text-center">
+                <div
+                  className="inline-block px-8 py-4 rounded-lg"
+                  style={{
+                    backgroundColor:
+                      (transformResult.metadata.semanticDrift || 0) > 0.5
+                        ? 'var(--accent-yellow)'
+                        : 'var(--accent-green)',
+                    color: 'white',
+                  }}
+                >
+                  <div className="text-small mb-1" style={{ opacity: 0.9 }}>
+                    Semantic Drift
+                  </div>
+                  <div className="heading-lg font-bold">
+                    {((transformResult.metadata.semanticDrift || 0) * 100).toFixed(1)}%
+                  </div>
+                </div>
+              </div>
+
+              {/* Forward Translation */}
+              <div>
+                <h3 className="text-body font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  Translation to {(transformResult.metadata.intermediateLanguage || 'unknown').charAt(0).toUpperCase() + (transformResult.metadata.intermediateLanguage || 'unknown').slice(1)}
+                </h3>
+                <div
+                  className="p-4 rounded-lg"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  {transformResult.metadata.forwardTranslation}
+                </div>
+              </div>
+
+              {/* Backward Translation */}
+              <div>
+                <h3 className="text-body font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  Back to English
+                </h3>
+                <div
+                  className="prose p-4 rounded-lg"
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    color: 'var(--text-primary)',
+                  }}
+                >
+                  <MarkdownRenderer content={transformResult.transformed} />
+                </div>
+              </div>
+
+              {/* Analysis */}
+              {((transformResult.metadata.lostElements?.length || 0) > 0 ||
+                (transformResult.metadata.gainedElements?.length || 0) > 0) && (
+                <div className="space-y-4">
+                  {transformResult.metadata.lostElements && transformResult.metadata.lostElements.length > 0 && (
+                    <div>
+                      <h4
+                        className="text-small font-medium mb-2"
+                        style={{ color: 'var(--accent-red)' }}
+                      >
+                        Lost in Translation ({transformResult.metadata.lostElements.length})
+                      </h4>
+                      <ul className="text-small space-y-1" style={{ color: 'var(--text-tertiary)' }}>
+                        {transformResult.metadata.lostElements.map((el, i) => (
+                          <li key={i}>• {el}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {transformResult.metadata.gainedElements && transformResult.metadata.gainedElements.length > 0 && (
+                    <div>
+                      <h4
+                        className="text-small font-medium mb-2"
+                        style={{ color: 'var(--accent-green)' }}
+                      >
+                        Gained in Translation ({transformResult.metadata.gainedElements.length})
+                      </h4>
+                      <ul className="text-small space-y-1" style={{ color: 'var(--text-tertiary)' }}>
+                        {transformResult.metadata.gainedElements.map((el, i) => (
+                          <li key={i}>• {el}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

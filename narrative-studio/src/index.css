@@ -636,7 +636,8 @@ samp,
    LITE DETECTOR TELL-WORD HIGHLIGHTS
    ============================================================ */
 
-.lite-highlight {
+.lite-highlight,
+.markdown-content mark {
   background: linear-gradient(90deg,
     rgba(251, 191, 36, 0.15) 0%,
     rgba(251, 191, 36, 0.05) 100%
@@ -647,7 +648,8 @@ samp,
   border-radius: 3px;
 }
 
-[data-theme='dark'] .lite-highlight {
+[data-theme='dark'] .lite-highlight,
+[data-theme='dark'] .markdown-content mark {
   background: linear-gradient(90deg,
     rgba(245, 158, 11, 0.20) 0%,
     rgba(245, 158, 11, 0.08) 100%

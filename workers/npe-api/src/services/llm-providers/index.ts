@@ -10,6 +10,7 @@ import { CloudflareProvider } from './cloudflare';
 import { OpenAIProvider } from './openai';
 import { AnthropicProvider } from './anthropic';
 import { GoogleProvider } from './google';
+import { OllamaProvider } from './ollama';
 import { decryptAPIKey } from '../../utils/encryption';
 
 export * from './base';
@@ -17,6 +18,7 @@ export { CloudflareProvider } from './cloudflare';
 export { OpenAIProvider } from './openai';
 export { AnthropicProvider } from './anthropic';
 export { GoogleProvider } from './google';
+export { OllamaProvider } from './ollama';
 
 /**
  * Create an LLM provider instance based on model ID
@@ -94,6 +96,15 @@ export async function createLLMProvider(
       );
 
       return new GoogleProvider(apiKey, modelId);
+    }
+
+    case 'ollama': {
+      // Extract model name (remove 'ollama/' or 'local/' prefix)
+      const ollamaModel = modelId.replace(/^(ollama|local)\//, '');
+      const ollamaUrl = env.OLLAMA_URL || 'http://localhost:11434';
+
+      console.log(`Creating Ollama provider: model=${ollamaModel}, url=${ollamaUrl}`);
+      return new OllamaProvider(ollamaModel, ollamaUrl);
     }
 
     default:

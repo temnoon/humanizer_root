@@ -5,6 +5,8 @@
 import type { Env, NPEPersona } from '../../shared/types';
 import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
+import { hasCloudflareAI, detectEnvironment, getModelForUseCase } from '../config/llm-models';
+import { extractStructure, restoreStructure, stripInlineMarkdown } from './markdown-preserver';
 
 export interface PersonaTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
@@ -54,6 +56,7 @@ export interface PersonaTransformationResult {
  */
 export class PersonaTransformationService {
   private llmProvider: LLMProvider | null = null;
+  private userRole: string | null = null;
 
   constructor(
     private env: Env,
@@ -63,6 +66,20 @@ export class PersonaTransformationService {
   ) {}
 
   /**
+   * Fetch user role from database
+   */
+  private async getUserRole(): Promise<string> {
+    if (this.userRole) return this.userRole;
+
+    const result = await this.env.DB.prepare(
+      'SELECT role FROM users WHERE id = ?'
+    ).bind(this.userId).first<{ role: string }>();
+
+    this.userRole = result?.role || 'free';
+    return this.userRole;
+  }
+
+  /**
    * Transform narrative voice while preserving content
    */
   async transform(
@@ -70,6 +87,9 @@ export class PersonaTransformationService {
     options: PersonaTransformationOptions = {}
   ): Promise<PersonaTransformationResult> {
     const totalStartTime = Date.now();
+
+    // Fetch user role for token limits
+    await this.getUserRole();
 
     // Validate input
     if (!sourceText || sourceText.trim().length === 0) {
@@ -157,6 +177,30 @@ export class PersonaTransformationService {
   }
 
   /**
+   * Get max tokens based on user role
+   */
+  private getMaxTokensForRole(wordCount: number): number {
+    // Role-based token limits for output
+    // Note: This is output tokens only, not total context
+    const roleTokenLimits: Record<string, number> = {
+      'admin': 50000,     // ~37k words - essentially unlimited for admins
+      'premium': 20000,   // ~15k words
+      'pro': 10000,       // ~7.5k words
+      'member': 5000,     // ~3.7k words
+      'free': 2000        // ~1.5k words
+    };
+
+    // Default to free tier if role not found
+    const maxTokens = roleTokenLimits[this.userRole || 'free'] || 2000;
+
+    // Calculate needed tokens (1.5x word count for transformation expansion)
+    const neededTokens = Math.ceil(wordCount * 1.5);
+
+    // Return the minimum of needed tokens and role limit
+    return Math.min(Math.max(500, neededTokens), maxTokens);
+  }
+
+  /**
    * Apply persona voice while preserving content and structure
    */
   private async applyPersona(text: string, preserveLength: boolean): Promise<string> {
@@ -164,8 +208,17 @@ export class PersonaTransformationService {
       throw new Error('LLM provider not initialized');
     }
 
+    // Extract markdown structure (paragraphs, lists)
+    const structure = extractStructure(text);
+
+    // Strip inline markdown but preserve structure
+    const plainText = stripInlineMarkdown(text);
+
+    const wordCount = plainText.split(/\s+/).length;
+    const maxTokens = this.getMaxTokensForRole(wordCount);
+
     const lengthGuidance = preserveLength
-      ? `IMPORTANT: Keep the output approximately the same length as the input (around ${text.split(/\s+/).length} words).`
+      ? `IMPORTANT: Keep the output approximately the same length as the input (around ${wordCount} words).`
       : '';
 
     const prompt = `You are a narrative voice transformation specialist.
@@ -179,11 +232,12 @@ CRITICAL RULES:
 2. PRESERVE THE SETTING - Don't change locations, names, or universe
 3. PRESERVE CORE STRUCTURE - Keep similar sentence patterns and paragraph breaks
 4. CHANGE ONLY THE VOICE - Adjust narrative perspective, tone, and rhetorical stance
+5. OUTPUT ONLY THE TRANSFORMED TEXT - No explanations, no thinking process
 ${lengthGuidance}
 
 Source Text:
 """
-${text}
+${plainText}
 """
 
 Rewrite this text in the voice of "${this.persona.name}" while following the rules above.
@@ -191,11 +245,14 @@ Rewrite this text in the voice of "${this.persona.name}" while following the rul
 Transformed Text:`;
 
     const result = await this.llmProvider.generateText(prompt, {
-      max_tokens: Math.max(500, Math.ceil(text.split(/\s+/).length * 1.5)),
+      max_tokens: maxTokens,
       temperature: 0.7
     });
 
-    return result.trim();
+    // Restore markdown structure (paragraph breaks, lists)
+    const withStructure = restoreStructure(result.trim(), structure);
+
+    return withStructure;
   }
 }
 
@@ -209,6 +266,13 @@ export async function transformPersona(
   userId: string,
   options: PersonaTransformationOptions = {}
 ): Promise<PersonaTransformationResult> {
-  const service = new PersonaTransformationService(env, persona, userId);
+  // Detect environment and select appropriate model
+  const hasAI = hasCloudflareAI(env);
+  const environment = detectEnvironment(hasAI);
+  const modelId = getModelForUseCase('persona', environment);
+
+  console.log(`[Persona] Environment: ${environment}, Model: ${modelId}`);
+
+  const service = new PersonaTransformationService(env, persona, userId, modelId);
   return service.transform(text, options);
 }

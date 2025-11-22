@@ -1,113 +1,51 @@
 # Humanizer - Development Guide
 
-**Updated**: Nov 20, 2025, 11:00 AM
-**Status**: 🔴 CRITICAL - Frontend Crashing (JSX Structure Broken)
-**Signups**: 239 waiting | **Week Limit**: 50% used | **Priority**: Fix MainWorkspace.tsx
+**Updated**: Nov 22, 2025, Late Evening (Final Session)
+**Status**: ✅ Backend Complete | ⚠️ Frontend 70% (3 bugs to fix)
+**Signups**: 239 waiting
 
 ---
 
-## 🔴 CRITICAL ISSUE - MUST FIX FIRST
+## ✅ COMPLETED (Nov 22 Late Evening - Final Session)
 
-**Frontend Crashing**: MainWorkspace.tsx JSX structure broken (line 1096)
-**Error**: "Expected corresponding JSX closing tag for <div>"
-**Handoff**: `/tmp/MAINWORKSPACE_JSX_HANDOFF.md` - Read this first!
+### Phase 1 - PRODUCTION READY ✅
+- ✅ Smart sentence splitting (period+quote, domains/URLs)
+- ✅ Role-based token limits (admin: 50k, premium: 20k, pro: 10k, member: 5k, free: 2k)
+- ✅ Markdown structure preservation (paragraphs, lists, bold, italic, links)
+- ✅ Integrated into Persona + Style transformations
 
-**Quick Fix**:
-1. Read handoff document for detailed diagnosis
-2. Fix JSX closing tag structure in MainWorkspace.tsx lines 945-951
-3. Verify frontend loads without crashes
-4. THEN test main workspace scrolling
+### Phase 2 Backend - 100% WORKING ✅
+- ✅ Multi-pass position mapping (handles nested markdown: `**bold _italic_**`)
+- ✅ `detectWithLiteMarkdown()` returns `highlightedMarkdown` with `<mark>` tags
+- ✅ API tests all passing (nested, links, code, multiple types)
+- ✅ Frontend integrated (MarkdownRenderer, CSS for `<mark>` tags)
 
-**DO NOT** proceed with any other work until this is fixed.
+### Phase 2 Frontend - 3 BUGS REMAIN ⚠️
+- ✅ Markdown DOES render (bold, italic, headers, paragraphs)
+- ❌ Bug 1: Highlights not visible (Lite) - check CSS `.markdown-content mark`
+- ❌ Bug 2: Plain text block (GPTZero) - needs markdown wrapper like Lite
+- ❌ Bug 3: Detection persists on navigation - need `useEffect` to clear state
 
----
-
-## ✅ COMPLETED
-
-### Nov 20 Session (12AM-1:30AM) - GPTZero Premium
-
-
-### GPTZero Premium Features
-1. ✅ **3 Decimal Confidence** - Shows 64.541% instead of 65%
-2. ✅ **Highlighted Sentences** - Inline red borders on AI-flagged sentences
-3. ✅ **Markdown Stripping** - No false positives on `**` asterisks
-4. ✅ **Dark Mode Fixed** - Proper CSS variables, readable in both themes
-5. ✅ **Single-Pane AI Detection** - Analysis mode (not transformation)
-6. ✅ **Rich Metadata** - Paragraphs, paraphrased detection, confidence category
-
-### Backend
-- GPTZero client extracts all premium fields
-- Backend route returns enhanced data
-- Tested with curl: 7 sentences flagged correctly
-
-### Frontend
-- Service layer strips markdown before GPTZero API
-- UI shows inline highlights with proper CSS
-- Single-pane mode for AI detection
-
-**ChromaDB**: Session stored (ID: `c5c19bed...`, tags: gptzero, premium-features)
-
----
-
-## 🚨 PROTOCOL FAILURES (Nov 19 Session)
-
-**What Went Wrong**:
-- TWO different local detectors (lite-detector.ts, local-detector.ts) - not disclosed
-- GPTZero endpoint didn't actually call GPTZero - used fallback, no disclosure
-- Mock results returned without informing user
-- Backend not verified running before frontend changes
-- CLAUDE.md grew to 40kb+ (now pruned to <10kb)
-
-**Lessons**:
-- ✅ NEVER use mock data without explicit disclosure
-- ✅ ALWAYS verify infrastructure before code changes
-- ✅ ALWAYS explain architectural decisions upfront
-- ✅ Keep documentation terse and current
-
-**Memory**: ChromaDB ID `d9aca0f9...` (tags: critical-failures, protocol, transparency)
-
----
-
-## 📊 CURRENT STATE
-
-**Working**:
-- ✅ Backend running (localhost:8787 + production)
-- ✅ Lite Detector (free tier, heuristic analysis)
-- ✅ GPTZero Detector (Pro tier, actual API calls verified)
-- ✅ CORS configured (frontend ↔ backend)
-- ✅ Dynamic attributes (25 personas, 15 namespaces, 15 styles)
-- ✅ Archive server (port 3002)
-
-**User Insight**:
-> "Highlighting sentences makes GPTZero feel like a premium option" ✅ Achieved!
-
----
-
-### Nov 20 Session (11AM) - Phase 3 Partial ⚠️
-
-**Completed**:
-- ✅ Panel width persistence (localStorage + conditional rendering)
-- ✅ Resizable panels (Archive/Tools with drag handles, 200-600px range)
-- ✅ Archive panel scrolling (conversations/messages/gallery)
-- ✅ Tools panel scrolling (Run Transformation accessible)
-- ✅ Content centering (single-pane + split-pane title panels)
-
-**Broken**:
-- ❌ MainWorkspace.tsx JSX structure (line 1096) - FRONTEND CRASHING
-- ❌ Main workspace scrolling NOT TESTED (split/edit/tab modes)
-
-**Key Fix**: Added `md:h-full` to all panel aside elements for scrolling
-**Memory**: ChromaDB session summary stored
+**Handoffs**:
+- `/tmp/MARKDOWN_COMPLETE_HANDOFF_NOV22_LATE.md` **← START HERE NEXT SESSION**
+- `/tmp/MARKDOWN_PRESERVATION_HANDOFF_NOV22.md` (Phase 1 reference)
+- `/tmp/MARKDOWN_PHASE2_HANDOFF_NOV22_EVENING.md` (Phase 2 reference)
 
 ---
 
 ## 🔧 QUICK COMMANDS
 
-### Start Backend
+### Start Backend (Local with Ollama)
 ```bash
 cd /Users/tem/humanizer_root/workers/npe-api
 source ~/.nvm/nvm.sh && nvm use 22
-npx wrangler dev --local
+npx wrangler dev --local  # IMPORTANT: --local flag required for Ollama
+```
+
+### Verify Ollama Running
+```bash
+curl http://localhost:11434/api/tags  # Should list qwen3, mistral models
+ollama list  # Show installed models
 ```
 
 ### Start Frontend
@@ -117,96 +55,73 @@ node archive-server.js &  # Port 3002
 npm run dev  # Port 5173
 ```
 
-### Deploy Backend
-```bash
-cd /Users/tem/humanizer_root/workers/npe-api
-npx wrangler deploy
-```
+---
 
-### Set GPTZero API Key
-```bash
-cd /Users/tem/humanizer_root/workers/npe-api
-npx wrangler secret put GPTZERO_API_KEY
-```
+## 📊 CURRENT STATE
 
-### Check Logs
-```bash
-npx wrangler tail npe-api
-```
+**Working**:
+- ✅ Backend (wrangler dev --local on :8787)
+- ✅ Frontend (localhost:5173)
+- ✅ Archive server (port 3002)
+- ✅ AI Detection (Lite + GPTZero Pro)
+- ✅ Computer Humanizer (heuristic mode)
+- ✅ Ollama (qwen3:latest, qwen3:14b, mistral:7b)
+- ✅ Persona Transformation (26 personas) - Ollama working
+- ✅ Style Transformation (15 styles) - Ollama working
+- ✅ Round-Trip Translation (18 languages) - Ollama working
+
+**Next Session Priorities** (Est. 2 hours to complete):
+1. **Debug Lite highlights** (30 min) - Check DevTools for `<mark>` tags, fix CSS
+2. **GPTZero markdown** (60 min) - Create `detectWithGPTZeroMarkdown()` wrapper
+3. **Fix navigation bug** (15 min) - Clear `transformResult` on `narrative.id` change
+4. **Test with Thoreau** (15 min) - Long document validation
+
+**Other Known Issues**:
+- ⚠️ Qwen3 sometimes includes thinking process in plain text
+
+**Deprecated in UI** (still in API):
+- Namespace Transformation
+- Allegorical Projection
+- Maieutic Dialogue
+
+---
+
+## 🏗️ TRANSFORMATION APIs
+
+### Available in UI
+| Tool | Endpoint | Processing | Markdown |
+|------|----------|-----------|----------|
+| Computer Humanizer | `/transformations/computer-humanizer` | Heuristic | Strips |
+| AI Detection (Lite) | `/ai-detection/lite` | 20-60s | Strips |
+| AI Detection (GPTZero) | `/ai-detection/detect` | 800-1000ms | Strips |
+| Persona | `/transformations/persona` | 30s (Ollama) | Preserves (Phase 1) |
+| Style | `/transformations/style` | 27s (Ollama) | Preserves (Phase 1) |
+
+### Not in UI (Available in API)
+| Tool | Endpoint | Processing |
+|------|----------|-----------|
+| Round-Trip | `/transformations/round-trip` | ~2m 15s (Ollama) |
+| Namespace | `/transformations/namespace` | N/A |
+| Allegorical | `/transformations/allegorical` | N/A |
+
+**Personas** (26): neutral, advocate, critic, holmes_analytical, watson_chronicler, austen_ironic_observer, dickens_social_critic, tech_optimist, climate_scientist_urgent, reddit_community_member, medium_public_intellectual, etc.
+
+**Styles** (15): standard, academic, poetic, technical, casual, austen_precision, dickens_dramatic, watson_clarity, reddit_casual_prose, medium_narrative_essay, internet_collage, etc.
+
+**Round-Trip Languages** (18): spanish, french, german, italian, portuguese, russian, chinese, japanese, korean, arabic, hebrew, hindi, dutch, swedish, norwegian, danish, polish, czech
 
 ---
 
 ## 📚 KEY DOCUMENTATION
 
-**CRITICAL** (Nov 20, 2025 - 11 AM):
-- `/tmp/MAINWORKSPACE_JSX_HANDOFF.md` - ⚠️ READ FIRST - JSX crash diagnosis + fix guide
+**Current Session** (Nov 22 Late Evening):
+- `/tmp/MARKDOWN_COMPLETE_HANDOFF_NOV22_LATE.md` - **START HERE** - Complete status + 3 bugs to fix
+- `/DUAL_DEPLOYMENT_GUIDE.md` - Dual deployment architecture (cloud/local)
 
-**Latest Sessions** (Nov 20, 2025):
-- `/tmp/STUDIO_REFACTOR_HANDOFF.md` - 5-phase UX refactor plan (Phase 3 in progress)
-- `/tmp/GPTZERO_ENHANCEMENT_HANDOFF.md` - GPTZero premium features (completed)
-
-**Previous Session** (Nov 19, 2025):
-- `/tmp/DETECTOR_REDESIGN_COMPLETE_NOV19.md` - AI detector architecture
-
-**GPTZero API**: https://support.gptzero.me/collections/4394627366-api
-
----
-
-## 🏗️ AI DETECTOR ARCHITECTURE (Redesigned Nov 19)
-
-**Free Tier** - Lite Detector:
-- Endpoint: `POST /ai-detection/lite`
-- Algorithm: lite-detector.ts (heuristic analysis)
-- No auth required
-- Works independently
-
-**Pro/Premium Tier** - GPTZero:
-- Endpoint: `POST /ai-detection/detect`
-- **ALWAYS calls GPTZero API** (no fallback)
-- Returns honest errors if API fails
-- Requires: Pro/Premium tier + GPTZERO_API_KEY
-- Logs: START/SUCCESS/FAIL for every call
-
-**Deleted**: hybrid-orchestrator.ts, local-detector.ts (no longer used)
-
----
-
-## 🎯 NEXT SESSION PRIORITIES
-
-### IMMEDIATE (Before anything else)
-1. **FIX MAINWORKSPACE JSX** - Read `/tmp/MAINWORKSPACE_JSX_HANDOFF.md`
-2. Verify frontend loads without crashes
-3. Test main workspace scrolling (split/edit/tab modes)
-4. Complete Phase 3 testing
-
-### Phase 3: Resizable Panels (60% complete)
-**What's Working**:
-- ✅ Width persistence (localStorage)
-- ✅ Resize handles (8px with hover, 200-600px range)
-- ✅ Archive/Tools panel scrolling (added `md:h-full`)
-- ✅ Content centering
-
-**What's Broken**:
-- ❌ MainWorkspace JSX structure (frontend crashing)
-- ❌ Main workspace scrolling NOT TESTED
-
-**Next Steps After Fix**:
-1. Test split-pane left/right scrolling
-2. Test edit mode markdown editor scrolling
-3. Test tab mode scrolling
-4. Mark Phase 3 complete
-
-### Phase 4: Text Selection for Scoped Transformations (Not Started)
-- Select text → transform selection only
-- Show selection banner with clear button
-- Display: original selection → transformed selection
-
-### Phase 5: Copy Buttons (Text & Markdown) (Not Started)
-- Two buttons per pane: Plain Text | Markdown
-- Toast notifications
-- Strip markdown for plain text
-
-**NOTE**: CSS transform scaling removed from plan per user preference
+**Recent Sessions**:
+- Nov 22 AM: Ollama integration + environment detection fix
+- Nov 21: 5-phase UX refactor (copy buttons, split pane scrolling)
+- Nov 20: GPTZero premium features
 
 ---
 
@@ -218,7 +133,7 @@ npx wrangler tail npe-api
 
 ---
 
-## 🚀 PRODUCTION URLS
+## 🚀 PRODUCTION
 
 - API: https://npe-api.tem-527.workers.dev
 - Frontend: https://humanizer.com
@@ -229,7 +144,7 @@ npx wrangler tail npe-api
 ## ⚠️ CRITICAL RULES
 
 1. **NO mock data** without explicit disclosure
-2. **ALWAYS verify** backend is running before frontend changes
+2. **ALWAYS verify** backend running before frontend changes
 3. **ALWAYS explain** architectural decisions upfront
 4. **Node 22.21.1** (`nvm use 22`)
 5. **Brand**: "humanizer.com" (with .com)
@@ -238,4 +153,4 @@ npx wrangler tail npe-api
 
 ---
 
-**End of Guide** | Focus: Fix backend, test detectors, deploy to production
+**End of Guide** | Next: Test markdown preservation, then Phase 2 (AI Detection)

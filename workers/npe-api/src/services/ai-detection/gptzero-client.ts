@@ -1,6 +1,14 @@
 // GPTZero API Client
 // Official API documentation: https://gptzero.me/docs
 
+import {
+  stripInlineMarkdown,
+  createPositionMap,
+  adjustHighlightPositions,
+  applyHighlightsToMarkdown,
+  type HighlightRange
+} from '../markdown-preserver';
+
 export interface GPTZeroDetectionResult {
   verdict: 'human' | 'ai' | 'mixed';
   confidence: number; // 0-100 with 3 decimal places (0 = human, 100 = AI)
@@ -196,4 +204,65 @@ export async function testGPTZeroAPIKey(apiKey: string): Promise<boolean> {
     // Other errors (network, etc.) we'll assume key might be valid
     return true;
   }
+}
+
+/**
+ * Markdown-aware GPTZero detection wrapper
+ * Strips markdown before analysis, then restores it with highlights
+ *
+ * @param markdownText - Original text with markdown formatting
+ * @param apiKey - GPTZero API key
+ * @returns Detection result with markdown-aware highlights
+ */
+export async function detectAIWithGPTZeroMarkdown(
+  markdownText: string,
+  apiKey: string
+): Promise<GPTZeroDetectionResult & { highlightedMarkdown: string }> {
+  // 1. Create position map BEFORE stripping
+  const positionMap = createPositionMap(markdownText);
+
+  // 2. Strip markdown for analysis
+  const plainText = stripInlineMarkdown(markdownText);
+
+  // 3. Run GPTZero detection on plain text
+  const result = await detectAIWithGPTZero(plainText, apiKey);
+
+  // 4. Create highlights from GPTZero's flagged sentences
+  const highlightRanges: HighlightRange[] = [];
+
+  // GPTZero returns sentences with highlight_sentence_for_ai flag
+  // We need to find these sentences in the plain text and create highlight ranges
+  let currentPos = 0;
+  for (const sentenceData of result.details.sentences) {
+    const sentence = sentenceData.sentence;
+    const shouldHighlight = sentenceData.highlight_sentence_for_ai;
+
+    // Find this sentence in the plain text
+    const sentenceStart = plainText.indexOf(sentence, currentPos);
+
+    if (sentenceStart !== -1 && shouldHighlight) {
+      const sentenceEnd = sentenceStart + sentence.length;
+
+      highlightRanges.push({
+        start: sentenceStart,
+        end: sentenceEnd,
+        reason: `AI-generated (${(sentenceData.generated_prob * 100).toFixed(1)}% confidence)`
+      });
+
+      currentPos = sentenceEnd;
+    } else if (sentenceStart !== -1) {
+      currentPos = sentenceStart + sentence.length;
+    }
+  }
+
+  // 5. Adjust highlight positions to account for markdown
+  const adjustedHighlights = adjustHighlightPositions(highlightRanges, positionMap);
+
+  // 6. Apply highlights to original markdown
+  const highlightedMarkdown = applyHighlightsToMarkdown(markdownText, adjustedHighlights);
+
+  return {
+    ...result,
+    highlightedMarkdown
+  };
 }

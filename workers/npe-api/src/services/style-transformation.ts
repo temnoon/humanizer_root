@@ -5,6 +5,8 @@
 import type { Env, NPEStyle } from '../../shared/types';
 import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
+import { hasCloudflareAI, detectEnvironment, getModelForUseCase } from '../config/llm-models';
+import { extractStructure, restoreStructure, stripInlineMarkdown } from './markdown-preserver';
 
 export interface StyleTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
@@ -55,6 +57,7 @@ export interface StyleTransformationResult {
  */
 export class StyleTransformationService {
   private llmProvider: LLMProvider | null = null;
+  private userRole: string | null = null;
 
   constructor(
     private env: Env,
@@ -64,6 +67,32 @@ export class StyleTransformationService {
   ) {}
 
   /**
+   * Fetch user role from database
+   */
+  private async getUserRole(): Promise<string> {
+    if (this.userRole) return this.userRole;
+
+    const result = await this.env.DB.prepare(
+      'SELECT role FROM users WHERE id = ?'
+    ).bind(this.userId).first<{ role: string }>();
+
+    this.userRole = result?.role || 'free';
+    return this.userRole;
+  }
+
+  /**
+   * Get max tokens based on user role
+   */
+  private getMaxTokensForRole(wordCount: number): number {
+    const roleTokenLimits: Record<string, number> = {
+      'admin': 50000, 'premium': 20000, 'pro': 10000, 'member': 5000, 'free': 2000
+    };
+    const maxTokens = roleTokenLimits[this.userRole || 'free'] || 2000;
+    const neededTokens = Math.ceil(wordCount * 1.5);
+    return Math.min(Math.max(500, neededTokens), maxTokens);
+  }
+
+  /**
    * Transform writing style while preserving content and voice
    */
   async transform(
@@ -71,6 +100,9 @@ export class StyleTransformationService {
     options: StyleTransformationOptions = {}
   ): Promise<StyleTransformationResult> {
     const totalStartTime = Date.now();
+
+    // Fetch user role for token limits
+    await this.getUserRole();
 
     // Validate input
     if (!sourceText || sourceText.trim().length === 0) {
@@ -165,8 +197,17 @@ export class StyleTransformationService {
       throw new Error('LLM provider not initialized');
     }
 
+    // Extract markdown structure (paragraphs, lists)
+    const structure = extractStructure(text);
+
+    // Strip inline markdown but preserve structure
+    const plainText = stripInlineMarkdown(text);
+
+    const wordCount = plainText.split(/\s+/).length;
+    const maxTokens = this.getMaxTokensForRole(wordCount);
+
     const lengthGuidance = preserveLength
-      ? `IMPORTANT: Keep the output approximately the same length as the input (around ${text.split(/\s+/).length} words).`
+      ? `IMPORTANT: Keep the output approximately the same length as the input (around ${wordCount} words).`
       : '';
 
     const prompt = `You are a writing style transformation specialist.
@@ -184,11 +225,12 @@ CRITICAL RULES:
    - Adjust formality level (academic, casual, technical, etc.)
    - Adjust word choice and vocabulary (simple → complex or vice versa)
    - Adjust rhetorical devices (metaphors, parallelism, etc.)
+5. OUTPUT ONLY THE TRANSFORMED TEXT - No explanations, no thinking process
 ${lengthGuidance}
 
 Source Text:
 """
-${text}
+${plainText}
 """
 
 Rewrite this text in "${this.style.name}" style while following the rules above.
@@ -196,11 +238,14 @@ Rewrite this text in "${this.style.name}" style while following the rules above.
 Transformed Text:`;
 
     const result = await this.llmProvider.generateText(prompt, {
-      max_tokens: Math.max(500, Math.ceil(text.split(/\s+/).length * 1.5)),
+      max_tokens: maxTokens,
       temperature: 0.7
     });
 
-    return result.trim();
+    // Restore markdown structure (paragraph breaks, lists)
+    const withStructure = restoreStructure(result.trim(), structure);
+
+    return withStructure;
   }
 }
 
@@ -214,6 +259,13 @@ export async function transformStyle(
   userId: string,
   options: StyleTransformationOptions = {}
 ): Promise<StyleTransformationResult> {
-  const service = new StyleTransformationService(env, style, userId);
+  // Detect environment and select appropriate model
+  const hasAI = hasCloudflareAI(env);
+  const environment = detectEnvironment(hasAI);
+  const modelId = getModelForUseCase('style', environment);
+
+  console.log(`[Style] Environment: ${environment}, Model: ${modelId}`);
+
+  const service = new StyleTransformationService(env, style, userId, modelId);
   return service.transform(text, options);
 }
