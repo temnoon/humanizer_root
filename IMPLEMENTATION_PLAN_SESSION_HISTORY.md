@@ -311,7 +311,56 @@ Cloud Mode:
 
 ---
 
-### Phase 8: Testing & Polish
+### Phase 8: Session Export & Import
+**Goal**: Allow users to export/import sessions as JSON/ZIP
+
+**Tasks**:
+1. Export functionality
+   - Export session as JSON
+   - Optional ZIP compression (use JSZip library)
+   - Download to user's device
+   - Include full metadata and buffers
+
+2. Import functionality (future)
+   - Upload JSON/ZIP file
+   - Validate structure
+   - Import as new session
+
+**Files to Modify**:
+- `narrative-studio/src/components/archive/SessionListItem.tsx` (add export button)
+- `narrative-studio/src/hooks/useSessionManager.ts` (add export methods)
+
+**Dependencies**:
+- Add `jszip` package for compression
+
+**Estimated Time**: 3-4 hours
+
+---
+
+### Phase 9: Configuration System
+**Goal**: Centralize all configuration, eliminate hard-coded values
+
+**Tasks**:
+1. Create configuration files
+   - `config/session-limits.ts` - Tier-based limits
+   - `config/storage-paths.ts` - Local storage paths
+   - `config/app-config.ts` - Global app settings
+
+2. Update components to use config
+   - Import from config files
+   - Remove any hard-coded numbers
+   - Add config validation on startup
+
+**Files to Create**:
+- `narrative-studio/src/config/session-limits.ts`
+- `narrative-studio/src/config/storage-paths.ts`
+- `narrative-studio/src/config/app-config.ts`
+
+**Estimated Time**: 2-3 hours
+
+---
+
+### Phase 10: Testing & Polish
 **Goal**: Ensure everything works together
 
 **Tasks**:
@@ -323,26 +372,42 @@ Cloud Mode:
 6. Test Archive/Sessions toggle
 7. Test view mode toggles
 8. Test session rename/delete
-9. Fix bugs and edge cases
-10. Update CLAUDE.md
+9. Test tier-based limits (Free/Pro/Premium)
+10. Test session export (JSON + ZIP)
+11. Fix bugs and edge cases
+12. Update CLAUDE.md
 
 **Estimated Time**: 6-8 hours
 
 ---
 
-## Total Estimated Time: 37-52 hours
+## Total Estimated Time: 42-59 hours
 
 **Recommended Approach**: Implement in phases, test each phase before moving on
 
 ---
 
-## Open Questions
+## Configuration Requirements
 
-1. **Session limit**: Should we limit number of sessions? Auto-delete old ones?
-2. **Buffer limit per session**: Max buffers before warning?
-3. **Local storage location**: Confirm `~/.humanizer/sessions/` is correct
-4. **Cloud encryption**: Which encryption library for zero-trust storage?
-5. **Session export**: Should users be able to export session as JSON?
+**CRITICAL**: NO HARD-CODED LIMITS OR NUMBERS ANYWHERE. All values must be configurable.
+
+### Tier-Based Limits (Configuration File)
+```typescript
+// config/session-limits.ts
+export const SESSION_LIMITS = {
+  free: { sessions: 10, buffersPerSession: 10 },
+  pro: { sessions: 100, buffersPerSession: 100 },
+  premium: { sessions: 1000, buffersPerSession: 1000 }
+};
+```
+
+### Resolved Decisions
+
+1. **Session limit**: Tier-based (Free: 10, Pro: 100, Premium: 1000) - CONFIGURABLE
+2. **Buffer limit**: Tier-based (Free: 10, Pro: 100, Premium: 1000) - CONFIGURABLE
+3. **Local storage**: `~/.humanizer/sessions/` (or configurable path)
+4. **Cloud encryption**: Web Crypto API (SubtleCrypto) - same pattern as secure-archive.ts
+5. **Session export**: JSON export + optional ZIP compression for download
 
 ---
 
@@ -351,9 +416,16 @@ Cloud Mode:
 **Backend**:
 - `workers/npe-api/src/routes/sessions.ts`
 - `workers/npe-api/src/services/session-storage.ts`
+- `workers/npe-api/src/services/session-encryption.ts` (Web Crypto API wrapper)
+
+**Frontend Configuration** (CRITICAL - No hard-coded values):
+- `narrative-studio/src/config/session-limits.ts`
+- `narrative-studio/src/config/storage-paths.ts`
+- `narrative-studio/src/config/app-config.ts`
 
 **Frontend Services**:
 - `narrative-studio/src/services/sessionStorage.ts`
+- `narrative-studio/src/services/sessionExport.ts` (JSON/ZIP export)
 - `narrative-studio/src/hooks/useBufferManager.ts`
 - `narrative-studio/src/hooks/useSessionManager.ts`
 - `narrative-studio/src/contexts/SessionContext.tsx`
@@ -365,11 +437,11 @@ Cloud Mode:
 - `narrative-studio/src/components/workspace/ViewModeToggle.tsx`
 
 **Updated**:
-- `narrative-studio/archive-server.js`
-- `narrative-studio/src/App.tsx`
-- `narrative-studio/src/components/archive/ArchivePanel.tsx`
-- `narrative-studio/src/components/panels/ToolsPanel.tsx`
-- `narrative-studio/src/components/workspace/MainWorkspace.tsx`
+- `narrative-studio/archive-server.js` (add session endpoints)
+- `narrative-studio/src/App.tsx` (add session context)
+- `narrative-studio/src/components/archive/ArchivePanel.tsx` (add Sessions toggle)
+- `narrative-studio/src/components/panels/ToolsPanel.tsx` (add "Transform Result" button)
+- `narrative-studio/src/components/workspace/MainWorkspace.tsx` (buffer support)
 
 ---
 
