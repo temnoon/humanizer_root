@@ -1096,6 +1096,9 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             </button>
           </div>
 
+          {/* Conversations View */}
+          {viewMode === 'conversations' && (
+            <>
           {/* Search */}
           <div className="relative mb-4">
             <input
@@ -1157,8 +1160,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           </div>
 
           {/* Import JSON Button */}
-          {viewMode === 'conversations' && (
-            <div className="mb-4">
+          <div className="mb-4">
               <label
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-md cursor-pointer transition-colors"
                 style={{
@@ -1178,7 +1180,6 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 />
               </label>
             </div>
-          )}
 
           {/* Filter UI - single line */}
           <div className="mb-4">
@@ -1473,6 +1474,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 );
               })}
             </div>
+          )}
+            </>
           )}
 
           {/* Sessions View */}
