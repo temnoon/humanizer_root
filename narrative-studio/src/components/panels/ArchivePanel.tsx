@@ -4,6 +4,8 @@ import { Icons } from '../layout/Icons';
 import { archiveService } from '../../services/archiveService';
 import { galleryService } from '../../services/galleryService';
 import { ImageLightbox } from './ImageLightbox';
+import { SessionsView } from '../archive/SessionsView';
+import { Session } from '../../services/sessionStorage';
 
 interface ArchivePanelProps {
   onSelectNarrative: (narrative: any) => void;
@@ -11,7 +13,7 @@ interface ArchivePanelProps {
   onClose: () => void;
 }
 
-type ViewMode = 'conversations' | 'messages' | 'gallery';
+type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions';
 type FilterCategory = 'date' | 'size' | 'media';
 
 interface ActiveFilters {
@@ -1066,17 +1068,26 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 fontWeight: 600,
               }}
             >
-              📄 Conversations
+              📄 Archive
+            </button>
+            <button
+              onClick={() => setViewMode('sessions')}
+              className="tag"
+              style={{
+                backgroundColor: viewMode === 'sessions' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                color: viewMode === 'sessions' ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                border: `1px solid ${viewMode === 'sessions' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                fontWeight: 600,
+              }}
+            >
+              📋 Sessions
             </button>
             <button
               onClick={() => setViewMode('gallery')}
               className="tag"
               style={{
-                // @ts-expect-error - gallery mode is valid but TypeScript doesn't recognize it in this context
                 backgroundColor: viewMode === 'gallery' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                // @ts-expect-error - gallery mode is valid but TypeScript doesn't recognize it in this context
                 color: viewMode === 'gallery' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                // @ts-expect-error - gallery mode is valid but TypeScript doesn't recognize it in this context
                 border: `1px solid ${viewMode === 'gallery' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
                 fontWeight: 600,
               }}
@@ -1462,6 +1473,16 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 );
               })}
             </div>
+          )}
+
+          {/* Sessions View */}
+          {viewMode === 'sessions' && (
+            <SessionsView
+              onSelectSession={(session: Session) => {
+                console.log('Selected session:', session);
+                // TODO: Load session buffers into workspace
+              }}
+            />
           )}
         </div>
       </aside>
