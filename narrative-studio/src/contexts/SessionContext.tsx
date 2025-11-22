@@ -1,7 +1,7 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useBufferManager } from '../hooks/useBufferManager';
 import { useSessionManager } from '../hooks/useSessionManager';
-import { Session, SessionBuffer, Edit } from '../services/sessionStorage';
+import type { Session, SessionBuffer, Edit } from '../services/sessionStorage';
 
 interface SessionContextValue {
   // Session Manager

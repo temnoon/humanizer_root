@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { SessionBuffer, Edit } from '../services/sessionStorage';
+import type { SessionBuffer, Edit } from '../services/sessionStorage';
 import { getSessionLimit } from '../config/session-limits';
 
 interface BufferManagerState {

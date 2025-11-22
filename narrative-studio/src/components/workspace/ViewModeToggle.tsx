@@ -1,4 +1,4 @@
-import { Session } from '../../services/sessionStorage';
+import type { Session } from '../../services/sessionStorage';
 
 interface ViewModeToggleProps {
   viewMode: Session['viewMode'];

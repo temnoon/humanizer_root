@@ -1,4 +1,4 @@
-import { SessionBuffer } from '../../services/sessionStorage';
+import type { SessionBuffer } from '../../services/sessionStorage';
 
 interface BufferTabsProps {
   buffers: SessionBuffer[];
