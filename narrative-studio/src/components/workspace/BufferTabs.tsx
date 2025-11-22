@@ -1,7 +1,7 @@
-import { Buffer } from '../../services/sessionStorage';
+import { SessionBuffer } from '../../services/sessionStorage';
 
 interface BufferTabsProps {
-  buffers: Buffer[];
+  buffers: SessionBuffer[];
   activeBufferId: string;
   onSelectBuffer: (bufferId: string) => void;
   onCloseBuffer: (bufferId: string) => void;
