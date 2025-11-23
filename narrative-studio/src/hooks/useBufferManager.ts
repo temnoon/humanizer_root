@@ -1,6 +1,15 @@
 import { useState, useCallback } from 'react';
 import type { SessionBuffer, Edit } from '../services/sessionStorage';
 import { getSessionLimit } from '../config/session-limits';
+import { formatToolName } from '../config/tool-names';
+import {
+  BUFFER_IDS,
+  formatArchiveRef,
+  getSourceBuffer,
+  canCloseBuffer,
+  getNextActiveBuffer,
+  NARRATIVE_STUDIO_SOURCE
+} from '../config/buffer-constants';
 
 interface BufferManagerState {
   buffers: SessionBuffer[];
@@ -54,10 +63,10 @@ export function useBufferManager(userTier: string = 'free') {
   // Create original buffer from archive message
   const createOriginalBuffer = useCallback((text: string, archiveRef: string, messageId?: string) => {
     return createBuffer({
-      bufferId: 'buffer-0',
+      bufferId: BUFFER_IDS.ORIGINAL,
       type: 'original',
       displayName: 'Original',
-      sourceRef: `archive:${archiveRef}:${messageId || 'unknown'}`,
+      sourceRef: formatArchiveRef(archiveRef, messageId),
       text,
       isEdited: false
     });
@@ -70,7 +79,7 @@ export function useBufferManager(userTier: string = 'free') {
     resultText: string,
     sourceBufferId?: string
   ) => {
-    const sourceId = sourceBufferId || state.sourceBufferForNextOp || 'buffer-0';
+    const sourceId = getSourceBuffer(sourceBufferId, state.sourceBufferForNextOp);
     const toolDisplayName = formatToolName(tool, settings);
 
     return createBuffer({
@@ -90,7 +99,7 @@ export function useBufferManager(userTier: string = 'free') {
     analysisResult: any,
     sourceBufferId?: string
   ) => {
-    const sourceId = sourceBufferId || state.sourceBufferForNextOp || 'buffer-0';
+    const sourceId = getSourceBuffer(sourceBufferId, state.sourceBufferForNextOp);
     const toolDisplayName = `${formatToolName(tool, {})}: Analysis`;
 
     return createBuffer({
@@ -185,7 +194,7 @@ export function useBufferManager(userTier: string = 'free') {
   // Close buffer (remove from list)
   const closeBuffer = useCallback((bufferId: string) => {
     // Can't close the original buffer
-    if (bufferId === 'buffer-0') {
+    if (!canCloseBuffer(bufferId)) {
       console.warn('Cannot close original buffer');
       return;
     }
@@ -193,7 +202,7 @@ export function useBufferManager(userTier: string = 'free') {
     setState(prev => {
       const newBuffers = prev.buffers.filter(b => b.bufferId !== bufferId);
       const newActiveId = prev.activeBufferId === bufferId
-        ? (newBuffers[newBuffers.length - 1]?.bufferId || 'buffer-0')
+        ? getNextActiveBuffer(newBuffers, bufferId)
         : prev.activeBufferId;
 
       return {
@@ -244,18 +253,4 @@ export function useBufferManager(userTier: string = 'free') {
   };
 }
 
-// Helper: Format tool name for display
-function formatToolName(tool: string, settings: Record<string, any>): string {
-  const toolNames: Record<string, string> = {
-    'computer-humanizer': 'Computer Humanizer',
-    'ai-detection-lite': 'AI Detection: Lite',
-    'ai-detection-gptzero': 'AI Detection: GPTZero',
-    'persona': `Persona: ${settings.persona || 'Unknown'}`,
-    'style': `Style: ${settings.style || 'Unknown'}`,
-    'round-trip': `Round-Trip: ${settings.language || 'Unknown'}`,
-    'namespace': 'Namespace',
-    'allegorical': 'Allegorical'
-  };
-
-  return toolNames[tool] || tool;
-}
+// Note: formatToolName is now imported from config/tool-names.ts
