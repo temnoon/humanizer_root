@@ -252,7 +252,7 @@ function AppContent() {
         return next;
       });
 
-      // Auto-create session with buffers if no session exists
+      // Auto-create session or add buffer to existing session
       if (!hasSession) {
         console.log('[App] Auto-creating session for transformation:', config.type);
 
@@ -299,6 +299,29 @@ function AppContent() {
           } else {
             updateViewMode('split');
           }
+        }
+      } else {
+        // Session exists - add new buffer to existing session
+        console.log('[App] Adding buffer to existing session:', config.type);
+
+        const toolName = config.type === 'computer-humanizer' ? 'Computer Humanizer' :
+                        config.type === 'persona' ? `Persona (${config.persona})` :
+                        config.type === 'style' ? `Style (${config.styleId})` :
+                        config.type === 'round-trip' ? `Round-Trip (${config.intermediateLanguage})` :
+                        config.type;
+
+        // Create transformation buffer linked to current active buffer
+        const transformBuffer = createTransformationBuffer(
+          toolName,
+          config,
+          result.transformed,
+          undefined  // Will use current active buffer as source
+        );
+
+        if (transformBuffer) {
+          console.log('[App] Created chained transformation buffer:', transformBuffer.bufferId);
+          // Buffer is automatically added to session by createTransformationBuffer
+          // and becomes the new active buffer
         }
       }
 
