@@ -37,7 +37,8 @@ export function MainWorkspace({
     closeBuffer,
     currentSession,
     updateViewMode,
-    hasSession
+    hasSession,
+    updateBufferText
   } = useSession();
 
   // Local state (legacy for non-session workflow)
@@ -115,6 +116,23 @@ export function MainWorkspace({
   };
 
   const displayContent = getDisplayContent();
+
+  // Handle text editing with session-aware edit tracking
+  const handleContentChange = (newContent: string) => {
+    if (useSessionRendering && activeBufferId) {
+      // Session mode: Track edits in buffer
+      const activeBuffer = buffers.find(b => b.bufferId === activeBufferId);
+      const oldContent = activeBuffer?.text || activeBuffer?.resultText || '';
+
+      // Update buffer with edit tracking
+      updateBufferText(activeBufferId, newContent, oldContent);
+
+      console.log('[MainWorkspace] Tracked edit in buffer:', activeBufferId);
+    } else {
+      // Legacy mode: Update narrative directly
+      onUpdateNarrative(newContent);
+    }
+  };
 
   // Reset scroll position when narrative changes, or scroll to specific image
   useEffect(() => {
@@ -812,7 +830,7 @@ export function MainWorkspace({
                       content={editedContent || displayContent.original}
                       onChange={(content) => {
                         setEditedContent(content);
-                        onUpdateNarrative(content);
+                        handleContentChange(content);
                       }}
                   placeholder="Original content..."
                 />
@@ -1425,7 +1443,7 @@ export function MainWorkspace({
                       content={editedContent || narrative.content}
                       onChange={(content) => {
                         setEditedContent(content);
-                        onUpdateNarrative(content);
+                        handleContentChange(content);
                       }}
                       placeholder="Original content..."
                     />
@@ -1499,7 +1517,7 @@ export function MainWorkspace({
                     content={editedContent || narrative.content}
                     onChange={(content) => {
                       setEditedContent(content);
-                      onUpdateNarrative(content);
+                      handleContentChange(content);
                     }}
                     placeholder="Original content..."
                   />
