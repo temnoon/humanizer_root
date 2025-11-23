@@ -1,7 +1,7 @@
 # Humanizer - Development Guide
 
-**Updated**: Nov 22, 2025, Evening Session
-**Status**: ✅ Session History Phases 1-3 Complete | UI Fully Working
+**Updated**: Nov 22, 2025, Late Evening Session
+**Status**: ✅ Session History Phases 1-4 Complete | Buffer UI Working
 **Branch**: `feature/session-history-and-buffers`
 **Signups**: 239 waiting
 
@@ -10,8 +10,8 @@
 ## 🚧 IN PROGRESS: Session History & Buffer System
 
 **Branch**: `feature/session-history-and-buffers`
-**Status**: ✅ Phases 1-3 Complete (Backend + UI) | 🚧 Phase 4 Next (Workspace Integration)
-**Completed**: ~4 hours | **Remaining**: ~20-30 hours across Phases 4-10
+**Status**: ✅ Phases 1-4 Complete (Backend + UI + Workspace) | 🚧 Phase 5 Next (Auto-Create)
+**Completed**: ~5.5 hours | **Remaining**: ~18-28 hours across Phases 5-10
 
 **Completed Features** ✅:
 - Session storage (`~/.humanizer/sessions/`)
@@ -21,8 +21,10 @@
 - Create/rename/delete sessions UI
 - Auto-save with 5-second debounce
 - Tier-based limits (Free: 10, Pro: 100, Premium: 1000)
-- BufferTabs component (ready to integrate)
-- ViewModeToggle component (ready to integrate)
+- **BufferTabs component in workspace** ✨
+- **ViewModeToggle component in workspace** ✨
+- **3 view modes (split/original/transformed)** ✨
+- **Buffer-based content rendering** ✨
 
 **Working Now**:
 - ✅ Sessions tab fully functional
@@ -32,17 +34,26 @@
 - ✅ Relative timestamps ("Just now", "2h ago")
 - ✅ Buffer counts displayed
 - ✅ Session persistence to disk
+- ✅ BufferTabs appear when session has buffers
+- ✅ ViewModeToggle switches between 3 modes
+- ✅ Split view shows original + active buffer
+- ✅ Single-original shows only buffer-0
+- ✅ Single-transformed shows only active buffer
+- ✅ Buffer switching updates content
+- ✅ Copy buttons use buffer content
 
 **Key Docs**:
-- `/tmp/SESSION_HANDOFF_NOV22_COMPLETE.md` **← START HERE NEXT SESSION**
+- `/tmp/SESSION_PHASE4_COMPLETE_NOV22.md` **← START HERE NEXT SESSION**
+- `/tmp/SESSION_HANDOFF_NOV22_COMPLETE.md` - Phases 1-3 handoff
 - `/tmp/SESSION_PHASE_123_COMPLETE_HANDOFF.md` - Phases 1-3 summary
 - `IMPLEMENTATION_PLAN_SESSION_HISTORY.md` - Full 10-phase plan
 
-**Next Step**: Phase 4 - MainWorkspace Integration (2-3 hours)
-  - Integrate BufferTabs in workspace
-  - Integrate ViewModeToggle in workspace
-  - Display buffer content
-  - Implement view modes (split/single)
+**Next Step**: Phase 5 - Auto-Create Session (2-3 hours)
+  - Intercept transformation operations
+  - Auto-create session on first transformation
+  - Create original buffer from source text
+  - Create result buffer from transformation
+  - Enable buffer workflow automatically
 
 ---
 
