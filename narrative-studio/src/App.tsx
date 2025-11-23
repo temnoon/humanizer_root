@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TextSizeProvider } from './contexts/TextSizeContext';
-import { SessionProvider } from './contexts/SessionContext';
+import { SessionProvider, useSession } from './contexts/SessionContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
 import { ArchivePanel } from './components/panels/ArchivePanel';
@@ -20,6 +20,13 @@ import type {
 
 function AppContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
+  const {
+    hasSession,
+    autoCreateSession,
+    createOriginalBuffer,
+    createTransformationBuffer,
+    updateViewMode
+  } = useSession();
   const [narratives, setNarratives] = useState<Narrative[]>([]);
   const [currentNarrativeId, setCurrentNarrativeId] = useState<string | null>(null);
   const [transformResults, setTransformResults] = useState<Map<string, TransformResult>>(
@@ -244,6 +251,56 @@ function AppContent() {
         next.set(currentNarrativeId, result);
         return next;
       });
+
+      // Auto-create session with buffers if no session exists
+      if (!hasSession) {
+        console.log('[App] Auto-creating session for transformation:', config.type);
+
+        // Create buffers array
+        const buffers = [];
+
+        // Create original buffer (buffer-0)
+        const originalBuffer = createOriginalBuffer(
+          narrative.content,
+          'narrative-studio',
+          currentNarrativeId
+        );
+        if (originalBuffer) {
+          buffers.push(originalBuffer);
+          console.log('[App] Created original buffer:', originalBuffer.bufferId);
+        }
+
+        // Create transformation result buffer
+        const toolName = config.type === 'computer-humanizer' ? 'Computer Humanizer' :
+                        config.type === 'persona' ? `Persona (${config.persona})` :
+                        config.type === 'style' ? `Style (${config.styleId})` :
+                        config.type === 'round-trip' ? `Round-Trip (${config.intermediateLanguage})` :
+                        config.type;
+
+        const transformBuffer = createTransformationBuffer(
+          toolName,
+          config,
+          result.transformed,
+          originalBuffer?.bufferId
+        );
+        if (transformBuffer) {
+          buffers.push(transformBuffer);
+          console.log('[App] Created transformation buffer:', transformBuffer.bufferId);
+        }
+
+        // Auto-create session with both buffers
+        if (buffers.length > 0) {
+          await autoCreateSession(buffers, currentNarrativeId);
+          console.log('[App] Session auto-created with', buffers.length, 'buffers');
+
+          // Set view mode to split for transformations, single for analysis
+          if (result.metadata?.aiDetection) {
+            updateViewMode('single-transformed');
+          } else {
+            updateViewMode('split');
+          }
+        }
+      }
 
       // AI detection is analysis (not transformation), so use single-pane mode
       // Other transformations use split mode to show original vs transformed
