@@ -4,6 +4,9 @@ import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
 import { MarkdownEditor } from '../markdown/MarkdownEditor';
 import { Icons } from '../layout/Icons';
 import { stripMarkdown } from '../../services/transformationService';
+import { useSession } from '../../contexts/SessionContext';
+import { BufferTabs } from './BufferTabs';
+import { ViewModeToggle } from './ViewModeToggle';
 
 interface MainWorkspaceProps {
   narrative: Narrative | null;
@@ -24,6 +27,18 @@ export function MainWorkspace({
   selectedText,
   onTextSelection,
 }: MainWorkspaceProps) {
+  // Session context for buffer-based workflow
+  const {
+    buffers,
+    activeBufferId,
+    setActiveBuffer,
+    closeBuffer,
+    currentSession,
+    updateViewMode,
+    hasSession
+  } = useSession();
+
+  // Local state (legacy for non-session workflow)
   const [originalViewMode, setOriginalViewMode] = useState<ViewMode>('rendered');
   const [transformedViewMode, setTransformedViewMode] = useState<ViewMode>('rendered');
   const [editedContent, setEditedContent] = useState('');
@@ -34,6 +49,70 @@ export function MainWorkspace({
   const singlePaneRef = useRef<HTMLDivElement>(null);
   const leftPaneRef = useRef<HTMLDivElement>(null);
   const rightPaneRef = useRef<HTMLDivElement>(null);
+
+  // Get active buffer content (session-aware)
+  const getActiveBufferContent = () => {
+    if (!hasSession || buffers.length === 0) {
+      return null;
+    }
+    const activeBuffer = buffers.find(b => b.bufferId === activeBufferId);
+    return activeBuffer || null;
+  };
+
+  // Get original buffer (buffer-0)
+  const getOriginalBuffer = () => {
+    if (!hasSession || buffers.length === 0) {
+      return null;
+    }
+    return buffers.find(b => b.bufferId === 'buffer-0') || buffers[0];
+  };
+
+  // Determine if we should use session-based rendering
+  const useSessionRendering = hasSession && buffers.length > 0;
+
+  // Get current view mode (session or legacy)
+  const currentViewMode = useSessionRendering && currentSession
+    ? currentSession.viewMode
+    : 'split'; // default to split for legacy
+
+  // Get display content based on view mode
+  const getDisplayContent = () => {
+    if (!useSessionRendering) {
+      // Legacy: use narrative and transformResult
+      return {
+        original: narrative?.content || '',
+        transformed: transformResult?.transformed || '',
+        hasTransformed: !!transformResult
+      };
+    }
+
+    // Session-based: use buffers
+    const originalBuffer = getOriginalBuffer();
+    const activeBuffer = getActiveBufferContent();
+
+    if (currentViewMode === 'single-original') {
+      return {
+        original: originalBuffer?.text || '',
+        transformed: '',
+        hasTransformed: false
+      };
+    } else if (currentViewMode === 'single-transformed') {
+      return {
+        original: '',
+        transformed: activeBuffer?.text || '',
+        hasTransformed: true
+      };
+    } else {
+      // split mode
+      return {
+        original: originalBuffer?.text || '',
+        transformed: activeBuffer?.text || originalBuffer?.text || '',
+        hasTransformed: activeBuffer?.bufferId !== 'buffer-0'
+      };
+    }
+  };
+
+  const displayContent = getDisplayContent();
 
   // Reset scroll position when narrative changes, or scroll to specific image
   useEffect(() => {
@@ -497,6 +576,24 @@ export function MainWorkspace({
         minHeight: 0,
       }}
     >
+      {/* Buffer Tabs - Only show when session has buffers */}
+      {useSessionRendering && (
+        <BufferTabs
+          buffers={buffers}
+          activeBufferId={activeBufferId}
+          onSelectBuffer={setActiveBuffer}
+          onCloseBuffer={closeBuffer}
+        />
+      )}
+
+      {/* View Mode Toggle - Only show when session has buffers */}
+      {useSessionRendering && currentSession && (
+        <ViewModeToggle
+          viewMode={currentSession.viewMode}
+          onChangeViewMode={updateViewMode}
+        />
+      )}
+
       {/* Title and metadata panel - centered with max-width */}
       <div className="flex justify-center w-full">
         <div
@@ -540,8 +637,99 @@ export function MainWorkspace({
         </div>
       </div>
 
-      {/* Desktop: Split or Tabs based on preference */}
-      {viewPreference === 'split' ? (
+      {/* Desktop: Render based on view mode */}
+      {/* Single-Original View Mode */}
+      {useSessionRendering && currentViewMode === 'single-original' ? (
+        <div className="hidden md:flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <div
+            ref={singlePaneRef}
+            className="flex-1 flex flex-col"
+            style={{
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              className="flex-1 overflow-y-auto"
+              style={{
+                width: '100%',
+                minHeight: 0,
+              }}
+            >
+              <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
+                    Original
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="copy-button"
+                      onClick={() => copyToClipboard(displayContent.original, 'plain')}
+                      title="Copy as plain text"
+                    >
+                      <Icons.Copy /> Text
+                    </button>
+                    <button
+                      className="copy-button"
+                      onClick={() => copyToClipboard(displayContent.original, 'markdown')}
+                      title="Copy as markdown"
+                    >
+                      <Icons.Code /> MD
+                    </button>
+                  </div>
+                </div>
+                <MarkdownRenderer content={displayContent.original} />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : useSessionRendering && currentViewMode === 'single-transformed' ? (
+        /* Single-Transformed View Mode */
+        <div className="hidden md:flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <div
+            ref={singlePaneRef}
+            className="flex-1 flex flex-col"
+            style={{
+              minHeight: 0,
+              overflow: 'hidden',
+              backgroundColor: 'var(--bg-secondary)',
+            }}
+          >
+            <div
+              className="flex-1 overflow-y-auto"
+              style={{
+                width: '100%',
+                minHeight: 0,
+              }}
+            >
+              <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                <div className="flex items-center justify-between mb-8">
+                  <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
+                    Transformed
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="copy-button"
+                      onClick={() => copyToClipboard(displayContent.transformed, 'plain')}
+                      title="Copy as plain text"
+                    >
+                      <Icons.Copy /> Text
+                    </button>
+                    <button
+                      className="copy-button"
+                      onClick={() => copyToClipboard(displayContent.transformed, 'markdown')}
+                      title="Copy as markdown"
+                    >
+                      <Icons.Code /> MD
+                    </button>
+                  </div>
+                </div>
+                <MarkdownRenderer content={displayContent.transformed} />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (useSessionRendering ? currentViewMode === 'split' : viewPreference === 'split') ? (
         /* Side-by-side layout (desktop only) */
         <div className="hidden md:flex flex-1 flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
           {/* Left pane: Original */}
@@ -572,14 +760,14 @@ export function MainWorkspace({
                     {/* Copy buttons */}
                     <button
                       className="copy-button"
-                      onClick={() => copyToClipboard(narrative.content, 'plain')}
+                      onClick={() => copyToClipboard(displayContent.original, 'plain')}
                       title="Copy as plain text"
                     >
                       <Icons.Copy /> Text
                     </button>
                     <button
                       className="copy-button"
-                      onClick={() => copyToClipboard(narrative.content, 'markdown')}
+                      onClick={() => copyToClipboard(displayContent.original, 'markdown')}
                       title="Copy as markdown"
                     >
                       <Icons.Code /> MD
@@ -616,10 +804,10 @@ export function MainWorkspace({
                 {/* Content */}
                 <div className="w-full" onMouseUp={handleTextSelection}>
                   {originalViewMode === 'rendered' ? (
-                    <MarkdownRenderer content={narrative.content} />
+                    <MarkdownRenderer content={displayContent.original} />
                   ) : (
                     <MarkdownEditor
-                      content={editedContent || narrative.content}
+                      content={editedContent || displayContent.original}
                       onChange={(content) => {
                         setEditedContent(content);
                         onUpdateNarrative(content);
@@ -660,14 +848,14 @@ export function MainWorkspace({
                   {/* Copy buttons */}
                   <button
                     className="copy-button"
-                    onClick={() => copyToClipboard(transformResult.transformed, 'plain')}
+                    onClick={() => copyToClipboard(displayContent.transformed, 'plain')}
                     title="Copy as plain text"
                   >
                     <Icons.Copy /> Text
                   </button>
                   <button
                     className="copy-button"
-                    onClick={() => copyToClipboard(transformResult.transformed, 'markdown')}
+                    onClick={() => copyToClipboard(displayContent.transformed, 'markdown')}
                     title="Copy as markdown"
                   >
                     <Icons.Code /> MD
@@ -1000,12 +1188,12 @@ export function MainWorkspace({
           <div className="max-w-3xl">
             {transformedViewMode === 'rendered' ? (
               // GPTZero highlighted sentences (inline highlighting)
-              transformResult.metadata?.aiDetection?.method === 'gptzero' &&
-              transformResult.metadata?.aiDetection?.highlightedSentences?.length > 0 ? (
+              transformResult?.metadata?.aiDetection?.method === 'gptzero' &&
+              transformResult?.metadata?.aiDetection?.highlightedSentences?.length > 0 ? (
                 <div className="prose" style={{ color: 'var(--text-primary)' }}>
                   {(() => {
                     // Highlight flagged sentences in the original text
-                    let highlightedText = transformResult.transformed;
+                    let highlightedText = displayContent.transformed;
                     const sentences = transformResult.metadata.aiDetection.highlightedSentences;
 
                     // Sort sentences by length (longest first) to avoid partial replacements
@@ -1032,11 +1220,11 @@ export function MainWorkspace({
                     );
                   })()}
                 </div>
-              ) : transformResult.metadata?.manualReviewSuggestions && transformResult.metadata.manualReviewSuggestions.length > 0 ? (
+              ) : transformResult?.metadata?.manualReviewSuggestions && transformResult.metadata.manualReviewSuggestions.length > 0 ? (
                 <div className="prose" style={{ color: 'var(--text-primary)' }}>
                   {(() => {
                     // Highlight suspicious phrases in the transformed text
-                    let highlightedText = transformResult.transformed;
+                    let highlightedText = displayContent.transformed;
                     const phrases = transformResult.metadata.manualReviewSuggestions;
 
                     // Sort phrases by length (longest first) to avoid partial replacements
@@ -1061,11 +1249,11 @@ export function MainWorkspace({
                   })()}
                 </div>
               ) : (
-                <MarkdownRenderer content={transformResult.transformed} />
+                <MarkdownRenderer content={displayContent.transformed} />
               )
             ) : (
               <MarkdownEditor
-                content={transformResult.transformed}
+                content={displayContent.transformed}
                 onChange={() => {}}
                 placeholder="Transformed content..."
               />
