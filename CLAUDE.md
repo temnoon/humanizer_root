@@ -1,7 +1,7 @@
 # Humanizer - Development Guide
 
-**Updated**: Nov 22, 2025, Late Evening Session
-**Status**: ✅ Session History Phases 1-4 Complete | Buffer UI Working
+**Updated**: Nov 22, 2025, Very Late Evening Session
+**Status**: ✅ Session History Phases 1-5 Complete | Auto-Creation Working!
 **Branch**: `feature/session-history-and-buffers`
 **Signups**: 239 waiting
 
@@ -10,8 +10,8 @@
 ## 🚧 IN PROGRESS: Session History & Buffer System
 
 **Branch**: `feature/session-history-and-buffers`
-**Status**: ✅ Phases 1-4 Complete (Backend + UI + Workspace) | 🚧 Phase 5 Next (Auto-Create)
-**Completed**: ~5.5 hours | **Remaining**: ~18-28 hours across Phases 5-10
+**Status**: ✅ Phases 1-5 Complete (Full Auto Workflow!) | 🚧 Phase 6 Next (Chaining)
+**Completed**: ~6.25 hours | **Remaining**: ~16-26 hours across Phases 6-10
 
 **Completed Features** ✅:
 - Session storage (`~/.humanizer/sessions/`)
@@ -21,10 +21,13 @@
 - Create/rename/delete sessions UI
 - Auto-save with 5-second debounce
 - Tier-based limits (Free: 10, Pro: 100, Premium: 1000)
-- **BufferTabs component in workspace** ✨
-- **ViewModeToggle component in workspace** ✨
-- **3 view modes (split/original/transformed)** ✨
-- **Buffer-based content rendering** ✨
+- BufferTabs component in workspace
+- ViewModeToggle component in workspace
+- 3 view modes (split/original/transformed)
+- Buffer-based content rendering
+- **Auto-create session on transformations** 🎉
+- **Auto-create buffers (original + result)** 🎉
+- **Auto-set view mode based on transformation type** 🎉
 
 **Working Now**:
 - ✅ Sessions tab fully functional
@@ -41,19 +44,23 @@
 - ✅ Single-transformed shows only active buffer
 - ✅ Buffer switching updates content
 - ✅ Copy buttons use buffer content
+- ✅ **Running transformation auto-creates session**
+- ✅ **Original text → buffer-0, Result → buffer-1**
+- ✅ **BufferTabs appear automatically**
+- ✅ **Works with all transformation types**
 
 **Key Docs**:
-- `/tmp/SESSION_PHASE4_COMPLETE_NOV22.md` **← START HERE NEXT SESSION**
+- `/tmp/SESSION_PHASE5_COMPLETE_NOV22.md` **← START HERE NEXT SESSION**
+- `/tmp/SESSION_PHASE4_COMPLETE_NOV22.md` - Phase 4 handoff
 - `/tmp/SESSION_HANDOFF_NOV22_COMPLETE.md` - Phases 1-3 handoff
-- `/tmp/SESSION_PHASE_123_COMPLETE_HANDOFF.md` - Phases 1-3 summary
 - `IMPLEMENTATION_PLAN_SESSION_HISTORY.md` - Full 10-phase plan
 
-**Next Step**: Phase 5 - Auto-Create Session (2-3 hours)
-  - Intercept transformation operations
-  - Auto-create session on first transformation
-  - Create original buffer from source text
-  - Create result buffer from transformation
-  - Enable buffer workflow automatically
+**Next Step**: Phase 6 - Transform Result Chaining (2-3 hours)
+  - Modify auto-creation to add buffers to existing session
+  - Add "Transform Result" button to ToolsPanel
+  - Enable chaining multiple transformations
+  - Set sourceBufferId correctly for chains
+  - Support transforming any buffer (not just original)
 
 ---
 
