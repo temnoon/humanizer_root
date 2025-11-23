@@ -1,7 +1,7 @@
 # Humanizer - Development Guide
 
 **Updated**: Nov 22, 2025, Very Late Evening Session
-**Status**: ✅ Session History Phases 1-5 Complete | Auto-Creation Working!
+**Status**: ✅ Session History Phases 1-6 Complete | Chaining Works!
 **Branch**: `feature/session-history-and-buffers`
 **Signups**: 239 waiting
 
@@ -10,8 +10,8 @@
 ## 🚧 IN PROGRESS: Session History & Buffer System
 
 **Branch**: `feature/session-history-and-buffers`
-**Status**: ✅ Phases 1-5 Complete (Full Auto Workflow!) | 🚧 Phase 6 Next (Chaining)
-**Completed**: ~6.25 hours | **Remaining**: ~16-26 hours across Phases 6-10
+**Status**: ✅ Phases 1-6 Complete (Full Chaining Workflow!) | 🚧 Phases 7-10 Next
+**Completed**: ~7 hours | **Remaining**: ~14-24 hours across Phases 7-10
 
 **Completed Features** ✅:
 - Session storage (`~/.humanizer/sessions/`)
@@ -25,9 +25,12 @@
 - ViewModeToggle component in workspace
 - 3 view modes (split/original/transformed)
 - Buffer-based content rendering
-- **Auto-create session on transformations** 🎉
-- **Auto-create buffers (original + result)** 🎉
-- **Auto-set view mode based on transformation type** 🎉
+- Auto-create session on transformations
+- Auto-create buffers (original + result)
+- Auto-set view mode based on transformation type
+- **Transformation chaining (unlimited depth)** 🎉
+- **Add buffers to existing sessions** 🎉
+- **Chain tracking via sourceBufferId** 🎉
 
 **Working Now**:
 - ✅ Sessions tab fully functional
@@ -44,23 +47,26 @@
 - ✅ Single-transformed shows only active buffer
 - ✅ Buffer switching updates content
 - ✅ Copy buttons use buffer content
-- ✅ **Running transformation auto-creates session**
-- ✅ **Original text → buffer-0, Result → buffer-1**
-- ✅ **BufferTabs appear automatically**
-- ✅ **Works with all transformation types**
+- ✅ Running transformation auto-creates session
+- ✅ Original text → buffer-0, Result → buffer-1
+- ✅ BufferTabs appear automatically
+- ✅ Works with all transformation types
+- ✅ **Second+ transforms add to existing session**
+- ✅ **Unlimited chaining (Original → Persona → Style → ...)**
+- ✅ **All buffers visible in BufferTabs**
 
 **Key Docs**:
-- `/tmp/SESSION_PHASE5_COMPLETE_NOV22.md` **← START HERE NEXT SESSION**
+- `/tmp/SESSION_PHASE6_COMPLETE_NOV22.md` **← START HERE NEXT SESSION**
+- `/tmp/SESSION_PHASE5_COMPLETE_NOV22.md` - Phase 5 handoff
 - `/tmp/SESSION_PHASE4_COMPLETE_NOV22.md` - Phase 4 handoff
 - `/tmp/SESSION_HANDOFF_NOV22_COMPLETE.md` - Phases 1-3 handoff
 - `IMPLEMENTATION_PLAN_SESSION_HISTORY.md` - Full 10-phase plan
 
-**Next Step**: Phase 6 - Transform Result Chaining (2-3 hours)
-  - Modify auto-creation to add buffers to existing session
-  - Add "Transform Result" button to ToolsPanel
-  - Enable chaining multiple transformations
-  - Set sourceBufferId correctly for chains
-  - Support transforming any buffer (not just original)
+**Next Step**: Phases 7-10 - Remaining Features (~14-24 hours)
+  - Phase 7: Edit tracking (1-2h)
+  - Phase 8: Session persistence verification (2-3h)
+  - Phase 9: Session export to JSON/ZIP (2-3h)
+  - Phase 10: Cloud storage (optional, 4-6h)
 
 ---
 
