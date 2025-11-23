@@ -11,6 +11,9 @@ import { MainWorkspace } from './components/workspace/MainWorkspace';
 import { api } from './utils/api';
 import { runTransform } from './services/transformationService';
 import { initializeSampleNarratives } from './data/sampleNarratives';
+import { formatToolName } from './config/tool-names';
+import { NARRATIVE_STUDIO_SOURCE } from './config/buffer-constants';
+import { VIEW_MODES, ANALYSIS_VIEW_MODE, TRANSFORMATION_VIEW_MODE } from './config/view-modes';
 import type {
   Narrative,
   TransformConfig,
@@ -262,7 +265,7 @@ function AppContent() {
         // Create original buffer (buffer-0)
         const originalBuffer = createOriginalBuffer(
           narrative.content,
-          'narrative-studio',
+          NARRATIVE_STUDIO_SOURCE,
           currentNarrativeId
         );
         if (originalBuffer) {
@@ -271,11 +274,7 @@ function AppContent() {
         }
 
         // Create transformation result buffer
-        const toolName = config.type === 'computer-humanizer' ? 'Computer Humanizer' :
-                        config.type === 'persona' ? `Persona (${config.persona})` :
-                        config.type === 'style' ? `Style (${config.styleId})` :
-                        config.type === 'round-trip' ? `Round-Trip (${config.intermediateLanguage})` :
-                        config.type;
+        const toolName = formatToolName(config.type, config);
 
         const transformBuffer = createTransformationBuffer(
           toolName,
@@ -295,20 +294,16 @@ function AppContent() {
 
           // Set view mode to split for transformations, single for analysis
           if (result.metadata?.aiDetection) {
-            updateViewMode('single-transformed');
+            updateViewMode(ANALYSIS_VIEW_MODE);
           } else {
-            updateViewMode('split');
+            updateViewMode(TRANSFORMATION_VIEW_MODE);
           }
         }
       } else {
         // Session exists - add new buffer to existing session
         console.log('[App] Adding buffer to existing session:', config.type);
 
-        const toolName = config.type === 'computer-humanizer' ? 'Computer Humanizer' :
-                        config.type === 'persona' ? `Persona (${config.persona})` :
-                        config.type === 'style' ? `Style (${config.styleId})` :
-                        config.type === 'round-trip' ? `Round-Trip (${config.intermediateLanguage})` :
-                        config.type;
+        const toolName = formatToolName(config.type, config);
 
         // Create transformation buffer linked to current active buffer
         const transformBuffer = createTransformationBuffer(

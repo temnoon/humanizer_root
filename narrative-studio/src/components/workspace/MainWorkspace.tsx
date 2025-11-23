@@ -7,6 +7,8 @@ import { stripMarkdown } from '../../services/transformationService';
 import { useSession } from '../../contexts/SessionContext';
 import { BufferTabs } from './BufferTabs';
 import { ViewModeToggle } from './ViewModeToggle';
+import { BUFFER_IDS } from '../../config/buffer-constants';
+import { VIEW_MODES, DEFAULT_VIEW_MODE } from '../../config/view-modes';
 
 interface MainWorkspaceProps {
   narrative: Narrative | null;
@@ -64,7 +66,7 @@ export function MainWorkspace({
     if (!hasSession || buffers.length === 0) {
       return null;
     }
-    return buffers.find(b => b.bufferId === 'buffer-0') || buffers[0];
+    return buffers.find(b => b.bufferId === BUFFER_IDS.ORIGINAL) || buffers[0];
   };
 
   // Determine if we should use session-based rendering
@@ -73,7 +75,7 @@ export function MainWorkspace({
   // Get current view mode (session or legacy)
   const currentViewMode = useSessionRendering && currentSession
     ? currentSession.viewMode
-    : 'split'; // default to split for legacy
+    : DEFAULT_VIEW_MODE; // default for legacy
 
   // Get display content based on view mode
   const getDisplayContent = () => {
@@ -90,13 +92,13 @@ export function MainWorkspace({
     const originalBuffer = getOriginalBuffer();
     const activeBuffer = getActiveBufferContent();
 
-    if (currentViewMode === 'single-original') {
+    if (currentViewMode === VIEW_MODES.SINGLE_ORIGINAL) {
       return {
         original: originalBuffer?.text || '',
         transformed: '',
         hasTransformed: false
       };
-    } else if (currentViewMode === 'single-transformed') {
+    } else if (currentViewMode === VIEW_MODES.SINGLE_TRANSFORMED) {
       return {
         original: '',
         transformed: activeBuffer?.text || '',
@@ -107,7 +109,7 @@ export function MainWorkspace({
       return {
         original: originalBuffer?.text || '',
         transformed: activeBuffer?.text || originalBuffer?.text || '',
-        hasTransformed: activeBuffer?.bufferId !== 'buffer-0'
+        hasTransformed: activeBuffer?.bufferId !== BUFFER_IDS.ORIGINAL
       };
     }
   };
@@ -639,7 +641,7 @@ export function MainWorkspace({
 
       {/* Desktop: Render based on view mode */}
       {/* Single-Original View Mode */}
-      {useSessionRendering && currentViewMode === 'single-original' ? (
+      {useSessionRendering && currentViewMode === VIEW_MODES.SINGLE_ORIGINAL ? (
         <div className="hidden md:flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
           <div
             ref={singlePaneRef}
@@ -683,7 +685,7 @@ export function MainWorkspace({
             </div>
           </div>
         </div>
-      ) : useSessionRendering && currentViewMode === 'single-transformed' ? (
+      ) : useSessionRendering && currentViewMode === VIEW_MODES.SINGLE_TRANSFORMED ? (
         /* Single-Transformed View Mode */
         <div className="hidden md:flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
           <div
@@ -729,7 +731,7 @@ export function MainWorkspace({
             </div>
           </div>
         </div>
-      ) : (useSessionRendering ? currentViewMode === 'split' : viewPreference === 'split') ? (
+      ) : (useSessionRendering ? currentViewMode === VIEW_MODES.SPLIT : viewPreference === 'split') ? (
         /* Side-by-side layout (desktop only) */
         <div className="hidden md:flex flex-1 flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
           {/* Left pane: Original */}
