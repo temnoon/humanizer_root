@@ -1,7 +1,7 @@
 # Humanizer - Development Guide
 
-**Updated**: Nov 22, 2025, Very Late Evening Session
-**Status**: ✅ Session History Phases 1-6 Complete | Chaining Works!
+**Updated**: Nov 22, 2025, Very Late Evening Session (Post-Refactor)
+**Status**: ✅ Session History Phases 1-7 Complete | Edit Tracking Works!
 **Branch**: `feature/session-history-and-buffers`
 **Signups**: 239 waiting
 
@@ -10,8 +10,8 @@
 ## 🚧 IN PROGRESS: Session History & Buffer System
 
 **Branch**: `feature/session-history-and-buffers`
-**Status**: ✅ Phases 1-6 Complete (Full Chaining Workflow!) | 🚧 Phases 7-10 Next
-**Completed**: ~7 hours | **Remaining**: ~14-24 hours across Phases 7-10
+**Status**: ✅ Phases 1-7 Complete (Edit Tracking!) | 🚧 Phases 8-10 Next
+**Completed**: ~10 hours | **Remaining**: ~8-12 hours across Phases 8-10
 
 **Completed Features** ✅:
 - Session storage (`~/.humanizer/sessions/`)
@@ -31,6 +31,10 @@
 - **Transformation chaining (unlimited depth)** 🎉
 - **Add buffers to existing sessions** 🎉
 - **Chain tracking via sourceBufferId** 🎉
+- **Edit tracking with `*` indicator** 🎉
+- **Store edit history in userEdits array** 🎉
+- **Auto-update isEdited flag** 🎉
+- **Config centralization (view-modes, tool-names, buffer-constants)** 🎉
 
 **Working Now**:
 - ✅ Sessions tab fully functional
@@ -54,6 +58,10 @@
 - ✅ **Second+ transforms add to existing session**
 - ✅ **Unlimited chaining (Original → Persona → Style → ...)**
 - ✅ **All buffers visible in BufferTabs**
+- ✅ **Edit tracking: Buffer text changes tracked in session**
+- ✅ **Edited indicator (*) shows in BufferTabs**
+- ✅ **Edit history stored with timestamps**
+- ✅ **Session-aware vs legacy mode editing**
 
 **Key Docs**:
 - `/tmp/SESSION_PHASE6_COMPLETE_NOV22.md` **← START HERE NEXT SESSION**
@@ -62,8 +70,7 @@
 - `/tmp/SESSION_HANDOFF_NOV22_COMPLETE.md` - Phases 1-3 handoff
 - `IMPLEMENTATION_PLAN_SESSION_HISTORY.md` - Full 10-phase plan
 
-**Next Step**: Phases 7-10 - Remaining Features (~14-24 hours)
-  - Phase 7: Edit tracking (1-2h)
+**Next Step**: Phases 8-10 - Remaining Features (~8-12 hours)
   - Phase 8: Session persistence verification (2-3h)
   - Phase 9: Session export to JSON/ZIP (2-3h)
   - Phase 10: Cloud storage (optional, 4-6h)
