@@ -28,9 +28,23 @@ export function BufferTabs({
         backgroundColor: 'var(--bg-secondary)',
         overflowX: 'auto',
         overflowY: 'hidden',
-        whiteSpace: 'nowrap'
+        whiteSpace: 'nowrap',
+        alignItems: 'center'
       }}
     >
+      {buffers.length > 1 && (
+        <div
+          style={{
+            fontSize: '12px',
+            fontWeight: 600,
+            color: 'var(--text-tertiary)',
+            marginRight: '8px',
+            flexShrink: 0
+          }}
+        >
+          Buffers:
+        </div>
+      )}
       {buffers.map((buffer) => {
         const isActive = buffer.bufferId === activeBufferId;
         const isOriginal = buffer.bufferId === 'buffer-0';
@@ -53,7 +67,10 @@ export function BufferTabs({
               position: 'relative',
               maxWidth: '200px'
             }}
-            onClick={() => onSelectBuffer(buffer.bufferId)}
+            onClick={() => {
+              console.log('[BufferTabs] Selected buffer:', buffer.bufferId, buffer.displayName);
+              onSelectBuffer(buffer.bufferId);
+            }}
             onMouseEnter={(e) => {
               if (!isActive) {
                 e.currentTarget.style.backgroundColor = 'var(--bg-hover)';

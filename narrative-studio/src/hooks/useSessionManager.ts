@@ -34,6 +34,7 @@ export function useSessionManager(userTier: string = 'free', archiveName: string
     // Set new timeout
     saveTimeoutRef.current = setTimeout(async () => {
       try {
+        if (!state.currentSession) return;
         await sessionStorage.updateSession({
           ...state.currentSession,
           updated: new Date().toISOString()

@@ -5,6 +5,8 @@ import { archiveService } from '../../services/archiveService';
 import { galleryService } from '../../services/galleryService';
 import { ImageLightbox } from './ImageLightbox';
 import { SessionsView } from '../archive/SessionsView';
+import { ImportsView } from '../archive/ImportsView';
+import { ImportArchiveButton } from '../archive/ImportArchiveButton';
 import type { Session } from '../../services/sessionStorage';
 
 interface ArchivePanelProps {
@@ -13,7 +15,7 @@ interface ArchivePanelProps {
   onClose: () => void;
 }
 
-type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions';
+type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions' | 'imports';
 type FilterCategory = 'date' | 'size' | 'media';
 
 interface ActiveFilters {
@@ -60,6 +62,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [gallerySearch, setGallerySearch] = useState<string>(''); // Search query for gallery
 
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
+  const prevViewModeRef = useRef<ViewMode>(viewMode);
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -567,7 +570,13 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         case 'Escape':
           if (viewMode === 'messages') {
             setViewMode('conversations');
-            setFocusedIndex(0);
+            // Restore focus to the selected conversation
+            if (selectedConversation) {
+              const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
+              setFocusedIndex(idx !== -1 ? idx : 0);
+            } else {
+              setFocusedIndex(0);
+            }
           } else {
             onClose();
           }
@@ -583,14 +592,39 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   useEffect(() => {
     const element = itemRefs.current.get(focusedIndex);
     if (element) {
-      element.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      // Use 'center' to position selected conversation in the middle of viewport
+      element.scrollIntoView({ block: 'center', behavior: 'smooth' });
     }
   }, [focusedIndex]);
 
-  // Reset focused index when filters change
+  // Reset focused index when filters/search change (but NOT when viewMode changes)
   useEffect(() => {
-    setFocusedIndex(0);
-  }, [currentSearchQuery, activeFilters, viewMode]);
+    // Only reset if we're in conversations view and filters/search actually changed
+    if (viewMode === 'conversations') {
+      setFocusedIndex(0);
+    }
+  }, [currentSearchQuery, activeFilters]);
+
+  // Focus the selected conversation when returning to conversations view
+  useEffect(() => {
+    const prevViewMode = prevViewModeRef.current;
+
+    // Only focus selected conversation when transitioning TO conversations view
+    if (viewMode === 'conversations' && prevViewMode !== 'conversations' && selectedConversation) {
+      // Find the index of the selected conversation in the filtered list
+      const selectedIndex = filteredConversations.findIndex(
+        conv => conv.id === selectedConversation.id
+      );
+
+      if (selectedIndex !== -1) {
+        setFocusedIndex(selectedIndex);
+        console.log(`Focused conversation "${selectedConversation.title}" at index ${selectedIndex}`);
+      }
+    }
+
+    // Update ref for next render
+    prevViewModeRef.current = viewMode;
+  }, [viewMode, selectedConversation, filteredConversations]);
 
   if (!isOpen) return null;
 
@@ -641,7 +675,17 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             {/* Back button + Title */}
             <div className="flex items-center gap-2 mb-4">
               <button
-                onClick={() => setViewMode('conversations')}
+                onClick={() => {
+                  // Go back to conversations view
+                  setViewMode('conversations');
+                  // Restore focus to the selected conversation
+                  if (selectedConversation) {
+                    const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
+                    if (idx !== -1) {
+                      setFocusedIndex(idx);
+                    }
+                  }
+                }}
                 className="rounded-md transition-smooth hover:opacity-70 font-medium"
                 style={{
                   backgroundColor: 'var(--bg-secondary)',
@@ -859,7 +903,14 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                   </button>
                 )}
                 <button
-                  onClick={() => setViewMode('conversations')}
+                  onClick={() => {
+                    setViewMode('conversations');
+                    // Restore focus to selected conversation
+                    if (selectedConversation) {
+                      const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
+                      setFocusedIndex(idx !== -1 ? idx : 0);
+                    }
+                  }}
                   className="p-1 rounded hover:opacity-70 transition-opacity"
                   style={{ color: 'var(--text-secondary)' }}
                   title="Back to conversations"
@@ -1059,7 +1110,14 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           {/* View Mode Tabs */}
           <div className="flex gap-2 mb-4">
             <button
-              onClick={() => setViewMode('conversations')}
+              onClick={() => {
+                setViewMode('conversations');
+                // Restore focus to selected conversation when returning from other tabs
+                if (selectedConversation) {
+                  const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
+                  setFocusedIndex(idx !== -1 ? idx : 0);
+                }
+              }}
               className="tag"
               style={{
                 backgroundColor: viewMode === 'conversations' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
@@ -1094,9 +1152,21 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             >
               🖼️ Gallery
             </button>
+            <button
+              onClick={() => setViewMode('imports')}
+              className="tag"
+              style={{
+                backgroundColor: viewMode === 'imports' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                color: viewMode === 'imports' ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                border: `1px solid ${viewMode === 'imports' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+                fontWeight: 600,
+              }}
+            >
+              📥 Imports
+            </button>
           </div>
 
-          {/* Conversations View */}
+          {/* Conversations View - Header Content */}
           {viewMode === 'conversations' && (
             <>
           {/* Search */}
@@ -1159,8 +1229,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             )}
           </div>
 
-          {/* Import JSON Button */}
-          <div className="mb-4">
+          {/* Import Buttons */}
+          <div className="mb-4 flex gap-2">
               <label
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-md cursor-pointer transition-colors"
                 style={{
@@ -1179,6 +1249,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                   disabled={loading}
                 />
               </label>
+              <ImportArchiveButton />
             </div>
 
           {/* Filter UI - single line */}
@@ -1308,173 +1379,6 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               ? `${filteredConversations.length} of ${conversations.length}`
               : `${conversations.length} conversations`}
           </div>
-
-        {/* Conversations list */}
-        <div
-          className="overflow-y-auto"
-          style={{
-            height: 'calc(100% - 260px)',
-            padding: 'var(--space-lg)',
-          }}
-        >
-          {loading && (
-            <div className="flex items-center justify-center" style={{ paddingTop: 'var(--space-2xl)' }}>
-              <div className="animate-spin" style={{ color: 'var(--accent-primary)' }}>
-                <Icons.Archive />
-              </div>
-            </div>
-          )}
-
-          {error && (
-            <div
-              className="card"
-              style={{
-                backgroundColor: 'var(--bg-elevated)',
-                padding: 'var(--space-md)',
-                border: '1px solid var(--error)',
-              }}
-            >
-              <p className="text-small font-medium mb-2" style={{ color: 'var(--error)' }}>
-                Archive Connection Error
-              </p>
-              <p className="text-small" style={{ color: 'var(--text-secondary)' }}>
-                {error}
-              </p>
-              <button
-                onClick={loadConversations}
-                className="mt-4 font-medium rounded-md transition-smooth"
-                style={{
-                  backgroundColor: 'var(--accent-primary)',
-                  color: 'var(--text-inverse)',
-                  padding: 'var(--space-sm) var(--space-md)',
-                  fontSize: '0.875rem',
-                }}
-              >
-                Retry Connection
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && filteredConversations.length === 0 && (
-            <div
-              className="flex flex-col items-center justify-center text-center"
-              style={{ paddingTop: 'var(--space-2xl)', paddingBottom: 'var(--space-2xl)' }}
-            >
-              <div
-                className="mb-4"
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Icons.Archive />
-              </div>
-              <p className="text-body mb-2" style={{ color: 'var(--text-secondary)' }}>
-                No conversations found
-              </p>
-              <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
-                {currentSearchQuery || hasActiveFilters
-                  ? 'Try adjusting your search or filters'
-                  : 'Make sure the archive server is running'}
-              </p>
-            </div>
-          )}
-
-          {!loading && !error && filteredConversations.length > 0 && (
-            <div className="space-y-2">
-              {filteredConversations.map((conv, idx) => {
-                const isSelected = selectedConversation?.id === conv.id;
-                const isFocused = focusedIndex === idx;
-
-                const hasImages = conv.tags?.includes('Has Images');
-
-                return (
-                  <div key={conv.folder} className="relative">
-                    <button
-                      ref={(el) => {
-                        if (el) itemRefs.current.set(idx, el);
-                        else itemRefs.current.delete(idx);
-                      }}
-                      onClick={() => {
-                        loadConversation(conv.folder);
-                        if (window.innerWidth < 768) {
-                          onClose();
-                        }
-                      }}
-                      className="card w-full text-left transition-all"
-                      style={{
-                        ...(isSelected
-                          ? {
-                              backgroundImage: 'var(--accent-primary-gradient)',
-                              backgroundColor: 'transparent',
-                            }
-                          : isFocused
-                          ? {
-                              backgroundColor: 'var(--bg-tertiary)',
-                            }
-                          : {
-                              backgroundColor: 'var(--bg-elevated)',
-                            }),
-                        color: isSelected ? 'var(--text-inverse)' : 'var(--text-primary)',
-                        padding: 'var(--space-sm)',
-                        paddingRight: hasImages ? '3rem' : 'var(--space-sm)',
-                        border: `2px solid ${isFocused ? 'var(--accent-primary)' : 'transparent'}`,
-                      }}
-                    >
-                      <div className="font-medium mb-2 line-clamp-2" style={{ fontSize: '0.9375rem' }}>
-                        {conv.title}
-                      </div>
-                      <div className="text-small mb-2" style={{ opacity: 0.9 }}>
-                        {conv.message_count} messages
-                      </div>
-                      {conv.tags && conv.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {conv.tags.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="tag"
-                              style={{
-                                backgroundColor: isSelected
-                                  ? 'rgba(255, 255, 255, 0.25)'
-                                  : 'var(--bg-tertiary)',
-                                color: isSelected ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                                borderColor: 'transparent',
-                              }}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </button>
-                    {hasImages && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          viewConversationGallery(conv.folder);
-                        }}
-                        className="absolute right-2 top-2 p-2 rounded-md transition-all hover:opacity-70"
-                        style={{
-                          color: isSelected ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                          backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.15)' : 'var(--bg-secondary)',
-                        }}
-                        title="View images from this conversation"
-                        aria-label="View gallery"
-                      >
-                        <Icons.Image />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
         </>
       )}
 
@@ -1487,7 +1391,181 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               }}
             />
           )}
+
+          {/* Imports View */}
+          {viewMode === 'imports' && (
+            <ImportsView />
+          )}
         </div>
+
+        {/* Conversations list - outside header for proper scrolling */}
+        {viewMode === 'conversations' && (
+          <div
+            className="overflow-y-auto"
+            style={{
+              height: 'calc(100% - 240px)',
+              padding: 'var(--space-md)',
+            }}
+          >
+            {loading && (
+              <div className="flex items-center justify-center" style={{ paddingTop: 'var(--space-2xl)' }}>
+                <div className="animate-spin" style={{ color: 'var(--accent-primary)' }}>
+                  <Icons.Archive />
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div
+                className="card"
+                style={{
+                  backgroundColor: 'var(--bg-elevated)',
+                  padding: 'var(--space-md)',
+                  border: '1px solid var(--error)',
+                }}
+              >
+                <p className="text-small font-medium mb-2" style={{ color: 'var(--error)' }}>
+                  Archive Connection Error
+                </p>
+                <p className="text-small" style={{ color: 'var(--text-secondary)' }}>
+                  {error}
+                </p>
+                <button
+                  onClick={loadConversations}
+                  className="mt-4 font-medium rounded-md transition-smooth"
+                  style={{
+                    backgroundColor: 'var(--accent-primary)',
+                    color: 'var(--text-inverse)',
+                    padding: 'var(--space-sm) var(--space-md)',
+                    fontSize: '0.875rem',
+                  }}
+                >
+                  Retry Connection
+                </button>
+              </div>
+            )}
+
+            {!loading && !error && filteredConversations.length === 0 && (
+              <div
+                className="flex flex-col items-center justify-center text-center"
+                style={{ paddingTop: 'var(--space-2xl)', paddingBottom: 'var(--space-2xl)' }}
+              >
+                <div
+                  className="mb-4"
+                  style={{
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Icons.Archive />
+                </div>
+                <p className="text-body mb-2" style={{ color: 'var(--text-secondary)' }}>
+                  No conversations found
+                </p>
+                <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
+                  {currentSearchQuery || hasActiveFilters
+                    ? 'Try adjusting your search or filters'
+                    : 'Make sure the archive server is running'}
+                </p>
+              </div>
+            )}
+
+            {!loading && !error && filteredConversations.length > 0 && (
+              <div className="space-y-2">
+                {filteredConversations.map((conv, idx) => {
+                  const isSelected = selectedConversation?.id === conv.id;
+                  const isFocused = focusedIndex === idx;
+
+                  const hasImages = conv.tags?.includes('Has Images');
+
+                  return (
+                    <div key={conv.folder} className="relative">
+                      <button
+                        ref={(el) => {
+                          if (el) itemRefs.current.set(idx, el);
+                          else itemRefs.current.delete(idx);
+                        }}
+                        onClick={() => {
+                          loadConversation(conv.folder);
+                          if (window.innerWidth < 768) {
+                            onClose();
+                          }
+                        }}
+                        className="card w-full text-left transition-all"
+                        style={{
+                          ...(isSelected
+                            ? {
+                                backgroundImage: 'var(--accent-primary-gradient)',
+                                backgroundColor: 'transparent',
+                              }
+                            : isFocused
+                            ? {
+                                backgroundColor: 'var(--bg-tertiary)',
+                              }
+                            : {
+                                backgroundColor: 'var(--bg-elevated)',
+                              }),
+                          color: isSelected ? 'var(--text-inverse)' : 'var(--text-primary)',
+                          padding: 'var(--space-sm)',
+                          paddingRight: hasImages ? '3rem' : 'var(--space-sm)',
+                          border: `2px solid ${isFocused ? 'var(--accent-primary)' : 'transparent'}`,
+                        }}
+                      >
+                        <div className="font-medium mb-2 line-clamp-2" style={{ fontSize: '0.9375rem' }}>
+                          {conv.title}
+                        </div>
+                        <div className="text-small mb-2" style={{ opacity: 0.9 }}>
+                          {conv.message_count} messages
+                        </div>
+                        {conv.tags && conv.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {conv.tags.slice(0, 3).map((tag) => (
+                              <span
+                                key={tag}
+                                className="tag"
+                                style={{
+                                  backgroundColor: isSelected
+                                    ? 'rgba(255, 255, 255, 0.25)'
+                                    : 'var(--bg-tertiary)',
+                                  color: isSelected ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                                  borderColor: 'transparent',
+                                }}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </button>
+                      {hasImages && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            viewConversationGallery(conv.folder);
+                          }}
+                          className="absolute right-2 top-2 p-2 rounded-md transition-all hover:opacity-70"
+                          style={{
+                            color: isSelected ? 'var(--text-inverse)' : 'var(--text-secondary)',
+                            backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.15)' : 'var(--bg-secondary)',
+                          }}
+                          title="View images from this conversation"
+                          aria-label="View gallery"
+                        >
+                          <Icons.Image />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </aside>
     </>
   );

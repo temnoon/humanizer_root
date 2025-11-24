@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Icons } from './Icons';
 import { ThemeToggle } from './ThemeToggle';
 import { TextSizeControl } from './TextSizeControl';
+import { ProviderSwitcher } from './ProviderSwitcher';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Narrative, WorkspaceMode } from '../../types';
 
@@ -151,6 +152,9 @@ export function TopBar({
             )}
           </div>
         )}
+
+        {/* Provider switcher - only show when authenticated */}
+        {user && <ProviderSwitcher />}
 
         {/* View toggle button - Only show in split mode */}
         {workspaceMode === 'split' && (

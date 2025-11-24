@@ -1,6 +1,7 @@
 import type { GalleryResponse } from '../types';
+import { STORAGE_PATHS } from '../config/storage-paths';
 
-const ARCHIVE_API = 'http://localhost:3002';
+const ARCHIVE_API = STORAGE_PATHS.archiveServerUrl;
 
 // ============================================================
 // GALLERY SERVICE

@@ -7,15 +7,15 @@
 
 ---
 
-## 🚧 IN PROGRESS: Archive Import Parser (NEW!)
+## ✅ COMPLETED: Archive Import Parser (NEW!)
 
 **Branch**: `feature/archive-import-parser`
-**Status**: Phase 2 & 3 Complete (40% Done) - Core Parser + Smart Merge ✅
-**Started**: Nov 23, 2025 | **Completed**: 6h / 14-17h estimated
+**Status**: Phase 4 & 5 Complete (80% Done) - Backend + Frontend ✅
+**Started**: Nov 23, 2025 | **Completed**: 10h / 14-17h estimated
 
 **Goal**: Import OpenAI & Claude conversation exports with smart merge (append new messages to existing conversations)
 
-**Completed (Phases 1-3)** ✅:
+**Completed (Phases 1-5)** ✅:
 - ✅ TypeScript parser module (`src/services/parser/`) - 9 files, ~1,500 lines
 - ✅ OpenAI format parser (conversations.json)
 - ✅ Claude format parser (convert to OpenAI tree structure)
@@ -23,16 +23,18 @@
 - ✅ Smart merge logic (deduplicate by message ID + timestamp)
 - ✅ Preview generation (show changes before applying)
 - ✅ Incremental import (append new messages to existing conversations)
+- ✅ Backend REST endpoints (6 endpoints: upload, parse, status, preview, apply, cancel)
+- ✅ Frontend UI (ImportArchiveButton, ImportPreviewModal, ImportsView tab)
+- ✅ 4th tab in Archive panel: "📥 Imports"
+- ✅ Archive server integration with multer for ZIP uploads
 
-**Remaining (Phases 4-7)**:
-- ⏳ Backend REST endpoints (upload, parse, preview, apply)
-- 🔜 Frontend UI (ImportArchiveButton, PreviewModal, ImportsView tab)
-- 🔜 Testing with real OpenAI/Claude exports
-- 🔜 Documentation
+**Remaining (Phases 6-7)**:
+- ⏳ Testing with real OpenAI/Claude exports (manual testing)
+- 🔜 Polish & bug fixes
 
-**Key Handoff**: `/tmp/ARCHIVE_PARSER_HANDOFF_NOV23.md` **← START HERE NEXT SESSION**
+**Key Handoff**: `/tmp/ARCHIVE_PARSER_HANDOFF_NOV23.md` **← Implementation Reference**
 
-**Dependencies Added**: `adm-zip`, `date-fns`, `uuid` (0 vulnerabilities)
+**Dependencies Added**: `adm-zip`, `date-fns`, `uuid`, `multer`, `tsx` (0 vulnerabilities)
 
 ---
 
@@ -172,7 +174,7 @@ ollama list  # Show installed models
 ### Start Frontend
 ```bash
 cd /Users/tem/humanizer_root/narrative-studio
-node archive-server.js &  # Port 3002
+npx tsx archive-server.js &  # Port 3002 (use tsx for TypeScript support)
 npm run dev  # Port 5173
 ```
 
