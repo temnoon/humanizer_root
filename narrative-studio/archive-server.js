@@ -1375,8 +1375,8 @@ app.post('/api/import/archive/parse', async (req, res) => {
         job.status = 'ready';
 
         console.log(`✅ Preview ready for job ${jobId}:`);
-        console.log(`   - New conversations: ${preview.new_conversations.length}`);
-        console.log(`   - Updated conversations: ${preview.updated_conversations.length}`);
+        console.log(`   - New conversations: ${preview.newConversations}`);
+        console.log(`   - Updated conversations: ${preview.existingConversationsToUpdate}`);
         console.log(`   - Conflicts: ${preview.conflicts.length}`);
       } catch (err) {
         job.status = 'failed';
@@ -1495,10 +1495,10 @@ app.post('/api/import/archive/apply/:jobId', async (req, res) => {
         job.progress = 100;
 
         console.log(`✅ Import completed for job ${req.params.jobId}:`);
-        console.log(`   - Conversations created: ${result.conversations_created}`);
-        console.log(`   - Conversations updated: ${result.conversations_updated}`);
-        console.log(`   - Messages added: ${result.messages_added}`);
-        console.log(`   - Media files copied: ${result.media_files_copied}`);
+        console.log(`   - Conversations created: ${result.conversationsCreated}`);
+        console.log(`   - Conversations updated: ${result.conversationsUpdated}`);
+        console.log(`   - Messages added: ${result.totalMessagesAdded}`);
+        console.log(`   - Media files copied: ${result.totalMediaFilesAdded}`);
 
         // Clean up uploaded ZIP after 1 minute
         setTimeout(async () => {
