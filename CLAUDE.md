@@ -1,17 +1,46 @@
 # Humanizer - Development Guide
 
-**Updated**: Nov 22, 2025, Very Late Evening Session (Post-Refactor)
-**Status**: ✅ Session History Phases 1-7 Complete | Edit Tracking Works!
-**Branch**: `feature/session-history-and-buffers`
+**Updated**: Nov 23, 2025 (Archive Parser Started!)
+**Status**: ✅ Session History Complete | 🚧 Archive Parser Integration (40% Done)
+**Active Branch**: `feature/archive-import-parser`
 **Signups**: 239 waiting
 
 ---
 
-## 🚧 IN PROGRESS: Session History & Buffer System
+## 🚧 IN PROGRESS: Archive Import Parser (NEW!)
+
+**Branch**: `feature/archive-import-parser`
+**Status**: Phase 2 & 3 Complete (40% Done) - Core Parser + Smart Merge ✅
+**Started**: Nov 23, 2025 | **Completed**: 6h / 14-17h estimated
+
+**Goal**: Import OpenAI & Claude conversation exports with smart merge (append new messages to existing conversations)
+
+**Completed (Phases 1-3)** ✅:
+- ✅ TypeScript parser module (`src/services/parser/`) - 9 files, ~1,500 lines
+- ✅ OpenAI format parser (conversations.json)
+- ✅ Claude format parser (convert to OpenAI tree structure)
+- ✅ 4-strategy media matching (hash, file-ID+size, filename+size, conv-dir)
+- ✅ Smart merge logic (deduplicate by message ID + timestamp)
+- ✅ Preview generation (show changes before applying)
+- ✅ Incremental import (append new messages to existing conversations)
+
+**Remaining (Phases 4-7)**:
+- ⏳ Backend REST endpoints (upload, parse, preview, apply)
+- 🔜 Frontend UI (ImportArchiveButton, PreviewModal, ImportsView tab)
+- 🔜 Testing with real OpenAI/Claude exports
+- 🔜 Documentation
+
+**Key Handoff**: `/tmp/ARCHIVE_PARSER_HANDOFF_NOV23.md` **← START HERE NEXT SESSION**
+
+**Dependencies Added**: `adm-zip`, `date-fns`, `uuid` (0 vulnerabilities)
+
+---
+
+## ✅ COMPLETED: Session History & Buffer System
 
 **Branch**: `feature/session-history-and-buffers`
-**Status**: ✅ Phases 1-7 Complete (Edit Tracking!) | 🚧 Phases 8-10 Next
-**Completed**: ~10 hours | **Remaining**: ~8-12 hours across Phases 8-10
+**Status**: ✅ Phases 1-9 Complete (90% Done!) | 🚧 Phase 10 Optional
+**Completed**: ~14.5 hours | **Remaining**: ~4-6 hours (Phase 10 - Cloud Storage, OPTIONAL)
 
 **Completed Features** ✅:
 - Session storage (`~/.humanizer/sessions/`)
@@ -35,6 +64,15 @@
 - **Store edit history in userEdits array** 🎉
 - **Auto-update isEdited flag** 🎉
 - **Config centralization (view-modes, tool-names, buffer-constants)** 🎉
+- **Corrupted JSON handling (graceful skip)** 🎉
+- **Backup before overwrite (.backup files)** 🎉
+- **Exponential backoff retry logic (3 attempts)** 🎉
+- **Refresh Sessions button (manual reload)** 🎉
+- **Reload Session button (re-fetch from disk)** 🎉
+- **Export sessions as JSON (1-click download)** ⭐ NEW
+- **Export sessions as ZIP with README (pro format)** ⭐ NEW
+- **Import from JSON/ZIP files (validation)** ⭐ NEW
+- **Duplicate session handling (replace or rename)** ⭐ NEW
 
 **Working Now**:
 - ✅ Sessions tab fully functional
@@ -62,18 +100,30 @@
 - ✅ **Edited indicator (*) shows in BufferTabs**
 - ✅ **Edit history stored with timestamps**
 - ✅ **Session-aware vs legacy mode editing**
+- ✅ **Corrupted sessions skipped, not crashed** ⭐ NEW
+- ✅ **Auto-retry on network errors (1s, 2s, 4s)** ⭐ NEW
+- ✅ **Session backups (.backup files)** ⭐ NEW
+- ✅ **Refresh/Reload buttons in UI** ⭐ NEW
+- ✅ **10-scenario test suite documented** ⭐ NEW
+- ✅ **Export dropdown (JSON | ZIP)** ⭐⭐ NEW
+- ✅ **Import button with file picker** ⭐⭐ NEW
+- ✅ **Session validation on import** ⭐⭐ NEW
+- ✅ **ZIP exports with metadata + README** ⭐⭐ NEW
 
 **Key Docs**:
-- `/tmp/SESSION_PHASE6_COMPLETE_NOV22.md` **← START HERE NEXT SESSION**
+- `/tmp/FINAL_SESSION_HANDOFF_NOV23.md` **← START HERE NEXT SESSION** ⭐⭐⭐
+- `/tmp/SESSION_PHASE9_COMPLETE_NOV22.md` - Phase 9 details
+- `/tmp/SESSION_PHASE8_COMPLETE_NOV22.md` - Phase 8 details
+- `/narrative-studio/tests/session-persistence-tests.md` **← Test Suite (10 scenarios)**
+- `/tmp/SESSION_PHASE6_COMPLETE_NOV22.md` - Phase 6 handoff
 - `/tmp/SESSION_PHASE5_COMPLETE_NOV22.md` - Phase 5 handoff
 - `/tmp/SESSION_PHASE4_COMPLETE_NOV22.md` - Phase 4 handoff
 - `/tmp/SESSION_HANDOFF_NOV22_COMPLETE.md` - Phases 1-3 handoff
 - `IMPLEMENTATION_PLAN_SESSION_HISTORY.md` - Full 10-phase plan
 
-**Next Step**: Phases 8-10 - Remaining Features (~8-12 hours)
-  - Phase 8: Session persistence verification (2-3h)
-  - Phase 9: Session export to JSON/ZIP (2-3h)
-  - Phase 10: Cloud storage (optional, 4-6h)
+**Next Step**: Phase 10 - Cloud Storage (OPTIONAL, ~4-6 hours)
+  - Phase 10: Cloud storage with D1 + encryption (4-6h) **← OPTIONAL FOR MVP**
+  - OR: Mark feature complete and merge to main! ✅
 
 ---
 
