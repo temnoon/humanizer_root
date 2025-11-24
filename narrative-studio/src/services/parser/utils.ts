@@ -16,6 +16,9 @@ export async function extractZip(zipPath: string, outputDir: string): Promise<vo
   const stats = fs.statSync(zipPath);
   const fileSizeMB = stats.size / (1024 * 1024);
 
+  const fileSize = stats.size;
+  const fileSizeGB = stats.size / (1024 * 1024 * 1024);
+
   // For large files (>100MB), use native unzip command for better memory efficiency
   if (fileSizeMB > 100) {
     console.log(`Large archive detected (${fileSizeMB.toFixed(0)}MB), using native unzip...`);
@@ -28,13 +31,23 @@ export async function extractZip(zipPath: string, outputDir: string): Promise<vo
       // Use native unzip command (more memory efficient)
       await execAsync(`unzip -q -o "${zipPath}" -d "${outputDir}"`);
     } catch (err: any) {
-      // If native unzip fails, fall back to adm-zip
+      // For files >2GB, adm-zip will fail with Node.js ERR_FS_FILE_TOO_LARGE
+      // Don't fall back to adm-zip, throw better error
+      if (fileSizeGB > 2) {
+        throw new Error(
+          `ZIP extraction failed for large file (${fileSizeGB.toFixed(1)}GB). ` +
+          `The ZIP may be corrupted or have an invalid structure. ` +
+          `Error: ${err.message}`
+        );
+      }
+
+      // For smaller files, try fallback to adm-zip
       console.warn('Native unzip failed, falling back to adm-zip:', err.message);
       const zip = new AdmZip(zipPath);
       zip.extractAllTo(outputDir, true);
     }
   } else {
-    // For smaller files, use adm-zip (faster for small files)
+    // For smaller files (<100MB), use adm-zip (faster for small files)
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(outputDir, true);
   }
