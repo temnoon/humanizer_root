@@ -3,6 +3,7 @@
 // ============================================================
 // Parses Claude conversation exports and converts to OpenAI format
 
+import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { Conversation, ClaudeExport, ClaudeChatMessage } from './types';
@@ -160,8 +161,8 @@ export class ClaudeParser {
     const usersFile = path.join(extractedDir, 'users.json');
 
     // Claude exports have both conversations.json and users.json in root
-    const hasConversations = require('fs').existsSync(conversationsFile);
-    const hasUsers = require('fs').existsSync(usersFile);
+    const hasConversations = fs.existsSync(conversationsFile);
+    const hasUsers = fs.existsSync(usersFile);
 
     if (!hasConversations) {
       return false;
