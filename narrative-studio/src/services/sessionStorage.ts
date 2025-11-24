@@ -40,6 +40,8 @@ export interface Edit {
 
 class SessionStorageService {
   private baseUrl: string;
+  private readonly MAX_RETRIES = 3;
+  private readonly INITIAL_RETRY_DELAY = 1000; // 1 second
 
   constructor() {
     // Detect environment
@@ -51,8 +53,48 @@ class SessionStorageService {
       : '/api/sessions'; // Cloud endpoint
   }
 
+  /**
+   * Retry logic with exponential backoff
+   * Only retries on network errors, not on 404/422 (client errors)
+   */
+  private async fetchWithRetry(
+    url: string,
+    options?: RequestInit,
+    retryCount = 0
+  ): Promise<Response> {
+    try {
+      const response = await fetch(url, options);
+
+      // Don't retry on client errors (404, 422, etc.)
+      if (!response.ok && response.status >= 400 && response.status < 500) {
+        return response;
+      }
+
+      // Retry on server errors (5xx) or network issues
+      if (!response.ok && retryCount < this.MAX_RETRIES) {
+        const delay = this.INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
+        console.warn(`⚠️  Request failed, retrying in ${delay}ms (attempt ${retryCount + 1}/${this.MAX_RETRIES})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.fetchWithRetry(url, options, retryCount + 1);
+      }
+
+      return response;
+    } catch (error) {
+      // Network error - retry if attempts remaining
+      if (retryCount < this.MAX_RETRIES) {
+        const delay = this.INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
+        console.warn(`⚠️  Network error, retrying in ${delay}ms (attempt ${retryCount + 1}/${this.MAX_RETRIES})`, error);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.fetchWithRetry(url, options, retryCount + 1);
+      }
+
+      // Max retries exhausted
+      throw error;
+    }
+  }
+
   async createSession(session: Session): Promise<void> {
-    const response = await fetch(this.baseUrl, {
+    const response = await this.fetchWithRetry(this.baseUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(session)
@@ -64,7 +106,7 @@ class SessionStorageService {
   }
 
   async listSessions(): Promise<Session[]> {
-    const response = await fetch(this.baseUrl);
+    const response = await this.fetchWithRetry(this.baseUrl);
 
     if (!response.ok) {
       throw new Error('Failed to list sessions');
@@ -74,11 +116,14 @@ class SessionStorageService {
   }
 
   async getSession(sessionId: string): Promise<Session> {
-    const response = await fetch(`${this.baseUrl}/${sessionId}`);
+    const response = await this.fetchWithRetry(`${this.baseUrl}/${sessionId}`);
 
     if (!response.ok) {
       if (response.status === 404) {
         throw new Error('Session not found');
+      }
+      if (response.status === 422) {
+        throw new Error('Session file is corrupted');
       }
       throw new Error('Failed to get session');
     }
@@ -87,7 +132,7 @@ class SessionStorageService {
   }
 
   async updateSession(session: Session): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${session.sessionId}`, {
+    const response = await this.fetchWithRetry(`${this.baseUrl}/${session.sessionId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(session)
@@ -99,7 +144,7 @@ class SessionStorageService {
   }
 
   async deleteSession(sessionId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/${sessionId}`, {
+    const response = await this.fetchWithRetry(`${this.baseUrl}/${sessionId}`, {
       method: 'DELETE'
     });
 
@@ -109,7 +154,7 @@ class SessionStorageService {
   }
 
   async renameSession(sessionId: string, name: string): Promise<Session> {
-    const response = await fetch(`${this.baseUrl}/${sessionId}/rename`, {
+    const response = await this.fetchWithRetry(`${this.baseUrl}/${sessionId}/rename`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name })

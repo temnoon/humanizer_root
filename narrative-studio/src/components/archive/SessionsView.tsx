@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSession } from '../../contexts/SessionContext';
 import { SessionListItem } from './SessionListItem';
 import type { Session } from '../../services/sessionStorage';
+import { importSession } from '../../services/exportService';
 
 interface SessionsViewProps {
   onSelectSession: (session: Session) => void;
@@ -19,6 +20,9 @@ export function SessionsView({ onSelectSession }: SessionsViewProps) {
     deleteSession,
     createSession
   } = useSession();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
 
   // Load sessions on mount
   useEffect(() => {
@@ -44,6 +48,48 @@ export function SessionsView({ onSelectSession }: SessionsViewProps) {
     const session = await createSession();
     if (session) {
       await refreshSessions();
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const importedSession = await importSession(file);
+
+      // Check for duplicate sessionId
+      const exists = sessions.find(s => s.sessionId === importedSession.sessionId);
+      if (exists) {
+        const shouldReplace = confirm(
+          `Session "${importedSession.name}" already exists. Replace it?`
+        );
+        if (!shouldReplace) {
+          // Generate new sessionId
+          importedSession.sessionId = `session-${Date.now()}`;
+          importedSession.name = `${importedSession.name} (imported)`;
+        }
+      }
+
+      // Create session via context
+      await createSession(importedSession.name, importedSession.buffers, importedSession.sourceMessageId);
+      await refreshSessions();
+
+      alert(`Successfully imported: ${importedSession.name}`);
+    } catch (error) {
+      console.error('Import failed:', error);
+      alert(`Import failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setImporting(false);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
@@ -78,29 +124,101 @@ export function SessionsView({ onSelectSession }: SessionsViewProps) {
         >
           Sessions
         </h2>
-        <button
-          onClick={handleNewSession}
-          className="ui-text"
+        <div
           style={{
-            padding: '6px 12px',
-            fontSize: '13px',
-            fontWeight: 500,
-            color: 'white',
-            backgroundColor: 'var(--accent-primary)',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            transition: 'background-color 0.2s'
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--accent-secondary)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--accent-primary)';
+            display: 'flex',
+            gap: '8px'
           }}
         >
-          + New Session
-        </button>
+          <button
+            onClick={() => refreshSessions()}
+            className="ui-text"
+            title="Refresh sessions list"
+            style={{
+              padding: '6px 12px',
+              fontSize: '13px',
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+              e.currentTarget.style.borderColor = 'var(--accent-primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+            }}
+          >
+            ↻ Refresh
+          </button>
+          <button
+            onClick={handleImportClick}
+            disabled={importing}
+            className="ui-text"
+            title="Import session from JSON or ZIP file"
+            style={{
+              padding: '6px 12px',
+              fontSize: '13px',
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              cursor: importing ? 'not-allowed' : 'pointer',
+              opacity: importing ? 0.6 : 1,
+              transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              if (!importing) {
+                e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                e.currentTarget.style.borderColor = 'var(--accent-primary)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+            }}
+          >
+            {importing ? '⏳ Importing...' : '📥 Import'}
+          </button>
+          <button
+            onClick={handleNewSession}
+            className="ui-text"
+            style={{
+              padding: '6px 12px',
+              fontSize: '13px',
+              fontWeight: 500,
+              color: 'white',
+              backgroundColor: 'var(--accent-primary)',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--accent-secondary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--accent-primary)';
+            }}
+          >
+            + New Session
+          </button>
+        </div>
+
+        {/* Hidden file input for import */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json,.zip"
+          onChange={handleFileSelect}
+          style={{ display: 'none' }}
+        />
       </div>
 
       {/* Loading State */}

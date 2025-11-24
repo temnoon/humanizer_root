@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Session } from '../../services/sessionStorage';
+import { exportSessionAsJSON, exportSessionAsZIP } from '../../services/exportService';
 
 interface SessionListItemProps {
   session: Session;
@@ -19,6 +20,7 @@ export function SessionListItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editedName, setEditedName] = useState(session.name);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   const handleRename = () => {
     if (editedName.trim() && editedName !== session.name) {
@@ -39,6 +41,28 @@ export function SessionListItem({
   const handleDelete = () => {
     onDelete(session.sessionId);
     setShowDeleteConfirm(false);
+  };
+
+  const handleExportJSON = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await exportSessionAsJSON(session);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export session');
+    }
+  };
+
+  const handleExportZIP = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await exportSessionAsZIP(session);
+      setShowExportMenu(false);
+    } catch (error) {
+      console.error('Export failed:', error);
+      alert('Failed to export session');
+    }
   };
 
   const formatDate = (isoString: string) => {
@@ -177,6 +201,104 @@ export function SessionListItem({
           >
             Rename
           </button>
+
+          {/* Export Button with Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowExportMenu(!showExportMenu);
+              }}
+              className="ui-text"
+              style={{
+                padding: '4px 12px',
+                fontSize: '12px',
+                color: 'var(--text-secondary)',
+                backgroundColor: 'transparent',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
+                e.currentTarget.style.borderColor = 'var(--accent-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.borderColor = 'var(--border-color)';
+              }}
+            >
+              Export ▾
+            </button>
+
+            {/* Export Dropdown Menu */}
+            {showExportMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: '4px',
+                  backgroundColor: 'var(--bg-primary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                  zIndex: 1000,
+                  minWidth: '140px'
+                }}
+              >
+                <button
+                  onClick={handleExportJSON}
+                  className="ui-text"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '12px',
+                    color: 'var(--text-primary)',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px solid var(--border-color)',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  📄 Export as JSON
+                </button>
+                <button
+                  onClick={handleExportZIP}
+                  className="ui-text"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '12px',
+                    color: 'var(--text-primary)',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s',
+                    borderRadius: '0 0 6px 6px'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  📦 Export as ZIP
+                </button>
+              </div>
+            )}
+          </div>
 
           {showDeleteConfirm ? (
             <>

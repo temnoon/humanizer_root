@@ -3,6 +3,7 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TextSizeProvider } from './contexts/TextSizeContext';
 import { SessionProvider, useSession } from './contexts/SessionContext';
+import { ProviderProvider } from './contexts/ProviderContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
 import { ArchivePanel } from './components/panels/ArchivePanel';
@@ -489,9 +490,11 @@ export default function App() {
   return (
     <ThemeProvider>
       <TextSizeProvider>
-        <AuthProvider>
-          <AppWithSession />
-        </AuthProvider>
+        <ProviderProvider>
+          <AuthProvider>
+            <AppWithSession />
+          </AuthProvider>
+        </ProviderProvider>
       </TextSizeProvider>
     </ThemeProvider>
   );

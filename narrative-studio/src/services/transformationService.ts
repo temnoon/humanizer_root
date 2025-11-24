@@ -6,15 +6,34 @@
 
 import type { TransformConfig, TransformResult } from '../types';
 
-// Environment detection
-// Use local backend (wrangler dev on :8787) when on localhost
-// Use cloud backend (Cloudflare Workers) when on production domain
-const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-const API_BASE = isLocalhost
-  ? 'http://localhost:8787'  // Local wrangler dev server
-  : 'https://npe-api.tem-527.workers.dev';  // Cloud production
+// Get current provider from localStorage
+function getCurrentProvider(): 'local' | 'cloudflare' {
+  const savedProvider = localStorage.getItem('narrative-studio-provider');
+  return (savedProvider === 'local' || savedProvider === 'cloudflare')
+    ? savedProvider
+    : 'local'; // Default to local
+}
 
-console.log(`[TransformationService] Using ${isLocalhost ? 'LOCAL' : 'CLOUD'} backend: ${API_BASE}`);
+// Get API base URL based on user's provider preference
+function getApiBase(): string {
+  const provider = getCurrentProvider();
+  const apiBase = provider === 'local'
+    ? 'http://localhost:8787'  // Local wrangler dev server
+    : 'https://npe-api.tem-527.workers.dev';  // Cloud production
+
+  console.log(`[TransformationService] Using ${provider.toUpperCase()} backend: ${apiBase}`);
+  return apiBase;
+}
+
+// Export provider info for UI feedback
+export function getProviderInfo() {
+  const provider = getCurrentProvider();
+  return {
+    provider,
+    label: provider === 'local' ? 'Local (Ollama)' : 'Cloud (Cloudflare Workers)',
+    emoji: provider === 'local' ? '🏠' : '☁️',
+  };
+}
 
 // Helper to get auth token
 function getAuthToken(): string | null {
@@ -67,7 +86,7 @@ export async function computerHumanizer(
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout (can be slow with LLM)
 
   try {
-    const response = await fetch(`${API_BASE}/transformations/computer-humanizer`, {
+    const response = await fetch(`${getApiBase()}/transformations/computer-humanizer`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ text, ...options }),
@@ -175,7 +194,7 @@ async function liteDetection(
   const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
   try {
-    const response = await fetch(`${API_BASE}/ai-detection/lite`, {
+    const response = await fetch(`${getApiBase()}/ai-detection/lite`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
@@ -289,7 +308,7 @@ async function gptzeroDetection(
   const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout
 
   try {
-    const response = await fetch(`${API_BASE}/ai-detection/detect`, {
+    const response = await fetch(`${getApiBase()}/ai-detection/detect`, {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({ text: plainText }),
@@ -390,7 +409,7 @@ export async function personaTransform(
   text: string,
   options: PersonaOptions
 ): Promise<TransformResult> {
-  const response = await fetch(`${API_BASE}/transformations/persona`, {
+  const response = await fetch(`${getApiBase()}/transformations/persona`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
@@ -434,7 +453,7 @@ export async function styleTransform(
   text: string,
   options: StyleOptions
 ): Promise<TransformResult> {
-  const response = await fetch(`${API_BASE}/transformations/style`, {
+  const response = await fetch(`${getApiBase()}/transformations/style`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
@@ -478,7 +497,7 @@ export async function namespaceTransform(
   text: string,
   options: NamespaceOptions
 ): Promise<TransformResult> {
-  const response = await fetch(`${API_BASE}/transformations/namespace`, {
+  const response = await fetch(`${getApiBase()}/transformations/namespace`, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify({
@@ -546,7 +565,7 @@ export async function runTransform(config: TransformConfig, text: string): Promi
       });
 
     case 'round-trip': {
-      const response = await fetch(`${API_BASE}/transformations/round-trip`, {
+      const response = await fetch(`${getApiBase()}/transformations/round-trip`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({

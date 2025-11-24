@@ -38,7 +38,8 @@ export function MainWorkspace({
     currentSession,
     updateViewMode,
     hasSession,
-    updateBufferText
+    updateBufferText,
+    loadSession
   } = useSession();
 
   // Local state (legacy for non-session workflow)
@@ -52,6 +53,15 @@ export function MainWorkspace({
   const singlePaneRef = useRef<HTMLDivElement>(null);
   const leftPaneRef = useRef<HTMLDivElement>(null);
   const rightPaneRef = useRef<HTMLDivElement>(null);
+
+  // Reload current session from disk
+  const handleReloadSession = async () => {
+    if (currentSession) {
+      await loadSession(currentSession.sessionId);
+      setToastMessage('Session reloaded from disk');
+      setTimeout(() => setToastMessage(null), 2000);
+    }
+  };
 
   // Get active buffer content (session-aware)
   const getActiveBufferContent = () => {
@@ -92,6 +102,13 @@ export function MainWorkspace({
     // Session-based: use buffers
     const originalBuffer = getOriginalBuffer();
     const activeBuffer = getActiveBufferContent();
+
+    console.log('[MainWorkspace] getDisplayContent:', {
+      viewMode: currentViewMode,
+      activeBufferId,
+      activeBufferName: activeBuffer?.displayName,
+      originalBufferName: originalBuffer?.displayName
+    });
 
     if (currentViewMode === VIEW_MODES.SINGLE_ORIGINAL) {
       return {
@@ -606,12 +623,45 @@ export function MainWorkspace({
         />
       )}
 
-      {/* View Mode Toggle - Only show when session has buffers */}
+      {/* View Mode Toggle and Session Actions - Only show when session has buffers */}
       {useSessionRendering && currentSession && (
-        <ViewModeToggle
-          viewMode={currentSession.viewMode}
-          onChangeViewMode={updateViewMode}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 24px' }}>
+          <ViewModeToggle
+            viewMode={currentSession.viewMode}
+            onChangeViewMode={updateViewMode}
+          />
+          <button
+            onClick={handleReloadSession}
+            className="ui-text"
+            title="Reload session from disk"
+            style={{
+              padding: '6px 12px',
+              fontSize: '12px',
+              fontWeight: 500,
+              color: 'var(--text-secondary)',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+              e.currentTarget.style.borderColor = 'var(--accent-primary)';
+              e.currentTarget.style.color = 'var(--text-primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
+              e.currentTarget.style.borderColor = 'var(--border-color)';
+              e.currentTarget.style.color = 'var(--text-secondary)';
+            }}
+          >
+            ↻ Reload
+          </button>
+        </div>
       )}
 
       {/* Title and metadata panel - centered with max-width */}

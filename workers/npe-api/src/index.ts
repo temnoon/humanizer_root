@@ -41,6 +41,7 @@ app.use('*', cors({
     if (origin === 'https://humanizer.com' ||
         origin === 'https://www.humanizer.com' ||
         origin === 'https://workbench.humanizer.com' ||
+        origin === 'https://studio.humanizer.com' ||
         origin.endsWith('.pages.dev')) {
       return origin;
     }

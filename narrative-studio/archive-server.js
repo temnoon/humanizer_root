@@ -4,21 +4,75 @@ import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
 import { JSDOM } from 'jsdom';
+import multer from 'multer';
+import { ConversationParser, IncrementalImporter } from './src/services/parser/index.ts';
 
 const app = express();
-app.use(cors());
+
+// CORS configuration - allow requests from production and development
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+
+    // Allow localhost for development
+    if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      return callback(null, true);
+    }
+
+    // Allow production domains
+    if (origin === 'https://studio.humanizer.com' ||
+        origin === 'https://humanizer.com' ||
+        origin === 'https://workbench.humanizer.com' ||
+        origin.endsWith('.trycloudflare.com') ||
+        origin.endsWith('.pages.dev')) {
+      return callback(null, true);
+    }
+
+    // Deny others
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json({ limit: '10mb' })); // Allow large conversation.json files
 
 const ARCHIVE_ROOT = '/Users/tem/openai-export-parser/output_v13_final';
 const SESSION_STORAGE_DIR = path.join(os.homedir(), '.humanizer', 'sessions');
+const ARCHIVE_UPLOADS_DIR = '/tmp/archive-uploads';
 
-// Ensure sessions directory exists
+// Configure multer for ZIP uploads
+const upload = multer({
+  dest: ARCHIVE_UPLOADS_DIR,
+  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype === 'application/zip' || file.originalname.endsWith('.zip')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only ZIP files are allowed'));
+    }
+  }
+});
+
+// In-memory job queue for archive imports
+const importJobs = new Map();
+
+// Helper: Generate unique job ID
+function generateJobId() {
+  return `import-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+// Ensure directories exist
 (async () => {
   try {
     await fs.mkdir(SESSION_STORAGE_DIR, { recursive: true });
+    await fs.mkdir(ARCHIVE_UPLOADS_DIR, { recursive: true });
     console.log(`📁 Session storage directory ready: ${SESSION_STORAGE_DIR}`);
+    console.log(`📁 Archive uploads directory ready: ${ARCHIVE_UPLOADS_DIR}`);
   } catch (error) {
-    console.error('Failed to create session storage directory:', error);
+    console.error('Failed to create directories:', error);
   }
 })();
 
@@ -1244,6 +1298,260 @@ app.post('/api/import/conversation', async (req, res) => {
 });
 
 // ============================================================
+// ARCHIVE IMPORT ENDPOINTS - ZIP Import with Smart Merge
+// ============================================================
+
+// POST /api/import/archive/upload - Upload ZIP file
+app.post('/api/import/archive/upload', upload.single('archive'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const jobId = generateJobId();
+    const zipPath = req.file.path;
+
+    importJobs.set(jobId, {
+      id: jobId,
+      status: 'uploaded',
+      progress: 0,
+      zipPath,
+      filename: req.file.originalname,
+      size: req.file.size,
+      startTime: Date.now(),
+    });
+
+    console.log(`📤 Upload complete: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB) → Job ${jobId}`);
+    res.json({ jobId, status: 'uploaded', filename: req.file.originalname });
+  } catch (error) {
+    console.error('Error uploading archive:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/import/archive/parse - Trigger parsing (async job)
+app.post('/api/import/archive/parse', async (req, res) => {
+  try {
+    const { jobId } = req.body;
+    const job = importJobs.get(jobId);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (job.status !== 'uploaded') {
+      return res.status(400).json({ error: `Cannot parse job in status: ${job.status}` });
+    }
+
+    job.status = 'parsing';
+    job.progress = 10;
+
+    console.log(`🔍 Starting parse for job ${jobId}...`);
+    res.json({ jobId, status: 'parsing' });
+
+    // Parse in background (don't block response)
+    setImmediate(async () => {
+      try {
+        job.progress = 20;
+
+        // Step 1: Parse archive
+        const parser = new ConversationParser();
+        const archive = await parser.parseArchive(job.zipPath);
+
+        job.archive = archive;
+        job.progress = 50;
+        console.log(`✅ Parsed ${archive.conversations.length} conversations from ${jobId}`);
+
+        // Step 2: Generate preview
+        job.status = 'previewing';
+        const importer = new IncrementalImporter();
+        const preview = await importer.generatePreview(
+          archive.conversations,
+          ARCHIVE_ROOT
+        );
+
+        job.preview = preview;
+        job.progress = 100;
+        job.status = 'ready';
+
+        console.log(`✅ Preview ready for job ${jobId}:`);
+        console.log(`   - New conversations: ${preview.new_conversations.length}`);
+        console.log(`   - Updated conversations: ${preview.updated_conversations.length}`);
+        console.log(`   - Conflicts: ${preview.conflicts.length}`);
+      } catch (err) {
+        job.status = 'failed';
+        job.error = err.message;
+        job.progress = 0;
+        console.error(`❌ Parse failed for job ${jobId}:`, err);
+      }
+    });
+  } catch (error) {
+    console.error('Error starting parse:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/import/archive/status/:jobId - Check parsing progress
+app.get('/api/import/archive/status/:jobId', (req, res) => {
+  try {
+    const job = importJobs.get(req.params.jobId);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Return job status without heavy data (exclude archive/preview for status checks)
+    const statusResponse = {
+      id: job.id,
+      status: job.status,
+      progress: job.progress,
+      filename: job.filename,
+      size: job.size,
+      startTime: job.startTime,
+      error: job.error,
+    };
+
+    res.json(statusResponse);
+  } catch (error) {
+    console.error('Error getting status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/import/archive/preview/:jobId - Preview import changes
+app.get('/api/import/archive/preview/:jobId', (req, res) => {
+  try {
+    const job = importJobs.get(req.params.jobId);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (job.status !== 'ready') {
+      return res.status(400).json({
+        error: `Preview not ready. Job status: ${job.status}`,
+        status: job.status,
+        progress: job.progress
+      });
+    }
+
+    if (!job.preview) {
+      return res.status(500).json({ error: 'Preview data missing' });
+    }
+
+    console.log(`📋 Returning preview for job ${req.params.jobId}`);
+    res.json({
+      jobId: job.id,
+      preview: job.preview,
+      filename: job.filename,
+      parsedAt: job.startTime,
+    });
+  } catch (error) {
+    console.error('Error getting preview:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/import/archive/apply/:jobId - Apply import with merge
+app.post('/api/import/archive/apply/:jobId', async (req, res) => {
+  try {
+    const job = importJobs.get(req.params.jobId);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    if (job.status !== 'ready') {
+      return res.status(400).json({ error: `Cannot apply job in status: ${job.status}` });
+    }
+
+    if (!job.archive) {
+      return res.status(500).json({ error: 'Archive data missing' });
+    }
+
+    job.status = 'applying';
+    job.progress = 0;
+
+    console.log(`🚀 Applying import for job ${req.params.jobId}...`);
+
+    // Apply in background
+    setImmediate(async () => {
+      try {
+        const importer = new IncrementalImporter();
+        const result = await importer.applyImport(
+          job.archive.conversations,
+          ARCHIVE_ROOT,
+          {
+            onProgress: (progress, message) => {
+              job.progress = progress;
+              job.statusMessage = message;
+              console.log(`   [${progress}%] ${message}`);
+            }
+          }
+        );
+
+        job.result = result;
+        job.status = 'completed';
+        job.progress = 100;
+
+        console.log(`✅ Import completed for job ${req.params.jobId}:`);
+        console.log(`   - Conversations created: ${result.conversations_created}`);
+        console.log(`   - Conversations updated: ${result.conversations_updated}`);
+        console.log(`   - Messages added: ${result.messages_added}`);
+        console.log(`   - Media files copied: ${result.media_files_copied}`);
+
+        // Clean up uploaded ZIP after 1 minute
+        setTimeout(async () => {
+          try {
+            await fs.unlink(job.zipPath);
+            console.log(`🗑️  Cleaned up ZIP for job ${req.params.jobId}`);
+          } catch (cleanupErr) {
+            console.warn(`Failed to clean up ZIP: ${cleanupErr.message}`);
+          }
+        }, 60000);
+      } catch (err) {
+        job.status = 'failed';
+        job.error = err.message;
+        job.progress = 0;
+        console.error(`❌ Apply failed for job ${req.params.jobId}:`, err);
+      }
+    });
+
+    res.json({ jobId: job.id, status: 'applying' });
+  } catch (error) {
+    console.error('Error applying import:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DELETE /api/import/archive/cancel/:jobId - Cancel import job
+app.delete('/api/import/archive/cancel/:jobId', async (req, res) => {
+  try {
+    const job = importJobs.get(req.params.jobId);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Job not found' });
+    }
+
+    // Clean up uploaded file
+    try {
+      await fs.unlink(job.zipPath);
+    } catch (err) {
+      console.warn(`Failed to delete ZIP for job ${req.params.jobId}: ${err.message}`);
+    }
+
+    // Remove from job queue
+    importJobs.delete(req.params.jobId);
+
+    console.log(`🗑️  Cancelled and removed job ${req.params.jobId}`);
+    res.json({ success: true, jobId: req.params.jobId });
+  } catch (error) {
+    console.error('Error cancelling job:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
 // SESSION ENDPOINTS - Session History & Buffer System
 // ============================================================
 
@@ -1269,22 +1577,28 @@ app.get('/sessions', async (req, res) => {
     const files = await fs.readdir(SESSION_STORAGE_DIR);
     const sessionFiles = files.filter(f => f.endsWith('.json'));
 
-    const sessions = await Promise.all(
+    const sessions = (await Promise.all(
       sessionFiles.map(async (file) => {
-        const content = await fs.readFile(
-          path.join(SESSION_STORAGE_DIR, file),
-          'utf-8'
-        );
-        return JSON.parse(content);
+        try {
+          const content = await fs.readFile(
+            path.join(SESSION_STORAGE_DIR, file),
+            'utf-8'
+          );
+          return JSON.parse(content);
+        } catch (parseError) {
+          // Log corrupted file but don't crash - skip it
+          console.warn(`⚠️  Skipping corrupted session file: ${file}`, parseError.message);
+          return null;
+        }
       })
-    );
+    )).filter(session => session !== null); // Remove corrupted sessions
 
     // Sort by updated timestamp (most recent first)
     sessions.sort((a, b) =>
       new Date(b.updated).getTime() - new Date(a.updated).getTime()
     );
 
-    console.log(`📋 Listed ${sessions.length} sessions`);
+    console.log(`📋 Listed ${sessions.length} sessions (${sessionFiles.length - sessions.length} corrupted/skipped)`);
     res.json(sessions);
   } catch (error) {
     console.error('Error listing sessions:', error);
@@ -1298,8 +1612,17 @@ app.get('/sessions/:id', async (req, res) => {
     const sessionPath = path.join(SESSION_STORAGE_DIR, `${req.params.id}.json`);
     const content = await fs.readFile(sessionPath, 'utf-8');
 
+    let session;
+    try {
+      session = JSON.parse(content);
+    } catch (parseError) {
+      console.error(`⚠️  Corrupted session file: ${req.params.id}.json`, parseError.message);
+      res.status(422).json({ error: 'Session file is corrupted', detail: 'Invalid JSON format' });
+      return;
+    }
+
     console.log(`✓ Retrieved session: ${req.params.id}`);
-    res.json(JSON.parse(content));
+    res.json(session);
   } catch (error) {
     if (error.code === 'ENOENT') {
       console.warn(`❌ Session not found: ${req.params.id}`);
@@ -1316,7 +1639,21 @@ app.put('/sessions/:id', async (req, res) => {
   try {
     const session = req.body;
     const sessionPath = path.join(SESSION_STORAGE_DIR, `${req.params.id}.json`);
+    const backupPath = `${sessionPath}.backup`;
 
+    // Backup existing file before overwriting (if it exists)
+    try {
+      const existing = await fs.readFile(sessionPath, 'utf-8');
+      await fs.writeFile(backupPath, existing);
+      console.log(`💾 Backed up session: ${req.params.id}`);
+    } catch (backupError) {
+      // File doesn't exist yet (first save) - skip backup
+      if (backupError.code !== 'ENOENT') {
+        console.warn(`⚠️  Backup failed (continuing anyway): ${backupError.message}`);
+      }
+    }
+
+    // Write updated session
     await fs.writeFile(sessionPath, JSON.stringify(session, null, 2));
 
     console.log(`✓ Updated session: ${req.params.id} (${session.name})`);
