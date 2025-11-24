@@ -46,7 +46,10 @@ const ARCHIVE_UPLOADS_DIR = '/tmp/archive-uploads';
 // Configure multer for ZIP uploads
 const upload = multer({
   dest: ARCHIVE_UPLOADS_DIR,
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB max
+  limits: {
+    fileSize: 10 * 1024 * 1024 * 1024, // 10GB max (for large archives)
+    fieldSize: 10 * 1024 * 1024 * 1024 // 10GB field size
+  },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/zip' || file.originalname.endsWith('.zip')) {
       cb(null, true);
@@ -1302,31 +1305,46 @@ app.post('/api/import/conversation', async (req, res) => {
 // ============================================================
 
 // POST /api/import/archive/upload - Upload ZIP file
-app.post('/api/import/archive/upload', upload.single('archive'), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
+app.post('/api/import/archive/upload', (req, res) => {
+  upload.single('archive')(req, res, async (err) => {
+    // Handle multer errors
+    if (err) {
+      console.error('Upload error:', err);
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(413).json({
+          error: 'File too large',
+          message: 'Maximum file size is 10GB',
+          maxSize: 10 * 1024 * 1024 * 1024
+        });
+      }
+      return res.status(500).json({ error: err.message });
     }
 
-    const jobId = generateJobId();
-    const zipPath = req.file.path;
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file uploaded' });
+      }
 
-    importJobs.set(jobId, {
-      id: jobId,
-      status: 'uploaded',
-      progress: 0,
-      zipPath,
-      filename: req.file.originalname,
-      size: req.file.size,
-      startTime: Date.now(),
-    });
+      const jobId = generateJobId();
+      const zipPath = req.file.path;
 
-    console.log(`📤 Upload complete: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB) → Job ${jobId}`);
-    res.json({ jobId, status: 'uploaded', filename: req.file.originalname });
-  } catch (error) {
-    console.error('Error uploading archive:', error);
-    res.status(500).json({ error: error.message });
-  }
+      importJobs.set(jobId, {
+        id: jobId,
+        status: 'uploaded',
+        progress: 0,
+        zipPath,
+        filename: req.file.originalname,
+        size: req.file.size,
+        startTime: Date.now(),
+      });
+
+      console.log(`📤 Upload complete: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB) → Job ${jobId}`);
+      res.json({ jobId, status: 'uploaded', filename: req.file.originalname });
+    } catch (error) {
+      console.error('Error uploading archive:', error);
+      res.status(500).json({ error: error.message });
+    }
+  });
 });
 
 // POST /api/import/archive/parse - Trigger parsing (async job)
