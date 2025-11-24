@@ -1411,6 +1411,11 @@ app.get('/api/import/archive/status/:jobId', (req, res) => {
       error: job.error,
     };
 
+    // Include result if import is completed
+    if (job.status === 'completed' && job.result) {
+      statusResponse.result = job.result;
+    }
+
     res.json(statusResponse);
   } catch (error) {
     console.error('Error getting status:', error);
@@ -1481,13 +1486,7 @@ app.post('/api/import/archive/apply/:jobId', async (req, res) => {
         const result = await importer.applyImport(
           job.archive.conversations,
           ARCHIVE_ROOT,
-          {
-            onProgress: (progress, message) => {
-              job.progress = progress;
-              job.statusMessage = message;
-              console.log(`   [${progress}%] ${message}`);
-            }
-          }
+          job.archive.extractedPath // Path to extracted archive (for media files)
         );
 
         job.result = result;

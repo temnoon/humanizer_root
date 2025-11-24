@@ -69,6 +69,7 @@ export class ConversationParser {
         conversations,
         mediaFiles,
         format,
+        extractedPath: tempDir, // Store for media file access
         stats,
       };
 
