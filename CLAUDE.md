@@ -7,11 +7,11 @@
 
 ---
 
-## ✅ COMPLETED: Archive Import Parser (NEW!)
+## 🚧 IN PROGRESS: Archive Import Parser (NEW!)
 
 **Branch**: `feature/archive-import-parser`
-**Status**: Phase 4 & 5 Complete (80% Done) - Backend + Frontend ✅
-**Started**: Nov 23, 2025 | **Completed**: 10h / 14-17h estimated
+**Status**: Phase 6 Started (85% Done) - Testing in Progress ⏳
+**Started**: Nov 23, 2025 | **Time Spent**: 11h / 14-17h estimated
 
 **Goal**: Import OpenAI & Claude conversation exports with smart merge (append new messages to existing conversations)
 
@@ -28,11 +28,26 @@
 - ✅ 4th tab in Archive panel: "📥 Imports"
 - ✅ Archive server integration with multer for ZIP uploads
 
-**Remaining (Phases 6-7)**:
-- ⏳ Testing with real OpenAI/Claude exports (manual testing)
-- 🔜 Polish & bug fixes
+**Phase 6 Testing** (Started) ⏳:
+- ✅ Backend API tested with curl - ALL ENDPOINTS WORKING
+- ✅ Bug Fix 1: ClaudeParser require() → fs import (commit 5845259)
+- ✅ Bug Fix 2: Preview property names mismatch (commit 5845259)
+- ✅ Bug Fix 3: Result property names mismatch (commit 5845259)
+- ✅ Test upload: 3 conversations, 46 messages, 0 media files
+- ✅ UI verification: Import Archive button visible, Imports tab working
+- ⏳ Manual UI testing (in progress)
+- ⏳ End-to-end flow testing (next)
 
-**Key Handoff**: `/tmp/ARCHIVE_PARSER_HANDOFF_NOV23.md` **← Implementation Reference**
+**Remaining (Phase 6-7)**:
+- ⏳ Complete manual UI testing (upload via browser)
+- ⏳ Test incremental import (append messages)
+- ⏳ Test media file matching
+- ⏳ Test error scenarios
+- 🔜 Polish & final bug fixes
+
+**Key Handoffs**:
+- `/tmp/ARCHIVE_PARSER_FINAL_HANDOFF_NOV23.md` **← START HERE** (Phase 1-5 complete)
+- `/tmp/ARCHIVE_PARSER_TESTING_NOV23.md` **← TESTING LOG** (Phase 6 in progress)
 
 **Dependencies Added**: `adm-zip`, `date-fns`, `uuid`, `multer`, `tsx` (0 vulnerabilities)
 

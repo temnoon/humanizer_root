@@ -131,29 +131,25 @@ export function ImportArchiveButton() {
   return (
     <>
       <label
-        className="tag"
+        className={`btn ${uploading ? 'btn-secondary' : 'btn-primary'}`}
         style={{
-          backgroundColor: uploading ? 'var(--bg-tertiary)' : 'var(--accent-primary)',
-          color: uploading ? 'var(--text-tertiary)' : 'var(--text-inverse)',
-          border: '1px solid var(--border-color)',
           cursor: uploading ? 'not-allowed' : 'pointer',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          fontWeight: 600,
           opacity: uploading ? 0.6 : 1,
         }}
+        title="Import ZIP archive of OpenAI or Claude conversations"
       >
         {uploading ? (
           <>
-            <span>⏳ {job?.status === 'parsing' ? 'Parsing' : job?.status === 'applying' ? 'Importing' : 'Uploading'}...</span>
+            <span>⏳</span>
+            <span>{job?.status === 'parsing' ? 'Parsing' : job?.status === 'applying' ? 'Importing' : 'Uploading'}...</span>
             {job?.progress && job.progress > 0 && (
               <span style={{ fontSize: '0.85em' }}>({job.progress}%)</span>
             )}
           </>
         ) : (
           <>
-            <span>📥 Import Archive</span>
+            <span>📦</span>
+            <span>Import Archive</span>
           </>
         )}
         <input
