@@ -10,27 +10,60 @@ import { format } from 'date-fns';
 
 /**
  * Recursively extract ZIP file, handling nested ZIPs
+ * Uses native unzip for large files (>100MB) for better memory efficiency
  */
 export async function extractZip(zipPath: string, outputDir: string): Promise<void> {
-  const zip = new AdmZip(zipPath);
-  const zipEntries = zip.getEntries();
+  const stats = fs.statSync(zipPath);
+  const fileSizeMB = stats.size / (1024 * 1024);
 
-  // Extract all files
-  zip.extractAllTo(outputDir, true);
+  // For large files (>100MB), use native unzip command for better memory efficiency
+  if (fileSizeMB > 100) {
+    console.log(`Large archive detected (${fileSizeMB.toFixed(0)}MB), using native unzip...`);
+
+    const { exec } = await import('child_process');
+    const { promisify } = await import('util');
+    const execAsync = promisify(exec);
+
+    try {
+      // Use native unzip command (more memory efficient)
+      await execAsync(`unzip -q -o "${zipPath}" -d "${outputDir}"`);
+    } catch (err: any) {
+      // If native unzip fails, fall back to adm-zip
+      console.warn('Native unzip failed, falling back to adm-zip:', err.message);
+      const zip = new AdmZip(zipPath);
+      zip.extractAllTo(outputDir, true);
+    }
+  } else {
+    // For smaller files, use adm-zip (faster for small files)
+    const zip = new AdmZip(zipPath);
+    zip.extractAllTo(outputDir, true);
+  }
 
   // Check for nested ZIPs and extract them recursively
-  for (const entry of zipEntries) {
-    if (entry.entryName.toLowerCase().endsWith('.zip') && !entry.isDirectory) {
-      const nestedZipPath = path.join(outputDir, entry.entryName);
-      const nestedOutputDir = path.join(outputDir, path.dirname(entry.entryName));
+  const findNestedZips = (dir: string): string[] => {
+    const results: string[] = [];
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
 
-      try {
-        await extractZip(nestedZipPath, nestedOutputDir);
-        // Optionally remove the nested ZIP after extraction
-        fs.unlinkSync(nestedZipPath);
-      } catch (err) {
-        console.warn(`Failed to extract nested ZIP: ${entry.entryName}`, err);
+    for (const entry of entries) {
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        results.push(...findNestedZips(fullPath));
+      } else if (entry.name.toLowerCase().endsWith('.zip')) {
+        results.push(fullPath);
       }
+    }
+    return results;
+  };
+
+  const nestedZips = findNestedZips(outputDir);
+  for (const nestedZipPath of nestedZips) {
+    const nestedOutputDir = path.dirname(nestedZipPath);
+    try {
+      await extractZip(nestedZipPath, nestedOutputDir);
+      // Remove the nested ZIP after extraction
+      fs.unlinkSync(nestedZipPath);
+    } catch (err) {
+      console.warn(`Failed to extract nested ZIP: ${nestedZipPath}`, err);
     }
   }
 }
