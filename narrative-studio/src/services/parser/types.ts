@@ -119,6 +119,7 @@ export interface ParsedArchive {
   conversations: Conversation[];
   mediaFiles: MediaFile[];
   format: ExportFormat;
+  extractedPath: string; // Path to extracted archive directory (for media files)
   stats: {
     totalConversations: number;
     totalMessages: number;
