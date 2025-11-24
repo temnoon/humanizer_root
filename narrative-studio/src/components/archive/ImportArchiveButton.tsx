@@ -17,6 +17,7 @@ export function ImportArchiveButton() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<ImportJob | null>(null);
   const [showPreview, setShowPreview] = useState(false);
+  const [createNewArchive, setCreateNewArchive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pollJobStatus = async (id: string) => {
@@ -57,8 +58,11 @@ export function ImportArchiveButton() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!file.name.endsWith('.zip')) {
-      alert('Please select a ZIP file');
+    const isZip = file.name.endsWith('.zip');
+    const isJson = file.name.endsWith('.json');
+
+    if (!isZip && !isJson) {
+      alert('Please select a ZIP or JSON file');
       return;
     }
 
@@ -155,17 +159,41 @@ export function ImportArchiveButton() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".zip"
+          accept=".zip,.json"
           onChange={handleFileSelect}
           style={{ display: 'none' }}
           disabled={uploading}
         />
       </label>
 
+      {/* Import Mode Selector */}
+      <label
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          fontSize: '0.9em',
+          color: 'var(--text-secondary)',
+          cursor: 'pointer',
+          marginTop: '8px',
+        }}
+        title="Create a new archive folder and switch to it, instead of merging into current archive"
+      >
+        <input
+          type="checkbox"
+          checked={createNewArchive}
+          onChange={(e) => setCreateNewArchive(e.target.checked)}
+          disabled={uploading}
+          style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}
+        />
+        <span>Create new archive folder</span>
+      </label>
+
       {showPreview && job?.preview && (
         <ImportPreviewModal
           preview={job.preview}
-          filename={job.filename || 'archive.zip'}
+          filename={job.filename || 'archive'}
+          createNewArchive={createNewArchive}
           onApply={handleApplyImport}
           onCancel={handleCancelImport}
         />
