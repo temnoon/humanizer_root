@@ -17,6 +17,7 @@ interface ImportPreview {
 interface ImportPreviewModalProps {
   preview: ImportPreview;
   filename: string;
+  createNewArchive?: boolean;
   onApply: () => void;
   onCancel: () => void;
 }
@@ -24,6 +25,7 @@ interface ImportPreviewModalProps {
 export function ImportPreviewModal({
   preview,
   filename,
+  createNewArchive = false,
   onApply,
   onCancel,
 }: ImportPreviewModalProps) {
@@ -100,6 +102,17 @@ export function ImportPreviewModal({
             Summary
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {/* Import Mode */}
+            <div
+              style={{
+                color: createNewArchive ? 'var(--accent-purple)' : 'var(--accent-primary)',
+                fontWeight: 600,
+                paddingBottom: '0.5rem',
+                borderBottom: '1px solid var(--border-color)',
+              }}
+            >
+              {createNewArchive ? '📁 Creating new archive folder' : '🔄 Merging into current archive'}
+            </div>
             <div style={{ color: 'var(--text-secondary)' }}>
               <strong>{totalConversations}</strong> conversation(s) will be affected
             </div>
