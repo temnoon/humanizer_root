@@ -1108,7 +1108,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           </div>
 
           {/* View Mode Tabs */}
-          <div className="flex gap-2 mb-4">
+          <div className="tab-bar">
             <button
               onClick={() => {
                 setViewMode('conversations');
@@ -1118,51 +1118,35 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                   setFocusedIndex(idx !== -1 ? idx : 0);
                 }
               }}
-              className="tag"
-              style={{
-                backgroundColor: viewMode === 'conversations' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                color: viewMode === 'conversations' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                border: `1px solid ${viewMode === 'conversations' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                fontWeight: 600,
-              }}
+              className={`tab ${viewMode === 'conversations' ? 'tab-active' : ''}`}
+              title="Browse conversation archive"
             >
-              📄 Archive
+              <span>📄</span>
+              <span className="tab-text">Archive</span>
             </button>
             <button
               onClick={() => setViewMode('sessions')}
-              className="tag"
-              style={{
-                backgroundColor: viewMode === 'sessions' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                color: viewMode === 'sessions' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                border: `1px solid ${viewMode === 'sessions' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                fontWeight: 600,
-              }}
+              className={`tab ${viewMode === 'sessions' ? 'tab-active' : ''}`}
+              title="Manage transformation sessions"
             >
-              📋 Sessions
+              <span>📋</span>
+              <span className="tab-text">Sessions</span>
             </button>
             <button
               onClick={() => setViewMode('gallery')}
-              className="tag"
-              style={{
-                backgroundColor: viewMode === 'gallery' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                color: viewMode === 'gallery' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                border: `1px solid ${viewMode === 'gallery' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                fontWeight: 600,
-              }}
+              className={`tab ${viewMode === 'gallery' ? 'tab-active' : ''}`}
+              title="View image gallery"
             >
-              🖼️ Gallery
+              <span>🖼️</span>
+              <span className="tab-text">Gallery</span>
             </button>
             <button
               onClick={() => setViewMode('imports')}
-              className="tag"
-              style={{
-                backgroundColor: viewMode === 'imports' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                color: viewMode === 'imports' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                border: `1px solid ${viewMode === 'imports' ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-                fontWeight: 600,
-              }}
+              className={`tab ${viewMode === 'imports' ? 'tab-active' : ''}`}
+              title="Import conversation archives"
             >
-              📥 Imports
+              <span>📥</span>
+              <span className="tab-text">Imports</span>
             </button>
           </div>
 
@@ -1231,16 +1215,9 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
           {/* Import Buttons */}
           <div className="mb-4 flex gap-2">
-              <label
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-md cursor-pointer transition-colors"
-                style={{
-                  backgroundColor: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-primary)',
-                }}
-              >
+              <label className="btn btn-secondary" title="Import single conversation from JSON file">
                 <span>📥</span>
-                <span className="ui-text font-medium">Import JSON</span>
+                <span>Import JSON</span>
                 <input
                   type="file"
                   accept=".json"
