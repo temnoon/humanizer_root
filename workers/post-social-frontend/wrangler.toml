@@ -1,0 +1,17 @@
+name = "post-social-frontend"
+main = "src/index.ts"
+compatibility_date = "2025-11-24"
+compatibility_flags = ["nodejs_compat"]
+
+# Custom domain - post-social.humanizer.com
+routes = [
+  { pattern = "post-social.humanizer.com", custom_domain = true }
+]
+
+[vars]
+ENVIRONMENT = "production"
+API_BASE_URL = "https://npe-api.tem-527.workers.dev"
+POST_SOCIAL_API_URL = "https://post-social-api.tem-527.workers.dev"
+
+[env.dev]
+vars = { ENVIRONMENT = "development", API_BASE_URL = "http://localhost:8787", POST_SOCIAL_API_URL = "http://localhost:8788" }
