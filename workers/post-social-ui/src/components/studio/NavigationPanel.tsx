@@ -69,6 +69,7 @@ export const NavigationPanel: Component<NavigationPanelProps> = (props) => {
   const [archiveSubTab, setArchiveSubTab] = createSignal<ArchiveSubTab>('gutenberg');
   const [searchQuery, setSearchQuery] = createSignal('');
   const [expandedNodes, setExpandedNodes] = createSignal<Set<string>>(new Set());
+  const [managementExpanded, setManagementExpanded] = createSignal(false);
   
   // Fetch subscriptions
   const [subscriptions, { refetch: refetchSubs }] = createResource(
@@ -266,6 +267,7 @@ export const NavigationPanel: Component<NavigationPanelProps> = (props) => {
               <button
                 class={`archive-subtab ${archiveSubTab() === 'gutenberg' ? 'active' : ''}`}
                 onClick={() => setArchiveSubTab('gutenberg')}
+                title="70,000+ Public Domain Books"
               >
                 📚 Gutenberg
               </button>
@@ -298,32 +300,37 @@ export const NavigationPanel: Component<NavigationPanelProps> = (props) => {
         </Show>
       </div>
       
-      {/* Management Section - Synthesis & Admin */}
-      <div class="nav-management-section">
-        <div class="nav-section-header">Management</div>
-
-        {/* Synthesis Dashboard Button */}
+      {/* Management Section - Collapsible Drawer */}
+      <div class={`nav-management-section ${managementExpanded() ? 'expanded' : 'collapsed'}`}>
         <button
-          class={`nav-management-btn ${props.currentMode.type === 'synthesis' ? 'active' : ''}`}
-          onClick={() => props.onModeChange({ type: 'synthesis' })}
+          class="nav-management-toggle"
+          onClick={() => setManagementExpanded(!managementExpanded())}
         >
-          <span class="btn-icon">🔄</span>
-          <span class="btn-label">Synthesis</span>
+          <span class="toggle-icon">{managementExpanded() ? '▼' : '▲'}</span>
+          <span class="toggle-label">Management</span>
         </button>
 
-        {/* Admin Panel Button */}
-        <button
-          class={`nav-management-btn ${props.currentMode.type === 'admin' ? 'active' : ''}`}
-          onClick={() => props.onModeChange({ type: 'admin' })}
-        >
-          <span class="btn-icon">⚙️</span>
-          <span class="btn-label">Manage Nodes</span>
-        </button>
-      </div>
-      
-      {/* Footer */}
-      <div class="nav-footer">
-        <span class="user-email">{authStore.user()?.email}</span>
+        <Show when={managementExpanded()}>
+          <div class="nav-management-buttons">
+            {/* Synthesis Dashboard Button */}
+            <button
+              class={`nav-management-btn ${props.currentMode.type === 'synthesis' ? 'active' : ''}`}
+              onClick={() => props.onModeChange({ type: 'synthesis' })}
+            >
+              <span class="btn-icon">🔄</span>
+              <span class="btn-label">Synthesis</span>
+            </button>
+
+            {/* Admin Panel Button */}
+            <button
+              class={`nav-management-btn ${props.currentMode.type === 'admin' ? 'active' : ''}`}
+              onClick={() => props.onModeChange({ type: 'admin' })}
+            >
+              <span class="btn-icon">⚙️</span>
+              <span class="btn-label">Manage Nodes</span>
+            </button>
+          </div>
+        </Show>
       </div>
     </div>
   );

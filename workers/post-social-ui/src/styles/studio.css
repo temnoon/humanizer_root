@@ -5641,9 +5641,10 @@
 
 .book-preview-layout {
   flex: 1;
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  overflow: hidden;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 0;
 }
 
 /* Table of Contents */
@@ -5652,6 +5653,9 @@
   flex-direction: column;
   border-right: 1px solid var(--color-border, var(--border-color, #e5e7eb));
   overflow: hidden;
+  min-width: 200px;
+  max-width: 280px;
+  flex-shrink: 0;
 }
 
 .toc-title {
@@ -5745,11 +5749,13 @@
   filter: brightness(1.1);
 }
 
-/* Preview Pane */
+/* Preview Pane - extends .book-preview-pane defined earlier */
 .book-preview-pane {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 250px;
+  flex: 1;
 }
 
 .preview-empty {
@@ -6518,20 +6524,40 @@
   cursor: not-allowed;
 }
 
-/* Navigation Panel Management Section */
+/* Navigation Panel Management Section - Collapsible Drawer */
 .nav-management-section {
-  padding: 12px;
   border-top: 1px solid var(--border-color);
   margin-top: auto;
+  flex-shrink: 0;
 }
 
-.nav-section-header {
-  font-size: 0.7rem;
+.nav-management-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-tertiary);
-  margin-bottom: 8px;
-  padding-left: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.nav-management-toggle:hover {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
+.nav-management-toggle .toggle-icon {
+  font-size: 0.6rem;
+}
+
+.nav-management-buttons {
+  padding: 4px 12px 12px;
 }
 
 .nav-management-btn {
@@ -6539,16 +6565,16 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 8px 12px;
   background: transparent;
   border: none;
   border-radius: 6px;
   color: var(--text-secondary);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: all 0.2s;
   text-align: left;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .nav-management-btn:hover {
@@ -6562,7 +6588,7 @@
 }
 
 .nav-management-btn .btn-icon {
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .nav-management-btn .btn-label {

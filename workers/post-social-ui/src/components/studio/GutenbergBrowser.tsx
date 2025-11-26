@@ -153,10 +153,6 @@ export const GutenbergBrowser: Component<GutenbergBrowserProps> = (props) => {
         </Show>
       </div>
 
-      {/* Footer with stats */}
-      <div class="gutenberg-footer">
-        <span class="gutenberg-stats">📚 70,000+ Public Domain Books</span>
-      </div>
     </div>
       }
     >
