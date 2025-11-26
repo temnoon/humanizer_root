@@ -88,6 +88,14 @@ export function MainWorkspace({
     ? currentSession.viewMode
     : DEFAULT_VIEW_MODE; // default for legacy
 
+  // Helper: Get text from buffer (handles both text and resultText properties)
+  const getBufferText = (buffer: any): string => {
+    if (!buffer) return '';
+    // Original buffers use 'text', transformation/analysis buffers use 'resultText'
+    // After editing, both types may have 'text' set (overriding resultText)
+    return buffer.text || buffer.resultText || '';
+  };
+
   // Get display content based on view mode
   const getDisplayContent = () => {
     if (!useSessionRendering) {
@@ -107,26 +115,28 @@ export function MainWorkspace({
       viewMode: currentViewMode,
       activeBufferId,
       activeBufferName: activeBuffer?.displayName,
-      originalBufferName: originalBuffer?.displayName
+      originalBufferName: originalBuffer?.displayName,
+      activeBufferText: activeBuffer?.text,
+      activeBufferResultText: activeBuffer?.resultText
     });
 
     if (currentViewMode === VIEW_MODES.SINGLE_ORIGINAL) {
       return {
-        original: originalBuffer?.text || '',
+        original: getBufferText(originalBuffer),
         transformed: '',
         hasTransformed: false
       };
     } else if (currentViewMode === VIEW_MODES.SINGLE_TRANSFORMED) {
       return {
         original: '',
-        transformed: activeBuffer?.text || '',
+        transformed: getBufferText(activeBuffer),
         hasTransformed: true
       };
     } else {
       // split mode
       return {
-        original: originalBuffer?.text || '',
-        transformed: activeBuffer?.text || originalBuffer?.text || '',
+        original: getBufferText(originalBuffer),
+        transformed: getBufferText(activeBuffer) || getBufferText(originalBuffer),
         hasTransformed: activeBuffer?.bufferId !== BUFFER_IDS.ORIGINAL
       };
     }
@@ -263,6 +273,13 @@ export function MainWorkspace({
       });
     }
   };
+
+  // Media props for MarkdownRenderer - extract from narrative metadata
+  const mediaProps = narrative?.metadata ? {
+    mediaManifest: narrative.metadata.mediaManifest as import('../../types').MediaManifest | undefined,
+    mediaBaseUrl: narrative.metadata.mediaBaseUrl ?
+      `http://localhost:3002${narrative.metadata.mediaBaseUrl}` : undefined,
+  } : {};
 
   // Single pane mode
   if (mode === 'single' || !transformResult) {
@@ -521,7 +538,7 @@ export function MainWorkspace({
                   </div>
                 ) : (
                   // No highlights available, show original
-                  <MarkdownRenderer content={narrative.content} />
+                  <MarkdownRenderer content={narrative.content} {...mediaProps} />
                 )}
               </div>
             </>
@@ -580,7 +597,7 @@ export function MainWorkspace({
               {/* Content - Normal view without AI detection */}
               <div onMouseUp={handleTextSelection}>
                 {originalViewMode === 'rendered' ? (
-                  <MarkdownRenderer content={narrative.content} />
+                  <MarkdownRenderer content={narrative.content} {...mediaProps} />
                 ) : (
                   <MarkdownEditor
                     content={editedContent}
@@ -748,7 +765,7 @@ export function MainWorkspace({
                     </button>
                   </div>
                 </div>
-                <MarkdownRenderer content={displayContent.original} />
+                <MarkdownRenderer content={displayContent.original} {...mediaProps} />
               </div>
             </div>
           </div>
@@ -794,7 +811,7 @@ export function MainWorkspace({
                     </button>
                   </div>
                 </div>
-                <MarkdownRenderer content={displayContent.transformed} />
+                <MarkdownRenderer content={displayContent.transformed} {...mediaProps} />
               </div>
             </div>
           </div>
@@ -874,7 +891,7 @@ export function MainWorkspace({
                 {/* Content */}
                 <div className="w-full" onMouseUp={handleTextSelection}>
                   {originalViewMode === 'rendered' ? (
-                    <MarkdownRenderer content={displayContent.original} />
+                    <MarkdownRenderer content={displayContent.original} {...mediaProps} />
                   ) : (
                     <MarkdownEditor
                       content={editedContent || displayContent.original}
@@ -1176,7 +1193,7 @@ export function MainWorkspace({
                     color: 'var(--text-primary)',
                   }}
                 >
-                  <MarkdownRenderer content={transformResult.transformed} />
+                  <MarkdownRenderer content={transformResult.transformed} {...mediaProps} />
                 </div>
               </div>
 
@@ -1319,7 +1336,7 @@ export function MainWorkspace({
                   })()}
                 </div>
               ) : (
-                <MarkdownRenderer content={displayContent.transformed} />
+                <MarkdownRenderer content={displayContent.transformed} {...mediaProps} />
               )
             ) : (
               <MarkdownEditor
@@ -1487,7 +1504,7 @@ export function MainWorkspace({
               <div style={{ padding: 'var(--space-xl)' }}>
                 <div className="max-w-3xl">
                   {originalViewMode === 'rendered' ? (
-                    <MarkdownRenderer content={narrative.content} />
+                    <MarkdownRenderer content={narrative.content} {...mediaProps} />
                   ) : (
                     <MarkdownEditor
                       content={editedContent || narrative.content}
@@ -1504,7 +1521,7 @@ export function MainWorkspace({
               <div style={{ padding: 'var(--space-xl)', paddingBottom: '120px', backgroundColor: 'var(--bg-secondary)' }}>
                 <div className="max-w-3xl">
                   {transformedViewMode === 'rendered' ? (
-                    <MarkdownRenderer content={transformResult?.transformed || ''} />
+                    <MarkdownRenderer content={transformResult?.transformed || ''} {...mediaProps} />
                   ) : (
                     <MarkdownEditor
                       content={transformResult?.transformed || ''}
@@ -1561,7 +1578,7 @@ export function MainWorkspace({
             <div style={{ padding: 'var(--space-md)' }}>
               <div className="max-w-3xl">
                 {originalViewMode === 'rendered' ? (
-                  <MarkdownRenderer content={narrative.content} />
+                  <MarkdownRenderer content={narrative.content} {...mediaProps} />
                 ) : (
                   <MarkdownEditor
                     content={editedContent || narrative.content}
@@ -1578,7 +1595,7 @@ export function MainWorkspace({
             <div style={{ padding: 'var(--space-md)', backgroundColor: 'var(--bg-secondary)' }}>
               <div className="max-w-3xl">
                 {transformedViewMode === 'rendered' ? (
-                  <MarkdownRenderer content={transformResult?.transformed || ''} />
+                  <MarkdownRenderer content={transformResult?.transformed || ''} {...mediaProps} />
                 ) : (
                   <MarkdownEditor
                     content={transformResult?.transformed || ''}

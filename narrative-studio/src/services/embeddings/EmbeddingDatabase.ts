@@ -1,0 +1,1160 @@
+/**
+ * EmbeddingDatabase - SQLite storage for text, references, and vectors
+ *
+ * Unified storage using SQLite + sqlite-vec for:
+ * - Text content (conversations, messages, chunks)
+ * - Vector embeddings (384-dim all-MiniLM-L6-v2)
+ * - User curation and discovered structures
+ *
+ * One database per archive for portability.
+ */
+
+import Database from 'better-sqlite3';
+import * as sqliteVec from 'sqlite-vec';
+import { v4 as uuidv4 } from 'uuid';
+import type {
+  Conversation,
+  Message,
+  Chunk,
+  UserMark,
+  Cluster,
+  ClusterMember,
+  Anchor,
+  MarkType,
+  TargetType,
+  AnchorType,
+  SearchResult,
+} from './types.js';
+
+const SCHEMA_VERSION = 2;  // Bumped for vec0 tables
+const EMBEDDING_DIM = 384;  // all-MiniLM-L6-v2
+
+export class EmbeddingDatabase {
+  private db: Database.Database;
+  private archivePath: string;
+  private vecLoaded: boolean = false;
+
+  constructor(archivePath: string) {
+    this.archivePath = archivePath;
+    const dbPath = `${archivePath}/.embeddings.db`;
+    this.db = new Database(dbPath);
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('foreign_keys = ON');
+
+    // Load sqlite-vec extension for vector operations
+    try {
+      sqliteVec.load(this.db);
+      this.vecLoaded = true;
+    } catch (err) {
+      console.warn('sqlite-vec extension not loaded:', err);
+      // Continue without vector support
+    }
+
+    this.initSchema();
+  }
+
+  private initSchema(): void {
+    // Check schema version
+    const versionResult = this.db.prepare(`
+      SELECT name FROM sqlite_master WHERE type='table' AND name='schema_version'
+    `).get();
+
+    if (!versionResult) {
+      this.createTables();
+    } else {
+      const currentVersion = this.db.prepare('SELECT version FROM schema_version').get() as { version: number } | undefined;
+      if (!currentVersion || currentVersion.version < SCHEMA_VERSION) {
+        this.migrateSchema(currentVersion?.version || 0);
+      }
+    }
+  }
+
+  private createTables(): void {
+    this.db.exec(`
+      -- Schema version tracking
+      CREATE TABLE IF NOT EXISTS schema_version (
+        version INTEGER PRIMARY KEY
+      );
+      INSERT INTO schema_version (version) VALUES (${SCHEMA_VERSION});
+
+      -- Core entities
+      CREATE TABLE IF NOT EXISTS conversations (
+        id TEXT PRIMARY KEY,
+        folder TEXT NOT NULL,
+        title TEXT,
+        created_at REAL,
+        updated_at REAL,
+        message_count INTEGER DEFAULT 0,
+        total_tokens INTEGER DEFAULT 0,
+        is_interesting INTEGER DEFAULT 0,
+        summary TEXT,
+        summary_embedding_id TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS messages (
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        parent_id TEXT,
+        role TEXT NOT NULL,
+        content TEXT,
+        created_at REAL,
+        token_count INTEGER DEFAULT 0,
+        embedding_id TEXT,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS chunks (
+        id TEXT PRIMARY KEY,
+        message_id TEXT NOT NULL,
+        chunk_index INTEGER,
+        content TEXT,
+        token_count INTEGER DEFAULT 0,
+        embedding_id TEXT,
+        granularity TEXT NOT NULL,
+        FOREIGN KEY (message_id) REFERENCES messages(id)
+      );
+
+      -- User curation
+      CREATE TABLE IF NOT EXISTS user_marks (
+        id TEXT PRIMARY KEY,
+        target_type TEXT NOT NULL,
+        target_id TEXT NOT NULL,
+        mark_type TEXT NOT NULL,
+        note TEXT,
+        created_at REAL
+      );
+
+      -- Discovered structures
+      CREATE TABLE IF NOT EXISTS clusters (
+        id TEXT PRIMARY KEY,
+        name TEXT,
+        description TEXT,
+        centroid_embedding_id TEXT,
+        member_count INTEGER DEFAULT 0,
+        coherence_score REAL,
+        created_at REAL
+      );
+
+      CREATE TABLE IF NOT EXISTS cluster_members (
+        cluster_id TEXT,
+        embedding_id TEXT,
+        distance_to_centroid REAL,
+        PRIMARY KEY (cluster_id, embedding_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS anchors (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        anchor_type TEXT NOT NULL,
+        embedding BLOB,
+        source_embedding_ids TEXT,
+        created_at REAL
+      );
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_chunks_message ON chunks(message_id);
+      CREATE INDEX IF NOT EXISTS idx_chunks_granularity ON chunks(granularity);
+      CREATE INDEX IF NOT EXISTS idx_user_marks_target ON user_marks(target_type, target_id);
+      CREATE INDEX IF NOT EXISTS idx_conversations_interesting ON conversations(is_interesting);
+    `);
+
+    // Create vec0 virtual tables for vector search (if extension loaded)
+    if (this.vecLoaded) {
+      this.createVectorTables();
+    }
+  }
+
+  private createVectorTables(): void {
+    // Summary embeddings (one per conversation)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_summaries USING vec0(
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
+
+    // Message embeddings (one per message)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_messages USING vec0(
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT,
+        message_id TEXT,
+        role TEXT,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
+
+    // Paragraph embeddings (for interesting conversations)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_paragraphs USING vec0(
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT,
+        message_id TEXT,
+        chunk_index INTEGER,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
+
+    // Sentence embeddings (for user-selected messages)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_sentences USING vec0(
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT,
+        message_id TEXT,
+        chunk_index INTEGER,
+        sentence_index INTEGER,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
+
+    // Anchor embeddings (computed centroids/anti-centroids)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_anchors USING vec0(
+        id TEXT PRIMARY KEY,
+        anchor_type TEXT,
+        name TEXT,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
+
+    // Cluster centroids
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_clusters USING vec0(
+        id TEXT PRIMARY KEY,
+        cluster_id TEXT,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
+  }
+
+  private migrateSchema(fromVersion: number): void {
+    // Migration from version 1 to 2: add vector tables
+    if (fromVersion < 2 && this.vecLoaded) {
+      this.createVectorTables();
+    }
+    this.db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
+  }
+
+  // ===========================================================================
+  // Conversation Operations
+  // ===========================================================================
+
+  insertConversation(conv: Omit<Conversation, 'isInteresting' | 'summary' | 'summaryEmbeddingId'>): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO conversations
+      (id, folder, title, created_at, updated_at, message_count, total_tokens)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      conv.id,
+      conv.folder,
+      conv.title,
+      conv.createdAt,
+      conv.updatedAt,
+      conv.messageCount,
+      conv.totalTokens
+    );
+  }
+
+  getConversation(id: string): Conversation | null {
+    const row = this.db.prepare('SELECT * FROM conversations WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToConversation(row);
+  }
+
+  getAllConversations(): Conversation[] {
+    const rows = this.db.prepare('SELECT * FROM conversations ORDER BY created_at DESC').all() as Record<string, unknown>[];
+    return rows.map(this.rowToConversation);
+  }
+
+  getInterestingConversations(): Conversation[] {
+    const rows = this.db.prepare('SELECT * FROM conversations WHERE is_interesting = 1 ORDER BY created_at DESC').all() as Record<string, unknown>[];
+    return rows.map(this.rowToConversation);
+  }
+
+  markConversationInteresting(id: string, interesting: boolean): void {
+    this.db.prepare('UPDATE conversations SET is_interesting = ? WHERE id = ?').run(interesting ? 1 : 0, id);
+  }
+
+  updateConversationSummary(id: string, summary: string, embeddingId: string): void {
+    this.db.prepare('UPDATE conversations SET summary = ?, summary_embedding_id = ? WHERE id = ?').run(summary, embeddingId, id);
+  }
+
+  private rowToConversation(row: Record<string, unknown>): Conversation {
+    return {
+      id: row.id as string,
+      folder: row.folder as string,
+      title: row.title as string,
+      createdAt: row.created_at as number,
+      updatedAt: row.updated_at as number,
+      messageCount: row.message_count as number,
+      totalTokens: row.total_tokens as number,
+      isInteresting: (row.is_interesting as number) === 1,
+      summary: row.summary as string | null,
+      summaryEmbeddingId: row.summary_embedding_id as string | null,
+    };
+  }
+
+  // ===========================================================================
+  // Message Operations
+  // ===========================================================================
+
+  insertMessage(msg: Omit<Message, 'embeddingId'>): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO messages
+      (id, conversation_id, parent_id, role, content, created_at, token_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      msg.id,
+      msg.conversationId,
+      msg.parentId,
+      msg.role,
+      msg.content,
+      msg.createdAt,
+      msg.tokenCount
+    );
+  }
+
+  insertMessagesBatch(messages: Omit<Message, 'embeddingId'>[]): void {
+    const insert = this.db.prepare(`
+      INSERT OR REPLACE INTO messages
+      (id, conversation_id, parent_id, role, content, created_at, token_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertMany = this.db.transaction((msgs: Omit<Message, 'embeddingId'>[]) => {
+      for (const msg of msgs) {
+        insert.run(msg.id, msg.conversationId, msg.parentId, msg.role, msg.content, msg.createdAt, msg.tokenCount);
+      }
+    });
+
+    insertMany(messages);
+  }
+
+  getMessage(id: string): Message | null {
+    const row = this.db.prepare('SELECT * FROM messages WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToMessage(row);
+  }
+
+  getMessagesForConversation(conversationId: string): Message[] {
+    const rows = this.db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at').all(conversationId) as Record<string, unknown>[];
+    return rows.map(this.rowToMessage);
+  }
+
+  getAllMessages(): Message[] {
+    const rows = this.db.prepare('SELECT * FROM messages ORDER BY created_at').all() as Record<string, unknown>[];
+    return rows.map(this.rowToMessage);
+  }
+
+  getMessagesWithoutEmbeddings(): Message[] {
+    const rows = this.db.prepare('SELECT * FROM messages WHERE embedding_id IS NULL').all() as Record<string, unknown>[];
+    return rows.map(this.rowToMessage);
+  }
+
+  updateMessageEmbeddingId(id: string, embeddingId: string): void {
+    this.db.prepare('UPDATE messages SET embedding_id = ? WHERE id = ?').run(embeddingId, id);
+  }
+
+  updateMessageEmbeddingIdsBatch(updates: { id: string; embeddingId: string }[]): void {
+    const update = this.db.prepare('UPDATE messages SET embedding_id = ? WHERE id = ?');
+    const updateMany = this.db.transaction((items: { id: string; embeddingId: string }[]) => {
+      for (const item of items) {
+        update.run(item.embeddingId, item.id);
+      }
+    });
+    updateMany(updates);
+  }
+
+  private rowToMessage(row: Record<string, unknown>): Message {
+    return {
+      id: row.id as string,
+      conversationId: row.conversation_id as string,
+      parentId: row.parent_id as string | null,
+      role: row.role as 'user' | 'assistant' | 'system' | 'tool',
+      content: row.content as string,
+      createdAt: row.created_at as number,
+      tokenCount: row.token_count as number,
+      embeddingId: row.embedding_id as string | null,
+    };
+  }
+
+  // ===========================================================================
+  // Chunk Operations
+  // ===========================================================================
+
+  insertChunk(chunk: Omit<Chunk, 'embeddingId'>): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO chunks
+      (id, message_id, chunk_index, content, token_count, granularity)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      chunk.id,
+      chunk.messageId,
+      chunk.chunkIndex,
+      chunk.content,
+      chunk.tokenCount,
+      chunk.granularity
+    );
+  }
+
+  insertChunksBatch(chunks: Omit<Chunk, 'embeddingId'>[]): void {
+    const insert = this.db.prepare(`
+      INSERT OR REPLACE INTO chunks
+      (id, message_id, chunk_index, content, token_count, granularity)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `);
+
+    const insertMany = this.db.transaction((items: Omit<Chunk, 'embeddingId'>[]) => {
+      for (const chunk of items) {
+        insert.run(chunk.id, chunk.messageId, chunk.chunkIndex, chunk.content, chunk.tokenCount, chunk.granularity);
+      }
+    });
+
+    insertMany(chunks);
+  }
+
+  getChunksForMessage(messageId: string): Chunk[] {
+    const rows = this.db.prepare('SELECT * FROM chunks WHERE message_id = ? ORDER BY chunk_index').all(messageId) as Record<string, unknown>[];
+    return rows.map(this.rowToChunk);
+  }
+
+  getChunksByGranularity(granularity: 'paragraph' | 'sentence'): Chunk[] {
+    const rows = this.db.prepare('SELECT * FROM chunks WHERE granularity = ?').all(granularity) as Record<string, unknown>[];
+    return rows.map(this.rowToChunk);
+  }
+
+  updateChunkEmbeddingId(id: string, embeddingId: string): void {
+    this.db.prepare('UPDATE chunks SET embedding_id = ? WHERE id = ?').run(embeddingId, id);
+  }
+
+  private rowToChunk(row: Record<string, unknown>): Chunk {
+    return {
+      id: row.id as string,
+      messageId: row.message_id as string,
+      chunkIndex: row.chunk_index as number,
+      content: row.content as string,
+      tokenCount: row.token_count as number,
+      embeddingId: row.embedding_id as string | null,
+      granularity: row.granularity as 'paragraph' | 'sentence',
+    };
+  }
+
+  // ===========================================================================
+  // User Mark Operations
+  // ===========================================================================
+
+  addUserMark(targetType: TargetType, targetId: string, markType: MarkType, note?: string): string {
+    const id = uuidv4();
+    this.db.prepare(`
+      INSERT INTO user_marks (id, target_type, target_id, mark_type, note, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, targetType, targetId, markType, note || null, Date.now() / 1000);
+    return id;
+  }
+
+  removeUserMark(id: string): void {
+    this.db.prepare('DELETE FROM user_marks WHERE id = ?').run(id);
+  }
+
+  getUserMarksForTarget(targetType: TargetType, targetId: string): UserMark[] {
+    const rows = this.db.prepare('SELECT * FROM user_marks WHERE target_type = ? AND target_id = ?').all(targetType, targetId) as Record<string, unknown>[];
+    return rows.map(this.rowToUserMark);
+  }
+
+  getUserMarksByType(markType: MarkType): UserMark[] {
+    const rows = this.db.prepare('SELECT * FROM user_marks WHERE mark_type = ?').all(markType) as Record<string, unknown>[];
+    return rows.map(this.rowToUserMark);
+  }
+
+  private rowToUserMark(row: Record<string, unknown>): UserMark {
+    return {
+      id: row.id as string,
+      targetType: row.target_type as TargetType,
+      targetId: row.target_id as string,
+      markType: row.mark_type as MarkType,
+      note: row.note as string | null,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ===========================================================================
+  // Cluster Operations
+  // ===========================================================================
+
+  insertCluster(cluster: Omit<Cluster, 'id' | 'createdAt'>): string {
+    const id = uuidv4();
+    this.db.prepare(`
+      INSERT INTO clusters (id, name, description, centroid_embedding_id, member_count, coherence_score, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, cluster.name, cluster.description, cluster.centroidEmbeddingId, cluster.memberCount, cluster.coherenceScore, Date.now() / 1000);
+    return id;
+  }
+
+  getCluster(id: string): Cluster | null {
+    const row = this.db.prepare('SELECT * FROM clusters WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToCluster(row);
+  }
+
+  getAllClusters(): Cluster[] {
+    const rows = this.db.prepare('SELECT * FROM clusters ORDER BY coherence_score DESC').all() as Record<string, unknown>[];
+    return rows.map(this.rowToCluster);
+  }
+
+  updateClusterName(id: string, name: string, description?: string): void {
+    this.db.prepare('UPDATE clusters SET name = ?, description = ? WHERE id = ?').run(name, description || null, id);
+  }
+
+  addClusterMember(clusterId: string, embeddingId: string, distanceToCentroid: number): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO cluster_members (cluster_id, embedding_id, distance_to_centroid)
+      VALUES (?, ?, ?)
+    `).run(clusterId, embeddingId, distanceToCentroid);
+  }
+
+  getClusterMembers(clusterId: string): ClusterMember[] {
+    const rows = this.db.prepare('SELECT * FROM cluster_members WHERE cluster_id = ? ORDER BY distance_to_centroid').all(clusterId) as Record<string, unknown>[];
+    return rows.map(row => ({
+      clusterId: row.cluster_id as string,
+      embeddingId: row.embedding_id as string,
+      distanceToCentroid: row.distance_to_centroid as number,
+    }));
+  }
+
+  clearClusters(): void {
+    this.db.exec('DELETE FROM cluster_members; DELETE FROM clusters;');
+  }
+
+  private rowToCluster(row: Record<string, unknown>): Cluster {
+    return {
+      id: row.id as string,
+      name: row.name as string | null,
+      description: row.description as string | null,
+      centroidEmbeddingId: row.centroid_embedding_id as string | null,
+      memberCount: row.member_count as number,
+      coherenceScore: row.coherence_score as number,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ===========================================================================
+  // Anchor Operations
+  // ===========================================================================
+
+  insertAnchor(anchor: Omit<Anchor, 'id' | 'createdAt'>): string {
+    const id = uuidv4();
+    const embeddingBlob = Buffer.from(new Float32Array(anchor.embedding).buffer);
+    const sourceIdsJson = JSON.stringify(anchor.sourceEmbeddingIds);
+
+    this.db.prepare(`
+      INSERT INTO anchors (id, name, description, anchor_type, embedding, source_embedding_ids, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(id, anchor.name, anchor.description, anchor.anchorType, embeddingBlob, sourceIdsJson, Date.now() / 1000);
+    return id;
+  }
+
+  getAnchor(id: string): Anchor | null {
+    const row = this.db.prepare('SELECT * FROM anchors WHERE id = ?').get(id) as Record<string, unknown> | undefined;
+    if (!row) return null;
+    return this.rowToAnchor(row);
+  }
+
+  getAllAnchors(): Anchor[] {
+    const rows = this.db.prepare('SELECT * FROM anchors ORDER BY created_at DESC').all() as Record<string, unknown>[];
+    return rows.map(this.rowToAnchor);
+  }
+
+  getAnchorsByType(anchorType: AnchorType): Anchor[] {
+    const rows = this.db.prepare('SELECT * FROM anchors WHERE anchor_type = ?').all(anchorType) as Record<string, unknown>[];
+    return rows.map(this.rowToAnchor);
+  }
+
+  deleteAnchor(id: string): void {
+    this.db.prepare('DELETE FROM anchors WHERE id = ?').run(id);
+  }
+
+  private rowToAnchor(row: Record<string, unknown>): Anchor {
+    const embeddingBlob = row.embedding as Buffer;
+    const embedding = Array.from(new Float32Array(embeddingBlob.buffer, embeddingBlob.byteOffset, embeddingBlob.byteLength / 4));
+    const sourceIds = JSON.parse(row.source_embedding_ids as string) as string[];
+
+    return {
+      id: row.id as string,
+      name: row.name as string,
+      description: row.description as string | null,
+      anchorType: row.anchor_type as AnchorType,
+      embedding,
+      sourceEmbeddingIds: sourceIds,
+      createdAt: row.created_at as number,
+    };
+  }
+
+  // ===========================================================================
+  // Vector Operations (sqlite-vec)
+  // ===========================================================================
+
+  /**
+   * Convert a number array to the JSON format expected by vec0
+   */
+  private embeddingToJson(embedding: number[]): string {
+    return JSON.stringify(embedding);
+  }
+
+  /**
+   * Convert binary buffer from sqlite-vec to number array
+   * sqlite-vec stores vectors as Float32Array binary blobs
+   */
+  private embeddingFromBinary(data: Buffer | string): number[] {
+    if (typeof data === 'string') {
+      // If it's still JSON (shouldn't happen but handle gracefully)
+      return JSON.parse(data);
+    }
+    // Convert binary buffer to Float32Array
+    const floats = new Float32Array(data.buffer, data.byteOffset, data.length / 4);
+    return Array.from(floats);
+  }
+
+  /**
+   * Insert a summary embedding
+   */
+  insertSummaryEmbedding(id: string, conversationId: string, embedding: number[]): void {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+    this.db.prepare(`
+      INSERT INTO vec_summaries (id, conversation_id, embedding)
+      VALUES (?, ?, ?)
+    `).run(id, conversationId, this.embeddingToJson(embedding));
+  }
+
+  /**
+   * Insert a message embedding
+   */
+  insertMessageEmbedding(
+    id: string,
+    conversationId: string,
+    messageId: string,
+    role: string,
+    embedding: number[]
+  ): void {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+    this.db.prepare(`
+      INSERT INTO vec_messages (id, conversation_id, message_id, role, embedding)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, conversationId, messageId, role, this.embeddingToJson(embedding));
+  }
+
+  /**
+   * Insert message embeddings in batch (more efficient)
+   */
+  insertMessageEmbeddingsBatch(
+    items: Array<{
+      id: string;
+      conversationId: string;
+      messageId: string;
+      role: string;
+      embedding: number[];
+    }>
+  ): void {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+
+    const insert = this.db.prepare(`
+      INSERT INTO vec_messages (id, conversation_id, message_id, role, embedding)
+      VALUES (?, ?, ?, ?, ?)
+    `);
+
+    const insertMany = this.db.transaction((items: Array<{
+      id: string;
+      conversationId: string;
+      messageId: string;
+      role: string;
+      embedding: number[];
+    }>) => {
+      for (const item of items) {
+        insert.run(
+          item.id,
+          item.conversationId,
+          item.messageId,
+          item.role,
+          this.embeddingToJson(item.embedding)
+        );
+      }
+    });
+
+    insertMany(items);
+  }
+
+  /**
+   * Insert a paragraph embedding
+   */
+  insertParagraphEmbedding(
+    id: string,
+    conversationId: string,
+    messageId: string,
+    chunkIndex: number,
+    embedding: number[]
+  ): void {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+    this.db.prepare(`
+      INSERT INTO vec_paragraphs (id, conversation_id, message_id, chunk_index, embedding)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, conversationId, messageId, chunkIndex, this.embeddingToJson(embedding));
+  }
+
+  /**
+   * Insert a sentence embedding
+   */
+  insertSentenceEmbedding(
+    id: string,
+    conversationId: string,
+    messageId: string,
+    chunkIndex: number,
+    sentenceIndex: number,
+    embedding: number[]
+  ): void {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+    this.db.prepare(`
+      INSERT INTO vec_sentences (id, conversation_id, message_id, chunk_index, sentence_index, embedding)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, conversationId, messageId, chunkIndex, sentenceIndex, this.embeddingToJson(embedding));
+  }
+
+  /**
+   * Insert an anchor embedding
+   */
+  insertAnchorEmbedding(id: string, anchorType: AnchorType, name: string, embedding: number[]): void {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+    this.db.prepare(`
+      INSERT INTO vec_anchors (id, anchor_type, name, embedding)
+      VALUES (?, ?, ?, ?)
+    `).run(id, anchorType, name, this.embeddingToJson(embedding));
+  }
+
+  /**
+   * Insert a cluster centroid embedding
+   */
+  insertClusterEmbedding(id: string, clusterId: string, embedding: number[]): void {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+    this.db.prepare(`
+      INSERT INTO vec_clusters (id, cluster_id, embedding)
+      VALUES (?, ?, ?)
+    `).run(id, clusterId, this.embeddingToJson(embedding));
+  }
+
+  /**
+   * Search for similar messages by embedding
+   */
+  searchMessages(queryEmbedding: number[], limit: number = 20): SearchResult[] {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+
+    const results = this.db.prepare(`
+      SELECT
+        vec_messages.id,
+        vec_messages.conversation_id,
+        vec_messages.message_id,
+        vec_messages.role,
+        vec_messages.distance,
+        messages.content,
+        conversations.title as conversation_title
+      FROM vec_messages
+      JOIN messages ON messages.id = vec_messages.message_id
+      JOIN conversations ON conversations.id = vec_messages.conversation_id
+      WHERE embedding MATCH ? AND k = ?
+      ORDER BY distance
+    `).all(this.embeddingToJson(queryEmbedding), limit) as Array<Record<string, unknown>>;
+
+    return results.map(row => ({
+      id: row.id as string,
+      content: row.content as string,
+      similarity: 1 - (row.distance as number),  // Convert distance to similarity
+      metadata: {
+        conversationId: row.conversation_id,
+        messageId: row.message_id,
+        role: row.role,
+      },
+      conversationId: row.conversation_id as string,
+      conversationTitle: row.conversation_title as string,
+      messageRole: row.role as string,
+    }));
+  }
+
+  /**
+   * Search for similar summaries by embedding
+   */
+  searchSummaries(queryEmbedding: number[], limit: number = 20): SearchResult[] {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+
+    const results = this.db.prepare(`
+      SELECT
+        vec_summaries.id,
+        vec_summaries.conversation_id,
+        vec_summaries.distance,
+        conversations.title,
+        conversations.summary as content
+      FROM vec_summaries
+      JOIN conversations ON conversations.id = vec_summaries.conversation_id
+      WHERE embedding MATCH ? AND k = ?
+      ORDER BY distance
+    `).all(this.embeddingToJson(queryEmbedding), limit) as Array<Record<string, unknown>>;
+
+    return results.map(row => ({
+      id: row.id as string,
+      content: row.content as string || row.title as string,
+      similarity: 1 - (row.distance as number),
+      metadata: { title: row.title },
+      conversationId: row.conversation_id as string,
+      conversationTitle: row.title as string,
+    }));
+  }
+
+  /**
+   * Search for similar paragraphs
+   */
+  searchParagraphs(queryEmbedding: number[], limit: number = 20): SearchResult[] {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+
+    const results = this.db.prepare(`
+      SELECT
+        vec_paragraphs.id,
+        vec_paragraphs.conversation_id,
+        vec_paragraphs.message_id,
+        vec_paragraphs.chunk_index,
+        vec_paragraphs.distance,
+        chunks.content,
+        conversations.title as conversation_title
+      FROM vec_paragraphs
+      JOIN chunks ON chunks.id = vec_paragraphs.id
+      JOIN conversations ON conversations.id = vec_paragraphs.conversation_id
+      WHERE embedding MATCH ? AND k = ?
+      ORDER BY distance
+    `).all(this.embeddingToJson(queryEmbedding), limit) as Array<Record<string, unknown>>;
+
+    return results.map(row => ({
+      id: row.id as string,
+      content: row.content as string,
+      similarity: 1 - (row.distance as number),
+      metadata: {
+        conversationId: row.conversation_id,
+        messageId: row.message_id,
+        chunkIndex: row.chunk_index,
+      },
+      conversationId: row.conversation_id as string,
+      conversationTitle: row.conversation_title as string,
+    }));
+  }
+
+  /**
+   * Find messages similar to a given message embedding ID
+   */
+  findSimilarToMessage(embeddingId: string, limit: number = 20, excludeSameConversation: boolean = false): SearchResult[] {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+
+    // Get the embedding for the source message
+    const source = this.db.prepare(`
+      SELECT embedding, conversation_id FROM vec_messages WHERE id = ?
+    `).get(embeddingId) as { embedding: string; conversation_id: string } | undefined;
+
+    if (!source) return [];
+
+    let query = `
+      SELECT
+        vec_messages.id,
+        vec_messages.conversation_id,
+        vec_messages.message_id,
+        vec_messages.role,
+        vec_messages.distance,
+        messages.content,
+        conversations.title as conversation_title
+      FROM vec_messages
+      JOIN messages ON messages.id = vec_messages.message_id
+      JOIN conversations ON conversations.id = vec_messages.conversation_id
+      WHERE embedding MATCH ? AND k = ?
+        AND vec_messages.id != ?
+    `;
+
+    if (excludeSameConversation) {
+      query += ` AND vec_messages.conversation_id != ?`;
+    }
+
+    query += ` ORDER BY distance`;
+
+    const params = excludeSameConversation
+      ? [source.embedding, limit + 1, embeddingId, source.conversation_id]  // +1 to account for filtering
+      : [source.embedding, limit + 1, embeddingId];
+
+    const results = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+
+    return results.map(row => ({
+      id: row.id as string,
+      content: row.content as string,
+      similarity: 1 - (row.distance as number),
+      metadata: {
+        conversationId: row.conversation_id,
+        messageId: row.message_id,
+        role: row.role,
+      },
+      conversationId: row.conversation_id as string,
+      conversationTitle: row.conversation_title as string,
+      messageRole: row.role as string,
+    })).slice(0, limit);  // Limit after filtering
+  }
+
+  /**
+   * Get an embedding vector by ID from any vec table
+   */
+  getEmbedding(table: 'messages' | 'summaries' | 'paragraphs' | 'sentences' | 'anchors' | 'clusters', id: string): number[] | null {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+
+    const tableName = `vec_${table}`;
+    const row = this.db.prepare(`SELECT embedding FROM ${tableName} WHERE id = ?`).get(id) as { embedding: Buffer | string } | undefined;
+    if (!row) return null;
+
+    return this.embeddingFromBinary(row.embedding);
+  }
+
+  /**
+   * Get multiple embeddings by IDs
+   */
+  getEmbeddings(table: 'messages' | 'summaries' | 'paragraphs' | 'sentences', ids: string[]): Map<string, number[]> {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+
+    const tableName = `vec_${table}`;
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = this.db.prepare(`SELECT id, embedding FROM ${tableName} WHERE id IN (${placeholders})`).all(...ids) as Array<{ id: string; embedding: Buffer | string }>;
+
+    const result = new Map<string, number[]>();
+    for (const row of rows) {
+      result.set(row.id, this.embeddingFromBinary(row.embedding));
+    }
+    return result;
+  }
+
+  /**
+   * Get messages by embedding IDs with optional filters
+   * Used for cluster member retrieval with filtering
+   */
+  getMessagesByEmbeddingIds(
+    embeddingIds: string[],
+    options: {
+      roles?: ('user' | 'assistant' | 'system' | 'tool')[];
+      excludeImagePrompts?: boolean;
+      excludeShortMessages?: number; // exclude messages shorter than N chars
+      limit?: number;
+      offset?: number;
+      groupByConversation?: boolean;
+    } = {}
+  ): {
+    messages: Array<{
+      embeddingId: string;
+      messageId: string;
+      conversationId: string;
+      conversationTitle: string;
+      role: string;
+      content: string;
+      createdAt: number;
+    }>;
+    total: number;
+    byConversation?: Map<string, Array<{
+      embeddingId: string;
+      messageId: string;
+      role: string;
+      content: string;
+      createdAt: number;
+    }>>;
+  } {
+    if (embeddingIds.length === 0) {
+      return { messages: [], total: 0 };
+    }
+
+    // Build query with filters
+    const placeholders = embeddingIds.map(() => '?').join(',');
+    let whereClause = `vec_messages.id IN (${placeholders})`;
+    const params: (string | number)[] = [...embeddingIds];
+
+    // Role filter
+    if (options.roles && options.roles.length > 0) {
+      const rolePlaceholders = options.roles.map(() => '?').join(',');
+      whereClause += ` AND vec_messages.role IN (${rolePlaceholders})`;
+      params.push(...options.roles);
+    }
+
+    // First get total count
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM vec_messages
+      JOIN messages ON messages.id = vec_messages.message_id
+      WHERE ${whereClause}
+    `;
+    const countResult = this.db.prepare(countQuery).get(...params) as { total: number };
+    let total = countResult.total;
+
+    // Now get the actual data
+    let query = `
+      SELECT
+        vec_messages.id as embedding_id,
+        vec_messages.message_id,
+        vec_messages.conversation_id,
+        vec_messages.role,
+        messages.content,
+        messages.created_at,
+        conversations.title as conversation_title
+      FROM vec_messages
+      JOIN messages ON messages.id = vec_messages.message_id
+      JOIN conversations ON conversations.id = vec_messages.conversation_id
+      WHERE ${whereClause}
+      ORDER BY messages.created_at DESC
+    `;
+
+    if (options.limit) {
+      query += ` LIMIT ?`;
+      params.push(options.limit);
+    }
+    if (options.offset) {
+      query += ` OFFSET ?`;
+      params.push(options.offset);
+    }
+
+    const rows = this.db.prepare(query).all(...params) as Array<Record<string, unknown>>;
+
+    // Apply content-based filters in JS (more flexible)
+    let messages = rows.map(row => ({
+      embeddingId: row.embedding_id as string,
+      messageId: row.message_id as string,
+      conversationId: row.conversation_id as string,
+      conversationTitle: row.conversation_title as string,
+      role: row.role as string,
+      content: row.content as string,
+      createdAt: row.created_at as number,
+    }));
+
+    // Filter out image generation prompts (DALL-E style prompts)
+    if (options.excludeImagePrompts) {
+      const imagePromptPatterns = [
+        /^(create|generate|draw|make|design|paint|illustrate)\s+(an?\s+)?(image|picture|photo|illustration|art|artwork|drawing)/i,
+        /^(show me|can you (create|draw|make))/i,
+        /\bDALL[-·]?E\b/i,
+        /^(a |an )?[\w\s,]+\b(in the style of|digital art|oil painting|watercolor|photograph|3d render)/i,
+      ];
+
+      const beforeFilter = messages.length;
+      messages = messages.filter(m => {
+        const content = m.content.trim();
+        return !imagePromptPatterns.some(pattern => pattern.test(content));
+      });
+      total -= (beforeFilter - messages.length);
+    }
+
+    // Filter short messages
+    if (options.excludeShortMessages && options.excludeShortMessages > 0) {
+      const beforeFilter = messages.length;
+      messages = messages.filter(m => m.content.length >= options.excludeShortMessages!);
+      total -= (beforeFilter - messages.length);
+    }
+
+    // Group by conversation if requested
+    if (options.groupByConversation) {
+      const byConversation = new Map<string, Array<{
+        embeddingId: string;
+        messageId: string;
+        role: string;
+        content: string;
+        createdAt: number;
+      }>>();
+
+      for (const msg of messages) {
+        const key = msg.conversationId;
+        if (!byConversation.has(key)) {
+          byConversation.set(key, []);
+        }
+        byConversation.get(key)!.push({
+          embeddingId: msg.embeddingId,
+          messageId: msg.messageId,
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.createdAt,
+        });
+      }
+
+      return { messages, total, byConversation };
+    }
+
+    return { messages, total };
+  }
+
+  /**
+   * Get vector statistics
+   */
+  getVectorStats(): {
+    summaryCount: number;
+    messageCount: number;
+    paragraphCount: number;
+    sentenceCount: number;
+    anchorCount: number;
+    clusterCount: number;
+  } {
+    if (!this.vecLoaded) {
+      return { summaryCount: 0, messageCount: 0, paragraphCount: 0, sentenceCount: 0, anchorCount: 0, clusterCount: 0 };
+    }
+
+    const summaryCount = this.db.prepare('SELECT COUNT(*) as count FROM vec_summaries').get() as { count: number };
+    const messageCount = this.db.prepare('SELECT COUNT(*) as count FROM vec_messages').get() as { count: number };
+    const paragraphCount = this.db.prepare('SELECT COUNT(*) as count FROM vec_paragraphs').get() as { count: number };
+    const sentenceCount = this.db.prepare('SELECT COUNT(*) as count FROM vec_sentences').get() as { count: number };
+    const anchorCount = this.db.prepare('SELECT COUNT(*) as count FROM vec_anchors').get() as { count: number };
+    const clusterCount = this.db.prepare('SELECT COUNT(*) as count FROM vec_clusters').get() as { count: number };
+
+    return {
+      summaryCount: summaryCount.count,
+      messageCount: messageCount.count,
+      paragraphCount: paragraphCount.count,
+      sentenceCount: sentenceCount.count,
+      anchorCount: anchorCount.count,
+      clusterCount: clusterCount.count,
+    };
+  }
+
+  /**
+   * Check if vector operations are available
+   */
+  hasVectorSupport(): boolean {
+    return this.vecLoaded;
+  }
+
+  // ===========================================================================
+  // Statistics
+  // ===========================================================================
+
+  getStats(): {
+    conversationCount: number;
+    messageCount: number;
+    chunkCount: number;
+    interestingCount: number;
+    clusterCount: number;
+    anchorCount: number;
+  } {
+    const convCount = this.db.prepare('SELECT COUNT(*) as count FROM conversations').get() as { count: number };
+    const msgCount = this.db.prepare('SELECT COUNT(*) as count FROM messages').get() as { count: number };
+    const chunkCount = this.db.prepare('SELECT COUNT(*) as count FROM chunks').get() as { count: number };
+    const interestingCount = this.db.prepare('SELECT COUNT(*) as count FROM conversations WHERE is_interesting = 1').get() as { count: number };
+    const clusterCount = this.db.prepare('SELECT COUNT(*) as count FROM clusters').get() as { count: number };
+    const anchorCount = this.db.prepare('SELECT COUNT(*) as count FROM anchors').get() as { count: number };
+
+    return {
+      conversationCount: convCount.count,
+      messageCount: msgCount.count,
+      chunkCount: chunkCount.count,
+      interestingCount: interestingCount.count,
+      clusterCount: clusterCount.count,
+      anchorCount: anchorCount.count,
+    };
+  }
+
+  // ===========================================================================
+  // Cleanup
+  // ===========================================================================
+
+  close(): void {
+    this.db.close();
+  }
+}

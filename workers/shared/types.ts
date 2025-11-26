@@ -308,6 +308,21 @@ export interface PersonalizerTransformResponse {
   model_used: string;
 }
 
+// OAuth Account types
+export type OAuthProvider = 'google' | 'github' | 'discord' | 'facebook' | 'apple';
+
+export interface OAuthAccount {
+  id: string;
+  userId: string;
+  provider: OAuthProvider;
+  providerUserId: string;
+  providerEmail: string | null;
+  providerUsername: string | null;
+  providerAvatarUrl: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
 // Cloudflare Workers bindings
 export interface Env {
   DB: any; // D1Database - only needed in Workers context
@@ -319,4 +334,16 @@ export interface Env {
   ENVIRONMENT: string;
   NTFY_TOPIC?: string; // ntfy.sh topic for signup notifications
   GPTZERO_API_KEY?: string; // Optional GPTZero API key for advanced AI detection
+  
+  // OAuth Provider Credentials (optional - only needed providers)
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  DISCORD_CLIENT_ID?: string;
+  DISCORD_CLIENT_SECRET?: string;
+  FACEBOOK_CLIENT_ID?: string;
+  FACEBOOK_CLIENT_SECRET?: string;
+  APPLE_CLIENT_ID?: string;
+  APPLE_CLIENT_SECRET?: string;
 }

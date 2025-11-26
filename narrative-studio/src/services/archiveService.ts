@@ -191,6 +191,9 @@ export const archiveService = {
         ...data,
         messages: messagesWithTags,
         tags: conversationTags,
+        // Preserve media manifest from backend
+        mediaManifest: data.mediaManifest,
+        mediaBaseUrl: data.mediaBaseUrl,
       };
     } catch (error) {
       console.error(`Failed to load conversation ${folder}:`, error);
@@ -233,6 +236,9 @@ export const archiveService = {
           ? new Date(conversation.created_at * 1000).toISOString()
           : undefined,
         scrollToImageUrl, // Add scroll hint for image navigation from lightbox
+        // Media support for image URL rewriting
+        mediaManifest: conversation.mediaManifest,
+        mediaBaseUrl: conversation.mediaBaseUrl,
       },
       createdAt: conversation.created_at
         ? new Date(conversation.created_at * 1000)

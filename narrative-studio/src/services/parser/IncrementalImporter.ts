@@ -5,8 +5,24 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { Conversation, ImportPreview, ImportConflict, MergeResult, ImportResult } from './types';
 import { readJSON, writeJSON, ensureDir, copyFile, hashContent, generateFolderName } from './utils';
+import { MediaReferenceExtractor } from './MediaReferenceExtractor';
+
+// Enhanced media manifest structure
+interface MediaManifest {
+  // Original basename -> hashed filename (for file lookup)
+  files: { [basename: string]: string };
+  // asset_pointer (file-service://..., sediment://...) -> hashed filename
+  assetPointers: { [pointer: string]: string };
+  // file-ID (file-ABC123) -> hashed filename
+  fileIds: { [fileId: string]: string };
+  // file_hash (sediment:// hash) -> hashed filename
+  fileHashes: { [hash: string]: string };
+  // Size-based lookups for fallback matching
+  sizeToFiles: { [size: number]: string[] };
+}
 
 export class IncrementalImporter {
   /**
@@ -194,25 +210,37 @@ export class IncrementalImporter {
     }
 
     // Merge media files
-    const existingMedia = new Set(existing._media_files || []);
+    // NOTE: existing._media_files may contain basenames, newConv._media_files contains absolute paths
+    const existingMediaBasenames = new Set(
+      (existing._media_files || []).map(f => path.basename(f))
+    );
     const newMediaFiles: string[] = [];
+
+    // Ensure media directory exists BEFORE attempting to copy files
+    const mediaDir = path.join(convFolder, 'media');
+    if (newConv._media_files && newConv._media_files.length > 0) {
+      ensureDir(mediaDir);
+    }
 
     for (const mediaPath of newConv._media_files || []) {
       const basename = path.basename(mediaPath);
 
-      if (!existingMedia.has(basename)) {
-        // Copy new media file
-        const sourcePath = path.join(mediaSourceDir, mediaPath);
-        const destPath = path.join(convFolder, 'media', basename);
+      if (!existingMediaBasenames.has(basename)) {
+        // Copy new media file - mediaPath is already absolute from indexer
+        const sourcePath = path.isAbsolute(mediaPath) ? mediaPath : path.join(mediaSourceDir, mediaPath);
+        const destPath = path.join(mediaDir, basename);
 
         if (fs.existsSync(sourcePath)) {
           try {
             copyFile(sourcePath, destPath);
             newMediaFiles.push(basename);
             mediaFilesAdded++;
+            console.log(`  + Added media: ${basename}`);
           } catch (err) {
             console.warn(`Failed to copy media file ${basename}:`, err);
           }
+        } else {
+          console.warn(`Media file not found for merge: ${sourcePath}`);
         }
       } else {
         mediaFilesSkipped++;
@@ -237,7 +265,17 @@ export class IncrementalImporter {
   }
 
   /**
-   * Create new conversation in archive
+   * Generate SHA256 hash of file (first 12 chars)
+   */
+  private hashFile(filepath: string): string {
+    const fileBuffer = fs.readFileSync(filepath);
+    const hash = crypto.createHash('sha256');
+    hash.update(fileBuffer);
+    return hash.digest('hex').slice(0, 12);
+  }
+
+  /**
+   * Create new conversation in archive with proper media handling
    */
   private async createConversation(
     conversation: Conversation,
@@ -255,29 +293,128 @@ export class IncrementalImporter {
     const convFolder = path.join(archiveDir, folderName);
     ensureDir(convFolder);
 
-    // Write conversation.json
-    const convJsonPath = path.join(convFolder, 'conversation.json');
-    writeJSON(convJsonPath, conversation);
+    // Initialize media manifest
+    const manifest: MediaManifest = {
+      files: {},
+      assetPointers: {},
+      fileIds: {},
+      fileHashes: {},
+      sizeToFiles: {},
+    };
 
-    // Copy media files
+    // Copy media files with hashed names and build manifest
+    // NOTE: _media_files contains ABSOLUTE paths from the media indexer
     if (conversation._media_files && conversation._media_files.length > 0) {
       const mediaDir = path.join(convFolder, 'media');
       ensureDir(mediaDir);
 
-      for (const mediaPath of conversation._media_files) {
-        const sourcePath = path.join(mediaSourceDir, mediaPath);
-        const basename = path.basename(mediaPath);
-        const destPath = path.join(mediaDir, basename);
+      // Build size-to-path lookup from source files
+      const sizeToSourcePath: Map<number, string[]> = new Map();
 
-        if (fs.existsSync(sourcePath)) {
-          try {
-            copyFile(sourcePath, destPath);
-          } catch (err) {
-            console.warn(`Failed to copy media file ${basename}:`, err);
+      for (const mediaPath of conversation._media_files) {
+        const sourcePath = path.isAbsolute(mediaPath) ? mediaPath : path.join(mediaSourceDir, mediaPath);
+
+        if (!fs.existsSync(sourcePath)) {
+          console.warn(`Media file not found: ${sourcePath}`);
+          continue;
+        }
+
+        try {
+          const basename = path.basename(mediaPath);
+          const fileHash = this.hashFile(sourcePath);
+          const hashedName = `${fileHash}_${basename}`;
+          const destPath = path.join(mediaDir, hashedName);
+
+          // Copy file with hashed name
+          copyFile(sourcePath, destPath);
+
+          // Add to manifest: files
+          manifest.files[basename] = hashedName;
+
+          // Get file size for size-based matching
+          const stats = fs.statSync(sourcePath);
+          const fileSize = stats.size;
+
+          // Add to sizeToFiles for size-based matching
+          if (!manifest.sizeToFiles[fileSize]) {
+            manifest.sizeToFiles[fileSize] = [];
+          }
+          manifest.sizeToFiles[fileSize].push(hashedName);
+
+          // Track source paths by size for reference extraction
+          if (!sizeToSourcePath.has(fileSize)) {
+            sizeToSourcePath.set(fileSize, []);
+          }
+          sizeToSourcePath.get(fileSize)!.push(sourcePath);
+
+          // Extract file-ID from basename if present (file-ABC123_name.png)
+          const fileIdMatch = basename.match(/^(file-[A-Za-z0-9]+)[_-]/);
+          if (fileIdMatch) {
+            manifest.fileIds[fileIdMatch[1]] = hashedName;
+          }
+
+          // Extract file hash from basename if present (file_abc123def456-uuid.png)
+          const fileHashMatch = basename.match(/^(file_[a-f0-9]{32})-/);
+          if (fileHashMatch) {
+            manifest.fileHashes[fileHashMatch[1]] = hashedName;
+          }
+        } catch (err) {
+          console.warn(`Failed to copy media file ${mediaPath}:`, err);
+        }
+      }
+
+      // Extract references from conversation and map to files
+      const extractor = new MediaReferenceExtractor();
+      const references = extractor.extractAllReferences(conversation);
+
+      // Map asset_pointers to files by size
+      for (const ref of references.asset_pointers) {
+        if (ref.size_bytes && manifest.sizeToFiles[ref.size_bytes]) {
+          const filesWithSize = manifest.sizeToFiles[ref.size_bytes];
+          // Use first available file with matching size
+          // (for multiple same-size files, we'd need to track usage - simplified for now)
+          if (filesWithSize.length > 0) {
+            manifest.assetPointers[ref.pointer] = filesWithSize[0];
+          }
+        }
+
+        // Also map by file_hash (sediment://)
+        if (ref.type === 'sediment' && ref.file_hash && manifest.fileHashes[ref.file_hash]) {
+          manifest.assetPointers[ref.pointer] = manifest.fileHashes[ref.file_hash];
+        }
+
+        // Also map by file_id (file-service://file-ABC123)
+        if (ref.file_id && manifest.fileIds[ref.file_id]) {
+          manifest.assetPointers[ref.pointer] = manifest.fileIds[ref.file_id];
+        }
+      }
+
+      // Map attachments by name+size or just name
+      for (const att of references.attachments) {
+        if (att.name && manifest.files[att.name]) {
+          // Direct name match
+          continue; // Already in files map
+        }
+        if (att.id && att.name) {
+          // Map file-ID to the attachment name's hashed file
+          const hashedFile = manifest.files[att.name];
+          if (hashedFile) {
+            manifest.fileIds[att.id] = hashedFile;
           }
         }
       }
+
+      // Write media manifest
+      if (Object.keys(manifest.files).length > 0) {
+        const manifestPath = path.join(convFolder, 'media_manifest.json');
+        writeJSON(manifestPath, manifest);
+        console.log(`  📁 Created media manifest with ${Object.keys(manifest.files).length} files, ${Object.keys(manifest.assetPointers).length} asset pointers`);
+      }
     }
+
+    // Write conversation.json
+    const convJsonPath = path.join(convFolder, 'conversation.json');
+    writeJSON(convJsonPath, conversation);
   }
 
   /**

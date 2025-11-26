@@ -39,9 +39,60 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' })); // Allow large conversation.json files
 
-const ARCHIVE_ROOT = '/Users/tem/openai-export-parser/output_v13_final';
+// Archive management - support multiple archives
+const ARCHIVES_BASE_DIR = '/Users/tem/openai-export-parser';
+const DEFAULT_ARCHIVE = 'output_v13_final';
+const ARCHIVE_CONFIG_FILE = path.join(os.homedir(), '.humanizer', 'archive-config.json');
+
+// Dynamic archive root - can be changed at runtime
+let currentArchiveName = DEFAULT_ARCHIVE;
+let ARCHIVE_ROOT = path.join(ARCHIVES_BASE_DIR, currentArchiveName);
+
 const SESSION_STORAGE_DIR = path.join(os.homedir(), '.humanizer', 'sessions');
 const ARCHIVE_UPLOADS_DIR = '/tmp/archive-uploads';
+
+// Load archive config from disk
+async function loadArchiveConfig() {
+  try {
+    const configDir = path.dirname(ARCHIVE_CONFIG_FILE);
+    await fs.mkdir(configDir, { recursive: true });
+    const data = await fs.readFile(ARCHIVE_CONFIG_FILE, 'utf-8');
+    const config = JSON.parse(data);
+    if (config.currentArchive) {
+      const archivePath = path.join(ARCHIVES_BASE_DIR, config.currentArchive);
+      try {
+        await fs.access(archivePath);
+        currentArchiveName = config.currentArchive;
+        ARCHIVE_ROOT = archivePath;
+        console.log(`📂 Loaded archive config: ${currentArchiveName}`);
+      } catch {
+        console.warn(`⚠️ Configured archive "${config.currentArchive}" not found, using default`);
+      }
+    }
+  } catch (err) {
+    // Config doesn't exist yet, use default
+    console.log(`📂 No archive config found, using default: ${DEFAULT_ARCHIVE}`);
+  }
+}
+
+// Save archive config to disk
+async function saveArchiveConfig() {
+  try {
+    const configDir = path.dirname(ARCHIVE_CONFIG_FILE);
+    await fs.mkdir(configDir, { recursive: true });
+    await fs.writeFile(ARCHIVE_CONFIG_FILE, JSON.stringify({
+      currentArchive: currentArchiveName,
+      lastSwitched: new Date().toISOString()
+    }, null, 2));
+  } catch (err) {
+    console.error('Failed to save archive config:', err);
+  }
+}
+
+// Get current archive root (for use in other parts of the code)
+function getArchiveRoot() {
+  return ARCHIVE_ROOT;
+}
 
 // Configure multer for ZIP uploads
 const upload = multer({
@@ -67,17 +118,168 @@ function generateJobId() {
   return `import-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-// Ensure directories exist
+// Ensure directories exist and load config
 (async () => {
   try {
     await fs.mkdir(SESSION_STORAGE_DIR, { recursive: true });
     await fs.mkdir(ARCHIVE_UPLOADS_DIR, { recursive: true });
+    await loadArchiveConfig();
     console.log(`📁 Session storage directory ready: ${SESSION_STORAGE_DIR}`);
     console.log(`📁 Archive uploads directory ready: ${ARCHIVE_UPLOADS_DIR}`);
   } catch (error) {
     console.error('Failed to create directories:', error);
   }
 })();
+
+// ============================================================
+// ARCHIVE MANAGEMENT ENDPOINTS
+// ============================================================
+
+// GET /api/archives - List all available archives
+app.get('/api/archives', async (req, res) => {
+  try {
+    const entries = await fs.readdir(ARCHIVES_BASE_DIR, { withFileTypes: true });
+    const archives = [];
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        const archivePath = path.join(ARCHIVES_BASE_DIR, entry.name);
+        try {
+          // Check if it looks like a valid archive (has conversation folders)
+          const contents = await fs.readdir(archivePath);
+          const hasConversations = contents.some(f => /^\d{4}-\d{2}-\d{2}/.test(f));
+
+          if (hasConversations || entry.name === currentArchiveName) {
+            // Count conversations
+            const convFolders = contents.filter(f => /^\d{4}-\d{2}-\d{2}/.test(f));
+            const stat = await fs.stat(archivePath);
+
+            archives.push({
+              name: entry.name,
+              path: archivePath,
+              conversationCount: convFolders.length,
+              isActive: entry.name === currentArchiveName,
+              createdAt: stat.birthtime.toISOString(),
+              modifiedAt: stat.mtime.toISOString(),
+            });
+          }
+        } catch (err) {
+          // Skip directories we can't read
+        }
+      }
+    }
+
+    // Sort by modification date, newest first
+    archives.sort((a, b) => new Date(b.modifiedAt) - new Date(a.modifiedAt));
+
+    res.json({
+      archives,
+      current: currentArchiveName,
+      basePath: ARCHIVES_BASE_DIR,
+    });
+  } catch (error) {
+    console.error('Error listing archives:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/archives/current - Get current archive info
+app.get('/api/archives/current', async (req, res) => {
+  try {
+    const contents = await fs.readdir(ARCHIVE_ROOT);
+    const convFolders = contents.filter(f => /^\d{4}-\d{2}-\d{2}/.test(f));
+    const stat = await fs.stat(ARCHIVE_ROOT);
+
+    res.json({
+      name: currentArchiveName,
+      path: ARCHIVE_ROOT,
+      conversationCount: convFolders.length,
+      createdAt: stat.birthtime.toISOString(),
+      modifiedAt: stat.mtime.toISOString(),
+    });
+  } catch (error) {
+    console.error('Error getting current archive:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/archives/switch - Switch to a different archive
+app.post('/api/archives/switch', async (req, res) => {
+  try {
+    const { archiveName } = req.body;
+
+    if (!archiveName) {
+      return res.status(400).json({ error: 'archiveName is required' });
+    }
+
+    const archivePath = path.join(ARCHIVES_BASE_DIR, archiveName);
+
+    // Verify archive exists
+    try {
+      await fs.access(archivePath);
+    } catch {
+      return res.status(404).json({ error: `Archive "${archiveName}" not found` });
+    }
+
+    // Switch to new archive
+    const previousArchive = currentArchiveName;
+    currentArchiveName = archiveName;
+    ARCHIVE_ROOT = archivePath;
+
+    // Save config
+    await saveArchiveConfig();
+
+    // Count conversations in new archive
+    const contents = await fs.readdir(ARCHIVE_ROOT);
+    const convFolders = contents.filter(f => /^\d{4}-\d{2}-\d{2}/.test(f));
+
+    console.log(`🔄 Switched archive: ${previousArchive} → ${currentArchiveName} (${convFolders.length} conversations)`);
+
+    res.json({
+      success: true,
+      previousArchive,
+      currentArchive: currentArchiveName,
+      path: ARCHIVE_ROOT,
+      conversationCount: convFolders.length,
+    });
+  } catch (error) {
+    console.error('Error switching archive:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/archives/create - Create a new empty archive
+app.post('/api/archives/create', async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    // Generate name if not provided
+    const archiveName = name || `archive_${new Date().toISOString().split('T')[0]}_${Date.now().toString(36)}`;
+    const archivePath = path.join(ARCHIVES_BASE_DIR, archiveName);
+
+    // Check if already exists
+    try {
+      await fs.access(archivePath);
+      return res.status(409).json({ error: `Archive "${archiveName}" already exists` });
+    } catch {
+      // Doesn't exist, good to create
+    }
+
+    // Create the directory
+    await fs.mkdir(archivePath, { recursive: true });
+
+    console.log(`📁 Created new archive: ${archiveName}`);
+
+    res.json({
+      success: true,
+      name: archiveName,
+      path: archivePath,
+    });
+  } catch (error) {
+    console.error('Error creating archive:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Get list of all conversations (metadata only)
 app.get('/api/conversations', async (req, res) => {
@@ -97,10 +299,11 @@ app.get('/api/conversations', async (req, res) => {
         const parsed = JSON.parse(data);
 
         // Extract message count from mapping
+        // Count ALL messages with a message object (not just those with content.parts)
         let messageCount = 0;
         if (parsed.mapping) {
           messageCount = Object.values(parsed.mapping).filter(
-            node => node.message && node.message.content?.parts?.length > 0
+            node => node.message !== undefined && node.message !== null
           ).length;
         }
 
@@ -351,6 +554,25 @@ app.get('/api/conversations/:folder', async (req, res) => {
       });
     }
 
+    // Build enhanced media manifest for client-side URL rewriting
+    const enhancedManifest = {
+      files: mediaManifest, // original filename -> hashed filename
+      assetPointers: assetPointerMap, // file-service://... -> hashed filename
+      fileIds: fileIdToHashedName, // file-XXXXX -> hashed filename
+      fileHashes: {}, // Will be populated if there are sediment:// style hashes
+      sizeToFiles: {}, // For fallback matching (not populated here, but structure matches)
+    };
+
+    // Extract file hashes from assetPointerMap (sediment:// URLs)
+    Object.entries(assetPointerMap).forEach(([key, value]) => {
+      if (key.startsWith('sediment://')) {
+        const hashMatch = key.match(/sediment:\/\/(file_[a-f0-9]+)/);
+        if (hashMatch) {
+          enhancedManifest.fileHashes[hashMatch[1]] = value;
+        }
+      }
+    });
+
     res.json({
       id: parsed.id || req.params.folder,
       title: parsed.title || 'Untitled',
@@ -358,6 +580,9 @@ app.get('/api/conversations/:folder', async (req, res) => {
       messages,
       created_at: parsed.create_time,
       updated_at: parsed.update_time,
+      // Include media manifest for client-side URL rewriting fallback
+      mediaManifest: enhancedManifest,
+      mediaBaseUrl: `/api/conversations/${encodeURIComponent(req.params.folder)}/media/`,
     });
   } catch (error) {
     console.error(`Error loading conversation ${req.params.folder}:`, error);
@@ -1350,7 +1575,7 @@ app.post('/api/import/archive/upload', (req, res) => {
 // POST /api/import/archive/parse - Trigger parsing (async job)
 app.post('/api/import/archive/parse', async (req, res) => {
   try {
-    const { jobId } = req.body;
+    const { jobId, additionalMediaSourceDirs } = req.body;
     const job = importJobs.get(jobId);
 
     if (!job) {
@@ -1361,10 +1586,16 @@ app.post('/api/import/archive/parse', async (req, res) => {
       return res.status(400).json({ error: `Cannot parse job in status: ${job.status}` });
     }
 
+    // Store additional media sources in job for use during parsing
+    job.additionalMediaSourceDirs = additionalMediaSourceDirs || [];
+
     job.status = 'parsing';
     job.progress = 10;
 
     console.log(`🔍 Starting parse for job ${jobId}...`);
+    if (job.additionalMediaSourceDirs.length > 0) {
+      console.log(`   With ${job.additionalMediaSourceDirs.length} additional media source(s)`);
+    }
     res.json({ jobId, status: 'parsing' });
 
     // Parse in background (don't block response)
@@ -1372,9 +1603,9 @@ app.post('/api/import/archive/parse', async (req, res) => {
       try {
         job.progress = 20;
 
-        // Step 1: Parse archive
+        // Step 1: Parse archive (with additional media sources if provided)
         const parser = new ConversationParser();
-        const archive = await parser.parseArchive(job.zipPath);
+        const archive = await parser.parseArchive(job.zipPath, undefined, job.additionalMediaSourceDirs);
 
         job.archive = archive;
         job.progress = 50;
@@ -1405,6 +1636,383 @@ app.post('/api/import/archive/parse', async (req, res) => {
     });
   } catch (error) {
     console.error('Error starting parse:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/import/archive/folder - Import from expanded folder (no upload)
+app.post('/api/import/archive/folder', async (req, res) => {
+  try {
+    const { folderPath, archiveType, additionalMediaSourceDirs } = req.body;
+
+    if (!folderPath) {
+      return res.status(400).json({ error: 'folderPath is required' });
+    }
+
+    // Verify folder exists
+    try {
+      const stats = await fs.stat(folderPath);
+      if (!stats.isDirectory()) {
+        return res.status(400).json({ error: 'Path is not a directory' });
+      }
+    } catch (err) {
+      return res.status(400).json({ error: `Folder not found: ${folderPath}` });
+    }
+
+    // Create a job (no ZIP file, just the folder path)
+    const jobId = `folder-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+    const job = {
+      id: jobId,
+      status: 'parsing',
+      progress: 0,
+      filename: path.basename(folderPath),
+      startTime: Date.now(),
+      folderPath, // Store folder path instead of zipPath
+      archiveType: archiveType || 'auto',
+      additionalMediaSourceDirs: additionalMediaSourceDirs || [], // Additional media sources
+    };
+
+    importJobs.set(jobId, job);
+    console.log(`📂 Folder import started: ${folderPath} (job: ${jobId})`);
+
+    // Parse in background
+    setImmediate(async () => {
+      try {
+        job.status = 'parsing';
+        job.progress = 10;
+
+        // Create parser and parse directly from folder (no extraction needed)
+        const { ConversationParser, IncrementalImporter } = await import('./src/services/parser/index.js');
+        const parser = new ConversationParser(true);
+
+        // Detect format first
+        const { OpenAIParser, ClaudeParser } = await import('./src/services/parser/index.js');
+        let format = 'unknown';
+
+        if (await OpenAIParser.detectFormat(folderPath)) {
+          format = 'openai';
+        } else if (await ClaudeParser.detectFormat(folderPath)) {
+          format = 'claude';
+        }
+
+        if (format === 'unknown') {
+          throw new Error('Could not detect archive format. Make sure the folder contains conversations.json (OpenAI) or conversations/ folder (Claude).');
+        }
+
+        job.progress = 20;
+        console.log(`   Detected format: ${format}`);
+
+        // Parse conversations directly from folder
+        const openAIParser = new OpenAIParser();
+        const claudeParser = new ClaudeParser();
+
+        let conversations;
+        if (format === 'openai') {
+          conversations = await openAIParser.parseConversations(folderPath);
+        } else {
+          conversations = await claudeParser.parseConversations(folderPath);
+        }
+
+        job.progress = 50;
+        console.log(`   Parsed ${conversations.length} conversations`);
+
+        // Build media index (including additional sources if provided)
+        const { ComprehensiveMediaIndexer, ComprehensiveMediaMatcher } = await import('./src/services/parser/index.js');
+        const mediaIndexer = new ComprehensiveMediaIndexer(true);
+        const mediaMatcher = new ComprehensiveMediaMatcher(true);
+
+        // Log additional sources being used
+        if (job.additionalMediaSourceDirs && job.additionalMediaSourceDirs.length > 0) {
+          console.log(`   Including ${job.additionalMediaSourceDirs.length} additional media source(s):`);
+          job.additionalMediaSourceDirs.forEach(dir => console.log(`     - ${dir}`));
+        }
+
+        const indices = mediaIndexer.buildIndex(folderPath, job.additionalMediaSourceDirs);
+        const conversationsWithMedia = mediaMatcher.match(conversations, indices);
+
+        const archive = {
+          conversations: conversationsWithMedia,
+          mediaFiles: Array.from(indices.pathToMetadata.values()),
+          format,
+          extractedPath: folderPath, // Use folder path directly
+          stats: {
+            totalConversations: conversations.length,
+            totalMessages: conversations.reduce((sum, c) => sum + Object.values(c.mapping).filter(n => n.message).length, 0),
+            totalMediaFiles: mediaMatcher.getStats().totalFilesMatched,
+            parseErrors: 0,
+          },
+        };
+
+        job.archive = archive;
+        job.progress = 70;
+
+        // Generate preview
+        job.status = 'previewing';
+        const importer = new IncrementalImporter();
+        const preview = await importer.generatePreview(archive.conversations, ARCHIVE_ROOT);
+
+        job.preview = preview;
+        job.progress = 100;
+        job.status = 'ready';
+
+        console.log(`✅ Folder import ready for job ${jobId}:`);
+        console.log(`   - Format: ${format}`);
+        console.log(`   - Conversations: ${archive.stats.totalConversations}`);
+        console.log(`   - Messages: ${archive.stats.totalMessages}`);
+        console.log(`   - Media files: ${archive.stats.totalMediaFiles}`);
+      } catch (err) {
+        job.status = 'failed';
+        job.error = err.message;
+        job.progress = 0;
+        console.error(`❌ Folder import failed for job ${jobId}:`, err);
+      }
+    });
+
+    res.json({
+      jobId,
+      status: 'parsing',
+      message: `Parsing folder: ${folderPath}`,
+    });
+  } catch (error) {
+    console.error('Error starting folder import:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/import/media-only - Import media files into existing conversations
+app.post('/api/import/media-only', async (req, res) => {
+  try {
+    const { mediaFolderPath } = req.body;
+
+    if (!mediaFolderPath) {
+      return res.status(400).json({ error: 'mediaFolderPath is required' });
+    }
+
+    // Verify folder exists
+    try {
+      const stats = await fs.stat(mediaFolderPath);
+      if (!stats.isDirectory()) {
+        return res.status(400).json({ error: 'Path is not a directory' });
+      }
+    } catch (err) {
+      return res.status(400).json({ error: `Folder not found: ${mediaFolderPath}` });
+    }
+
+    const jobId = `media-${Date.now().toString(36)}-${Math.random().toString(36).substr(2, 6)}`;
+    const job = {
+      id: jobId,
+      status: 'processing',
+      progress: 0,
+      filename: path.basename(mediaFolderPath),
+      startTime: Date.now(),
+      folderPath: mediaFolderPath,
+    };
+
+    importJobs.set(jobId, job);
+    console.log(`📸 Media-only import started: ${mediaFolderPath} (job: ${jobId})`);
+
+    // Process in background
+    setImmediate(async () => {
+      try {
+        const { ComprehensiveMediaIndexer, ComprehensiveMediaMatcher, MediaReferenceExtractor } = await import('./src/services/parser/index.js');
+        const crypto = await import('crypto');
+
+        // Step 1: Index all media files in the source folder
+        job.progress = 10;
+        console.log(`   Indexing media files in: ${mediaFolderPath}`);
+        const indexer = new ComprehensiveMediaIndexer(true);
+        const mediaIndices = indexer.buildIndex(mediaFolderPath);
+
+        console.log(`   Found ${mediaIndices.allFiles.length} media files`);
+        if (mediaIndices.allFiles.length === 0) {
+          throw new Error('No media files found in the specified folder');
+        }
+
+        // Step 2: Scan existing conversation folders in ARCHIVE_ROOT
+        job.progress = 30;
+        console.log(`   Scanning conversations in: ${ARCHIVE_ROOT}`);
+
+        const convFolders = await fs.readdir(ARCHIVE_ROOT);
+        const stats = {
+          conversationsScanned: 0,
+          conversationsUpdated: 0,
+          mediaFilesCopied: 0,
+          manifestsUpdated: 0,
+        };
+
+        const matcher = new ComprehensiveMediaMatcher(true);
+        const extractor = new MediaReferenceExtractor();
+
+        // Step 3: For each conversation, try to match and copy media
+        for (let i = 0; i < convFolders.length; i++) {
+          const folder = convFolders[i];
+          if (folder.startsWith('_') || folder.startsWith('.')) continue;
+
+          const convPath = path.join(ARCHIVE_ROOT, folder);
+          const convJsonPath = path.join(convPath, 'conversation.json');
+
+          if (!await fs.stat(convPath).then(s => s.isDirectory()).catch(() => false)) continue;
+          if (!await fs.stat(convJsonPath).catch(() => false)) continue;
+
+          stats.conversationsScanned++;
+
+          try {
+            // Load conversation
+            const convData = JSON.parse(await fs.readFile(convJsonPath, 'utf-8'));
+
+            // Extract media references from conversation
+            const references = extractor.extractAllReferences(convData);
+            const totalRefs = references.asset_pointers.length + references.attachments.length + references.dalle_generations.length;
+
+            if (totalRefs === 0) continue; // No media references
+
+            // Try to match media files to this conversation
+            const matchedConv = matcher.matchSingle ? matcher.matchSingle(convData, mediaIndices) : null;
+
+            // Alternative: Manual matching based on references
+            const matchedFiles = new Set();
+
+            // Match by file hash (sediment://)
+            for (const ref of references.asset_pointers) {
+              if (ref.file_hash && mediaIndices.fileHashToPath.has(ref.file_hash)) {
+                matchedFiles.add(mediaIndices.fileHashToPath.get(ref.file_hash));
+              }
+              if (ref.file_id && mediaIndices.fileIdToPath.has(ref.file_id)) {
+                matchedFiles.add(mediaIndices.fileIdToPath.get(ref.file_id));
+              }
+              if (ref.size_bytes) {
+                const filesWithSize = mediaIndices.sizeToPaths.get(ref.size_bytes) || [];
+                if (filesWithSize.length === 1) {
+                  matchedFiles.add(filesWithSize[0]);
+                }
+              }
+            }
+
+            // Match by conversation_id in path
+            const convId = convData.conversation_id || convData.id;
+            if (convId && mediaIndices.conversationToPaths.has(convId)) {
+              for (const filePath of mediaIndices.conversationToPaths.get(convId)) {
+                matchedFiles.add(filePath);
+              }
+            }
+
+            if (matchedFiles.size === 0) continue;
+
+            // Copy matched files to conversation's media folder
+            const mediaDir = path.join(convPath, 'media');
+            await fs.mkdir(mediaDir, { recursive: true });
+
+            // Load or create manifest
+            const manifestPath = path.join(convPath, 'media_manifest.json');
+            let manifest;
+            try {
+              manifest = JSON.parse(await fs.readFile(manifestPath, 'utf-8'));
+            } catch {
+              manifest = { files: {}, assetPointers: {}, fileIds: {}, fileHashes: {}, sizeToFiles: {} };
+            }
+
+            let filesCopied = 0;
+            for (const srcPath of matchedFiles) {
+              const basename = path.basename(srcPath);
+
+              // Check if already exists
+              if (manifest.files[basename]) continue;
+
+              try {
+                // Generate hash for unique naming
+                const fileBuffer = await fs.readFile(srcPath);
+                const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex').slice(0, 12);
+                const hashedName = `${hash}_${basename}`;
+                const destPath = path.join(mediaDir, hashedName);
+
+                // Copy file
+                await fs.copyFile(srcPath, destPath);
+                filesCopied++;
+
+                // Update manifest
+                manifest.files[basename] = hashedName;
+
+                const fileStats = await fs.stat(srcPath);
+                const fileSize = fileStats.size;
+
+                if (!manifest.sizeToFiles[fileSize]) {
+                  manifest.sizeToFiles[fileSize] = [];
+                }
+                manifest.sizeToFiles[fileSize].push(hashedName);
+
+                // Extract and add file-ID
+                const fileIdMatch = basename.match(/^(file-[A-Za-z0-9]+)[_-]/);
+                if (fileIdMatch) {
+                  manifest.fileIds[fileIdMatch[1]] = hashedName;
+                }
+
+                // Extract and add file hash
+                const fileHashMatch = basename.match(/^(file_[a-f0-9]{32})-/);
+                if (fileHashMatch) {
+                  manifest.fileHashes[fileHashMatch[1]] = hashedName;
+                }
+              } catch (copyErr) {
+                console.warn(`   Failed to copy ${basename}: ${copyErr.message}`);
+              }
+            }
+
+            if (filesCopied > 0) {
+              // Map asset_pointers to copied files
+              for (const ref of references.asset_pointers) {
+                if (ref.size_bytes && manifest.sizeToFiles[ref.size_bytes]) {
+                  const filesWithSize = manifest.sizeToFiles[ref.size_bytes];
+                  if (filesWithSize.length > 0 && !manifest.assetPointers[ref.pointer]) {
+                    manifest.assetPointers[ref.pointer] = filesWithSize[0];
+                  }
+                }
+                if (ref.file_hash && manifest.fileHashes[ref.file_hash]) {
+                  manifest.assetPointers[ref.pointer] = manifest.fileHashes[ref.file_hash];
+                }
+                if (ref.file_id && manifest.fileIds[ref.file_id]) {
+                  manifest.assetPointers[ref.pointer] = manifest.fileIds[ref.file_id];
+                }
+              }
+
+              // Write updated manifest
+              await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+
+              stats.conversationsUpdated++;
+              stats.mediaFilesCopied += filesCopied;
+              stats.manifestsUpdated++;
+
+              console.log(`   📁 ${folder}: Copied ${filesCopied} media files`);
+            }
+          } catch (convErr) {
+            console.warn(`   Error processing ${folder}: ${convErr.message}`);
+          }
+
+          job.progress = 30 + Math.floor((i / convFolders.length) * 60);
+        }
+
+        job.progress = 100;
+        job.status = 'completed';
+        job.result = stats;
+
+        console.log(`✅ Media-only import completed:`);
+        console.log(`   - Conversations scanned: ${stats.conversationsScanned}`);
+        console.log(`   - Conversations updated: ${stats.conversationsUpdated}`);
+        console.log(`   - Media files copied: ${stats.mediaFilesCopied}`);
+        console.log(`   - Manifests updated: ${stats.manifestsUpdated}`);
+      } catch (err) {
+        job.status = 'failed';
+        job.error = err.message;
+        job.progress = 0;
+        console.error(`❌ Media-only import failed: ${err.message}`);
+      }
+    });
+
+    res.json({
+      jobId,
+      status: 'processing',
+      message: `Processing media from: ${mediaFolderPath}`,
+    });
+  } catch (error) {
+    console.error('Error starting media-only import:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -1479,6 +2087,7 @@ app.get('/api/import/archive/preview/:jobId', (req, res) => {
 app.post('/api/import/archive/apply/:jobId', async (req, res) => {
   try {
     const job = importJobs.get(req.params.jobId);
+    const { createNewArchive, archiveName } = req.body || {};
 
     if (!job) {
       return res.status(404).json({ error: 'Job not found' });
@@ -1495,7 +2104,27 @@ app.post('/api/import/archive/apply/:jobId', async (req, res) => {
     job.status = 'applying';
     job.progress = 0;
 
-    console.log(`🚀 Applying import for job ${req.params.jobId}...`);
+    // Determine target archive
+    let targetArchiveRoot = ARCHIVE_ROOT;
+    let targetArchiveName = currentArchiveName;
+    let switchedArchive = false;
+
+    if (createNewArchive) {
+      // Create new archive folder
+      const newArchiveName = archiveName || `import_${new Date().toISOString().split('T')[0]}_${Date.now().toString(36)}`;
+      const newArchivePath = path.join(ARCHIVES_BASE_DIR, newArchiveName);
+
+      // Create the directory
+      await fs.mkdir(newArchivePath, { recursive: true });
+
+      targetArchiveRoot = newArchivePath;
+      targetArchiveName = newArchiveName;
+      switchedArchive = true;
+
+      console.log(`📁 Created new archive for import: ${newArchiveName}`);
+    }
+
+    console.log(`🚀 Applying import for job ${req.params.jobId} to archive "${targetArchiveName}"...`);
 
     // Apply in background
     setImmediate(async () => {
@@ -1503,15 +2132,26 @@ app.post('/api/import/archive/apply/:jobId', async (req, res) => {
         const importer = new IncrementalImporter();
         const result = await importer.applyImport(
           job.archive.conversations,
-          ARCHIVE_ROOT,
+          targetArchiveRoot,
           job.archive.extractedPath // Path to extracted archive (for media files)
         );
+
+        // If we created a new archive and import succeeded, switch to it
+        if (switchedArchive) {
+          currentArchiveName = targetArchiveName;
+          ARCHIVE_ROOT = targetArchiveRoot;
+          await saveArchiveConfig();
+          result.newArchiveName = targetArchiveName;
+          result.switchedArchive = true;
+          console.log(`🔄 Switched to new archive: ${targetArchiveName}`);
+        }
 
         job.result = result;
         job.status = 'completed';
         job.progress = 100;
 
         console.log(`✅ Import completed for job ${req.params.jobId}:`);
+        console.log(`   - Target archive: ${targetArchiveName}`);
         console.log(`   - Conversations created: ${result.conversationsCreated}`);
         console.log(`   - Conversations updated: ${result.conversationsUpdated}`);
         console.log(`   - Messages added: ${result.totalMessagesAdded}`);
@@ -1534,7 +2174,12 @@ app.post('/api/import/archive/apply/:jobId', async (req, res) => {
       }
     });
 
-    res.json({ jobId: job.id, status: 'applying' });
+    res.json({
+      jobId: job.id,
+      status: 'applying',
+      targetArchive: targetArchiveName,
+      createNewArchive: switchedArchive,
+    });
   } catch (error) {
     console.error('Error applying import:', error);
     res.status(500).json({ error: error.message });
@@ -1715,6 +2360,501 @@ app.put('/sessions/:id/rename', async (req, res) => {
     console.error('Error renaming session:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// =============================================================================
+// EMBEDDING & SEARCH ENDPOINTS
+// =============================================================================
+
+import { ArchiveIndexer, ClusteringService } from './src/services/embeddings/index.ts';
+
+// Cache indexers per archive path
+const indexerCache = new Map();
+const clusteringCache = new Map();
+// Cache for discovered clusters (keyed by archivePath)
+// Stores the full cluster objects with memberIds for subsequent member queries
+const discoveredClustersCache = new Map();
+
+function getIndexer(archivePath) {
+  if (!indexerCache.has(archivePath)) {
+    indexerCache.set(archivePath, new ArchiveIndexer(archivePath));
+  }
+  return indexerCache.get(archivePath);
+}
+
+function getClusteringService(archivePath) {
+  if (!clusteringCache.has(archivePath)) {
+    const indexer = getIndexer(archivePath);
+    clusteringCache.set(archivePath, new ClusteringService(indexer.getDatabase()));
+  }
+  return clusteringCache.get(archivePath);
+}
+
+// Active indexing jobs
+const indexingJobs = new Map();
+
+// Build embedding index for archive
+app.post('/api/embeddings/build', async (req, res) => {
+  try {
+    const archivePath = req.body.archivePath || getArchiveRoot();
+    const options = req.body.options || {};
+
+    // Check if already indexing
+    if (indexingJobs.has(archivePath)) {
+      return res.json({
+        status: 'already_running',
+        progress: indexingJobs.get(archivePath).progress,
+      });
+    }
+
+    const indexer = getIndexer(archivePath);
+    const jobId = Date.now().toString();
+
+    // Track progress
+    const job = {
+      id: jobId,
+      archivePath,
+      progress: null,
+      startedAt: Date.now(),
+    };
+    indexingJobs.set(archivePath, job);
+
+    // Start indexing in background
+    indexer.buildIndex({
+      ...options,
+      onProgress: (progress) => {
+        job.progress = progress;
+      },
+    }).then(() => {
+      console.log(`✅ Indexing complete for ${archivePath}`);
+      indexingJobs.delete(archivePath);
+    }).catch((err) => {
+      console.error(`❌ Indexing failed for ${archivePath}:`, err);
+      job.progress = { status: 'error', error: err.message };
+    });
+
+    res.json({
+      status: 'started',
+      jobId,
+      archivePath,
+    });
+  } catch (error) {
+    console.error('Error starting index build:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get indexing status
+app.get('/api/embeddings/status', (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+    const job = indexingJobs.get(archivePath);
+
+    if (job) {
+      return res.json({
+        status: 'indexing',
+        progress: job.progress,
+        startedAt: job.startedAt,
+      });
+    }
+
+    // Return stats if not actively indexing
+    const indexer = getIndexer(archivePath);
+    const stats = indexer.getStats();
+
+    res.json({
+      status: 'idle',
+      stats,
+    });
+  } catch (error) {
+    console.error('Error getting embedding status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get embedding stats
+app.get('/api/embeddings/stats', (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+    const indexer = getIndexer(archivePath);
+    const stats = indexer.getStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Error getting embedding stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Semantic search for messages
+app.post('/api/embeddings/search/messages', async (req, res) => {
+  try {
+    const { query, limit = 20 } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const indexer = getIndexer(archivePath);
+    const results = await indexer.searchMessages(query, limit);
+
+    res.json({ results });
+  } catch (error) {
+    console.error('Error searching messages:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Semantic search for conversations (by summary)
+app.post('/api/embeddings/search/conversations', async (req, res) => {
+  try {
+    const { query, limit = 20 } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!query) {
+      return res.status(400).json({ error: 'Query is required' });
+    }
+
+    const indexer = getIndexer(archivePath);
+    const results = await indexer.searchConversations(query, limit);
+
+    res.json({ results });
+  } catch (error) {
+    console.error('Error searching conversations:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Find messages similar to a given message
+app.post('/api/embeddings/search/similar', async (req, res) => {
+  try {
+    const { embeddingId, limit = 20, excludeSameConversation = false } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!embeddingId) {
+      return res.status(400).json({ error: 'embeddingId is required' });
+    }
+
+    const indexer = getIndexer(archivePath);
+    const results = await indexer.findSimilarMessages(embeddingId, limit, excludeSameConversation);
+
+    res.json({ results });
+  } catch (error) {
+    console.error('Error finding similar messages:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Mark conversation as interesting (triggers finer-grain indexing)
+app.post('/api/embeddings/mark-interesting', async (req, res) => {
+  try {
+    const { conversationId, interesting = true } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!conversationId) {
+      return res.status(400).json({ error: 'conversationId is required' });
+    }
+
+    const indexer = getIndexer(archivePath);
+    await indexer.markInteresting(conversationId, interesting);
+
+    res.json({ success: true, conversationId, interesting });
+  } catch (error) {
+    console.error('Error marking conversation:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Generate summary embedding for a conversation
+app.post('/api/embeddings/summary', async (req, res) => {
+  try {
+    const { conversationId, summary } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!conversationId || !summary) {
+      return res.status(400).json({ error: 'conversationId and summary are required' });
+    }
+
+    const indexer = getIndexer(archivePath);
+    const embeddingId = await indexer.generateSummaryEmbedding(conversationId, summary);
+
+    res.json({ success: true, conversationId, embeddingId });
+  } catch (error) {
+    console.error('Error generating summary embedding:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add sentence-level embeddings for a specific message
+app.post('/api/embeddings/sentences', async (req, res) => {
+  try {
+    const { messageId } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!messageId) {
+      return res.status(400).json({ error: 'messageId is required' });
+    }
+
+    const indexer = getIndexer(archivePath);
+    const count = await indexer.embedMessageSentences(messageId);
+
+    res.json({ success: true, messageId, sentenceCount: count });
+  } catch (error) {
+    console.error('Error embedding sentences:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// =============================================================================
+// CLUSTERING & ANCHOR ENDPOINTS
+// =============================================================================
+
+// Discover clusters in the embedding space
+app.post('/api/clustering/discover', async (req, res) => {
+  try {
+    const archivePath = req.body.archivePath || getArchiveRoot();
+    const options = req.body.options || {};
+
+    const clustering = getClusteringService(archivePath);
+    const clusters = await clustering.discoverClusters(options);
+
+    // Cache the full clusters with memberIds for subsequent member queries
+    discoveredClustersCache.set(archivePath, clusters);
+
+    res.json({
+      success: true,
+      clusterCount: clusters.length,
+      clusters: clusters.map(c => ({
+        id: c.id,
+        memberCount: c.memberCount,
+        coherence: c.coherence,
+        sampleTexts: c.sampleTexts,
+        memberIds: c.memberIds, // Include memberIds for client-side reference
+      })),
+    });
+  } catch (error) {
+    console.error('Error discovering clusters:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Save discovered clusters to database
+app.post('/api/clustering/save', async (req, res) => {
+  try {
+    const { clusters } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!clusters || !Array.isArray(clusters)) {
+      return res.status(400).json({ error: 'clusters array is required' });
+    }
+
+    const clustering = getClusteringService(archivePath);
+    await clustering.saveClusters(clusters);
+
+    res.json({ success: true, savedCount: clusters.length });
+  } catch (error) {
+    console.error('Error saving clusters:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get cluster statistics
+app.get('/api/clustering/stats', (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+    const clustering = getClusteringService(archivePath);
+    const stats = clustering.getClusterStats();
+    res.json(stats);
+  } catch (error) {
+    console.error('Error getting cluster stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get cluster members with filtering
+// Supports: role filter, image prompt exclusion, pagination, grouping by conversation
+app.post('/api/clustering/members', (req, res) => {
+  try {
+    const archivePath = req.body.archivePath || getArchiveRoot();
+    const {
+      memberIds,
+      clusterId,
+      roles,              // ['user', 'assistant'] - filter by role
+      excludeImagePrompts = false,
+      excludeShortMessages = 0,  // exclude messages shorter than N chars
+      limit = 50,
+      offset = 0,
+      groupByConversation = false,
+    } = req.body;
+
+    // Get memberIds either directly or from cached cluster
+    let ids = memberIds;
+    if (!ids && clusterId) {
+      const cachedClusters = discoveredClustersCache.get(archivePath);
+      if (cachedClusters) {
+        const cluster = cachedClusters.find(c => c.id === clusterId);
+        if (cluster) {
+          ids = cluster.memberIds;
+        }
+      }
+    }
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        error: 'memberIds array or valid clusterId required. Run /api/clustering/discover first.',
+      });
+    }
+
+    const indexer = getIndexer(archivePath);
+    const db = indexer.getDatabase();
+
+    const result = db.getMessagesByEmbeddingIds(ids, {
+      roles: roles,
+      excludeImagePrompts,
+      excludeShortMessages,
+      limit,
+      offset,
+      groupByConversation,
+    });
+
+    // Convert Map to plain object for JSON serialization
+    let response = {
+      success: true,
+      total: result.total,
+      messages: result.messages,
+      limit,
+      offset,
+      hasMore: offset + result.messages.length < result.total,
+    };
+
+    if (groupByConversation && result.byConversation) {
+      const conversationsArray = [];
+      for (const [convId, msgs] of result.byConversation) {
+        // Get conversation title from first message
+        const title = result.messages.find(m => m.conversationId === convId)?.conversationTitle || 'Untitled';
+        conversationsArray.push({
+          conversationId: convId,
+          conversationTitle: title,
+          messageCount: msgs.length,
+          messages: msgs,
+        });
+      }
+      // Sort by message count descending
+      conversationsArray.sort((a, b) => b.messageCount - a.messageCount);
+      response.conversations = conversationsArray;
+      response.conversationCount = conversationsArray.length;
+    }
+
+    res.json(response);
+  } catch (error) {
+    console.error('Error getting cluster members:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create an anchor from embedding IDs
+app.post('/api/anchors/create', async (req, res) => {
+  try {
+    const { name, embeddingIds, method = 'centroid' } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!name || !embeddingIds || !Array.isArray(embeddingIds)) {
+      return res.status(400).json({ error: 'name and embeddingIds array are required' });
+    }
+
+    const clustering = getClusteringService(archivePath);
+    const anchor = clustering.computeAnchor(name, embeddingIds, method);
+    const anchorId = clustering.saveAnchor(anchor);
+
+    res.json({ success: true, anchorId, anchor: { id: anchorId, name, type: 'anchor' } });
+  } catch (error) {
+    console.error('Error creating anchor:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create an anti-anchor (point far from targets)
+app.post('/api/anchors/create-anti', async (req, res) => {
+  try {
+    const { name, targetEmbeddingIds, k = 100 } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!name || !targetEmbeddingIds || !Array.isArray(targetEmbeddingIds)) {
+      return res.status(400).json({ error: 'name and targetEmbeddingIds array are required' });
+    }
+
+    const clustering = getClusteringService(archivePath);
+    const antiAnchor = clustering.computeAntiAnchor(name, targetEmbeddingIds, k);
+    const anchorId = clustering.saveAnchor(antiAnchor);
+
+    res.json({ success: true, anchorId, anchor: { id: anchorId, name, type: 'anti_anchor' } });
+  } catch (error) {
+    console.error('Error creating anti-anchor:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// List all anchors
+app.get('/api/anchors', (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+    const indexer = getIndexer(archivePath);
+    const db = indexer.getDatabase();
+    const anchors = db.getAllAnchors();
+
+    res.json({
+      anchors: anchors.map(a => ({
+        id: a.id,
+        name: a.name,
+        type: a.anchorType,
+        sourceCount: a.sourceEmbeddingIds.length,
+        createdAt: a.createdAt,
+      })),
+    });
+  } catch (error) {
+    console.error('Error listing anchors:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Find content between anchors
+app.post('/api/anchors/between', async (req, res) => {
+  try {
+    const { anchorIds, weights, limit = 20 } = req.body;
+    const archivePath = req.body.archivePath || getArchiveRoot();
+
+    if (!anchorIds || !Array.isArray(anchorIds)) {
+      return res.status(400).json({ error: 'anchorIds array is required' });
+    }
+
+    const clustering = getClusteringService(archivePath);
+    const results = clustering.findBetweenAnchors(anchorIds, weights, limit);
+
+    res.json({ results });
+  } catch (error) {
+    console.error('Error finding between anchors:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete an anchor
+app.delete('/api/anchors/:id', (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+    const indexer = getIndexer(archivePath);
+    const db = indexer.getDatabase();
+    db.deleteAnchor(req.params.id);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting anchor:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Health endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'healthy', timestamp: Date.now() });
 });
 
 const PORT = 3002;

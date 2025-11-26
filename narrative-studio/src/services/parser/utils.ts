@@ -10,41 +10,73 @@ import { format } from 'date-fns';
 
 /**
  * Recursively extract ZIP file, handling nested ZIPs
- * Uses native unzip for large files (>100MB) for better memory efficiency
+ * Uses native tools for large files (>100MB) for better memory efficiency
+ * On macOS, uses `ditto` (same as Archive Utility) for best compatibility
  */
 export async function extractZip(zipPath: string, outputDir: string): Promise<void> {
   const stats = fs.statSync(zipPath);
   const fileSizeMB = stats.size / (1024 * 1024);
-
-  const fileSize = stats.size;
   const fileSizeGB = stats.size / (1024 * 1024 * 1024);
 
-  // For large files (>100MB), use native unzip command for better memory efficiency
+  // For large files (>100MB), use native tools for better memory efficiency
   if (fileSizeMB > 100) {
-    console.log(`Large archive detected (${fileSizeMB.toFixed(0)}MB), using native unzip...`);
+    console.log(`Large archive detected (${fileSizeMB.toFixed(0)}MB), using native extraction...`);
 
     const { exec } = await import('child_process');
     const { promisify } = await import('util');
     const execAsync = promisify(exec);
 
-    try {
-      // Use native unzip command (more memory efficient)
-      await execAsync(`unzip -q -o "${zipPath}" -d "${outputDir}"`);
-    } catch (err: any) {
-      // For files >2GB, adm-zip will fail with Node.js ERR_FS_FILE_TOO_LARGE
-      // Don't fall back to adm-zip, throw better error
-      if (fileSizeGB > 2) {
-        throw new Error(
-          `ZIP extraction failed for large file (${fileSizeGB.toFixed(1)}GB). ` +
-          `The ZIP may be corrupted or have an invalid structure. ` +
-          `Error: ${err.message}`
-        );
-      }
+    // Detect platform
+    const isMacOS = process.platform === 'darwin';
 
-      // For smaller files, try fallback to adm-zip
-      console.warn('Native unzip failed, falling back to adm-zip:', err.message);
-      const zip = new AdmZip(zipPath);
-      zip.extractAllTo(outputDir, true);
+    try {
+      if (isMacOS) {
+        // On macOS, use ditto (same as Archive Utility) - handles edge cases better
+        console.log('Using ditto (macOS Archive Utility method)...');
+        await execAsync(`ditto -x -k "${zipPath}" "${outputDir}"`);
+      } else {
+        // On Linux/Windows, use unzip
+        await execAsync(`unzip -q -o "${zipPath}" -d "${outputDir}"`);
+      }
+    } catch (err: any) {
+      // ditto failed, try unzip as fallback
+      if (isMacOS) {
+        console.warn('ditto failed, trying unzip...', err.message);
+        try {
+          // unzip with -qq (very quiet) to suppress warnings that aren't actual errors
+          const { stdout, stderr } = await execAsync(
+            `unzip -o "${zipPath}" -d "${outputDir}" 2>&1 || true`
+          );
+
+          // Check if extraction actually worked by looking for files
+          const files = fs.readdirSync(outputDir);
+          if (files.length === 0) {
+            throw new Error('Extraction produced no files');
+          }
+          console.log(`Extraction completed with warnings, ${files.length} top-level items extracted`);
+        } catch (unzipErr: any) {
+          // Both failed, throw helpful error
+          throw new Error(
+            `ZIP extraction failed (${fileSizeGB.toFixed(1)}GB file). ` +
+            `Try extracting manually with Archive Utility first. ` +
+            `Error: ${err.message}`
+          );
+        }
+      } else {
+        // For files >2GB on non-macOS, adm-zip will fail
+        if (fileSizeGB > 2) {
+          throw new Error(
+            `ZIP extraction failed for large file (${fileSizeGB.toFixed(1)}GB). ` +
+            `The ZIP may be corrupted or have an invalid structure. ` +
+            `Error: ${err.message}`
+          );
+        }
+
+        // For smaller files, try fallback to adm-zip
+        console.warn('Native unzip failed, falling back to adm-zip:', err.message);
+        const zip = new AdmZip(zipPath);
+        zip.extractAllTo(outputDir, true);
+      }
     }
   } else {
     // For smaller files (<100MB), use adm-zip (faster for small files)

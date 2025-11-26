@@ -3,6 +3,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import authRoutes from './routes/auth';
+import oauthRoutes from './routes/oauth';
 import transformationRoutes from './routes/transformations';
 import configRoutes from './routes/config';
 import mailingListRoutes from './routes/mailing-list';
@@ -42,6 +43,8 @@ app.use('*', cors({
         origin === 'https://www.humanizer.com' ||
         origin === 'https://workbench.humanizer.com' ||
         origin === 'https://studio.humanizer.com' ||
+        origin === 'https://post-social.humanizer.com' ||
+        origin === 'https://npe-api.humanizer.com' ||
         origin.endsWith('.pages.dev')) {
       return origin;
     }
@@ -65,8 +68,17 @@ app.get('/', (c) => {
   });
 });
 
+// Health endpoint (for frontend polling)
+app.get('/health', (c) => {
+  return c.json({
+    status: 'healthy',
+    timestamp: Date.now()
+  });
+});
+
 // Routes
 app.route('/auth', authRoutes);
+app.route('/auth/oauth', oauthRoutes);
 app.route('/transformations', transformationRoutes);
 app.route('/config', configRoutes);
 app.route('/mailing-list', mailingListRoutes);

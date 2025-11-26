@@ -8,6 +8,10 @@ interface ToolsPanelProps {
   onClose: () => void;
   onRunTransform: (config: TransformConfig) => void;
   isTransforming: boolean;
+  selectedType: TransformationType;
+  setSelectedType: (type: TransformationType) => void;
+  parameters: TransformParameters;
+  setParameters: (params: TransformParameters) => void;
 }
 
 const TRANSFORM_TYPES: { value: TransformationType; label: string; description: string }[] = [
@@ -38,28 +42,31 @@ const TRANSFORM_TYPES: { value: TransformationType; label: string; description: 
   },
 ];
 
-export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: ToolsPanelProps) {
-  const [selectedType, setSelectedType] = useState<TransformationType>('computer-humanizer');
-  const [parameters, setParameters] = useState<TransformParameters>({
-    // Computer Humanizer defaults
-    intensity: 'moderate',
-    useLLM: false,
-
-    // Allegorical defaults (will be updated from API)
-    persona: '',
-    style: '',
-
-    // Round-Trip Translation defaults
-    intermediateLanguage: 'spanish',
-
-    // AI Detection defaults
-    threshold: 0.2,
+export function ToolsPanel({
+  isOpen,
+  onClose,
+  onRunTransform,
+  isTransforming,
+  selectedType,
+  setSelectedType,
+  parameters,
+  setParameters,
+}: ToolsPanelProps) {
+  const [transformSource, setTransformSource] = useState<'original' | 'active'>(() => {
+    const saved = localStorage.getItem('narrative-studio-transform-source');
+    return (saved === 'original' || saved === 'active') ? saved : 'active';
   });
 
   // Dynamic attribute lists from API
   const [personas, setPersonas] = useState<Array<{ id: number; name: string; description: string }>>([]);
   const [styles, setStyles] = useState<Array<{ id: number; name: string; style_prompt: string }>>([]);
   const [loadingAttributes, setLoadingAttributes] = useState(true);
+
+  // Persist transform source setting
+  useEffect(() => {
+    localStorage.setItem('narrative-studio-transform-source', transformSource);
+    console.log('[ToolsPanel] Transform source:', transformSource);
+  }, [transformSource]);
 
   // Fetch attributes on mount
   useEffect(() => {
@@ -132,13 +139,15 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
             </h2>
             <button
               onClick={onClose}
-              className="md:hidden p-2 rounded-md hover:opacity-70"
+              title="Collapse Tools Panel"
+              className="p-2 rounded-md hover:opacity-70"
               style={{
                 color: 'var(--text-secondary)',
                 backgroundColor: 'var(--bg-tertiary)',
+                fontSize: '16px',
               }}
             >
-              <Icons.Close />
+              ›
             </button>
           </div>
         </div>
@@ -152,40 +161,53 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
           }}
         >
           <div className="space-y-6">
+          {/* Transform Source */}
+          <div>
+            <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
+              Transform From
+            </label>
+            <select
+              value={transformSource}
+              onChange={(e) => setTransformSource(e.target.value as 'original' | 'active')}
+              className="ui-text w-full"
+              style={{
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <option value="original">📄 Original - Always use source text</option>
+              <option value="active">🔄 Active Buffer - Chain transformations</option>
+            </select>
+            <p className="text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
+              Choose whether to transform from the original text or chain from current buffer
+            </p>
+          </div>
+
           {/* Transformation Type */}
           <div>
             <label className="text-small font-medium mb-3 block" style={{ color: 'var(--text-secondary)' }}>
               Transformation Type
             </label>
-            <div className="space-y-3">
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value as TransformationType)}
+              className="ui-text w-full"
+              style={{
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                color: 'var(--text-primary)',
+              }}
+            >
               {TRANSFORM_TYPES.map((type) => (
-                <button
-                  key={type.value}
-                  onClick={() => setSelectedType(type.value)}
-                  className="card w-full text-left"
-                  style={{
-                    ...(selectedType === type.value
-                      ? {
-                          backgroundImage: 'var(--accent-primary-gradient)',
-                          backgroundColor: 'transparent',
-                        }
-                      : {
-                          backgroundColor: 'var(--bg-elevated)',
-                        }),
-                    color:
-                      selectedType === type.value
-                        ? 'var(--text-inverse)'
-                        : 'var(--text-primary)',
-                    padding: 'var(--space-md)',
-                  }}
-                >
-                  <div className="font-medium mb-2" style={{ fontSize: '1rem' }}>
-                    {type.label}
-                  </div>
-                  <div className="text-small opacity-90">{type.description}</div>
-                </button>
+                <option key={type.value} value={type.value}>
+                  {type.label} - {type.description}
+                </option>
               ))}
-            </div>
+            </select>
+            <p className="text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
+              {TRANSFORM_TYPES.find(t => t.value === selectedType)?.description || 'Select a transformation type'}
+            </p>
           </div>
 
           {/* Computer Humanizer Parameters */}
@@ -484,7 +506,7 @@ export function ToolsPanel({ isOpen, onClose, onRunTransform, isTransforming }: 
 
           {/* Run Button */}
           <button
-            onClick={handleRun}
+            onClick={() => onRunTransform({ type: selectedType, parameters })}
             disabled={isTransforming}
             className="w-full font-medium rounded-md flex items-center justify-center gap-2 transition-smooth disabled:opacity-50 disabled:cursor-not-allowed"
             style={{

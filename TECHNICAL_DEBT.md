@@ -1,9 +1,10 @@
 # Technical Debt Tracker
 
-**Last Updated**: October 18, 2025
-**Total Items**: 9
+**Last Updated**: November 24, 2025
+**Total Items**: 9 active + 1 incident report
 **Blocking Items**: 2
-**Items >30 days**: 0 (newly created tracker)
+**Items >30 days**: 4
+**Critical Incidents**: 1 (resolved)
 
 ---
 
@@ -59,6 +60,63 @@ Polish items, not critical
 2. Simulated embeddings in reading service
 3. Simulated TRM model in reading service
 4. PDF export not implemented
+
+---
+
+## 🚨 Critical Incident Reports
+
+### INCIDENT-001: Phase 2A UI Refactor Broke All Transformations [RESOLVED]
+- **Date**: November 24, 2025
+- **Severity**: CRITICAL (P0) - Complete feature outage
+- **Status**: RESOLVED (40 minutes)
+- **Type**: Bug / State Management / Architecture
+- **Impact**: All transformation tools (Computer Humanizer, Persona, Style, AI Detection, Round-Trip) completely non-functional
+- **Root Cause**: State lifting failure during UI refactoring
+
+**What Happened**:
+During Phase 2A implementation (Floating Action Bar), the "Run Transformation" button was moved from ToolsPanel to FloatingActionBar without properly migrating the transformation configuration state (selectedType, parameters). This caused FloatingActionBar to pass a React click event object instead of a TransformConfig object to the handleRunTransform handler, resulting in "Error: Unknown transformation type: click" for ALL transformations.
+
+**Technical Details**:
+1. FloatingActionBar prop signature was wrong: `onRunTransform: () => void` instead of `(config: TransformConfig) => void`
+2. Transformation state (selectedType, parameters) remained in ToolsPanel but FloatingActionBar had no access to it
+3. Click handler passed the event object where config object was expected
+4. TypeScript didn't catch the error due to flexible React event handler types
+5. Work was marked complete without manual testing
+
+**Resolution**:
+Lifted transformation state from ToolsPanel to App.tsx:
+- Added `selectedTransformType` and `transformParameters` state to App.tsx
+- Updated ToolsPanel to accept state as props instead of using local state
+- Updated FloatingActionBar to construct complete TransformConfig object from props before calling onRunTransform
+- Fixed type signature: `onRunTransform: (config: TransformConfig) => void`
+
+**Files Modified**:
+- `/Users/tem/humanizer_root/narrative-studio/src/App.tsx` (added state, passed to children)
+- `/Users/tem/humanizer_root/narrative-studio/src/components/panels/ToolsPanel.tsx` (removed local state, accept props)
+- `/Users/tem/humanizer_root/narrative-studio/src/components/workspace/FloatingActionBar.tsx` (added handleRun, fixed types)
+
+**Testing Required**:
+- [ ] Computer Humanizer transformation
+- [ ] Persona transformation
+- [ ] Style transformation
+- [ ] AI Detection (Lite + GPTZero)
+- [ ] Round-Trip translation
+- [ ] Parameter passing verification
+- [ ] Transform source setting (Original vs Active Buffer)
+
+**Lessons Learned**:
+1. **Always map data flow** before moving stateful components
+2. **Test critical features immediately** after UI refactors (don't mark work complete without validation)
+3. **Use explicit types** for callback props to catch signature mismatches
+4. **Manual testing is mandatory** for core user flows, even if TypeScript compiles
+5. **Console errors matter** - check browser console during manual testing
+
+**Prevention Measures**:
+- Document state dependencies before refactoring
+- Create testing checklist for critical features
+- Never mark work "complete" without validation
+- Add PropTypes or strict TypeScript interfaces for complex callbacks
+- Run smoke tests after UI restructuring
 
 ---
 
@@ -199,16 +257,24 @@ Polish items, not critical
 1. **User Authentication Assumptions** (3 locations) - Needs systematic fix
 2. **Silent Error Handling** (2 locations in PDF parser) - Add logging
 3. **Intentional ML Stubs** (2 locations) - Acceptable, well-documented
+4. **UI Refactoring Risk** (1 incident) - State management during component restructuring
 
 ### Age Distribution
-- **Fresh** (< 7 days): 2 items (PDF parser issues)
-- **Recent** (7-30 days): 3 items
-- **Older** (> 30 days): 4 items (acceptable for early project)
+- **Fresh** (< 7 days): 1 incident (UI refactor)
+- **Recent** (7-30 days): 1 item
+- **Older** (> 30 days): 8 items (normal for early project)
 
 ### Effort Distribution
 - **Small** (< 2 hours): 3 items - Quick wins available!
 - **Medium** (2-8 hours): 3 items
 - **Large** (> 8 hours): 3 items - Architectural changes needed
+
+### Incident Analysis
+- **Total Incidents**: 1
+- **Resolved**: 1 (100%)
+- **Average Resolution Time**: 40 minutes
+- **Most Common Cause**: State management during refactoring
+- **Prevention Success**: Lessons learned documented for future refactors
 
 ---
 
@@ -247,8 +313,27 @@ Technical debt is a **conscious trade-off** to ship faster. This tracker ensures
 - **Review weekly**: Check for new debt in recent commits
 - **Milestone prep**: Audit blockers for upcoming milestone
 - **Monthly**: Flag items >30 days for review
+- **Post-incident**: Document critical bugs with full context
+
+### UI Refactoring Checklist (Added Nov 24, 2025)
+Before moving stateful components:
+1. Map all state dependencies and data flows
+2. Identify which state needs to be lifted vs passed as props
+3. Update prop signatures and TypeScript interfaces
+4. Test critical user flows manually after changes
+5. Check browser console for errors
+6. Never mark work complete without validation
+
+### Incident Response Process
+When a critical bug is discovered:
+1. Document the incident in "Critical Incident Reports" section
+2. Include: date, severity, status, root cause, resolution
+3. List all modified files with absolute paths
+4. Extract lessons learned and prevention measures
+5. Update Trends & Patterns section
+6. Create testing checklist if missing
 
 ---
 
-**Last Audit**: October 18, 2025
+**Last Audit**: November 24, 2025
 **Next Audit**: Invoke `debt-tracker` agent at session end

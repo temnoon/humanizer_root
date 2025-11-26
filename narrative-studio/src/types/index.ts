@@ -186,6 +186,15 @@ export interface Message {
   tags?: string[]; // Auto-generated message-level tags
 }
 
+// Media manifest structure for URL rewriting
+export interface MediaManifest {
+  files: { [basename: string]: string };          // original filename -> hashed filename
+  assetPointers: { [pointer: string]: string };   // file-service://... -> hashed filename
+  fileIds: { [fileId: string]: string };          // file-XXXXX -> hashed filename
+  fileHashes: { [hash: string]: string };         // file_abc... -> hashed filename
+  sizeToFiles: { [size: number]: string[] };      // for fallback matching
+}
+
 export interface Conversation {
   id: string;
   title: string;
@@ -194,6 +203,9 @@ export interface Conversation {
   created_at?: number;
   updated_at?: number;
   tags?: string[]; // Auto-generated conversation-level tags
+  // Media support
+  mediaManifest?: MediaManifest;
+  mediaBaseUrl?: string;
 }
 
 export interface GalleryImage {
