@@ -9,6 +9,9 @@ import { humanizeText, analyzeForHumanization, type HumanizationOptions } from '
 import { transformPersona } from '../services/persona-transformation';
 import { transformNamespace } from '../services/namespace-transformation';
 import { transformStyle } from '../services/style-transformation';
+import { TranslationService } from '../services/translation';
+import { PersonaExtractionService } from '../services/persona-extraction';
+import { StyleExtractionService } from '../services/style-extraction';
 import { checkQuota, updateUsage } from '../middleware/tier-check';
 import { saveTransformationToHistory, updateTransformationHistory } from '../utils/transformation-history-helper';
 import type {
@@ -820,6 +823,200 @@ transformationRoutes.post('/style', optionalLocalAuth(), async (c) => {
     console.error('Style transformation error:', error);
     return c.json({
       error: error instanceof Error ? error.message : 'Internal server error'
+    }, 500);
+  }
+});
+
+// ==========================================
+// TRANSLATION ENDPOINTS
+// ==========================================
+
+/**
+ * POST /transformations/translate - Direct translation
+ *
+ * Translate text from any language to target language.
+ * Supports 40+ languages including Latin, Ancient Greek, and classical languages.
+ */
+transformationRoutes.post('/translate', optionalLocalAuth(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const { text, targetLanguage, sourceLanguage } = await c.req.json();
+
+    if (!text) {
+      return c.json({ error: 'Missing required field: text' }, 400);
+    }
+
+    if (text.length > 20000) {
+      return c.json({ error: 'Text too long (max 20,000 characters)' }, 400);
+    }
+
+    const service = new TranslationService(c.env, auth.userId);
+    const result = await service.translate(
+      text,
+      targetLanguage || 'english',
+      sourceLanguage
+    );
+
+    return c.json({
+      translation_id: result.translationId,
+      original_text: result.originalText,
+      translated_text: result.translatedText,
+      source_language: result.sourceLanguage,
+      target_language: result.targetLanguage,
+      detected_language: result.detectedLanguage,
+      confidence: result.confidence,
+      model: result.model,
+      processing_time_ms: result.processingTimeMs
+    }, 200);
+  } catch (error) {
+    console.error('Translation error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Translation failed'
+    }, 500);
+  }
+});
+
+/**
+ * POST /transformations/detect-language - Detect language of text
+ */
+transformationRoutes.post('/detect-language', optionalLocalAuth(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const { text } = await c.req.json();
+
+    if (!text) {
+      return c.json({ error: 'Missing required field: text' }, 400);
+    }
+
+    const service = new TranslationService(c.env, auth.userId);
+    const result = await service.detectLanguage(text);
+
+    return c.json({
+      language: result.language,
+      confidence: result.confidence,
+      script: result.script
+    }, 200);
+  } catch (error) {
+    console.error('Language detection error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Detection failed'
+    }, 500);
+  }
+});
+
+/**
+ * GET /transformations/supported-languages - List supported languages
+ */
+transformationRoutes.get('/supported-languages', (c) => {
+  return c.json({
+    languages: TranslationService.getSupportedLanguages(),
+    categories: TranslationService.getLanguagesByCategory()
+  }, 200);
+});
+
+// ==========================================
+// PERSONA EXTRACTION ENDPOINTS
+// ==========================================
+
+/**
+ * POST /transformations/extract-persona - Extract persona from text
+ *
+ * Analyzes a text passage and creates a reusable persona.
+ */
+transformationRoutes.post('/extract-persona', optionalLocalAuth(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const { text, bookTitle, author, chapter, customName } = await c.req.json();
+
+    if (!text) {
+      return c.json({ error: 'Missing required field: text' }, 400);
+    }
+
+    if (text.length > 20000) {
+      return c.json({ error: 'Text too long (max 20,000 characters)' }, 400);
+    }
+
+    const wordCount = text.split(/\s+/).length;
+    if (wordCount < 50) {
+      return c.json({ error: 'Text must be at least 50 words' }, 400);
+    }
+
+    const service = new PersonaExtractionService(c.env, auth.userId);
+    const result = await service.extractPersona(text, {
+      bookTitle,
+      author,
+      chapter,
+      customName
+    });
+
+    return c.json({
+      persona_id: result.id,
+      name: result.name,
+      description: result.description,
+      system_prompt: result.systemPrompt,
+      attributes: result.attributes,
+      example_patterns: result.examplePatterns,
+      source_info: result.sourceInfo,
+      extraction_id: result.extractionId,
+      processing_time_ms: result.processingTimeMs
+    }, 200);
+  } catch (error) {
+    console.error('Persona extraction error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Extraction failed'
+    }, 500);
+  }
+});
+
+// ==========================================
+// STYLE EXTRACTION ENDPOINTS
+// ==========================================
+
+/**
+ * POST /transformations/extract-style - Extract style from text
+ *
+ * Analyzes a text passage and creates a reusable style.
+ */
+transformationRoutes.post('/extract-style', optionalLocalAuth(), async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const { text, bookTitle, author, chapter, customName } = await c.req.json();
+
+    if (!text) {
+      return c.json({ error: 'Missing required field: text' }, 400);
+    }
+
+    if (text.length > 20000) {
+      return c.json({ error: 'Text too long (max 20,000 characters)' }, 400);
+    }
+
+    const wordCount = text.split(/\s+/).length;
+    if (wordCount < 50) {
+      return c.json({ error: 'Text must be at least 50 words' }, 400);
+    }
+
+    const service = new StyleExtractionService(c.env, auth.userId);
+    const result = await service.extractStyle(text, {
+      bookTitle,
+      author,
+      chapter,
+      customName
+    });
+
+    return c.json({
+      style_id: result.id,
+      name: result.name,
+      style_prompt: result.stylePrompt,
+      attributes: result.attributes,
+      example_sentences: result.exampleSentences,
+      source_info: result.sourceInfo,
+      extraction_id: result.extractionId,
+      processing_time_ms: result.processingTimeMs
+    }, 200);
+  } catch (error) {
+    console.error('Style extraction error:', error);
+    return c.json({
+      error: error instanceof Error ? error.message : 'Extraction failed'
     }, 500);
   }
 });

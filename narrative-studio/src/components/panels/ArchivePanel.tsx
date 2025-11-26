@@ -6,7 +6,7 @@ import { galleryService } from '../../services/galleryService';
 import { ImageLightbox } from './ImageLightbox';
 import { SessionsView } from '../archive/SessionsView';
 import { ImportsView } from '../archive/ImportsView';
-import { ImportArchiveButton } from '../archive/ImportArchiveButton';
+import { ExploreView } from '../archive/ExploreView';
 import type { Session } from '../../services/sessionStorage';
 
 interface ArchivePanelProps {
@@ -15,7 +15,7 @@ interface ArchivePanelProps {
   onClose: () => void;
 }
 
-type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions' | 'imports';
+type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions' | 'imports' | 'explore';
 type FilterCategory = 'date' | 'size' | 'media';
 
 interface ActiveFilters {
@@ -61,6 +61,10 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [galleryFolder, setGalleryFolder] = useState<string | undefined>(undefined); // Filter gallery by conversation folder
   const [gallerySearch, setGallerySearch] = useState<string>(''); // Search query for gallery
 
+  // Current archive state
+  const [currentArchiveName, setCurrentArchiveName] = useState<string>('');
+  const [currentArchivePath, setCurrentArchivePath] = useState<string>('');
+
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
   const prevViewModeRef = useRef<ViewMode>(viewMode);
 
@@ -104,6 +108,18 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     setLoading(true);
     setError(null);
     try {
+      // Fetch current archive info
+      try {
+        const archiveRes = await fetch('http://localhost:3002/api/archives/current');
+        if (archiveRes.ok) {
+          const archiveInfo = await archiveRes.json();
+          setCurrentArchiveName(archiveInfo.name || '');
+          setCurrentArchivePath(archiveInfo.path || '');
+        }
+      } catch (archiveErr) {
+        console.warn('Could not fetch current archive info:', archiveErr);
+      }
+
       const data = await archiveService.fetchConversations();
       setConversations(data);
       console.log(`Loaded ${data.length} conversations from archive`);
@@ -309,54 +325,6 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       const narrative = archiveService.conversationToNarrative(selectedConversation);
       onSelectNarrative(narrative);
       console.log('Loaded full conversation to canvas');
-    }
-  };
-
-  // Import conversation.json file
-  const handleImportJSON = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setLoading(true);
-      // Read file content
-      const content = await file.text();
-      const conversation = JSON.parse(content);
-
-      // Send to archive server
-      const response = await fetch('http://localhost:3002/api/import/conversation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          conversation,
-          filename: file.name
-        })
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Import failed');
-      }
-
-      const result = await response.json();
-      console.log('✓ Imported:', result);
-
-      // Show success message
-      alert(`✓ Imported: ${result.title}\n${result.message_count} messages`);
-
-      // Reload conversations list
-      await loadConversations();
-
-      // Reset file input
-      event.target.value = '';
-    } catch (error: any) {
-      console.error('Import error:', error);
-      alert(`Import failed: ${error.message}`);
-      event.target.value = '';
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1069,11 +1037,14 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
       {/* Panel */}
       <aside
-        className="fixed top-16 left-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 overflow-y-auto panel"
+        className="fixed top-16 left-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 panel"
         style={{
           backgroundColor: 'var(--bg-panel)',
           borderRight: '1px solid var(--border-color)',
           borderRadius: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
         }}
       >
         {/* Header */}
@@ -1082,28 +1053,33 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           style={{
             padding: 'var(--space-lg)',
             borderBottom: '1px solid var(--border-color)',
+            flexShrink: 0,
           }}
         >
           <div className="flex items-center justify-between mb-4">
             <h2 className="heading-md" style={{ color: 'var(--text-primary)' }}>
               Archive{' '}
-              <span
-                className="text-small"
-                style={{ color: 'var(--text-tertiary)' }}
-                title="/Users/tem/openai-export-parser/output_v13_final"
-              >
-                (output_v13_final)
-              </span>
+              {currentArchiveName && (
+                <span
+                  className="text-small"
+                  style={{ color: 'var(--text-tertiary)' }}
+                  title={currentArchivePath}
+                >
+                  ({currentArchiveName})
+                </span>
+              )}
             </h2>
             <button
               onClick={onClose}
-              className="md:hidden p-2 rounded-md hover:opacity-70"
+              title="Collapse Archive Panel"
+              className="p-2 rounded-md hover:opacity-70"
               style={{
                 color: 'var(--text-secondary)',
                 backgroundColor: 'var(--bg-tertiary)',
+                fontSize: '16px',
               }}
             >
-              <Icons.Close />
+              ‹
             </button>
           </div>
 
@@ -1147,6 +1123,14 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             >
               <span>📥</span>
               <span className="tab-text">Imports</span>
+            </button>
+            <button
+              onClick={() => setViewMode('explore')}
+              className={`tab ${viewMode === 'explore' ? 'tab-active' : ''}`}
+              title="Semantic search and clustering"
+            >
+              <span>🧭</span>
+              <span className="tab-text">Explore</span>
             </button>
           </div>
 
@@ -1212,22 +1196,6 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
               </div>
             )}
           </div>
-
-          {/* Import Buttons */}
-          <div className="mb-4 flex gap-2">
-              <label className="btn btn-secondary" title="Import single conversation from JSON file">
-                <span>📥</span>
-                <span>Import JSON</span>
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={handleImportJSON}
-                  className="hidden"
-                  disabled={loading}
-                />
-              </label>
-              <ImportArchiveButton />
-            </div>
 
           {/* Filter UI - single line */}
           <div className="mb-4">
@@ -1359,28 +1327,70 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         </>
       )}
 
-          {/* Sessions View */}
-          {viewMode === 'sessions' && (
+        </div>
+
+        {/* Sessions View - outside header for proper scrolling */}
+        {viewMode === 'sessions' && (
+          <div
+            className="overflow-y-auto"
+            style={{
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
             <SessionsView
               onSelectSession={(session: Session) => {
                 console.log('Selected session:', session);
                 // TODO: Load session buffers into workspace
               }}
             />
-          )}
+          </div>
+        )}
 
-          {/* Imports View */}
-          {viewMode === 'imports' && (
+        {/* Imports View - outside header for proper scrolling */}
+        {viewMode === 'imports' && (
+          <div
+            className="overflow-y-auto"
+            style={{
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
             <ImportsView />
-          )}
-        </div>
+          </div>
+        )}
+
+        {/* Explore View - semantic search and clustering */}
+        {viewMode === 'explore' && (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            <ExploreView
+              onNavigateToConversation={(conversationId, messageIndex) => {
+                // Find conversation by ID and load it
+                const conv = conversations.find(c => c.id === conversationId);
+                if (conv) {
+                  loadConversation(conv.folder);
+                  if (messageIndex !== undefined) {
+                    setSelectedMessageIndex(messageIndex);
+                  }
+                  setViewMode('messages');
+                }
+              }}
+            />
+          </div>
+        )}
 
         {/* Conversations list - outside header for proper scrolling */}
         {viewMode === 'conversations' && (
           <div
             className="overflow-y-auto"
             style={{
-              height: 'calc(100% - 240px)',
+              flex: 1,
+              minHeight: 0,
               padding: 'var(--space-md)',
             }}
           >

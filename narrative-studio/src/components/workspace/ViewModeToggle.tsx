@@ -7,105 +7,72 @@ interface ViewModeToggleProps {
 }
 
 export function ViewModeToggle({ viewMode, onChangeViewMode }: ViewModeToggleProps) {
+  const buttonStyle = (isActive: boolean) => ({
+    padding: '6px 10px',
+    fontSize: '16px',
+    fontWeight: 400,
+    color: isActive ? 'white' : 'var(--text-secondary)',
+    backgroundColor: isActive ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+    border: `1px solid ${isActive ? 'var(--accent-primary)' : 'var(--border-color)'}`,
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '36px',
+  });
+
+  const handleHover = (e: React.MouseEvent<HTMLButtonElement>, isActive: boolean, isEntering: boolean) => {
+    if (!isActive) {
+      e.currentTarget.style.backgroundColor = isEntering ? 'var(--bg-hover)' : 'var(--bg-tertiary)';
+      e.currentTarget.style.borderColor = isEntering ? 'var(--accent-primary)' : 'var(--border-color)';
+    }
+  };
+
   return (
     <div
       className="view-mode-toggle"
       style={{
         display: 'flex',
-        gap: '8px',
-        padding: '8px 16px',
+        gap: '6px',
+        padding: '6px 12px',
         borderBottom: '1px solid var(--border-color)',
-        backgroundColor: 'var(--bg-secondary)'
+        backgroundColor: 'var(--bg-secondary)',
+        alignItems: 'center'
       }}
     >
+      <span className="text-small" style={{ color: 'var(--text-tertiary)', marginRight: '4px', fontSize: '11px' }}>
+        View:
+      </span>
       <button
         onClick={() => onChangeViewMode(VIEW_MODES.SPLIT)}
-        className="ui-text"
-        style={{
-          padding: '6px 12px',
-          fontSize: '13px',
-          fontWeight: viewMode === VIEW_MODES.SPLIT ? 600 : 400,
-          color: viewMode === VIEW_MODES.SPLIT ? 'white' : 'var(--text-secondary)',
-          backgroundColor: viewMode === VIEW_MODES.SPLIT ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-          border: `1px solid ${viewMode === VIEW_MODES.SPLIT ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-          borderRadius: '6px',
-          cursor: 'pointer',
-          transition: 'all 0.2s'
-        }}
-        onMouseEnter={(e) => {
-          if (viewMode !== VIEW_MODES.SPLIT) {
-            e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-            e.currentTarget.style.borderColor = 'var(--accent-primary)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (viewMode !== VIEW_MODES.SPLIT) {
-            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-            e.currentTarget.style.borderColor = 'var(--border-color)';
-          }
-        }}
+        title={VIEW_MODE_LABELS[VIEW_MODES.SPLIT]}
+        style={buttonStyle(viewMode === VIEW_MODES.SPLIT)}
+        onMouseEnter={(e) => handleHover(e, viewMode === VIEW_MODES.SPLIT, true)}
+        onMouseLeave={(e) => handleHover(e, viewMode === VIEW_MODES.SPLIT, false)}
       >
-        {VIEW_MODE_LABELS[VIEW_MODES.SPLIT]}
+        ⇄
       </button>
 
       <button
         onClick={() => onChangeViewMode(VIEW_MODES.SINGLE_ORIGINAL)}
-        className="ui-text"
-        style={{
-          padding: '6px 12px',
-          fontSize: '13px',
-          fontWeight: viewMode === VIEW_MODES.SINGLE_ORIGINAL ? 600 : 400,
-          color: viewMode === VIEW_MODES.SINGLE_ORIGINAL ? 'white' : 'var(--text-secondary)',
-          backgroundColor: viewMode === VIEW_MODES.SINGLE_ORIGINAL ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-          border: `1px solid ${viewMode === VIEW_MODES.SINGLE_ORIGINAL ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-          borderRadius: '6px',
-          cursor: 'pointer',
-          transition: 'all 0.2s'
-        }}
-        onMouseEnter={(e) => {
-          if (viewMode !== VIEW_MODES.SINGLE_ORIGINAL) {
-            e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-            e.currentTarget.style.borderColor = 'var(--accent-primary)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (viewMode !== VIEW_MODES.SINGLE_ORIGINAL) {
-            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-            e.currentTarget.style.borderColor = 'var(--border-color)';
-          }
-        }}
+        title={VIEW_MODE_LABELS[VIEW_MODES.SINGLE_ORIGINAL]}
+        style={buttonStyle(viewMode === VIEW_MODES.SINGLE_ORIGINAL)}
+        onMouseEnter={(e) => handleHover(e, viewMode === VIEW_MODES.SINGLE_ORIGINAL, true)}
+        onMouseLeave={(e) => handleHover(e, viewMode === VIEW_MODES.SINGLE_ORIGINAL, false)}
       >
-        {VIEW_MODE_LABELS[VIEW_MODES.SINGLE_ORIGINAL]}
+        ◧
       </button>
 
       <button
         onClick={() => onChangeViewMode(VIEW_MODES.SINGLE_TRANSFORMED)}
-        className="ui-text"
-        style={{
-          padding: '6px 12px',
-          fontSize: '13px',
-          fontWeight: viewMode === VIEW_MODES.SINGLE_TRANSFORMED ? 600 : 400,
-          color: viewMode === VIEW_MODES.SINGLE_TRANSFORMED ? 'white' : 'var(--text-secondary)',
-          backgroundColor: viewMode === VIEW_MODES.SINGLE_TRANSFORMED ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-          border: `1px solid ${viewMode === VIEW_MODES.SINGLE_TRANSFORMED ? 'var(--accent-primary)' : 'var(--border-color)'}`,
-          borderRadius: '6px',
-          cursor: 'pointer',
-          transition: 'all 0.2s'
-        }}
-        onMouseEnter={(e) => {
-          if (viewMode !== VIEW_MODES.SINGLE_TRANSFORMED) {
-            e.currentTarget.style.backgroundColor = 'var(--bg-hover)';
-            e.currentTarget.style.borderColor = 'var(--accent-primary)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          if (viewMode !== VIEW_MODES.SINGLE_TRANSFORMED) {
-            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-            e.currentTarget.style.borderColor = 'var(--border-color)';
-          }
-        }}
+        title={VIEW_MODE_LABELS[VIEW_MODES.SINGLE_TRANSFORMED]}
+        style={buttonStyle(viewMode === VIEW_MODES.SINGLE_TRANSFORMED)}
+        onMouseEnter={(e) => handleHover(e, viewMode === VIEW_MODES.SINGLE_TRANSFORMED, true)}
+        onMouseLeave={(e) => handleHover(e, viewMode === VIEW_MODES.SINGLE_TRANSFORMED, false)}
       >
-        {VIEW_MODE_LABELS[VIEW_MODES.SINGLE_TRANSFORMED]}
+        ▣
       </button>
     </div>
   );

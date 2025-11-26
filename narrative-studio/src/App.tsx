@@ -4,8 +4,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { TextSizeProvider } from './contexts/TextSizeContext';
 import { SessionProvider, useSession } from './contexts/SessionContext';
 import { ProviderProvider } from './contexts/ProviderContext';
+import { ExploreProvider } from './contexts/ExploreContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
+import { PanelToggle } from './components/layout/PanelToggle';
 import { ArchivePanel } from './components/panels/ArchivePanel';
 import { ToolsPanel } from './components/panels/ToolsPanel';
 import { MainWorkspace } from './components/workspace/MainWorkspace';
@@ -26,6 +28,8 @@ function AppContent() {
   const { isAuthenticated, isLoading, user } = useAuth();
   const {
     hasSession,
+    buffers,
+    getActiveBuffer,
     autoCreateSession,
     createOriginalBuffer,
     createTransformationBuffer,
@@ -59,6 +63,21 @@ function AppContent() {
     start: number;
     end: number;
   } | null>(null);
+
+  // Transformation configuration state (lifted from ToolsPanel)
+  const [selectedTransformType, setSelectedTransformType] = useState<TransformationType>('computer-humanizer');
+  const [transformParameters, setTransformParameters] = useState<TransformParameters>({
+    // Computer Humanizer defaults
+    intensity: 'moderate',
+    useLLM: false,
+    // Persona/Style defaults (will be updated from API)
+    persona: '',
+    style: '',
+    // Round-Trip Translation defaults
+    intermediateLanguage: 'spanish',
+    // AI Detection defaults
+    threshold: 0.2,
+  });
 
   // Initialize sample narratives and load from localStorage
   // NOTE: This must be called before conditional returns (Rules of Hooks)
@@ -231,8 +250,30 @@ function AppContent() {
     setError(null);
 
     try {
-      // Use selected text if available, otherwise full document
-      const textToTransform = selectedText?.text || narrative.content;
+      // Get text to transform: selected text > transform source setting > narrative content
+      let textToTransform: string;
+      if (selectedText?.text) {
+        textToTransform = selectedText.text;
+      } else if (hasSession && buffers.length > 0) {
+        // Check user's transform source preference
+        const transformSource = localStorage.getItem('narrative-studio-transform-source') || 'active';
+
+        if (transformSource === 'original') {
+          // Always use original buffer (buffer-0)
+          const originalBuffer = buffers.find(b => b.bufferId === 'buffer-0');
+          textToTransform = originalBuffer?.text || narrative.content;
+          console.log('[App] Using original buffer (buffer-0):', `(${textToTransform.length} chars)`);
+        } else {
+          // Use active buffer text (chain transformations)
+          const activeBuffer = getActiveBuffer();
+          // Original buffers use 'text', transformation buffers use 'resultText'
+          textToTransform = activeBuffer?.text || activeBuffer?.resultText || narrative.content;
+          console.log('[App] Using active buffer text:', activeBuffer?.bufferId, `(${textToTransform.length} chars)`);
+        }
+      } else {
+        // No session - use original narrative content
+        textToTransform = narrative.content;
+      }
       console.log('[App] Running transformation:', config.type, selectedText ? '(selection)' : '(full)');
       const result = await runTransform(config, textToTransform);
 
@@ -445,10 +486,28 @@ function AppContent() {
             onClose={() => setToolsPanelOpen(false)}
             onRunTransform={handleRunTransform}
             isTransforming={isTransforming}
+            selectedType={selectedTransformType}
+            setSelectedType={setSelectedTransformType}
+            parameters={transformParameters}
+            setParameters={setTransformParameters}
           />
           </div>
         )}
       </div>
+
+      {/* Panel Toggles */}
+      <PanelToggle
+        side="left"
+        isOpen={archivePanelOpen}
+        onToggle={() => setArchivePanelOpen(true)}
+        label="Archive"
+      />
+      <PanelToggle
+        side="right"
+        isOpen={toolsPanelOpen}
+        onToggle={() => setToolsPanelOpen(true)}
+        label="Tools"
+      />
 
       {/* Error toast */}
       {error && (
@@ -481,7 +540,9 @@ function AppWithSession() {
 
   return (
     <SessionProvider userTier={userTier} archiveName="main">
-      <AppContent />
+      <ExploreProvider>
+        <AppContent />
+      </ExploreProvider>
     </SessionProvider>
   );
 }

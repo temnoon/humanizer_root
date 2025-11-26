@@ -2,33 +2,44 @@
 // CONVERSATION PARSER - Main Orchestrator
 // ============================================================
 // Coordinates parsing, indexing, and matching for conversation archives
+// Uses comprehensive 7-strategy media matching (ported from Python)
 
 import * as fs from 'fs';
 import * as path from 'path';
 import { OpenAIParser } from './OpenAIParser';
 import { ClaudeParser } from './ClaudeParser';
-import { MediaIndexer } from './MediaIndexer';
-import { MediaMatcher } from './MediaMatcher';
+import { ComprehensiveMediaIndexer } from './ComprehensiveMediaIndexer';
+import { ComprehensiveMediaMatcher } from './ComprehensiveMediaMatcher';
 import { ParsedArchive, Conversation, ExportFormat } from './types';
 import { extractZip, ensureDir, generateId } from './utils';
 
 export class ConversationParser {
   private openAIParser: OpenAIParser;
   private claudeParser: ClaudeParser;
-  private mediaIndexer: MediaIndexer;
-  private mediaMatcher: MediaMatcher;
+  private mediaIndexer: ComprehensiveMediaIndexer;
+  private mediaMatcher: ComprehensiveMediaMatcher;
+  private verbose: boolean;
 
-  constructor() {
+  constructor(verbose = false) {
+    this.verbose = verbose;
     this.openAIParser = new OpenAIParser();
     this.claudeParser = new ClaudeParser();
-    this.mediaIndexer = new MediaIndexer();
-    this.mediaMatcher = new MediaMatcher();
+    this.mediaIndexer = new ComprehensiveMediaIndexer(verbose);
+    this.mediaMatcher = new ComprehensiveMediaMatcher(verbose);
   }
 
   /**
-   * Parse a conversation archive from ZIP file
+   * Parse a conversation archive from ZIP file or directory
+   * @param zipPath - Path to ZIP file or extracted directory
+   * @param workDir - Optional working directory for extraction
+   * @param additionalMediaSourceDirs - Optional array of additional directories to search for media
+   *                                    (e.g., older archives like chat5, recovery folders)
    */
-  async parseArchive(zipPath: string, workDir?: string): Promise<ParsedArchive> {
+  async parseArchive(
+    zipPath: string,
+    workDir?: string,
+    additionalMediaSourceDirs?: string[]
+  ): Promise<ParsedArchive> {
     console.log(`\n=== Parsing Archive: ${path.basename(zipPath)} ===\n`);
 
     // Create temporary working directory
@@ -51,22 +62,41 @@ export class ConversationParser {
       const conversations = await this.parseConversations(tempDir, format);
       console.log(`✓ Parsed ${conversations.length} conversations`);
 
-      // Step 4: Build media indices
-      console.log('\nStep 4: Building media indices...');
-      const indices = await this.mediaIndexer.buildIndices(tempDir);
+      // Step 4: Build media indices (comprehensive - 6 index types)
+      // Include additional source directories for more complete media matching
+      console.log('\nStep 4: Building comprehensive media indices...');
+      if (additionalMediaSourceDirs && additionalMediaSourceDirs.length > 0) {
+        console.log(`  Including ${additionalMediaSourceDirs.length} additional media source(s):`);
+        additionalMediaSourceDirs.forEach(dir => console.log(`    - ${dir}`));
+      }
+      const indices = this.mediaIndexer.buildIndex(tempDir, additionalMediaSourceDirs);
+      const indexStats = this.mediaIndexer.getStats();
+      console.log(`✓ Indexed ${indexStats.totalFiles} files`);
+      console.log(`  - File hash: ${indexStats.fileHashFiles}`);
+      console.log(`  - File ID: ${indexStats.fileIdFiles}`);
+      console.log(`  - Conversation dirs: ${indexStats.conversationDirs}`);
 
-      // Step 5: Match media to conversations
-      console.log('\nStep 5: Matching media files...');
-      await this.mediaMatcher.matchMedia(conversations, indices);
+      // Step 5: Match media to conversations (7 strategies)
+      console.log('\nStep 5: Matching media files (7 strategies)...');
+      const conversationsWithMedia = this.mediaMatcher.match(conversations, indices);
+      const matchStats = this.mediaMatcher.getStats();
+      console.log(`✓ Matched ${matchStats.totalFilesMatched} files to ${matchStats.conversationsWithMedia} conversations`);
+      console.log(`  - By file hash: ${matchStats.byFileHash}`);
+      console.log(`  - By file ID: ${matchStats.byFileId}`);
+      console.log(`  - By filename+size: ${matchStats.byFilenameSize}`);
+      console.log(`  - By conversation dir: ${matchStats.byConversationDir}`);
+      console.log(`  - By size+metadata: ${matchStats.bySizeMetadata}`);
+      console.log(`  - By size only: ${matchStats.bySizeOnly}`);
+      console.log(`  - By filename only: ${matchStats.byFilenameOnly}`);
 
-      // Step 6: Extract media file list
-      const mediaFiles = Array.from(indices.path_to_metadata.values());
+      // Step 6: Extract media file list from indices
+      const mediaFiles = Array.from(indices.pathToMetadata.values());
 
       // Step 7: Calculate statistics
-      const stats = this.calculateStats(conversations);
+      const stats = this.calculateStats(conversationsWithMedia);
 
       const result: ParsedArchive = {
-        conversations,
+        conversations: conversationsWithMedia, // Use conversations with matched media
         mediaFiles,
         format,
         extractedPath: tempDir, // Store for media file access

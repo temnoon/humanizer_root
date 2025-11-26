@@ -409,36 +409,51 @@ export async function personaTransform(
   text: string,
   options: PersonaOptions
 ): Promise<TransformResult> {
-  const response = await fetch(`${getApiBase()}/transformations/persona`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      text,
-      persona: options.persona,
-      preserveLength: true,
-      enableValidation: true,
-    }),
-  });
+  // Add timeout for long texts (5 minutes for LLM processing)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Persona transformation failed');
+  try {
+    const response = await fetch(`${getApiBase()}/transformations/persona`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text,
+        persona: options.persona,
+        preserveLength: true,
+        enableValidation: true,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Persona transformation failed');
+    }
+
+    const data = await response.json();
+
+    // Map backend response to TransformResult format
+    return {
+      transformation_id: data.transformation_id,
+      original: text,
+      transformed: data.transformed_text,
+      metadata: {
+        aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
+        aiConfidenceAfter: data.final?.detection?.aiConfidence,
+        burstinessBefore: data.baseline?.detection?.burstinessScore,
+        burstinessAfter: data.final?.detection?.burstinessScore,
+      },
+    };
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Persona transformation timed out after 5 minutes. Try using a shorter text or splitting into smaller sections.');
+    }
+    throw error;
   }
-
-  const data = await response.json();
-
-  // Map backend response to TransformResult format
-  return {
-    transformation_id: data.transformation_id,
-    original: text,
-    transformed: data.transformed_text,
-    metadata: {
-      aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
-      aiConfidenceAfter: data.final?.detection?.aiConfidence,
-      burstinessBefore: data.baseline?.detection?.burstinessScore,
-      burstinessAfter: data.final?.detection?.burstinessScore,
-    },
-  };
 }
 
 // ============================================================
@@ -453,36 +468,51 @@ export async function styleTransform(
   text: string,
   options: StyleOptions
 ): Promise<TransformResult> {
-  const response = await fetch(`${getApiBase()}/transformations/style`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      text,
-      style: options.style,
-      preserveLength: true,
-      enableValidation: true,
-    }),
-  });
+  // Add timeout for long texts (5 minutes for LLM processing)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Style transformation failed');
+  try {
+    const response = await fetch(`${getApiBase()}/transformations/style`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text,
+        style: options.style,
+        preserveLength: true,
+        enableValidation: true,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Style transformation failed');
+    }
+
+    const data = await response.json();
+
+    // Map backend response to TransformResult format
+    return {
+      transformation_id: data.transformation_id,
+      original: text,
+      transformed: data.transformed_text,
+      metadata: {
+        aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
+        aiConfidenceAfter: data.final?.detection?.aiConfidence,
+        burstinessBefore: data.baseline?.detection?.burstinessScore,
+        burstinessAfter: data.final?.detection?.burstinessScore,
+      },
+    };
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Style transformation timed out after 5 minutes. Try using a shorter text or splitting into smaller sections.');
+    }
+    throw error;
   }
-
-  const data = await response.json();
-
-  // Map backend response to TransformResult format
-  return {
-    transformation_id: data.transformation_id,
-    original: text,
-    transformed: data.transformed_text,
-    metadata: {
-      aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
-      aiConfidenceAfter: data.final?.detection?.aiConfidence,
-      burstinessBefore: data.baseline?.detection?.burstinessScore,
-      burstinessAfter: data.final?.detection?.burstinessScore,
-    },
-  };
 }
 
 // ============================================================
@@ -497,36 +527,51 @@ export async function namespaceTransform(
   text: string,
   options: NamespaceOptions
 ): Promise<TransformResult> {
-  const response = await fetch(`${getApiBase()}/transformations/namespace`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify({
-      text,
-      namespace: options.namespace,
-      preserveLength: true,
-      enableValidation: true,
-    }),
-  });
+  // Add timeout for long texts (5 minutes for LLM processing)
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Namespace transformation failed');
+  try {
+    const response = await fetch(`${getApiBase()}/transformations/namespace`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text,
+        namespace: options.namespace,
+        preserveLength: true,
+        enableValidation: true,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Namespace transformation failed');
+    }
+
+    const data = await response.json();
+
+    // Map backend response to TransformResult format
+    return {
+      transformation_id: data.transformation_id,
+      original: text,
+      transformed: data.transformed_text,
+      metadata: {
+        aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
+        aiConfidenceAfter: data.final?.detection?.aiConfidence,
+        burstinessBefore: data.baseline?.detection?.burstinessScore,
+        burstinessAfter: data.final?.detection?.burstinessScore,
+      },
+    };
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Namespace transformation timed out after 5 minutes. Try using a shorter text or splitting into smaller sections.');
+    }
+    throw error;
   }
-
-  const data = await response.json();
-
-  // Map backend response to TransformResult format
-  return {
-    transformation_id: data.transformation_id,
-    original: text,
-    transformed: data.transformed_text,
-    metadata: {
-      aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
-      aiConfidenceAfter: data.final?.detection?.aiConfidence,
-      burstinessBefore: data.baseline?.detection?.burstinessScore,
-      burstinessAfter: data.final?.detection?.burstinessScore,
-    },
-  };
 }
 
 // ============================================================
@@ -565,36 +610,51 @@ export async function runTransform(config: TransformConfig, text: string): Promi
       });
 
     case 'round-trip': {
-      const response = await fetch(`${getApiBase()}/transformations/round-trip`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          text,
-          intermediate_language: config.parameters.intermediateLanguage || 'spanish',
-        }),
-      });
+      // Round-trip does 2 translations, so longer timeout (10 minutes)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Round-trip translation failed');
+      try {
+        const response = await fetch(`${getApiBase()}/transformations/round-trip`, {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            text,
+            intermediate_language: config.parameters.intermediateLanguage || 'spanish',
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Round-trip translation failed');
+        }
+
+        const data = await response.json();
+
+        return {
+          transformation_id: data.transformation_id || crypto.randomUUID(),
+          original: text,
+          transformed: data.backward_translation,
+          metadata: {
+            transformationType: 'round-trip',
+            intermediateLanguage: config.parameters.intermediateLanguage,
+            forwardTranslation: data.forward_translation,
+            semanticDrift: data.semantic_drift,
+            preservedElements: data.preserved_elements,
+            lostElements: data.lost_elements,
+            gainedElements: data.gained_elements,
+          },
+        };
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error('Round-trip translation timed out after 10 minutes. Try using a shorter text or splitting into smaller sections.');
+        }
+        throw error;
       }
-
-      const data = await response.json();
-
-      return {
-        transformation_id: data.transformation_id || crypto.randomUUID(),
-        original: text,
-        transformed: data.backward_translation,
-        metadata: {
-          transformationType: 'round-trip',
-          intermediateLanguage: config.parameters.intermediateLanguage,
-          forwardTranslation: data.forward_translation,
-          semanticDrift: data.semantic_drift,
-          preservedElements: data.preserved_elements,
-          lostElements: data.lost_elements,
-          gainedElements: data.gained_elements,
-        },
-      };
     }
 
     case 'allegorical':
