@@ -22,7 +22,7 @@ import type { GutenbergBook } from '@/services/gutenberg';
 type NavSection = 'subscribed' | 'browse' | 'search' | 'recent' | 'archive';
 
 // What the center panel should show
-export type CenterMode = 
+export type CenterMode =
   | { type: 'welcome' }
   | { type: 'node-list' }
   | { type: 'node-detail'; nodeId: string; nodeSlug: string }
@@ -30,7 +30,8 @@ export type CenterMode =
   | { type: 'editor'; nodeId?: string }
   | { type: 'compare'; nodeSlug: string; narrativeSlug: string; fromVersion: number; toVersion: number }
   | { type: 'search-results'; query: string }
-  | { type: 'admin' };
+  | { type: 'admin' }
+  | { type: 'synthesis' };  // Phase 5: Synthesis Dashboard
 
 interface BookSource {
   bookTitle: string;
@@ -297,13 +298,26 @@ export const NavigationPanel: Component<NavigationPanelProps> = (props) => {
         </Show>
       </div>
       
-      {/* Admin Section */}
-      <div class="nav-admin-section">
-        <button 
-          class={`nav-admin-btn ${props.currentMode.type === 'admin' ? 'active' : ''}`}
+      {/* Management Section - Synthesis & Admin */}
+      <div class="nav-management-section">
+        <div class="nav-section-header">Management</div>
+
+        {/* Synthesis Dashboard Button */}
+        <button
+          class={`nav-management-btn ${props.currentMode.type === 'synthesis' ? 'active' : ''}`}
+          onClick={() => props.onModeChange({ type: 'synthesis' })}
+        >
+          <span class="btn-icon">🔄</span>
+          <span class="btn-label">Synthesis</span>
+        </button>
+
+        {/* Admin Panel Button */}
+        <button
+          class={`nav-management-btn ${props.currentMode.type === 'admin' ? 'active' : ''}`}
           onClick={() => props.onModeChange({ type: 'admin' })}
         >
-          ⚙️ Manage Nodes
+          <span class="btn-icon">⚙️</span>
+          <span class="btn-label">Manage Nodes</span>
         </button>
       </div>
       

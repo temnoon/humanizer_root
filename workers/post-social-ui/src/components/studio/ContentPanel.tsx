@@ -16,6 +16,7 @@ import { authStore } from '@/stores/auth';
 import { nodesService } from '@/services/nodes';
 import { MarkdownRenderer } from '@/components/content/MarkdownRenderer';
 import { AdminPanel } from './AdminPanel';
+import { SynthesisDashboard } from './SynthesisDashboard';
 import type { CenterMode } from './NavigationPanel';
 import type { Node, Narrative, NarrativeVersion, VersionComparison } from '@/types/models';
 
@@ -129,6 +130,11 @@ export const ContentPanel: Component<ContentPanelProps> = (props) => {
       {/* Admin Mode */}
       <Show when={props.mode.type === 'admin'}>
         <AdminView onModeChange={props.onModeChange} />
+      </Show>
+
+      {/* Synthesis Mode - Phase 5 */}
+      <Show when={props.mode.type === 'synthesis'}>
+        <SynthesisView onModeChange={props.onModeChange} />
       </Show>
     </div>
   );
@@ -543,6 +549,27 @@ const AdminView: Component<{ onModeChange: (mode: CenterMode) => void }> = (prop
             type: 'node-detail',
             nodeId: node.id,
             nodeSlug: node.slug
+          });
+        }}
+      />
+    </div>
+  );
+};
+
+// Synthesis View - Phase 5: Review and apply AI syntheses
+const SynthesisView: Component<{ onModeChange: (mode: CenterMode) => void }> = (props) => {
+  return (
+    <div class="content-synthesis">
+      <SynthesisDashboard
+        onSynthesisApplied={(narrativeId, newVersion) => {
+          console.log(`Synthesis applied: ${narrativeId} v${newVersion}`);
+          // Could navigate to the narrative here
+        }}
+        onNavigateToNarrative={(nodeSlug, narrativeSlug) => {
+          props.onModeChange({
+            type: 'narrative',
+            nodeSlug,
+            narrativeSlug
           });
         }}
       />

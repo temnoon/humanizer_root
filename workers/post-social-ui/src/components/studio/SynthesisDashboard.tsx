@@ -1,86 +1,135 @@
 /**
  * Synthesis Dashboard - Phase 5
  *
- * UI for reviewing and applying AI-generated narrative updates from comments.
- *
- * Features:
- * - List pending/applied/rejected synthesis tasks
- * - Diff view showing proposed changes
+ * UI for reviewing and applying AI-generated narrative synthesis:
+ * - View pending synthesis tasks across all owned narratives
+ * - Side-by-side diff of proposed changes
  * - Approve/reject with feedback
  * - History of applied syntheses
+ *
+ * The synthesis flow:
+ * 1. Comments accumulate on narratives
+ * 2. When threshold reached, owner can compile synthesis
+ * 3. AI generates proposed changes with reasoning
+ * 4. Owner reviews in this dashboard
+ * 5. Approve → new version created, comments marked synthesized
  */
 
 import { Component, Show, For, createSignal, createResource, createEffect } from 'solid-js';
 import { authStore } from '@/stores/auth';
-import { curatorAgentService, type SynthesisTask } from '@/services/curator';
 import { nodesService } from '@/services/nodes';
-import type { Narrative } from '@/types/models';
+import { curatorAgentService, type SynthesisTask } from '@/services/curator';
+import { MarkdownRenderer } from '@/components/content/MarkdownRenderer';
+import type { Node, Narrative } from '@/types/models';
 
 interface SynthesisDashboardProps {
-  narrative: Narrative;
-  onVersionCreated?: (newVersion: number) => void;
-  onClose?: () => void;
+  /** Optional: Focus on a specific narrative */
+  narrativeId?: string;
+  /** Callback when synthesis is applied */
+  onSynthesisApplied?: (narrativeId: string, newVersion: number) => void;
+  /** Navigate to a narrative */
+  onNavigateToNarrative?: (nodeSlug: string, narrativeSlug: string) => void;
 }
 
 export const SynthesisDashboard: Component<SynthesisDashboardProps> = (props) => {
   const [activeTab, setActiveTab] = createSignal<'pending' | 'history'>('pending');
   const [selectedTask, setSelectedTask] = createSignal<SynthesisTask | null>(null);
-  const [isCompiling, setIsCompiling] = createSignal(false);
-  const [isApplying, setIsApplying] = createSignal(false);
+  const [expandedNarrative, setExpandedNarrative] = createSignal<string | null>(null);
+  const [compiling, setCompiling] = createSignal<string | null>(null);
+  const [applying, setApplying] = createSignal<string | null>(null);
+  const [rejecting, setRejecting] = createSignal<string | null>(null);
   const [rejectReason, setRejectReason] = createSignal('');
-  const [showRejectModal, setShowRejectModal] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [success, setSuccess] = createSignal<string | null>(null);
 
-  // Fetch synthesis tasks
-  const [tasks, { refetch: refetchTasks }] = createResource(
-    () => props.narrative?.id,
-    async (narrativeId) => {
-      if (!narrativeId) return { tasks: [] };
-      const token = authStore.token();
-      if (!token) return { tasks: [] };
+  // Fetch user's nodes with narratives that have approved comments
+  const [narrativesWithComments, { refetch }] = createResource(
+    () => authStore.token(),
+    async (token) => {
+      if (!token) return [];
 
       try {
-        return await curatorAgentService.listSynthesisTasks(narrativeId, token);
+        // Get user's nodes
+        const nodes = await nodesService.listNodes(token, { mine: true });
+
+        // For each node, get narratives and their synthesis tasks
+        const narrativesData: Array<{
+          narrative: Narrative;
+          node: Node;
+          tasks: SynthesisTask[];
+          approvedCommentCount: number;
+        }> = [];
+
+        for (const node of nodes) {
+          if (node.narratives) {
+            for (const narrative of node.narratives) {
+              // Get synthesis tasks for this narrative
+              try {
+                const { tasks } = await curatorAgentService.listSynthesisTasks(narrative.id, token);
+
+                // Get approved comment count
+                const comments = await nodesService.listComments(narrative.id, 'approved', token);
+                const approvedCount = comments.filter(c => !c.synthesizedInVersion).length;
+
+                if (tasks.length > 0 || approvedCount > 0) {
+                  narrativesData.push({
+                    narrative,
+                    node,
+                    tasks,
+                    approvedCommentCount: approvedCount,
+                  });
+                }
+              } catch (err) {
+                console.error(`Failed to get tasks for ${narrative.id}:`, err);
+              }
+            }
+          }
+        }
+
+        return narrativesData;
       } catch (err) {
-        console.error('Failed to fetch synthesis tasks:', err);
-        return { tasks: [] };
+        console.error('Failed to load narratives:', err);
+        return [];
       }
     }
   );
 
-  // Filter tasks by status
-  const pendingTasks = () => tasks()?.tasks?.filter(t => t.status === 'pending') || [];
-  const historyTasks = () => tasks()?.tasks?.filter(t => t.status !== 'pending') || [];
+  // Filter for pending vs history
+  const pendingItems = () => {
+    const items = narrativesWithComments();
+    if (!items) return [];
+    return items.filter(item =>
+      item.tasks.some(t => t.status === 'pending') || item.approvedCommentCount > 0
+    );
+  };
 
-  // Compile new synthesis
-  const handleCompileSynthesis = async () => {
+  const historyItems = () => {
+    const items = narrativesWithComments();
+    if (!items) return [];
+    return items.filter(item =>
+      item.tasks.some(t => t.status === 'applied' || t.status === 'rejected')
+    );
+  };
+
+  // Compile synthesis for a narrative
+  const handleCompileSynthesis = async (narrativeId: string) => {
     const token = authStore.token();
-    if (!token || !props.narrative?.id) return;
+    if (!token) return;
 
-    setIsCompiling(true);
+    setCompiling(narrativeId);
     setError(null);
 
     try {
-      const result = await curatorAgentService.compileSynthesis(props.narrative.id, token);
+      const result = await curatorAgentService.compileSynthesis(narrativeId, token);
       setSuccess(`Synthesis compiled from ${result.commentCount} comments`);
-      await refetchTasks();
+      refetch();
 
-      // Auto-select the new task
-      const newTask: SynthesisTask = {
-        id: result.taskId,
-        status: 'pending',
-        commentCount: result.commentCount,
-        suggestion: result.suggestion,
-        reasoning: result.reasoning,
-        changes: result.changes,
-        createdAt: Date.now(),
-      };
-      setSelectedTask(newTask);
+      // Auto-expand to show the new task
+      setExpandedNarrative(narrativeId);
     } catch (err: any) {
       setError(err.message || 'Failed to compile synthesis');
     } finally {
-      setIsCompiling(false);
+      setCompiling(null);
     }
   };
 
@@ -89,19 +138,27 @@ export const SynthesisDashboard: Component<SynthesisDashboardProps> = (props) =>
     const token = authStore.token();
     if (!token) return;
 
-    setIsApplying(true);
+    setApplying(taskId);
     setError(null);
 
     try {
       const result = await curatorAgentService.applySynthesis(taskId, customContent, token);
       setSuccess(`Created version ${result.newVersion} with ${result.synthesizedComments} synthesized comments`);
       setSelectedTask(null);
-      await refetchTasks();
-      props.onVersionCreated?.(result.newVersion);
+      refetch();
+
+      if (props.onSynthesisApplied) {
+        // Find the narrative for this task
+        const items = narrativesWithComments();
+        const item = items?.find(i => i.tasks.some(t => t.id === taskId));
+        if (item) {
+          props.onSynthesisApplied(item.narrative.id, result.newVersion);
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to apply synthesis');
     } finally {
-      setIsApplying(false);
+      setApplying(null);
     }
   };
 
@@ -110,79 +167,52 @@ export const SynthesisDashboard: Component<SynthesisDashboardProps> = (props) =>
     const token = authStore.token();
     if (!token) return;
 
+    setRejecting(taskId);
+    setError(null);
+
     try {
       await curatorAgentService.rejectSynthesis(taskId, rejectReason(), token);
       setSuccess('Synthesis rejected');
       setSelectedTask(null);
-      setShowRejectModal(false);
       setRejectReason('');
-      await refetchTasks();
+      refetch();
     } catch (err: any) {
       setError(err.message || 'Failed to reject synthesis');
+    } finally {
+      setRejecting(null);
     }
   };
 
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending': return { class: 'warning', label: 'Pending Review' };
-      case 'approved': return { class: 'info', label: 'Approved' };
-      case 'applied': return { class: 'success', label: 'Applied' };
-      case 'rejected': return { class: 'error', label: 'Rejected' };
-      case 'expired': return { class: 'muted', label: 'Expired' };
-      default: return { class: 'muted', label: status };
+  // Clear messages after delay
+  createEffect(() => {
+    if (success()) {
+      setTimeout(() => setSuccess(null), 5000);
     }
-  };
+  });
 
   return (
     <div class="synthesis-dashboard">
-      {/* Header */}
-      <div class="synthesis-header">
-        <div class="synthesis-title">
-          <h2>Synthesis Dashboard</h2>
-          <span class="narrative-name">{props.narrative?.title}</span>
-        </div>
-        <Show when={props.onClose}>
-          <button class="btn-icon" onClick={props.onClose}>✕</button>
-        </Show>
-      </div>
+      <header class="synthesis-header">
+        <h2>🔄 Synthesis Dashboard</h2>
+        <p class="synthesis-subtitle">
+          Review AI-generated narrative updates from community feedback
+        </p>
+      </header>
 
-      {/* Status Messages */}
+      {/* Messages */}
       <Show when={error()}>
-        <div class="synthesis-alert error">
+        <div class="message error">
           <span>⚠️ {error()}</span>
-          <button onClick={() => setError(null)}>✕</button>
-        </div>
-      </Show>
-      <Show when={success()}>
-        <div class="synthesis-alert success">
-          <span>✓ {success()}</span>
-          <button onClick={() => setSuccess(null)}>✕</button>
+          <button onClick={() => setError(null)}>×</button>
         </div>
       </Show>
 
-      {/* Actions */}
-      <div class="synthesis-actions">
-        <button
-          class="btn-primary"
-          onClick={handleCompileSynthesis}
-          disabled={isCompiling()}
-        >
-          {isCompiling() ? '⏳ Compiling...' : '🔄 Compile New Synthesis'}
-        </button>
-        <span class="pending-count">
-          {pendingTasks().length} pending • {historyTasks().length} in history
-        </span>
-      </div>
+      <Show when={success()}>
+        <div class="message success">
+          <span>✓ {success()}</span>
+          <button onClick={() => setSuccess(null)}>×</button>
+        </div>
+      </Show>
 
       {/* Tabs */}
       <div class="synthesis-tabs">
@@ -191,8 +221,8 @@ export const SynthesisDashboard: Component<SynthesisDashboardProps> = (props) =>
           onClick={() => setActiveTab('pending')}
         >
           Pending Review
-          <Show when={pendingTasks().length > 0}>
-            <span class="tab-badge">{pendingTasks().length}</span>
+          <Show when={pendingItems().length > 0}>
+            <span class="tab-count">{pendingItems().length}</span>
           </Show>
         </button>
         <button
@@ -205,156 +235,86 @@ export const SynthesisDashboard: Component<SynthesisDashboardProps> = (props) =>
 
       {/* Content */}
       <div class="synthesis-content">
-        <Show when={tasks.loading}>
-          <div class="loading-state">Loading synthesis tasks...</div>
-        </Show>
-
-        {/* Pending Tab */}
-        <Show when={activeTab() === 'pending' && !tasks.loading}>
-          <Show
-            when={pendingTasks().length > 0}
-            fallback={
-              <div class="empty-state">
-                <p>No pending synthesis tasks.</p>
-                <p class="hint">Compile a synthesis from approved comments to start.</p>
-              </div>
-            }
-          >
-            <div class="task-list">
-              <For each={pendingTasks()}>
-                {(task) => (
-                  <TaskCard
-                    task={task}
-                    selected={selectedTask()?.id === task.id}
-                    onClick={() => setSelectedTask(task)}
+        <Show
+          when={!narrativesWithComments.loading}
+          fallback={<div class="synthesis-loading">Loading narratives...</div>}
+        >
+          {/* Pending Tab */}
+          <Show when={activeTab() === 'pending'}>
+            <Show
+              when={pendingItems().length > 0}
+              fallback={
+                <div class="synthesis-empty">
+                  <div class="empty-icon">📭</div>
+                  <h3>No pending syntheses</h3>
+                  <p>When readers leave comments on your narratives and they're approved, you can compile them into synthesis suggestions here.</p>
+                </div>
+              }
+            >
+              <For each={pendingItems()}>
+                {(item) => (
+                  <NarrativeSynthesisCard
+                    narrative={item.narrative}
+                    node={item.node}
+                    tasks={item.tasks.filter(t => t.status === 'pending')}
+                    approvedCommentCount={item.approvedCommentCount}
+                    isExpanded={expandedNarrative() === item.narrative.id}
+                    onToggleExpand={() => setExpandedNarrative(
+                      expandedNarrative() === item.narrative.id ? null : item.narrative.id
+                    )}
+                    onCompile={() => handleCompileSynthesis(item.narrative.id)}
+                    onViewTask={(task) => setSelectedTask(task)}
+                    onNavigate={() => props.onNavigateToNarrative?.(item.node.slug, item.narrative.slug)}
+                    isCompiling={compiling() === item.narrative.id}
                   />
                 )}
               </For>
-            </div>
+            </Show>
           </Show>
-        </Show>
 
-        {/* History Tab */}
-        <Show when={activeTab() === 'history' && !tasks.loading}>
-          <Show
-            when={historyTasks().length > 0}
-            fallback={
-              <div class="empty-state">
-                <p>No synthesis history yet.</p>
-              </div>
-            }
-          >
-            <div class="task-list history">
-              <For each={historyTasks()}>
-                {(task) => (
-                  <TaskCard
-                    task={task}
-                    selected={selectedTask()?.id === task.id}
-                    onClick={() => setSelectedTask(task)}
+          {/* History Tab */}
+          <Show when={activeTab() === 'history'}>
+            <Show
+              when={historyItems().length > 0}
+              fallback={
+                <div class="synthesis-empty">
+                  <div class="empty-icon">📜</div>
+                  <h3>No synthesis history</h3>
+                  <p>Applied and rejected syntheses will appear here.</p>
+                </div>
+              }
+            >
+              <For each={historyItems()}>
+                {(item) => (
+                  <NarrativeHistoryCard
+                    narrative={item.narrative}
+                    node={item.node}
+                    tasks={item.tasks.filter(t => t.status === 'applied' || t.status === 'rejected')}
+                    onNavigate={() => props.onNavigateToNarrative?.(item.node.slug, item.narrative.slug)}
                   />
                 )}
               </For>
-            </div>
+            </Show>
           </Show>
         </Show>
       </div>
 
-      {/* Selected Task Detail Panel */}
+      {/* Task Detail Modal */}
       <Show when={selectedTask()}>
-        <div class="task-detail-panel">
-          <div class="detail-header">
-            <h3>Synthesis Detail</h3>
-            <button class="btn-icon" onClick={() => setSelectedTask(null)}>✕</button>
-          </div>
-
-          <div class="detail-meta">
-            <span class={`status-badge ${getStatusBadge(selectedTask()!.status).class}`}>
-              {getStatusBadge(selectedTask()!.status).label}
-            </span>
-            <span class="detail-date">{formatDate(selectedTask()!.createdAt)}</span>
-            <span class="comment-count">{selectedTask()!.commentCount} comments</span>
-          </div>
-
-          <div class="detail-section">
-            <h4>Summary</h4>
-            <p class="suggestion-text">{selectedTask()!.suggestion}</p>
-          </div>
-
-          <Show when={selectedTask()!.reasoning}>
-            <div class="detail-section">
-              <h4>Reasoning</h4>
-              <p class="reasoning-text">{selectedTask()!.reasoning}</p>
-            </div>
-          </Show>
-
-          <Show when={selectedTask()!.changes?.length}>
-            <div class="detail-section">
-              <h4>Proposed Changes</h4>
-              <ul class="changes-list">
-                <For each={selectedTask()!.changes}>
-                  {(change) => (
-                    <li class="change-item">
-                      <span class="change-icon">✏️</span>
-                      <span>{change}</span>
-                    </li>
-                  )}
-                </For>
-              </ul>
-            </div>
-          </Show>
-
-          {/* Actions for pending tasks */}
-          <Show when={selectedTask()!.status === 'pending'}>
-            <div class="detail-actions">
-              <button
-                class="btn-success"
-                onClick={() => handleApplySynthesis(selectedTask()!.id)}
-                disabled={isApplying()}
-              >
-                {isApplying() ? 'Applying...' : '✓ Apply Synthesis'}
-              </button>
-              <button
-                class="btn-danger"
-                onClick={() => setShowRejectModal(true)}
-              >
-                ✕ Reject
-              </button>
-            </div>
-          </Show>
-
-          {/* History info for applied tasks */}
-          <Show when={selectedTask()!.status === 'applied' && selectedTask()!.appliedVersion}>
-            <div class="applied-info">
-              <span class="applied-icon">✓</span>
-              <span>Applied as version {selectedTask()!.appliedVersion}</span>
-            </div>
-          </Show>
-        </div>
-      </Show>
-
-      {/* Reject Modal */}
-      <Show when={showRejectModal()}>
-        <div class="modal-overlay" onClick={() => setShowRejectModal(false)}>
-          <div class="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Reject Synthesis</h3>
-            <p>Provide a reason for rejecting this synthesis (optional):</p>
-            <textarea
-              value={rejectReason()}
-              onInput={(e) => setRejectReason(e.currentTarget.value)}
-              placeholder="Reason for rejection..."
-              rows={3}
+        <div class="modal-overlay" onClick={(e) => {
+          if (e.target === e.currentTarget) setSelectedTask(null);
+        }}>
+          <div class="modal-container synthesis-modal">
+            <SynthesisTaskDetail
+              task={selectedTask()!}
+              onApply={(customContent) => handleApplySynthesis(selectedTask()!.id, customContent)}
+              onReject={() => handleRejectSynthesis(selectedTask()!.id)}
+              onClose={() => setSelectedTask(null)}
+              isApplying={applying() === selectedTask()?.id}
+              isRejecting={rejecting() === selectedTask()?.id}
+              rejectReason={rejectReason()}
+              onRejectReasonChange={setRejectReason}
             />
-            <div class="modal-actions">
-              <button class="btn-secondary" onClick={() => setShowRejectModal(false)}>
-                Cancel
-              </button>
-              <button
-                class="btn-danger"
-                onClick={() => handleRejectSynthesis(selectedTask()!.id)}
-              >
-                Reject Synthesis
-              </button>
-            </div>
           </div>
         </div>
       </Show>
@@ -362,60 +322,322 @@ export const SynthesisDashboard: Component<SynthesisDashboardProps> = (props) =>
   );
 };
 
-// Task Card Component
-const TaskCard: Component<{
-  task: SynthesisTask;
-  selected: boolean;
-  onClick: () => void;
+// Narrative card with synthesis options
+const NarrativeSynthesisCard: Component<{
+  narrative: Narrative;
+  node: Node;
+  tasks: SynthesisTask[];
+  approvedCommentCount: number;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onCompile: () => void;
+  onViewTask: (task: SynthesisTask) => void;
+  onNavigate: () => void;
+  isCompiling: boolean;
 }> = (props) => {
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'pending': return { class: 'warning', icon: '⏳' };
-      case 'approved': return { class: 'info', icon: '✓' };
-      case 'applied': return { class: 'success', icon: '✅' };
-      case 'rejected': return { class: 'error', icon: '✕' };
-      case 'expired': return { class: 'muted', icon: '⌛' };
-      default: return { class: 'muted', icon: '•' };
-    }
-  };
-
-  const badge = getStatusBadge(props.task.status);
-
-  const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-
-    if (diffHours < 1) return 'Just now';
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
-  };
+  const pendingTasks = () => props.tasks.filter(t => t.status === 'pending');
 
   return (
-    <div
-      class={`task-card ${props.selected ? 'selected' : ''} status-${badge.class}`}
-      onClick={props.onClick}
-    >
-      <div class="task-card-header">
-        <span class={`task-status ${badge.class}`}>
-          {badge.icon} {props.task.status}
-        </span>
-        <span class="task-date">{formatDate(props.task.createdAt)}</span>
+    <div class="narrative-synthesis-card">
+      {/* Header */}
+      <div class="synthesis-card-header" onClick={props.onToggleExpand}>
+        <div class="card-title-row">
+          <span class="expand-icon">{props.isExpanded ? '▼' : '▶'}</span>
+          <div class="card-title-info">
+            <h4 class="narrative-title">{props.narrative.title}</h4>
+            <span class="node-name">in {props.node.name}</span>
+          </div>
+        </div>
+        <div class="card-stats">
+          <Show when={props.approvedCommentCount > 0}>
+            <span class="stat approved-stat">
+              {props.approvedCommentCount} approved comments
+            </span>
+          </Show>
+          <Show when={pendingTasks().length > 0}>
+            <span class="stat pending-stat">
+              {pendingTasks().length} pending synthesis
+            </span>
+          </Show>
+        </div>
       </div>
 
-      <p class="task-suggestion">{props.task.suggestion?.substring(0, 150)}...</p>
+      {/* Expanded Content */}
+      <Show when={props.isExpanded}>
+        <div class="synthesis-card-content">
+          {/* Compile Button */}
+          <Show when={props.approvedCommentCount > 0}>
+            <div class="compile-section">
+              <p class="compile-description">
+                {props.approvedCommentCount} approved comments ready for synthesis.
+              </p>
+              <button
+                class="compile-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  props.onCompile();
+                }}
+                disabled={props.isCompiling}
+              >
+                {props.isCompiling ? (
+                  <>
+                    <span class="spinner-small"></span>
+                    Compiling...
+                  </>
+                ) : (
+                  <>🔄 Compile Synthesis</>
+                )}
+              </button>
+            </div>
+          </Show>
 
-      <div class="task-card-footer">
-        <span class="comment-count">
-          📝 {props.task.commentCount} comments
-        </span>
-        <Show when={props.task.changes?.length}>
-          <span class="changes-count">
-            ✏️ {props.task.changes.length} changes
+          {/* Pending Tasks */}
+          <Show when={pendingTasks().length > 0}>
+            <div class="tasks-section">
+              <h5>Pending Synthesis Tasks</h5>
+              <For each={pendingTasks()}>
+                {(task) => (
+                  <div class="task-preview">
+                    <div class="task-info">
+                      <span class="task-comments">{task.commentCount} comments</span>
+                      <span class="task-date">
+                        {new Date(task.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p class="task-suggestion">{task.suggestion}</p>
+                    <button
+                      class="review-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        props.onViewTask(task);
+                      }}
+                    >
+                      Review Changes →
+                    </button>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+
+          {/* Navigate Link */}
+          <div class="card-actions">
+            <button class="link-btn" onClick={(e) => {
+              e.stopPropagation();
+              props.onNavigate();
+            }}>
+              View Narrative →
+            </button>
+          </div>
+        </div>
+      </Show>
+    </div>
+  );
+};
+
+// History card for applied/rejected syntheses
+const NarrativeHistoryCard: Component<{
+  narrative: Narrative;
+  node: Node;
+  tasks: SynthesisTask[];
+  onNavigate: () => void;
+}> = (props) => {
+  const appliedTasks = () => props.tasks.filter(t => t.status === 'applied');
+  const rejectedTasks = () => props.tasks.filter(t => t.status === 'rejected');
+
+  return (
+    <div class="narrative-history-card">
+      <div class="history-card-header">
+        <div class="card-title-info">
+          <h4 class="narrative-title">{props.narrative.title}</h4>
+          <span class="node-name">in {props.node.name}</span>
+        </div>
+        <button class="link-btn" onClick={props.onNavigate}>
+          View →
+        </button>
+      </div>
+
+      <div class="history-items">
+        <For each={appliedTasks()}>
+          {(task) => (
+            <div class="history-item applied">
+              <span class="history-icon">✓</span>
+              <div class="history-info">
+                <span class="history-action">Applied to v{task.appliedVersion}</span>
+                <span class="history-date">
+                  {new Date(task.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              <span class="history-comments">{task.commentCount} comments</span>
+            </div>
+          )}
+        </For>
+
+        <For each={rejectedTasks()}>
+          {(task) => (
+            <div class="history-item rejected">
+              <span class="history-icon">✗</span>
+              <div class="history-info">
+                <span class="history-action">Rejected</span>
+                <span class="history-date">
+                  {new Date(task.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              <span class="history-comments">{task.commentCount} comments</span>
+            </div>
+          )}
+        </For>
+      </div>
+    </div>
+  );
+};
+
+// Task detail modal with full diff
+const SynthesisTaskDetail: Component<{
+  task: SynthesisTask;
+  onApply: (customContent?: string) => void;
+  onReject: () => void;
+  onClose: () => void;
+  isApplying: boolean;
+  isRejecting: boolean;
+  rejectReason: string;
+  onRejectReasonChange: (reason: string) => void;
+}> = (props) => {
+  const [showRejectForm, setShowRejectForm] = createSignal(false);
+  const [editMode, setEditMode] = createSignal(false);
+  const [editedContent, setEditedContent] = createSignal('');
+
+  return (
+    <div class="synthesis-task-detail">
+      {/* Header */}
+      <div class="task-detail-header">
+        <h3>Review Synthesis</h3>
+        <button class="close-btn" onClick={props.onClose}>×</button>
+      </div>
+
+      {/* Summary */}
+      <div class="task-summary">
+        <div class="summary-meta">
+          <span class="meta-item">
+            <strong>{props.task.commentCount}</strong> comments synthesized
           </span>
+          <span class="meta-item">
+            Created {new Date(props.task.createdAt).toLocaleDateString()}
+          </span>
+        </div>
+
+        <div class="suggestion-box">
+          <h4>AI Summary</h4>
+          <p>{props.task.suggestion}</p>
+        </div>
+
+        <Show when={props.task.reasoning}>
+          <div class="reasoning-box">
+            <h4>Reasoning</h4>
+            <p>{props.task.reasoning}</p>
+          </div>
+        </Show>
+      </div>
+
+      {/* Changes List */}
+      <div class="changes-section">
+        <h4>Proposed Changes</h4>
+        <ul class="changes-list">
+          <For each={props.task.changes}>
+            {(change) => (
+              <li class="change-item">
+                <span class="change-bullet">•</span>
+                {change}
+              </li>
+            )}
+          </For>
+        </ul>
+      </div>
+
+      {/* Edit Mode Toggle */}
+      <div class="edit-toggle">
+        <label>
+          <input
+            type="checkbox"
+            checked={editMode()}
+            onChange={(e) => setEditMode(e.currentTarget.checked)}
+          />
+          Edit proposed content before applying
+        </label>
+      </div>
+
+      {/* Edit Area */}
+      <Show when={editMode()}>
+        <div class="edit-section">
+          <h4>Edit Content</h4>
+          <textarea
+            class="content-editor"
+            value={editedContent()}
+            onInput={(e) => setEditedContent(e.currentTarget.value)}
+            placeholder="Paste or edit the proposed content here..."
+            rows={10}
+          />
+          <p class="edit-hint">
+            Make any adjustments before applying. Leave empty to use AI's proposed content.
+          </p>
+        </div>
+      </Show>
+
+      {/* Reject Form */}
+      <Show when={showRejectForm()}>
+        <div class="reject-form">
+          <h4>Rejection Reason (Optional)</h4>
+          <textarea
+            value={props.rejectReason}
+            onInput={(e) => props.onRejectReasonChange(e.currentTarget.value)}
+            placeholder="Why are you rejecting this synthesis?"
+            rows={3}
+          />
+        </div>
+      </Show>
+
+      {/* Actions */}
+      <div class="task-actions">
+        <Show
+          when={!showRejectForm()}
+          fallback={
+            <>
+              <button
+                class="btn-secondary"
+                onClick={() => setShowRejectForm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                class="btn-danger"
+                onClick={props.onReject}
+                disabled={props.isRejecting}
+              >
+                {props.isRejecting ? 'Rejecting...' : 'Confirm Reject'}
+              </button>
+            </>
+          }
+        >
+          <button
+            class="btn-secondary"
+            onClick={() => setShowRejectForm(true)}
+          >
+            ✗ Reject
+          </button>
+          <button
+            class="btn-primary"
+            onClick={() => props.onApply(editMode() ? editedContent() : undefined)}
+            disabled={props.isApplying}
+          >
+            {props.isApplying ? (
+              <>
+                <span class="spinner-small"></span>
+                Applying...
+              </>
+            ) : (
+              <>✓ Apply Synthesis</>
+            )}
+          </button>
         </Show>
       </div>
     </div>
