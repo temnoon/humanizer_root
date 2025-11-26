@@ -1,0 +1,9 @@
+# Post-Social API - Local Development Environment Variables
+# Copy this file to .dev.vars and fill in actual values
+
+# JWT Secret - MUST match npe-api for unified authentication
+# Get this value from npe-api/.dev.vars or from production secret
+JWT_SECRET=your-jwt-secret-here-must-match-npe-api
+
+# Environment
+ENVIRONMENT=development

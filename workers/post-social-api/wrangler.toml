@@ -1,0 +1,70 @@
+name = "post-social-api"
+main = "src/index.ts"
+compatibility_date = "2025-11-23"
+compatibility_flags = ["nodejs_compat"]
+
+# ==========================================
+# D1 Database
+# ==========================================
+[[d1_databases]]
+binding = "DB"
+database_name = "post-social-db"
+database_id = "f8211afc-1d62-4d39-b133-48855d7fa2e0"
+
+# ==========================================
+# KV for rate limiting and caching
+# ==========================================
+# Uncomment after creating: npx wrangler kv:namespace create post-social-kv
+# [[kv_namespaces]]
+# binding = "KV"
+# id = "your-kv-namespace-id"
+
+# ==========================================
+# Workers AI
+# ==========================================
+[ai]
+binding = "AI"
+
+# ==========================================
+# Vectorize for semantic search
+# ==========================================
+# Create with: npx wrangler vectorize create post-social-posts --dimensions=768 --metric=cosine
+[[vectorize]]
+binding = "POST_VECTORS"
+index_name = "post-social-posts"
+
+# ==========================================
+# Queues for async curation (optional)
+# ==========================================
+# Create with: npx wrangler queues create curation-queue
+# [[queues.producers]]
+# queue = "curation-queue"
+# binding = "CURATION_QUEUE"
+
+# [[queues.consumers]]
+# queue = "curation-queue"
+# max_batch_size = 10
+# max_batch_timeout = 30
+
+# ==========================================
+# Environment variables
+# ==========================================
+[vars]
+ENVIRONMENT = "production"
+
+# ==========================================
+# Local development overrides
+# ==========================================
+[env.dev]
+vars = { ENVIRONMENT = "development" }
+
+# ==========================================
+# Secrets (set via wrangler secret put)
+# ==========================================
+# JWT_SECRET - MUST be the same as npe-api
+# Run: npx wrangler secret put JWT_SECRET
+# Use the SAME value as npe-api for unified authentication
+
+# Optional: External AI providers (for future use)
+# OPENAI_API_KEY - for GPT models
+# ANTHROPIC_API_KEY - for Claude models

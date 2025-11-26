@@ -1,0 +1,17 @@
+{
+  "name": "post-social-frontend",
+  "version": "1.0.0",
+  "description": "Post-Social Network Frontend",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --port 8790",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "hono": "^4.6.14"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "wrangler": "^4.50.0"
+  }
+}
