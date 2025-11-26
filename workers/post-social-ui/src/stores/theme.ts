@@ -10,14 +10,14 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 const STORAGE_KEY = 'post-social-theme';
 
-// Get stored theme or default to 'system'
+// Get stored theme or default to 'light'
 function getStoredTheme(): ThemeMode {
-  if (typeof window === 'undefined') return 'system';
+  if (typeof window === 'undefined') return 'light';
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === 'light' || stored === 'dark' || stored === 'system') {
     return stored;
   }
-  return 'system';
+  return 'light';
 }
 
 // Get the actual theme (resolves 'system' to light/dark)

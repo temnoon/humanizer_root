@@ -14,18 +14,17 @@ interface ThemeToggleProps {
 export const ThemeToggle: Component<ThemeToggleProps> = (props) => {
   const [showMenu, setShowMenu] = createSignal(false);
 
+  // Show icon based on RESOLVED theme (effective appearance), not selected mode
   const getIcon = () => {
-    const mode = themeStore.mode();
-    if (mode === 'light') return '☀️';
-    if (mode === 'dark') return '🌙';
-    return '💻'; // system
+    const resolved = themeStore.resolved();
+    return resolved === 'dark' ? '🌙' : '☀️';
   };
 
   const getLabel = () => {
     const mode = themeStore.mode();
-    if (mode === 'light') return 'Light';
-    if (mode === 'dark') return 'Dark';
-    return 'System';
+    const resolved = themeStore.resolved();
+    if (mode === 'system') return `System (${resolved})`;
+    return resolved === 'dark' ? 'Dark' : 'Light';
   };
 
   const handleSelect = (mode: ThemeMode) => {
