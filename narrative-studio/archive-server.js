@@ -1725,17 +1725,19 @@ app.post('/api/import/archive/folder', async (req, res) => {
         const parser = new ConversationParser(true);
 
         // Detect format first
-        const { OpenAIParser, ClaudeParser } = await import('./src/services/parser/index.js');
+        const { OpenAIParser, ClaudeParser, FacebookParser } = await import('./src/services/parser/index.js');
         let format = 'unknown';
 
-        if (await OpenAIParser.detectFormat(folderPath)) {
+        if (await FacebookParser.detectFormat(folderPath)) {
+          format = 'facebook';
+        } else if (await OpenAIParser.detectFormat(folderPath)) {
           format = 'openai';
         } else if (await ClaudeParser.detectFormat(folderPath)) {
           format = 'claude';
         }
 
         if (format === 'unknown') {
-          throw new Error('Could not detect archive format. Make sure the folder contains conversations.json (OpenAI) or conversations/ folder (Claude).');
+          throw new Error('Could not detect archive format. Make sure the folder contains conversations.json (OpenAI), conversations/ folder (Claude), or messages/inbox/ (Facebook).');
         }
 
         job.progress = 20;
@@ -1744,9 +1746,12 @@ app.post('/api/import/archive/folder', async (req, res) => {
         // Parse conversations directly from folder
         const openAIParser = new OpenAIParser();
         const claudeParser = new ClaudeParser();
+        const facebookParser = new FacebookParser();
 
         let conversations;
-        if (format === 'openai') {
+        if (format === 'facebook') {
+          conversations = await facebookParser.parseConversations(folderPath);
+        } else if (format === 'openai') {
           conversations = await openAIParser.parseConversations(folderPath);
         } else {
           conversations = await claudeParser.parseConversations(folderPath);

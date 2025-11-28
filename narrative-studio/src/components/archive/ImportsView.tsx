@@ -4,7 +4,7 @@ import { ArchiveSelector } from './ArchiveSelector';
 
 const ARCHIVE_SERVER_URL = 'http://localhost:3002';
 
-type ArchiveType = 'auto' | 'openai' | 'claude' | 'custom';
+type ArchiveType = 'auto' | 'openai' | 'claude' | 'facebook' | 'custom';
 
 interface ImportJob {
   id: string;
@@ -444,6 +444,7 @@ export function ImportsView() {
               { value: 'auto', label: 'Auto-detect', icon: '🔍' },
               { value: 'openai', label: 'OpenAI/ChatGPT', icon: '🤖' },
               { value: 'claude', label: 'Claude', icon: '🧠' },
+              { value: 'facebook', label: 'Facebook', icon: '📘' },
               { value: 'custom', label: 'Custom JSON', icon: '📄' },
             ].map((type) => (
               <button

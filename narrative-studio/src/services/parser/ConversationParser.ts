@@ -8,6 +8,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { OpenAIParser } from './OpenAIParser';
 import { ClaudeParser } from './ClaudeParser';
+import { FacebookParser } from './FacebookParser';
 import { ComprehensiveMediaIndexer } from './ComprehensiveMediaIndexer';
 import { ComprehensiveMediaMatcher } from './ComprehensiveMediaMatcher';
 import { ParsedArchive, Conversation, ExportFormat } from './types';
@@ -16,6 +17,7 @@ import { extractZip, ensureDir, generateId } from './utils';
 export class ConversationParser {
   private openAIParser: OpenAIParser;
   private claudeParser: ClaudeParser;
+  private facebookParser: FacebookParser;
   private mediaIndexer: ComprehensiveMediaIndexer;
   private mediaMatcher: ComprehensiveMediaMatcher;
   private verbose: boolean;
@@ -24,6 +26,7 @@ export class ConversationParser {
     this.verbose = verbose;
     this.openAIParser = new OpenAIParser();
     this.claudeParser = new ClaudeParser();
+    this.facebookParser = new FacebookParser();
     this.mediaIndexer = new ComprehensiveMediaIndexer(verbose);
     this.mediaMatcher = new ComprehensiveMediaMatcher(verbose);
   }
@@ -122,10 +125,16 @@ export class ConversationParser {
   }
 
   /**
-   * Detect export format (OpenAI vs Claude)
+   * Detect export format (OpenAI, Claude, or Facebook)
    */
   private async detectFormat(extractedDir: string): Promise<ExportFormat> {
-    // Check for Claude format first (more specific)
+    // Check for Facebook format first (most specific directory structure)
+    const isFacebook = await FacebookParser.detectFormat(extractedDir);
+    if (isFacebook) {
+      return 'facebook';
+    }
+
+    // Check for Claude format (more specific than OpenAI)
     const isClaude = await ClaudeParser.detectFormat(extractedDir);
     if (isClaude) {
       return 'claude';
@@ -148,6 +157,9 @@ export class ConversationParser {
     format: ExportFormat
   ): Promise<Conversation[]> {
     switch (format) {
+      case 'facebook':
+        return await this.facebookParser.parseConversations(extractedDir);
+
       case 'claude':
         return await this.claudeParser.parseConversations(extractedDir);
 

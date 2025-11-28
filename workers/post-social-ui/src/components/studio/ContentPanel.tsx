@@ -17,7 +17,6 @@ import { nodesService } from '@/services/nodes';
 import { MarkdownRenderer } from '@/components/content/MarkdownRenderer';
 import { AdminPanel } from './AdminPanel';
 import { SynthesisDashboard } from './SynthesisDashboard';
-import { CommentSection } from './CommentSection';
 import type { CenterMode } from './NavigationPanel';
 import type { Node, Narrative, NarrativeVersion, VersionComparison } from '@/types/models';
 
@@ -184,7 +183,15 @@ const NodeListView: Component<{ onNodeSelect: (node: Node) => void }> = (props) 
                 <h3 class="node-card-title">{node.name}</h3>
                 <p class="node-card-description">{node.description}</p>
                 <div class="node-card-meta">
-                  <span>{node.narrativeCount || 0} narratives</span>
+                  <Show when={(node.workingTextCount || 0) > 0}>
+                    <span>📖 {node.workingTextCount} chapters</span>
+                  </Show>
+                  <Show when={(node.narrativeCount || 0) > 0}>
+                    <span>📝 {node.narrativeCount} narratives</span>
+                  </Show>
+                  <Show when={(node.workingTextCount || 0) === 0 && (node.narrativeCount || 0) === 0}>
+                    <span class="empty-node">No content yet</span>
+                  </Show>
                 </div>
               </div>
             )}
@@ -392,16 +399,7 @@ const NarrativeView: Component<{
             </Show>
           </div>
 
-          {/* Comments Section */}
-          <Show when={narrative()}>
-            <CommentSection
-              narrative={{
-                ...narrative()!,
-                content: versionContent()?.content || narrative()!.content || ''
-              }}
-              isOwner={isOwner()}
-            />
-          </Show>
+          {/* Comments moved to right panel (ContextPanel) */}
         </article>
       </Show>
     </div>

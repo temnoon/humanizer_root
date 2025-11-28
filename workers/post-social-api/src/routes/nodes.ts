@@ -109,12 +109,14 @@ nodesRoutes.get('/', optionalAuth(), async (c) => {
     if (mine && auth) {
       // User's own nodes
       query = `
-        SELECT 
+        SELECT
           n.id, n.name, n.slug, n.description, n.creator_user_id,
           n.curator_config, n.archive_metadata, n.status,
           n.created_at, n.updated_at,
           (SELECT COUNT(*) FROM narratives WHERE node_id = n.id) as narrative_count,
-          (SELECT COUNT(*) FROM node_subscriptions WHERE node_id = n.id) as subscriber_count
+          (SELECT COUNT(*) FROM node_subscriptions WHERE node_id = n.id) as subscriber_count,
+          (SELECT COUNT(*) FROM node_working_texts WHERE node_id = n.id) as working_text_count,
+          (SELECT SUM(word_count) FROM node_working_texts WHERE node_id = n.id) as total_words
         FROM nodes n
         WHERE n.creator_user_id = ? AND n.status = 'active'
       `;
@@ -122,12 +124,14 @@ nodesRoutes.get('/', optionalAuth(), async (c) => {
     } else {
       // Public nodes
       query = `
-        SELECT 
+        SELECT
           n.id, n.name, n.slug, n.description, n.creator_user_id,
           n.archive_metadata, n.status,
           n.created_at, n.updated_at,
           (SELECT COUNT(*) FROM narratives WHERE node_id = n.id AND visibility = 'public') as narrative_count,
-          (SELECT COUNT(*) FROM node_subscriptions WHERE node_id = n.id) as subscriber_count
+          (SELECT COUNT(*) FROM node_subscriptions WHERE node_id = n.id) as subscriber_count,
+          (SELECT COUNT(*) FROM node_working_texts WHERE node_id = n.id) as working_text_count,
+          (SELECT SUM(word_count) FROM node_working_texts WHERE node_id = n.id) as total_words
         FROM nodes n
         WHERE n.status = 'active'
       `;
@@ -151,6 +155,8 @@ nodesRoutes.get('/', optionalAuth(), async (c) => {
       creatorUserId: node.creator_user_id,
       narrativeCount: node.narrative_count || 0,
       subscriberCount: node.subscriber_count || 0,
+      workingTextCount: node.working_text_count || 0,
+      totalWords: node.total_words || 0,
       status: node.status,
       createdAt: node.created_at,
       updatedAt: node.updated_at,
@@ -182,12 +188,14 @@ nodesRoutes.get('/:slug', optionalAuth(), async (c) => {
   
   try {
     const node = await c.env.DB.prepare(
-      `SELECT 
+      `SELECT
         n.id, n.name, n.slug, n.description, n.creator_user_id,
         n.curator_config, n.archive_metadata, n.status,
         n.created_at, n.updated_at,
         (SELECT COUNT(*) FROM narratives WHERE node_id = n.id) as narrative_count,
-        (SELECT COUNT(*) FROM node_subscriptions WHERE node_id = n.id) as subscriber_count
+        (SELECT COUNT(*) FROM node_subscriptions WHERE node_id = n.id) as subscriber_count,
+        (SELECT COUNT(*) FROM node_working_texts WHERE node_id = n.id) as working_text_count,
+        (SELECT SUM(word_count) FROM node_working_texts WHERE node_id = n.id) as total_words
        FROM nodes n
        WHERE n.slug = ?`
     ).bind(slug).first<Record<string, unknown>>();
@@ -229,6 +237,8 @@ nodesRoutes.get('/:slug', optionalAuth(), async (c) => {
         creatorUserId: node.creator_user_id,
         narrativeCount: node.narrative_count || 0,
         subscriberCount: node.subscriber_count || 0,
+        workingTextCount: node.working_text_count || 0,
+        totalWords: node.total_words || 0,
         status: node.status,
         createdAt: node.created_at,
         updatedAt: node.updated_at,
