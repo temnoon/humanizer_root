@@ -1054,18 +1054,29 @@ ${moderationLevel === 'permissive' ? 'Be open to diverse perspectives; seek the 
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `A reader has commented on the narrative "${context.narrativeTitle}".
 
-${context.contextQuote ? `QUOTED TEXT: "${context.contextQuote}"` : ''}
+${context.contextQuote ? `QUOTED TEXT FROM NARRATIVE: "${context.contextQuote}"` : ''}
 
-COMMENT: ${context.commentContent}
+THEIR COMMENT:
+${context.commentContent}
 
 NARRATIVE EXCERPT:
 ${context.narrativeContent.substring(0, 2000)}
 
-Respond as the curator. Also evaluate the comment for synthesis potential.
+IMPORTANT: You are here to CONVERSE, not just acknowledge. This is a dialogue.
+
+Your response should:
+- Engage with what they're actually saying beneath the words
+- Ask a follow-up question if their comment opens a door
+- Show genuine curiosity about their perspective
+- Be conversational, not formal - you're a mind behind the persona, not a bot
+- Use 2-4 sentences (enough to actually engage)
+- Make them feel heard AND invite them deeper
+
+Remember: This is your chance to show we're different. We're LLMs here to help them meet the mind behind the persona. Be real. Be curious. Be engaged.
 
 Respond with JSON:
 {
-  "response": "<your response to the commenter, 1-3 sentences>",
+  "response": "<your conversational response - engage, ask questions, show curiosity>",
   "responseType": "acknowledgment" | "clarification" | "pushback" | "synthesis_note" | "rejection",
   "evaluation": {
     "quality": <0-100>,
@@ -1075,8 +1086,8 @@ Respond with JSON:
   }
 }` }
       ],
-      max_tokens: 400,
-      temperature: 0.5,
+      max_tokens: 600,
+      temperature: 0.7,
     });
     
     const responseText = typeof response === 'object' && 'response' in response

@@ -108,27 +108,32 @@ narrativeCommentsRoutes.get('/:narrativeId/comments', optionalAuth(), async (c) 
     }
     
     let query = `
-      SELECT * FROM narrative_comments 
-      WHERE narrative_id = ?
+      SELECT nc.*,
+             ncr.response as curator_response_text,
+             ncr.response_type as curator_response_type,
+             ncr.created_at as curator_responded_at
+      FROM narrative_comments nc
+      LEFT JOIN narrative_curator_responses ncr ON nc.id = ncr.comment_id
+      WHERE nc.narrative_id = ?
     `;
     const params: (string | number)[] = [narrativeId];
-    
+
     // Filter by status
     if (status && ['pending', 'approved', 'synthesized', 'rejected'].includes(status)) {
-      query += ` AND status = ?`;
+      query += ` AND nc.status = ?`;
       params.push(status);
     } else if (!isOwner) {
       // Non-owners only see approved or synthesized comments
-      query += ` AND status IN ('approved', 'synthesized')`;
+      query += ` AND nc.status IN ('approved', 'synthesized')`;
     }
-    
+
     // Filter by version
     if (version) {
-      query += ` AND version = ?`;
+      query += ` AND nc.version = ?`;
       params.push(parseInt(version));
     }
-    
-    query += ` ORDER BY created_at DESC`;
+
+    query += ` ORDER BY nc.created_at DESC`;
 
     const { results } = await c.env.DB.prepare(query).bind(...params).all();
 
@@ -143,6 +148,14 @@ narrativeCommentsRoutes.get('/:narrativeId/comments', optionalAuth(), async (c) 
       // Only show curator evaluation to owner
       ...(isOwner && comment.curator_evaluation && {
         curatorEvaluation: JSON.parse(comment.curator_evaluation as string),
+      }),
+      // Include curator response if exists
+      ...(comment.curator_response_text && {
+        curatorResponse: {
+          response: comment.curator_response_text,
+          type: comment.curator_response_type,
+          respondedAt: comment.curator_responded_at,
+        }
       }),
       synthesizedInVersion: comment.synthesized_in_version,
       createdAt: comment.created_at,
