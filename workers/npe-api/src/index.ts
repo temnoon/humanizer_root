@@ -20,6 +20,7 @@ import { narrativesRoutes } from './routes/v2/narratives';
 import { rhoRoutes } from './routes/v2/rho';
 import { adminRoutes } from './routes/admin';
 import { secureArchive } from './routes/secure-archive';
+import gutenbergRoutes from './routes/gutenberg';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -115,6 +116,9 @@ app.route('/admin', adminRoutes);
 
 // Secure Archive routes (encrypted file storage)
 app.route('/secure-archive', secureArchive);
+
+// Gutenberg routes (book search and persona extraction)
+app.route('/gutenberg', gutenbergRoutes);
 
 // 404 handler
 app.notFound((c) => {

@@ -1,3 +1,15 @@
+# ==========================================
+# Post-Social API Worker Configuration
+# ==========================================
+# Deploy: npx wrangler deploy
+# Dev:    npx wrangler dev --env=dev
+#
+# NOTE: This config has multiple environments.
+# - Top-level = production (default for deploy)
+# - [env.dev] = local development
+# Use --env=dev for local, no flag needed for production.
+# ==========================================
+
 name = "post-social-api"
 main = "src/index.ts"
 compatibility_date = "2025-11-23"
@@ -32,6 +44,13 @@ binding = "AI"
 [[vectorize]]
 binding = "POST_VECTORS"
 index_name = "post-social-posts"
+
+# Node chunks for curator system (literary texts)
+# Create with: npx wrangler vectorize create node-chunks --dimensions=384 --metric=cosine
+# Using 384 dims for all-MiniLM-L6-v2 (smaller, faster for large corpora)
+[[vectorize]]
+binding = "NODE_CHUNKS"
+index_name = "node-chunks"
 
 # ==========================================
 # Queues for async curation (optional)

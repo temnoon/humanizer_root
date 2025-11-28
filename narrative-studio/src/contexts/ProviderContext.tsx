@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { isOllamaAvailable } from '../services/ollamaService';
 
 export type Provider = 'local' | 'cloudflare';
 
@@ -15,6 +16,9 @@ interface ProviderContextType {
   setModelConfig: (config: ModelConfig) => void;
   isLocalAvailable: boolean;
   isCloudAvailable: boolean;
+  isOllamaAvailable: boolean;
+  isElectron: boolean;
+  useOllamaForLocal: boolean; // When true, 'local' provider uses Ollama directly
 }
 
 const ProviderContext = createContext<ProviderContextType | undefined>(undefined);
@@ -31,6 +35,9 @@ export function ProviderProvider({ children }: { children: ReactNode }) {
   });
   const [isLocalAvailable, setIsLocalAvailable] = useState(false);
   const [isCloudAvailable, setIsCloudAvailable] = useState(false);
+  const [ollamaAvailable, setOllamaAvailable] = useState(false);
+  const [isElectron, setIsElectron] = useState(false);
+  const [useOllamaForLocal, setUseOllamaForLocal] = useState(false);
 
   // Load saved provider preference
   useEffect(() => {
@@ -77,6 +84,42 @@ export function ProviderProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
+  // Check if running in Electron
+  useEffect(() => {
+    const electronMode = !!window.isElectron && !!window.electronAPI;
+    setIsElectron(electronMode);
+    console.log('[Provider] Electron mode:', electronMode ? 'Yes ✅' : 'No ❌');
+  }, []);
+
+  // Check Ollama availability (for Electron mode)
+  useEffect(() => {
+    async function checkOllama() {
+      try {
+        const available = await isOllamaAvailable();
+        setOllamaAvailable(available);
+        console.log('[Provider] Ollama:', available ? 'Available ✅' : 'Unavailable ❌');
+
+        // In Electron with Ollama available, use Ollama for local provider
+        if (isElectron && available) {
+          // Check if user has configured Ollama (not skipped)
+          const ollamaSkipped = window.electronAPI
+            ? await window.electronAPI.store.get('ollamaSkipped')
+            : true;
+
+          setUseOllamaForLocal(!ollamaSkipped);
+          console.log('[Provider] Use Ollama for local:', !ollamaSkipped ? 'Yes ✅' : 'No ❌');
+        }
+      } catch {
+        setOllamaAvailable(false);
+      }
+    }
+
+    checkOllama();
+    // Re-check every 30 seconds
+    const interval = setInterval(checkOllama, 30000);
+    return () => clearInterval(interval);
+  }, [isElectron]);
+
   const setProvider = (newProvider: Provider) => {
     setProviderState(newProvider);
     localStorage.setItem(STORAGE_KEY, newProvider);
@@ -98,6 +141,9 @@ export function ProviderProvider({ children }: { children: ReactNode }) {
         setModelConfig,
         isLocalAvailable,
         isCloudAvailable,
+        isOllamaAvailable: ollamaAvailable,
+        isElectron,
+        useOllamaForLocal,
       }}
     >
       {children}

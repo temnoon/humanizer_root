@@ -658,6 +658,10 @@ transformationRoutes.post('/computer-humanizer/analyze', optionalLocalAuth(), as
  *
  * Single-dimension transformation: Changes ONLY the narrative voice
  * Preserves content, setting, and writing style
+ *
+ * Supports both:
+ * - Named personas from DB (e.g., "Hemingway" if registered)
+ * - Free-text personas (e.g., "Victorian scholar" - creates dynamic prompt)
  */
 transformationRoutes.post('/persona', optionalLocalAuth(), async (c) => {
   try {
@@ -674,13 +678,28 @@ transformationRoutes.post('/persona', optionalLocalAuth(), async (c) => {
       return c.json({ error: 'Text too long (max 10,000 characters)' }, 400);
     }
 
-    // Fetch persona
-    const personaRecord = await c.env.DB.prepare(
+    // Try to fetch persona from DB first
+    let personaRecord = await c.env.DB.prepare(
       'SELECT * FROM npe_personas WHERE name = ?'
     ).bind(persona).first();
 
+    // If not found in DB, create a dynamic persona
     if (!personaRecord) {
-      return c.json({ error: `Persona "${persona}" not found` }, 404);
+      console.log(`[Persona] Creating dynamic persona for: ${persona}`);
+      personaRecord = {
+        id: 0,  // Dynamic persona, not stored
+        name: persona,
+        description: `Dynamic persona: ${persona}`,
+        system_prompt: `You embody the voice and perspective of "${persona}".
+
+Adopt the characteristic traits, mannerisms, and worldview of this persona:
+- Use vocabulary and speech patterns appropriate to this character/archetype
+- Maintain the emotional register and tone typical of this persona
+- Express ideas from their unique perspective and experience
+- Stay consistent with how this persona would naturally communicate
+
+Your task is to transform text into how "${persona}" would express the same ideas.`
+      };
     }
 
     // Transform
@@ -846,8 +865,9 @@ transformationRoutes.post('/translate', optionalLocalAuth(), async (c) => {
       return c.json({ error: 'Missing required field: text' }, 400);
     }
 
-    if (text.length > 20000) {
-      return c.json({ error: 'Text too long (max 20,000 characters)' }, 400);
+    // Raised limit to support Project Gutenberg books (chunking handles long texts)
+    if (text.length > 500000) {
+      return c.json({ error: 'Text too long (max 500,000 characters)' }, 400);
     }
 
     const service = new TranslationService(c.env, auth.userId);

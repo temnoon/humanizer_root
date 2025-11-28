@@ -1,7 +1,15 @@
 import { useProvider, type Provider } from '../../contexts/ProviderContext';
 
 export function ProviderSwitcher() {
-  const { provider, setProvider, isLocalAvailable, isCloudAvailable } = useProvider();
+  const {
+    provider,
+    setProvider,
+    isLocalAvailable,
+    isCloudAvailable,
+    isOllamaAvailable,
+    isElectron,
+    useOllamaForLocal,
+  } = useProvider();
 
   const handleToggle = () => {
     const newProvider: Provider = provider === 'local' ? 'cloudflare' : 'local';
@@ -9,18 +17,32 @@ export function ProviderSwitcher() {
   };
 
   const getStatusIndicator = (providerType: Provider) => {
-    const isAvailable = providerType === 'local' ? isLocalAvailable : isCloudAvailable;
     const isActive = provider === providerType;
 
-    if (isActive) {
-      return isAvailable ? '🟢' : '🔴';
+    if (providerType === 'local') {
+      // In Electron with Ollama configured, check Ollama availability
+      // Otherwise check wrangler dev availability
+      const isAvailable = isElectron && useOllamaForLocal
+        ? isOllamaAvailable
+        : isLocalAvailable;
+
+      if (isActive) {
+        return isAvailable ? '🟢' : '🔴';
+      }
+      return isAvailable ? '⚪' : '⚫';
+    } else {
+      // Cloud provider
+      if (isActive) {
+        return isCloudAvailable ? '🟢' : '🔴';
+      }
+      return isCloudAvailable ? '⚪' : '⚫';
     }
-    return isAvailable ? '⚪' : '⚫';
   };
 
   const getProviderLabel = (providerType: Provider) => {
     if (providerType === 'local') {
-      return 'Local (Ollama)';
+      // Show "Ollama" in Electron mode, "Local API" in browser
+      return isElectron && useOllamaForLocal ? 'Ollama' : 'Local (wrangler)';
     }
     return 'Cloud (CF Workers)';
   };
@@ -64,14 +86,27 @@ export function ProviderSwitcher() {
       </button>
 
       {/* Availability tooltips */}
-      {!isLocalAvailable && provider === 'local' && (
-        <div
-          className="text-tiny"
-          style={{ color: 'var(--error)' }}
-          title="Local backend not running. Start with: npx wrangler dev --local"
-        >
-          ⚠️
-        </div>
+      {provider === 'local' && (
+        <>
+          {isElectron && useOllamaForLocal && !isOllamaAvailable && (
+            <div
+              className="text-tiny"
+              style={{ color: 'var(--error)' }}
+              title="Ollama not running. Start Ollama or use Cloud provider."
+            >
+              ⚠️
+            </div>
+          )}
+          {(!isElectron || !useOllamaForLocal) && !isLocalAvailable && (
+            <div
+              className="text-tiny"
+              style={{ color: 'var(--error)' }}
+              title="Local backend not running. Start with: npx wrangler dev --local"
+            >
+              ⚠️
+            </div>
+          )}
+        </>
       )}
       {!isCloudAvailable && provider === 'cloudflare' && (
         <div

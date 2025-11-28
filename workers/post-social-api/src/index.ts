@@ -15,6 +15,8 @@ import subscriptionsRoutes from './routes/subscriptions';
 import narrativeCommentsRoutes from './routes/narrative-comments';
 import curatorRoutes from './routes/curator';
 import curatorAgentRoutes from './routes/curator-agent';
+import curatorPyramidRoutes from './routes/curator-pyramid';
+import workingTextRoutes from './routes/working-text';
 import { validateConfig } from './config/ai-models';
 
 // Environment bindings type
@@ -27,6 +29,8 @@ type Bindings = {
   AI: Ai;
   // Vectorize for semantic search (optional until created)
   POST_VECTORS?: VectorizeIndex;
+  // Vectorize for node chunks (literary text chunks)
+  NODE_CHUNKS?: VectorizeIndex;
   // Queue for async curation (optional)
   CURATION_QUEUE?: Queue;
   // Secrets
@@ -113,6 +117,12 @@ app.route('/api/subscriptions', subscriptionsRoutes);
 // API routes - AI Curator (Phase 2)
 app.route('/api/curator', curatorRoutes);
 app.route('/api/curator-agent', curatorAgentRoutes);
+
+// API routes - Curator Pyramid System (Literary Nodes)
+app.route('/api/curator-pyramid', curatorPyramidRoutes);
+
+// API routes - Working Text (Gutenberg text reformatting)
+app.route('/api/working-text', workingTextRoutes);
 
 // 404 handler
 app.notFound((c) => {

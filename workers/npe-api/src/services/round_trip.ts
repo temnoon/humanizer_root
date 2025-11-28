@@ -155,9 +155,20 @@ export class RoundTripTranslationService {
    * Translate text between two languages
    */
   private async translate(text: string, sourceLang: string, targetLang: string): Promise<string> {
+    // Core instruction: translation only, no commentary (same as TranslationService)
+    const outputInstruction = `
+
+CRITICAL: Output ONLY the translation. Do not include:
+- Introductory phrases like "Here is the translation:"
+- Notes or commentary about the translation
+- Explanations of your translation choices
+- Meta-discussion about the source text
+
+Start directly with the translated text.`;
+
     const systemPrompt = `You are a professional translator specializing in ${sourceLang} to ${targetLang} translation.
 Provide accurate, natural translations that preserve meaning and cultural context.
-Translate the text preserving its narrative structure and emotional tone.`;
+Translate the text preserving its narrative structure and emotional tone.${outputInstruction}`;
 
     const prompt = `Translate this ${sourceLang} text to ${targetLang}:
 

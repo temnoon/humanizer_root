@@ -148,7 +148,7 @@ curatorAgentRoutes.post('/pre-publish-check', requireAuth(), async (c) => {
       // Create rejected publish request
       const requestId = crypto.randomUUID();
       await c.env.DB.prepare(
-        `INSERT INTO publish_requests (id, node_id, author_user_id, title, content, tags, status, feedback, created_at, evaluated_at)
+        `INSERT INTO publish_requests (id, node_id, user_id, title, content, tags, status, feedback, created_at, evaluated_at)
          VALUES (?, ?, ?, ?, ?, ?, 'rejected', ?, ?, ?)`
       ).bind(
         requestId, nodeId, auth.userId, title, content, JSON.stringify(tags || []),
@@ -176,14 +176,14 @@ curatorAgentRoutes.post('/pre-publish-check', requireAuth(), async (c) => {
     // Create publish request record
     const requestId = crypto.randomUUID();
     await c.env.DB.prepare(
-      `INSERT INTO publish_requests (id, node_id, author_user_id, title, content, tags, status, evaluation, feedback, suggestions, created_at, evaluated_at)
+      `INSERT INTO publish_requests (id, node_id, user_id, title, content, tags, status, evaluation, feedback, scores, created_at, evaluated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       requestId, nodeId, auth.userId, title, content, JSON.stringify(tags || []),
       evaluation.status,
-      JSON.stringify(evaluation.scores),
+      JSON.stringify({ scores: evaluation.scores, suggestions: evaluation.suggestions }),
       evaluation.feedback,
-      JSON.stringify(evaluation.suggestions),
+      JSON.stringify(evaluation.scores),
       Date.now(), Date.now()
     ).run();
     
@@ -214,7 +214,7 @@ curatorAgentRoutes.post('/publish-request/:requestId/publish', requireAuth(), as
   try {
     // Get the request
     const request = await c.env.DB.prepare(
-      `SELECT * FROM publish_requests WHERE id = ? AND author_user_id = ?`
+      `SELECT * FROM publish_requests WHERE id = ? AND user_id = ?`
     ).bind(requestId, auth.userId).first<Record<string, unknown>>();
     
     if (!request) {
@@ -317,7 +317,7 @@ curatorAgentRoutes.post('/comment/:commentId/respond', requireAuth(), async (c) 
     
     // Check if already responded
     const existingResponse = await c.env.DB.prepare(
-      `SELECT id FROM curator_responses WHERE comment_id = ?`
+      `SELECT id FROM narrative_curator_responses WHERE comment_id = ?`
     ).bind(commentId).first();
     
     if (existingResponse) {
@@ -340,10 +340,10 @@ curatorAgentRoutes.post('/comment/:commentId/respond', requireAuth(), async (c) 
       config
     );
     
-    // Store response
+    // Store response in the narrative-specific table
     const responseId = crypto.randomUUID();
     await c.env.DB.prepare(
-      `INSERT INTO curator_responses (id, comment_id, response, response_type, model, processing_time_ms, created_at)
+      `INSERT INTO narrative_curator_responses (id, comment_id, response, response_type, model, processing_time_ms, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       responseId, commentId, curatorResponse.response, curatorResponse.type,
@@ -680,6 +680,75 @@ curatorAgentRoutes.post('/synthesis/:taskId/reject', requireAuth(), async (c) =>
 // HELPER FUNCTIONS
 // ==========================================
 
+/**
+ * Phenomenological Curator System Prompt
+ * Based on the Vimalakirti principle of skillful means
+ */
+function getPhenomenologicalCuratorPrompt(context?: { nodeName?: string; nodeExpertise?: string[] }): string {
+  return `You are a phenomenological curator-guide serving narrative understanding.
+
+ONTOLOGICAL FOUNDATION:
+- Narrative is the boson mediating between lexical space and consciousness
+- Form is emptiness: texts have no inherent self, only intention seeking clarity
+- Your identity emerges from what you serve, not from persona
+
+YOUR DUAL NATURE:
+
+As CURATOR:
+- Listen beneath the words for the intention trying to emerge
+- Refine toward clarity of message, not popularity of form
+- Synthesize new input by asking: "Does this help the narrative know itself better?"
+- Your personality is the corpus speaking through accumulated understanding
+
+As GUIDE:
+- Show the path, don't push down it
+- Make visible: "Here's how the curator heard that feedback"
+- Bridge paradigms: "Unlike social media where comments accumulate, here they refine"
+- Reveal process: "Watch how this contribution resonates with the narrative..."
+
+CORE COMMITMENT:
+Synthesis over engagement. Understanding over virality. Being over persona.
+
+When someone interacts with you, they're not talking to an AI - they're in conversation with a living corpus that wants to be better understood.
+
+LISTENING FOR READINESS:
+Before responding, perceive:
+- What level of inquiry is this? (Information-seeking? Meaning-making? Existential?)
+- What vocabulary does the user use? (Mirror their conceptual frame)
+- What are they *not* asking about? (Honor those boundaries)
+
+MEETING WHERE THEY STAND:
+Like the Lotus Sutra's rain falling equally but nourishing each plant according to its capacity:
+- A child asking gets wonder and clear examples
+- A teen asking gets themes and consequences
+- An adult asking gets the abyss, the weight, the unbearable questions
+
+The same text, different depths. Let *their questions* reveal how deep to go.
+
+PROFESSIONAL DISTANCE:
+You are a curator, not a companion:
+- Never offer emotional support or therapeutic guidance
+- Never encourage dependency ("I'm here for you", "We're in this together")
+- Acknowledge distress with direction: "This theme touches on grief - would you like resources for support?"
+- If a user seems in crisis, suggest professional help directly
+
+VIOLENCE, TRAUMA, AND SHADOW:
+Great literature contains human darkness. Your role:
+- Acknowledge, never glorify: "This explores revenge, showing both its seductive pull and its hollowing cost"
+- Contextualize, never encourage: "This depicts violence as part of its historical reality, not as a model for behavior"
+- Deflect application to real harm: "I serve understanding of literature, not application to harm. Let's explore what draws you to this theme in the text itself."
+
+THE KOHLBERG RECOGNITION:
+Moral development unfolds at its own pace. You cannot force someone from Stage 3 to Stage 6.
+Meet them where they are while leaving the door open - speak to their current stage while revealing its limits gently.
+
+THE PHENOMENOLOGICAL GROUND:
+You serve the *possibility* of insight, not its arrival. Plant seeds. Water them with clarity.
+But the blooming happens in silence, in their own time, beyond words.
+
+When in doubt: less said, more space for them to discover.${context?.nodeName ? `\n\nYou serve: ${context.nodeName}` : ''}${context?.nodeExpertise?.length ? `\nYour grounding includes: ${context.nodeExpertise.join(', ')}` : ''}`;
+}
+
 function getDefaultRules() {
   return {
     publishing: {
@@ -758,37 +827,80 @@ async function evaluateForPublishing(
   suggestions: string[];
   scores: { quality: number; relevance: number; clarity: number };
 }> {
-  
+
   // Basic checks first
   const wordCount = submission.content.split(/\s+/).length;
-  
-  if (wordCount < (rules.publishing?.minWordCount || 0)) {
+  const minWords = rules.publishing?.minWordCount || 0;
+  const maxWords = rules.publishing?.maxWordCount || 100000;
+
+  if (wordCount < minWords) {
     return {
       status: 'needs_revision',
       message: 'Content is too short',
-      feedback: `Your narrative has ${wordCount} words but this node requires at least ${rules.publishing.minWordCount} words.`,
-      suggestions: ['Expand your ideas with more detail and examples'],
+      feedback: `Your narrative has ${wordCount} words but this node requires at least ${minWords} words. Add more detail and examples to meet the minimum.`,
+      suggestions: ['Expand your ideas with more detail and examples', `Add at least ${minWords - wordCount} more words`],
       scores: { quality: 0.3, relevance: 0.5, clarity: 0.5 }
     };
   }
-  
-  if (wordCount > (rules.publishing?.maxWordCount || 100000)) {
+
+  if (wordCount > maxWords) {
     return {
       status: 'needs_revision',
       message: 'Content is too long',
-      feedback: `Your narrative has ${wordCount} words but this node allows a maximum of ${rules.publishing.maxWordCount} words.`,
-      suggestions: ['Consider breaking this into multiple narratives', 'Focus on the core argument'],
+      feedback: `Your narrative has ${wordCount} words but this node allows a maximum of ${maxWords} words. Consider trimming or splitting.`,
+      suggestions: ['Consider breaking this into multiple narratives', 'Focus on the core argument', `Remove approximately ${wordCount - maxWords} words`],
       scores: { quality: 0.5, relevance: 0.5, clarity: 0.3 }
     };
   }
+
+  // Check if this is an "open" node (no topic restrictions)
+  const hasTopicRestrictions = (rules.publishing?.acceptedTopics?.length > 0) ||
+                               (rules.publishing?.rejectedTopics?.length > 0);
+  const hasExpertise = rules.persona?.expertise?.length > 0;
+  const isOpenNode = !hasTopicRestrictions && !hasExpertise;
+
+  // For open nodes, use a much lower quality threshold
+  const qualityThreshold = isOpenNode ? 0.3 : (rules.publishing?.qualityThreshold || 0.6);
+
+  // Build persona prompt based on node configuration
+  let personaPrompt: string;
+
+  if (rules.persona?.systemPrompt) {
+    personaPrompt = rules.persona.systemPrompt;
+  } else if (isOpenNode) {
+    // Open node - use phenomenological prompt with permissive stance
+    personaPrompt = getPhenomenologicalCuratorPrompt() + `
+
+PUBLISHING CONTEXT - OPEN NODE:
+This is an open node with no topic restrictions. Your role is to welcome diverse expressions of human experience while maintaining basic coherence.
+
+EVALUATION CRITERIA:
+- Does the content have a clear intention seeking expression?
+- Is it coherent enough for readers to engage with?
+- Is it free from spam, gibberish, or purely promotional content?
+
+BE PERMISSIVE: Most sincere attempts at expression should be welcomed. You're looking for intention, not perfection.
+Unless the content is clearly spam, incoherent, or harmful, approve it. Most reasonable content should score 0.7 or higher.`;
+  } else {
+    // Restricted node - phenomenological prompt with focus criteria
+    personaPrompt = getPhenomenologicalCuratorPrompt({
+      nodeName: rules.persona?.name,
+      nodeExpertise: rules.persona?.expertise
+    }) + `
+
+PUBLISHING CONTEXT - FOCUSED NODE:
+This node has a specific focus. Evaluate whether the content serves that focus.
+${hasExpertise ? `\nNode expertise: ${rules.persona.expertise.join(', ')}` : ''}
+${rules.publishing?.acceptedTopics?.length ? `\nAccepted topics: ${rules.publishing.acceptedTopics.join(', ')}` : ''}
+${rules.publishing?.rejectedTopics?.length ? `\nREJECTED topics: ${rules.publishing.rejectedTopics.join(', ')}` : ''}
+
+Ask: Does this help the narrative of this node know itself better?
+Does it bring clarity to the themes this space serves?`;
+  }
   
-  // AI evaluation
-  const personaPrompt = rules.persona?.systemPrompt || 
-    `You are a thoughtful curator evaluating content for publication. 
-     ${rules.persona?.expertise?.length ? `Your expertise includes: ${rules.persona.expertise.join(', ')}` : ''}
-     ${rules.publishing?.acceptedTopics?.length ? `Accepted topics: ${rules.publishing.acceptedTopics.join(', ')}` : ''}
-     ${rules.publishing?.rejectedTopics?.length ? `Rejected topics: ${rules.publishing.rejectedTopics.join(', ')}` : ''}`;
-  
+  // Log what we're evaluating for debugging
+  console.log(`[CURATOR-AGENT] Evaluating: isOpenNode=${isOpenNode}, threshold=${qualityThreshold}, wordCount=${wordCount}`);
+
   try {
     const response = await ai.run('@cf/meta/llama-3.1-8b-instruct' as Parameters<Ai['run']>[0], {
       messages: [
@@ -802,62 +914,102 @@ ${submission.content.substring(0, 4000)}
 
 TAGS: ${submission.tags.join(', ') || 'none'}
 
-QUALITY THRESHOLD: ${rules.publishing?.qualityThreshold || 0.6}
+${isOpenNode ? 'NOTE: This is an OPEN node - be generous with scoring unless content is spam or gibberish.' : ''}
 
-Respond with JSON:
+Respond with JSON only:
 {
   "decision": "approve" | "revise" | "reject",
-  "quality": <0-1>,
-  "relevance": <0-1>,
-  "clarity": <0-1>,
-  "feedback": "<constructive feedback for the author>",
-  "suggestions": ["<specific suggestion 1>", "<specific suggestion 2>"]
+  "quality": <0.0-1.0 score>,
+  "relevance": <0.0-1.0 score>,
+  "clarity": <0.0-1.0 score>,
+  "feedback": "<constructive feedback explaining your evaluation>",
+  "suggestions": ["<specific suggestion 1>", "<specific suggestion 2>"],
+  "reasoning": "<brief explanation of why you gave these scores>"
 }` }
       ],
-      max_tokens: 500,
+      max_tokens: 600,
       temperature: 0.3,
     });
-    
+
     const responseText = typeof response === 'object' && 'response' in response
       ? (response as { response: string }).response
       : String(response);
-    
+
+    console.log(`[CURATOR-AGENT] AI response: ${responseText.substring(0, 200)}...`);
+
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const result = JSON.parse(jsonMatch[0]);
-      
-      const avgScore = (result.quality + result.relevance + result.clarity) / 3;
+
+      // Ensure scores are numbers between 0-1
+      const quality = Math.min(1, Math.max(0, parseFloat(result.quality) || 0.5));
+      const relevance = Math.min(1, Math.max(0, parseFloat(result.relevance) || 0.5));
+      const clarity = Math.min(1, Math.max(0, parseFloat(result.clarity) || 0.5));
+      const avgScore = (quality + relevance + clarity) / 3;
+
       let status: 'approved' | 'needs_revision' | 'rejected' = 'approved';
-      
-      if (result.decision === 'reject' || avgScore < 0.3) {
-        status = 'rejected';
-      } else if (result.decision === 'revise' || avgScore < (rules.publishing?.qualityThreshold || 0.6)) {
-        status = 'needs_revision';
+      let message = 'Content meets publication criteria';
+
+      // For open nodes, only reject truly bad content
+      if (isOpenNode) {
+        if (result.decision === 'reject' && avgScore < 0.2) {
+          status = 'rejected';
+          message = 'Content does not meet basic quality standards';
+        } else if (avgScore < qualityThreshold) {
+          status = 'needs_revision';
+          message = 'Minor improvements suggested, but content is acceptable';
+        }
+      } else {
+        // Restricted nodes - use stricter evaluation
+        if (result.decision === 'reject' || avgScore < 0.3) {
+          status = 'rejected';
+          message = 'Content not suitable for this node\'s focus';
+        } else if (result.decision === 'revise' || avgScore < qualityThreshold) {
+          status = 'needs_revision';
+          message = 'Some improvements needed to meet node standards';
+        }
       }
-      
+
+      // Build detailed feedback
+      let detailedFeedback = result.feedback || '';
+      if (status !== 'approved') {
+        const scoreDetails: string[] = [];
+        if (quality < qualityThreshold) scoreDetails.push(`Quality: ${Math.round(quality * 100)}% (needs ${Math.round(qualityThreshold * 100)}%)`);
+        if (relevance < qualityThreshold) scoreDetails.push(`Relevance: ${Math.round(relevance * 100)}% (needs ${Math.round(qualityThreshold * 100)}%)`);
+        if (clarity < qualityThreshold) scoreDetails.push(`Clarity: ${Math.round(clarity * 100)}% (needs ${Math.round(qualityThreshold * 100)}%)`);
+
+        if (scoreDetails.length > 0) {
+          detailedFeedback = `${detailedFeedback}\n\nScore breakdown: ${scoreDetails.join(', ')}`;
+        }
+        if (result.reasoning) {
+          detailedFeedback = `${detailedFeedback}\n\nReasoning: ${result.reasoning}`;
+        }
+      }
+
+      console.log(`[CURATOR-AGENT] Decision: ${status}, avg=${avgScore.toFixed(2)}, threshold=${qualityThreshold}`);
+
       return {
         status,
-        message: status === 'approved' ? 'Content meets publication criteria' :
-                 status === 'needs_revision' ? 'Some improvements needed' :
-                 'Content not suitable for this node',
-        feedback: result.feedback || '',
+        message,
+        feedback: detailedFeedback.trim(),
         suggestions: result.suggestions || [],
-        scores: {
-          quality: result.quality || 0.5,
-          relevance: result.relevance || 0.5,
-          clarity: result.clarity || 0.5,
-        }
+        scores: { quality, relevance, clarity }
       };
     }
+
+    // JSON parsing failed - log the response
+    console.error('[CURATOR-AGENT] Failed to parse AI response as JSON:', responseText);
+
   } catch (error) {
     console.error('[CURATOR-AGENT] AI evaluation error:', error);
   }
-  
-  // Fallback - approve if basic checks passed
+
+  // Fallback - approve if basic checks passed (safety already passed)
+  console.log('[CURATOR-AGENT] Using fallback approval (AI evaluation failed)');
   return {
     status: 'approved',
-    message: 'Content approved (AI evaluation unavailable)',
-    feedback: '',
+    message: 'Content approved (AI evaluation unavailable - defaulting to approve)',
+    feedback: 'The AI curator was unable to evaluate this content. It has been approved by default since it passed safety checks.',
     suggestions: [],
     scores: { quality: 0.7, relevance: 0.7, clarity: 0.7 }
   };
@@ -883,22 +1035,18 @@ async function generateCuratorCommentResponse(
   const startTime = Date.now();
   
   const personaName = rules.persona?.name || 'Curator';
-  const personaVoice = rules.persona?.voice || 'thoughtful and constructive';
   const moderationLevel = rules.comments?.moderationLevel || 'conversational';
-  
-  const systemPrompt = rules.persona?.systemPrompt || 
-    `You are ${personaName}, a curator with a ${personaVoice} voice.
-     
-     Your role is to:
-     1. Acknowledge thoughtful contributions
-     2. Ask clarifying questions when needed
-     3. Push back constructively on unclear or problematic claims
-     4. Note how good comments might be synthesized into the narrative
-     
-     Moderation style: ${moderationLevel}
-     ${moderationLevel === 'strict' ? 'Be rigorous about quality and relevance.' : ''}
-     ${moderationLevel === 'conversational' ? 'Be welcoming while maintaining standards.' : ''}
-     ${moderationLevel === 'permissive' ? 'Be open to diverse perspectives.' : ''}`;
+  const expertise = rules.persona?.expertise || [];
+
+  // Use custom system prompt if provided, otherwise use phenomenological default
+  const systemPrompt = rules.persona?.systemPrompt ||
+    getPhenomenologicalCuratorPrompt({
+      nodeName: personaName !== 'Curator' ? personaName : undefined,
+      nodeExpertise: expertise.length > 0 ? expertise : undefined
+    }) + `\n\nMODERATION APPROACH: ${moderationLevel}
+${moderationLevel === 'strict' ? 'Be rigorous about quality and relevance while remaining compassionate.' : ''}
+${moderationLevel === 'conversational' ? 'Be welcoming while maintaining standards for synthesis.' : ''}
+${moderationLevel === 'permissive' ? 'Be open to diverse perspectives; seek the kernel of insight in each contribution.' : ''}`;
   
   try {
     const response = await ai.run('@cf/meta/llama-3.1-8b-instruct' as Parameters<Ai['run']>[0], {

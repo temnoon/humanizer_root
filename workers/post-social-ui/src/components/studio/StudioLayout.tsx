@@ -23,15 +23,26 @@ interface StudioLayoutProps {
 }
 
 export const StudioLayout: Component<StudioLayoutProps> = (props) => {
-  const [leftOpen, setLeftOpen] = createSignal(true);
-  const [rightOpen, setRightOpen] = createSignal(true);
+  // Check if mobile on mount
+  const isMobile = () => typeof window !== 'undefined' && window.innerWidth <= 768;
+
+  const [leftOpen, setLeftOpen] = createSignal(!isMobile());
+  const [rightOpen, setRightOpen] = createSignal(!isMobile());
   const [leftWidth, setLeftWidth] = createSignal(props.leftWidth || 280);
   const [rightWidth, setRightWidth] = createSignal(props.rightWidth || 320);
   const [isDraggingLeft, setIsDraggingLeft] = createSignal(false);
   const [isDraggingRight, setIsDraggingRight] = createSignal(false);
-  
+
   const minWidth = props.minPanelWidth || 200;
   const maxWidth = 500;
+
+  // Close panels when clicking backdrop on mobile
+  const handleBackdropClick = () => {
+    if (isMobile()) {
+      setLeftOpen(false);
+      setRightOpen(false);
+    }
+  };
   
   // Handle resize drag
   const handleMouseMove = (e: MouseEvent) => {
@@ -65,11 +76,47 @@ export const StudioLayout: Component<StudioLayoutProps> = (props) => {
     };
   });
   
+  // Toggle left panel (closes right on mobile)
+  const toggleLeft = () => {
+    if (isMobile() && !leftOpen()) {
+      setRightOpen(false);
+    }
+    setLeftOpen(!leftOpen());
+  };
+
+  // Toggle right panel (closes left on mobile)
+  const toggleRight = () => {
+    if (isMobile() && !rightOpen()) {
+      setLeftOpen(false);
+    }
+    setRightOpen(!rightOpen());
+  };
+
   return (
     <div class="studio-layout">
+      {/* Mobile toggle buttons - always visible */}
+      <Show when={props.leftPanel}>
+        <button
+          class={`mobile-panel-toggle left ${leftOpen() ? 'hidden' : ''}`}
+          onClick={toggleLeft}
+          title="Open Navigation"
+        >
+          ☰
+        </button>
+      </Show>
+      <Show when={props.rightPanel}>
+        <button
+          class={`mobile-panel-toggle right ${rightOpen() ? 'hidden' : ''}`}
+          onClick={toggleRight}
+          title="Open Context"
+        >
+          ⋯
+        </button>
+      </Show>
+
       {/* Left Panel */}
       <Show when={props.leftPanel}>
-        <div 
+        <div
           class={`studio-panel left ${leftOpen() ? 'open' : 'collapsed'}`}
           style={{ width: leftOpen() ? `${leftWidth()}px` : '40px' }}
         >
@@ -77,9 +124,9 @@ export const StudioLayout: Component<StudioLayoutProps> = (props) => {
             <Show when={leftOpen()}>
               <span class="panel-title">{props.leftTitle || 'Archive'}</span>
             </Show>
-            <button 
+            <button
               class="panel-toggle"
-              onClick={() => setLeftOpen(!leftOpen())}
+              onClick={toggleLeft}
               title={leftOpen() ? 'Collapse' : 'Expand'}
             >
               {leftOpen() ? '◀' : '▶'}
@@ -118,14 +165,14 @@ export const StudioLayout: Component<StudioLayoutProps> = (props) => {
       
       {/* Right Panel */}
       <Show when={props.rightPanel}>
-        <div 
+        <div
           class={`studio-panel right ${rightOpen() ? 'open' : 'collapsed'}`}
           style={{ width: rightOpen() ? `${rightWidth()}px` : '40px' }}
         >
           <div class="panel-header">
-            <button 
+            <button
               class="panel-toggle"
-              onClick={() => setRightOpen(!rightOpen())}
+              onClick={toggleRight}
               title={rightOpen() ? 'Collapse' : 'Expand'}
             >
               {rightOpen() ? '▶' : '◀'}
@@ -141,6 +188,12 @@ export const StudioLayout: Component<StudioLayoutProps> = (props) => {
           </Show>
         </div>
       </Show>
+
+      {/* Mobile backdrop - closes panels when clicked */}
+      <div
+        class={`mobile-backdrop ${(leftOpen() || rightOpen()) ? 'visible' : ''}`}
+        onClick={handleBackdropClick}
+      />
     </div>
   );
 };

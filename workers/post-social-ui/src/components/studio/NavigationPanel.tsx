@@ -43,6 +43,7 @@ interface NavigationPanelProps {
   currentMode: CenterMode;
   onModeChange: (mode: CenterMode) => void;
   onCreateNew: () => void;
+  onCreateNode?: () => void;
   onImportFromGutenberg?: (content: string, title: string, source: BookSource) => void;
 }
 
@@ -157,11 +158,18 @@ export const NavigationPanel: Component<NavigationPanelProps> = (props) => {
         </form>
       </div>
       
-      {/* Create Button */}
-      <button class="nav-create-btn" onClick={props.onCreateNew}>
-        ✏️ New Narrative
-      </button>
-      
+      {/* Create Buttons */}
+      <div class="nav-create-buttons">
+        <button class="nav-create-btn" onClick={props.onCreateNew}>
+          ✏️ New Narrative
+        </button>
+        <Show when={props.onCreateNode}>
+          <button class="nav-create-btn node-btn" onClick={props.onCreateNode}>
+            📚 New Node
+          </button>
+        </Show>
+      </div>
+
       {/* Section Tabs */}
       <div class="nav-tabs">
         <button

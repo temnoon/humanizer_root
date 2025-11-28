@@ -121,4 +121,11 @@ export const Icons = {
       <path d="M2 18h18" strokeWidth="2" strokeLinecap="round" />
     </svg>
   ),
+
+  Settings: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <circle cx="10" cy="10" r="3" strokeWidth="2" />
+      <path d="M10 1v2M10 17v2M19 10h-2M3 10H1M16.36 3.64l-1.41 1.41M5.05 14.95l-1.41 1.41M16.36 16.36l-1.41-1.41M5.05 5.05L3.64 3.64" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  ),
 };

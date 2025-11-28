@@ -30,6 +30,10 @@ export { AdminPanel } from './AdminPanel';
 export { SynthesisDashboard } from './SynthesisDashboard';
 export { GutenbergBrowser } from './GutenbergBrowser';
 export { NodeSeeder } from './NodeSeeder';
+export { NodeCreationWizard } from './NodeCreationWizard';
+export { TransformPanel } from './TransformPanel';
+export { PersonaBrowser } from './PersonaBrowser';
+export { CommentSection } from './CommentSection';
 
 // Overlay
 export { Lightbox, openLightbox, closeLightbox, useLightbox } from './Lightbox';

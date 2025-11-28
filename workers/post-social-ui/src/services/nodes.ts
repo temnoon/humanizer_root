@@ -414,6 +414,234 @@ export async function getComment(commentId: string, token?: string): Promise<Nar
   }
 }
 
+// ===== CHAPTERS =====
+
+interface ChaptersResponse {
+  nodeId: string;
+  source: 'chunks' | 'narratives';
+  chapters: Array<{
+    chapterNumber: number;
+    title: string;
+    // From chunks
+    chunkCount?: number;
+    estimatedWords?: number;
+    published?: boolean;
+    // From narratives
+    narrativeId?: string;
+    slug?: string;
+    currentVersion?: number;
+    wordCount?: number;
+    readingTime?: number;
+    visibility?: string;
+    createdAt?: number;
+    updatedAt?: number;
+  }>;
+}
+
+interface PublishChaptersResponse {
+  success: boolean;
+  nodeId: string;
+  nodeName: string;
+  published: Array<{
+    chapterNumber: number;
+    narrativeId: string;
+    title: string;
+    slug: string;
+    wordCount: number;
+  }>;
+  skipped: number[];
+  summary: {
+    totalChapters: number;
+    publishedCount: number;
+    skippedCount: number;
+    totalWords: number;
+  };
+}
+
+/**
+ * Get chapters for a node (from chunks or published narratives)
+ */
+export async function getChapters(
+  nodeId: string,
+  source: 'chunks' | 'narratives' = 'narratives',
+  token?: string
+): Promise<ChaptersResponse> {
+  const data = await api.get<ChaptersResponse>(
+    `/api/nodes/${nodeId}/chapters?source=${source}`,
+    token
+  );
+  return data;
+}
+
+/**
+ * Publish chapters from chunks as narratives
+ */
+export async function publishChapters(
+  nodeId: string,
+  options?: {
+    visibility?: 'public' | 'node-only' | 'private';
+    chaptersToPublish?: number[];
+  },
+  token?: string
+): Promise<PublishChaptersResponse> {
+  const data = await api.post<PublishChaptersResponse>(
+    `/api/nodes/${nodeId}/publish-chapters`,
+    options || {},
+    token
+  );
+  return data;
+}
+
+// ===== CURATOR RESPONSE =====
+
+interface CuratorResponseResult {
+  response: string;
+  model: string;
+  processingTimeMs: number;
+}
+
+/**
+ * Generate curator response to a comment
+ */
+export async function generateCuratorResponse(
+  comment: string,
+  narrativeContent: string,
+  existingComments?: string,
+  token?: string
+): Promise<CuratorResponseResult> {
+  const data = await api.post<CuratorResponseResult>(
+    '/api/curator/respond',
+    { comment, narrativeContent, existingComments },
+    token
+  );
+  return data;
+}
+
+// ===== CURATOR PYRAMID =====
+
+interface WellKnownBook {
+  slug: string;
+  gutenbergId: string;
+}
+
+interface WellKnownBooksResponse {
+  books: WellKnownBook[];
+}
+
+interface PyramidBuildResponse {
+  success: boolean;
+  nodeId: string;
+  gutenbergId: string;
+  metadata: {
+    title: string;
+    author: string;
+    language: string;
+  };
+  stats: {
+    totalChunks: number;
+    averageTokens: number;
+    pyramidDepth: number;
+    processingTimeMs: number;
+  };
+  apex: {
+    themes: string[];
+    theQuestion: string;
+    resonanceHooks: string[];
+  };
+}
+
+interface PyramidStatsResponse {
+  nodeId: string;
+  stats: {
+    chunkCount: number;
+    summaryCount: number;
+    hasApex: boolean;
+  };
+  apex?: {
+    coreThemes: string[];
+    theQuestion: string;
+    sourceTitle: string;
+    sourceAuthor: string;
+  };
+}
+
+interface ChatResponse {
+  conversationId: string;
+  sessionId: string;
+  response: string;
+  turnNumber: number;
+  passagesCited: Array<{
+    chunkId: string;
+    quote: string;
+    citation: string;
+    relevance: number;
+  }>;
+  processingTimeMs: number;
+}
+
+export async function getWellKnownBooks(): Promise<WellKnownBook[]> {
+  const data = await api.get<WellKnownBooksResponse>('/api/curator-pyramid/well-known-books');
+  return data.books || [];
+}
+
+export async function buildPyramidFromGutenberg(
+  nodeId: string,
+  gutenbergSlug: string,
+  token: string
+): Promise<PyramidBuildResponse> {
+  const data = await api.post<PyramidBuildResponse>(
+    '/api/curator-pyramid/build',
+    { nodeId, gutenbergSlug },
+    token
+  );
+  return data;
+}
+
+export async function buildPyramidFromGutenbergId(
+  nodeId: string,
+  gutenbergId: string,
+  token: string
+): Promise<PyramidBuildResponse> {
+  const data = await api.post<PyramidBuildResponse>(
+    '/api/curator-pyramid/build',
+    { nodeId, gutenbergId },
+    token
+  );
+  return data;
+}
+
+export async function getPyramidStats(
+  nodeId: string,
+  token?: string
+): Promise<PyramidStatsResponse | null> {
+  try {
+    const data = await api.get<PyramidStatsResponse>(
+      `/api/curator-pyramid/node/${nodeId}/stats`,
+      token
+    );
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function chatWithCurator(
+  nodeId: string,
+  message: string,
+  sessionId?: string,
+  token?: string
+): Promise<ChatResponse> {
+  const payload: { message: string; sessionId?: string } = { message };
+  if (sessionId) payload.sessionId = sessionId;
+
+  const data = await api.post<ChatResponse>(
+    `/api/curator-pyramid/node/${nodeId}/chat`,
+    payload,
+    token
+  );
+  return data;
+}
+
 // Export as a service object for consistency
 export const nodesService = {
   // Nodes
@@ -421,7 +649,7 @@ export const nodesService = {
   getNode,
   createNode,
   updateNode,
-  
+
   // Narratives
   publishNarrative,
   getNarrative,
@@ -431,18 +659,32 @@ export const nodesService = {
   listVersions,
   getVersion,
   compareVersions,
-  
+
   // Subscriptions
   getSubscriptions,
   subscribe,
   unsubscribe,
   checkSubscription,
   markRead,
-  
+
   // Comments
   listComments,
   postComment,
   evaluateComment,
   deleteComment,
   getComment,
+
+  // Chapters
+  getChapters,
+  publishChapters,
+
+  // Curator Response
+  generateCuratorResponse,
+
+  // Curator Pyramid
+  getWellKnownBooks,
+  buildPyramidFromGutenberg,
+  buildPyramidFromGutenbergId,
+  getPyramidStats,
+  chatWithCurator,
 };

@@ -5,6 +5,7 @@
 // Provides unified interface for all transformation tools
 
 import type { TransformConfig, TransformResult } from '../types';
+import * as ollamaService from './ollamaService';
 
 // Get current provider from localStorage
 function getCurrentProvider(): 'local' | 'cloudflare' {
@@ -12,6 +13,40 @@ function getCurrentProvider(): 'local' | 'cloudflare' {
   return (savedProvider === 'local' || savedProvider === 'cloudflare')
     ? savedProvider
     : 'local'; // Default to local
+}
+
+/**
+ * Check if we should use direct Ollama calls instead of API
+ * This is true when:
+ * 1. Running in Electron
+ * 2. Provider is 'local'
+ * 3. User hasn't skipped Ollama setup
+ */
+async function shouldUseOllama(): Promise<boolean> {
+  // Must be in Electron
+  if (!window.isElectron || !window.electronAPI) {
+    return false;
+  }
+
+  // Must have 'local' provider selected
+  const provider = getCurrentProvider();
+  if (provider !== 'local') {
+    return false;
+  }
+
+  // Check if user skipped Ollama
+  try {
+    const ollamaSkipped = await window.electronAPI.store.get('ollamaSkipped');
+    if (ollamaSkipped) {
+      return false;
+    }
+  } catch {
+    return false;
+  }
+
+  // Check if Ollama is actually running
+  const available = await ollamaService.isOllamaAvailable();
+  return available;
 }
 
 // Get API base URL based on user's provider preference
@@ -81,7 +116,17 @@ export async function computerHumanizer(
   text: string,
   options: ComputerHumanizerOptions
 ): Promise<ComputerHumanizerResult> {
-  // Add timeout to prevent hanging on slow requests
+  // Check if we should use local Ollama
+  if (await shouldUseOllama()) {
+    console.log('[TransformationService] Using local Ollama for Computer Humanizer');
+    const data = await ollamaService.localComputerHumanizer(text, {
+      intensity: options.intensity,
+      useLLM: options.useLLM,
+    });
+    return mapComputerHumanizerResponse(data, text);
+  }
+
+  // Use API backend
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout (can be slow with LLM)
 
@@ -189,7 +234,16 @@ async function liteDetection(
   text: string,
   options: AIDetectionOptions
 ): Promise<AIDetectionResult> {
-  // Add timeout to prevent hanging on slow requests
+  // Check if we should use local Ollama
+  if (await shouldUseOllama()) {
+    console.log('[TransformationService] Using local Ollama for AI Detection');
+    const data = await ollamaService.localAIDetection(text, {
+      useLLMJudge: options.useLLMJudge,
+    });
+    return mapLiteDetectionResponse(data, text);
+  }
+
+  // Use API backend
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
@@ -409,7 +463,21 @@ export async function personaTransform(
   text: string,
   options: PersonaOptions
 ): Promise<TransformResult> {
-  // Add timeout for long texts (5 minutes for LLM processing)
+  // Check if we should use local Ollama
+  if (await shouldUseOllama()) {
+    console.log('[TransformationService] Using local Ollama for Persona Transform');
+    const data = await ollamaService.localPersonaTransform(text, {
+      persona: options.persona,
+    });
+    return {
+      transformation_id: data.transformation_id,
+      original: text,
+      transformed: data.transformed_text,
+      metadata: {},
+    };
+  }
+
+  // Use API backend
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
@@ -468,7 +536,21 @@ export async function styleTransform(
   text: string,
   options: StyleOptions
 ): Promise<TransformResult> {
-  // Add timeout for long texts (5 minutes for LLM processing)
+  // Check if we should use local Ollama
+  if (await shouldUseOllama()) {
+    console.log('[TransformationService] Using local Ollama for Style Transform');
+    const data = await ollamaService.localStyleTransform(text, {
+      style: options.style,
+    });
+    return {
+      transformation_id: data.transformation_id,
+      original: text,
+      transformed: data.transformed_text,
+      metadata: {},
+    };
+  }
+
+  // Use API backend
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 

@@ -11,6 +11,7 @@ interface TopBarProps {
   onToggleArchive: () => void;
   onToggleTools: () => void;
   onToggleView: () => void;
+  onOpenSettings: () => void;
   archiveOpen: boolean;
   toolsOpen: boolean;
   viewPreference: 'split' | 'tabs';
@@ -22,6 +23,7 @@ export function TopBar({
   onToggleArchive,
   onToggleTools,
   onToggleView,
+  onOpenSettings,
   archiveOpen,
   toolsOpen,
   viewPreference,
@@ -188,6 +190,22 @@ export function TopBar({
 
         {/* Text size control - only show when authenticated */}
         {user && <TextSizeControl />}
+
+        {/* Settings button - only show when authenticated */}
+        {user && (
+          <button
+            onClick={onOpenSettings}
+            className="ui-text p-2 rounded-md transition-smooth hover:opacity-70"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              color: 'var(--text-primary)',
+            }}
+            aria-label="Open settings"
+            title="Settings"
+          >
+            <Icons.Settings />
+          </button>
+        )}
 
         <ThemeToggle />
       </div>

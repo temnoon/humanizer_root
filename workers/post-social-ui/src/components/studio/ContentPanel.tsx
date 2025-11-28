@@ -11,12 +11,13 @@
  * - Search Results: Semantic search results
  */
 
-import { Component, Show, createResource, createSignal, For } from 'solid-js';
+import { Component, Show, createResource, createSignal, For, createEffect } from 'solid-js';
 import { authStore } from '@/stores/auth';
 import { nodesService } from '@/services/nodes';
 import { MarkdownRenderer } from '@/components/content/MarkdownRenderer';
 import { AdminPanel } from './AdminPanel';
 import { SynthesisDashboard } from './SynthesisDashboard';
+import { CommentSection } from './CommentSection';
 import type { CenterMode } from './NavigationPanel';
 import type { Node, Narrative, NarrativeVersion, VersionComparison } from '@/types/models';
 
@@ -257,7 +258,7 @@ const NodeDetailView: Component<{
   );
 };
 
-// Narrative View - Read a narrative
+// Narrative View - Read a narrative with comments
 const NarrativeView: Component<{
   nodeSlug: string;
   narrativeSlug: string;
@@ -267,6 +268,19 @@ const NarrativeView: Component<{
   onBack: () => void;
   onSelect?: (narrative: Narrative) => void;
 }> = (props) => {
+  // Fetch the node to check ownership
+  const [node] = createResource(
+    () => props.nodeSlug,
+    async (slug) => {
+      try {
+        return await nodesService.getNode(slug, authStore.token() || undefined);
+      } catch (err) {
+        console.error('Failed to load node:', err);
+        return null;
+      }
+    }
+  );
+
   const [narrative] = createResource(
     () => ({ nodeSlug: props.nodeSlug, narrativeSlug: props.narrativeSlug }),
     async ({ nodeSlug, narrativeSlug }) => {
@@ -278,7 +292,7 @@ const NarrativeView: Component<{
       }
     }
   );
-  
+
   const [versions] = createResource(
     () => narrative()?.id,
     async (narrativeId) => {
@@ -291,10 +305,10 @@ const NarrativeView: Component<{
       }
     }
   );
-  
+
   // Get current version content
   const currentVersion = () => props.version || narrative()?.currentVersion || 1;
-  
+
   const [versionContent] = createResource(
     () => ({ narrativeId: narrative()?.id, version: currentVersion() }),
     async ({ narrativeId, version }) => {
@@ -307,17 +321,26 @@ const NarrativeView: Component<{
       }
     }
   );
-  
+
+  // Check if current user is the node owner
+  const isOwner = () => {
+    const currentUserId = authStore.user()?.id;
+    const nodeData = node();
+    return !!(currentUserId && nodeData?.creatorUserId === currentUserId);
+  };
+
   // Notify parent when narrative loads (for context panel)
-  const n = narrative();
-  if (n && props.onSelect) {
-    props.onSelect(n);
-  }
-  
+  createEffect(() => {
+    const n = narrative();
+    if (n && props.onSelect) {
+      props.onSelect(n);
+    }
+  });
+
   return (
     <div class="content-narrative">
       <button class="back-link" onClick={props.onBack}>← Back to Node</button>
-      
+
       <Show when={!narrative.loading && narrative()}>
         <article class="narrative-article">
           <header class="narrative-header">
@@ -326,7 +349,7 @@ const NarrativeView: Component<{
               <span class="node-link">{props.nodeSlug}</span>
               <span class="version-info">Version {currentVersion()}</span>
             </div>
-            
+
             <Show when={narrative()!.metadata?.tags?.length}>
               <div class="narrative-tags">
                 <For each={narrative()!.metadata.tags}>
@@ -335,7 +358,7 @@ const NarrativeView: Component<{
               </div>
             </Show>
           </header>
-          
+
           {/* Version Selector */}
           <Show when={versions()?.length && versions()!.length > 1}>
             <div class="version-selector">
@@ -350,7 +373,7 @@ const NarrativeView: Component<{
                   </button>
                 )}
               </For>
-              <button 
+              <button
                 class="compare-link"
                 onClick={() => props.onCompare(1, narrative()!.currentVersion)}
               >
@@ -358,7 +381,7 @@ const NarrativeView: Component<{
               </button>
             </div>
           </Show>
-          
+
           {/* Content */}
           <div class="narrative-body">
             <Show
@@ -368,6 +391,17 @@ const NarrativeView: Component<{
               <MarkdownRenderer content={versionContent()!.content} />
             </Show>
           </div>
+
+          {/* Comments Section */}
+          <Show when={narrative()}>
+            <CommentSection
+              narrative={{
+                ...narrative()!,
+                content: versionContent()?.content || narrative()!.content || ''
+              }}
+              isOwner={isOwner()}
+            />
+          </Show>
         </article>
       </Show>
     </div>

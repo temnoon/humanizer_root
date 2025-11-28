@@ -22,11 +22,15 @@ import { ContextPanel } from '@/components/studio/ContextPanel';
 import { EditorPanel } from '@/components/studio/EditorPanel';
 import { CuratorPanel } from '@/components/studio/CuratorPanel';
 import { CuratorRulesEditor } from '@/components/studio/CuratorRulesEditor';
+import { NodeCreationWizard } from '@/components/studio/NodeCreationWizard';
+import { TransformPanel } from '@/components/studio/TransformPanel';
 import { Lightbox, useLightbox } from '@/components/studio/Lightbox';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { curatorService, type Suggestion, type CuratorRules } from '@/services/curator';
 import { nodesService } from '@/services/nodes';
 import type { Narrative, Node } from '@/types/models';
+
+type RightPanelMode = 'curator' | 'transform';
 
 export const StudioShell: Component = () => {
   const navigate = useNavigate();
@@ -65,7 +69,13 @@ export const StudioShell: Component = () => {
   // Curator settings modal state
   const [curatorSettingsNodeId, setCuratorSettingsNodeId] = createSignal<string | null>(null);
   const [curatorSettingsNode, setCuratorSettingsNode] = createSignal<Node | null>(null);
-  
+
+  // Node creation wizard state
+  const [showNodeWizard, setShowNodeWizard] = createSignal(false);
+
+  // Right panel mode (when in editor mode)
+  const [rightPanelMode, setRightPanelMode] = createSignal<RightPanelMode>('curator');
+
   // Lightbox
   const lightbox = useLightbox();
   
@@ -239,6 +249,23 @@ export const StudioShell: Component = () => {
     console.log('Curator rules saved:', rules);
     // Could show a toast notification here
   };
+
+  // Handle apply transformation to editor
+  const handleApplyTransform = (transformedText: string) => {
+    setEditorContent(transformedText);
+    // Switch back to curator panel after applying
+    setRightPanelMode('curator');
+  };
+
+  // Handle submit transformed text as narrative
+  const handleSubmitAsNarrative = (transformedText: string, title?: string) => {
+    // Set the transformed content in editor
+    setEditorContent(transformedText);
+    if (title) setEditorTitle(title);
+    // Switch to curator panel where they can submit
+    setRightPanelMode('curator');
+    // Note: The EditorPanel handles the actual submit flow
+  };
   
   // Handle logout
   const handleLogout = () => {
@@ -279,6 +306,7 @@ export const StudioShell: Component = () => {
             currentMode={mode()}
             onModeChange={handleModeChange}
             onCreateNew={() => handleCreateNew()}
+            onCreateNode={() => setShowNodeWizard(true)}
             onImportFromGutenberg={handleImportFromGutenberg}
           />
         }
@@ -318,20 +346,48 @@ export const StudioShell: Component = () => {
               />
             }
           >
-            <CuratorPanel
-              content={editorContent()}
-              narrative={editingNarrative() || undefined}
-              nodeId={targetNodeId()}
-              onApplySuggestion={handleApplySuggestion}
-              onIncorporateComment={(comment) => {
-                // Insert comment content into editor
-                console.log('Incorporate comment:', comment);
-              }}
-            />
+            {/* Panel Switcher */}
+            <div class="right-panel-switcher">
+              <button
+                class={`panel-switch-btn ${rightPanelMode() === 'curator' ? 'active' : ''}`}
+                onClick={() => setRightPanelMode('curator')}
+              >
+                Curator
+              </button>
+              <button
+                class={`panel-switch-btn ${rightPanelMode() === 'transform' ? 'active' : ''}`}
+                onClick={() => setRightPanelMode('transform')}
+              >
+                Transform
+              </button>
+            </div>
+
+            {/* Panel Content */}
+            <Show
+              when={rightPanelMode() === 'transform'}
+              fallback={
+                <CuratorPanel
+                  content={editorContent()}
+                  narrative={editingNarrative() || undefined}
+                  nodeId={targetNodeId()}
+                  onApplySuggestion={handleApplySuggestion}
+                  onIncorporateComment={(comment) => {
+                    // Insert comment content into editor
+                    console.log('Incorporate comment:', comment);
+                  }}
+                />
+              }
+            >
+              <TransformPanel
+                content={editorContent()}
+                onApplyTransform={handleApplyTransform}
+                onSubmitAsNarrative={handleSubmitAsNarrative}
+              />
+            </Show>
           </Show>
         }
         leftTitle="Navigation"
-        rightTitle={isEditorMode() ? 'AI Curator' : 'Context'}
+        rightTitle={isEditorMode() ? (rightPanelMode() === 'transform' ? 'Transform' : 'AI Curator') : 'Context'}
         leftWidth={280}
         rightWidth={320}
       />
@@ -351,7 +407,23 @@ export const StudioShell: Component = () => {
           </div>
         </div>
       </Show>
-      
+
+      {/* Node Creation Wizard */}
+      <Show when={showNodeWizard()}>
+        <NodeCreationWizard
+          onComplete={(node) => {
+            // Navigate to the new node
+            setMode({
+              type: 'node-detail',
+              nodeId: node.id,
+              nodeSlug: node.slug
+            });
+            setShowNodeWizard(false);
+          }}
+          onClose={() => setShowNodeWizard(false)}
+        />
+      </Show>
+
       {/* Global Lightbox */}
       <Show when={lightbox.state()}>
         <Lightbox

@@ -11,6 +11,8 @@ import { PanelToggle } from './components/layout/PanelToggle';
 import { ArchivePanel } from './components/panels/ArchivePanel';
 import { ToolsPanel } from './components/panels/ToolsPanel';
 import { MainWorkspace } from './components/workspace/MainWorkspace';
+import { SetupWizard } from './components/onboarding';
+import { SettingsModal } from './components/settings';
 import { api } from './utils/api';
 import { runTransform } from './services/transformationService';
 import { initializeSampleNarratives } from './data/sampleNarratives';
@@ -63,6 +65,7 @@ function AppContent() {
     start: number;
     end: number;
   } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Transformation configuration state (lifted from ToolsPanel)
   const [selectedTransformType, setSelectedTransformType] = useState<TransformationType>('computer-humanizer');
@@ -392,6 +395,7 @@ function AppContent() {
         onToggleArchive={() => setArchivePanelOpen((o) => !o)}
         onToggleTools={() => setToolsPanelOpen((o) => !o)}
         onToggleView={() => setViewPreference((v) => (v === 'split' ? 'tabs' : 'split'))}
+        onOpenSettings={() => setSettingsOpen(true)}
         archiveOpen={archivePanelOpen}
         toolsOpen={toolsPanelOpen}
         viewPreference={viewPreference}
@@ -530,6 +534,12 @@ function AppContent() {
           </div>
         </div>
       )}
+
+      {/* Settings Modal */}
+      <SettingsModal
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
   );
 }
@@ -547,7 +557,86 @@ function AppWithSession() {
   );
 }
 
+/**
+ * Check if running in Electron and if first-run wizard should be shown
+ */
+function useFirstRunCheck() {
+  const [isFirstRun, setIsFirstRun] = useState<boolean | null>(null);
+  const [isElectron, setIsElectron] = useState(false);
+
+  useEffect(() => {
+    async function checkFirstRun() {
+      // Dev mode: allow forcing wizard via URL param (?wizard=true)
+      const urlParams = new URLSearchParams(window.location.search);
+      const forceWizard = urlParams.get('wizard') === 'true';
+
+      if (forceWizard) {
+        console.log('[App] Forcing wizard mode via URL param');
+        setIsElectron(true); // Pretend we're in Electron for UI purposes
+        setIsFirstRun(true);
+        return;
+      }
+
+      // Check if running in Electron
+      if (window.isElectron && window.electronAPI) {
+        setIsElectron(true);
+        const firstRun = await window.electronAPI.isFirstRun();
+        setIsFirstRun(firstRun);
+      } else {
+        // Not in Electron - skip wizard
+        setIsElectron(false);
+        setIsFirstRun(false);
+      }
+    }
+    checkFirstRun();
+  }, []);
+
+  const completeFirstRun = () => {
+    setIsFirstRun(false);
+    // Remove wizard param from URL
+    const url = new URL(window.location.href);
+    url.searchParams.delete('wizard');
+    window.history.replaceState({}, '', url.toString());
+  };
+
+  return { isFirstRun, isElectron, completeFirstRun };
+}
+
 export default function App() {
+  const { isFirstRun, isElectron, completeFirstRun } = useFirstRunCheck();
+
+  // Show loading while checking first-run status (only in Electron)
+  if (isElectron && isFirstRun === null) {
+    return (
+      <ThemeProvider>
+        <div
+          className="h-screen flex items-center justify-center"
+          style={{ backgroundColor: 'var(--bg-primary)' }}
+        >
+          <div className="text-center">
+            <div
+              className="w-12 h-12 rounded-full border-4 border-t-transparent animate-spin mx-auto mb-4"
+              style={{ borderColor: 'var(--accent-primary)', borderTopColor: 'transparent' }}
+            />
+            <p className="ui-text text-sm" style={{ color: 'var(--text-secondary)' }}>
+              Starting Humanizer Studio...
+            </p>
+          </div>
+        </div>
+      </ThemeProvider>
+    );
+  }
+
+  // Show setup wizard on first run (Electron only)
+  if (isElectron && isFirstRun) {
+    return (
+      <ThemeProvider>
+        <SetupWizard onComplete={completeFirstRun} />
+      </ThemeProvider>
+    );
+  }
+
+  // Normal app flow
   return (
     <ThemeProvider>
       <TextSizeProvider>

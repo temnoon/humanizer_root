@@ -39,20 +39,36 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' })); // Allow large conversation.json files
 
-// Archive management - support multiple archives
-const ARCHIVES_BASE_DIR = '/Users/tem/openai-export-parser';
+// Archive management - support multiple archives or single custom path
+// If ARCHIVE_PATH env is set (Electron mode), use that directly
+// Otherwise, use the base directory structure
+const CUSTOM_ARCHIVE_PATH = process.env.ARCHIVE_PATH;
+const ARCHIVES_BASE_DIR = CUSTOM_ARCHIVE_PATH || '/Users/tem/openai-export-parser';
 const DEFAULT_ARCHIVE = 'output_v13_final';
 const ARCHIVE_CONFIG_FILE = path.join(os.homedir(), '.humanizer', 'archive-config.json');
 
+// Track if we're using a custom archive path (Electron mode)
+const isCustomArchiveMode = !!CUSTOM_ARCHIVE_PATH;
+
 // Dynamic archive root - can be changed at runtime
-let currentArchiveName = DEFAULT_ARCHIVE;
-let ARCHIVE_ROOT = path.join(ARCHIVES_BASE_DIR, currentArchiveName);
+let currentArchiveName = isCustomArchiveMode ? path.basename(CUSTOM_ARCHIVE_PATH) : DEFAULT_ARCHIVE;
+let ARCHIVE_ROOT = isCustomArchiveMode ? CUSTOM_ARCHIVE_PATH : path.join(ARCHIVES_BASE_DIR, currentArchiveName);
+
+if (isCustomArchiveMode) {
+  console.log(`📂 Custom archive mode: ${ARCHIVE_ROOT}`);
+}
 
 const SESSION_STORAGE_DIR = path.join(os.homedir(), '.humanizer', 'sessions');
 const ARCHIVE_UPLOADS_DIR = '/tmp/archive-uploads';
 
 // Load archive config from disk
 async function loadArchiveConfig() {
+  // Skip if using custom archive path (Electron mode)
+  if (isCustomArchiveMode) {
+    console.log(`📂 Using custom archive path: ${ARCHIVE_ROOT}`);
+    return;
+  }
+
   try {
     const configDir = path.dirname(ARCHIVE_CONFIG_FILE);
     await fs.mkdir(configDir, { recursive: true });
@@ -138,6 +154,28 @@ function generateJobId() {
 // GET /api/archives - List all available archives
 app.get('/api/archives', async (req, res) => {
   try {
+    // Custom archive mode (Electron) - return only the single custom archive
+    if (isCustomArchiveMode) {
+      const contents = await fs.readdir(ARCHIVE_ROOT);
+      const convFolders = contents.filter(f => /^\d{4}-\d{2}-\d{2}/.test(f));
+      const stat = await fs.stat(ARCHIVE_ROOT);
+
+      return res.json({
+        archives: [{
+          name: currentArchiveName,
+          path: ARCHIVE_ROOT,
+          conversationCount: convFolders.length,
+          isActive: true,
+          createdAt: stat.birthtime.toISOString(),
+          modifiedAt: stat.mtime.toISOString(),
+        }],
+        current: currentArchiveName,
+        basePath: path.dirname(ARCHIVE_ROOT),
+        isCustomMode: true,
+      });
+    }
+
+    // Multi-archive mode - list from base directory
     const entries = await fs.readdir(ARCHIVES_BASE_DIR, { withFileTypes: true });
     const archives = [];
 
@@ -176,6 +214,7 @@ app.get('/api/archives', async (req, res) => {
       archives,
       current: currentArchiveName,
       basePath: ARCHIVES_BASE_DIR,
+      isCustomMode: false,
     });
   } catch (error) {
     console.error('Error listing archives:', error);
@@ -2857,7 +2896,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', timestamp: Date.now() });
 });
 
-const PORT = 3002;
+const PORT = parseInt(process.env.PORT || '3002', 10);
 app.listen(PORT, () => {
   console.log(`🗂️  Archive server running on http://localhost:${PORT}`);
   console.log(`📂 Serving: ${ARCHIVE_ROOT}`);
