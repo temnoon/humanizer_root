@@ -340,28 +340,52 @@ curatorAgentRoutes.post('/comment/:commentId/respond', requireAuth(), async (c) 
       config
     );
     
-    // Store response in the narrative-specific table
-    const responseId = crypto.randomUUID();
-    await c.env.DB.prepare(
-      `INSERT INTO narrative_curator_responses (id, comment_id, response, response_type, model, processing_time_ms, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-      responseId, commentId, curatorResponse.response, curatorResponse.type,
-      curatorResponse.model, curatorResponse.processingTimeMs, Date.now()
-    ).run();
-    
-    // Update comment with evaluation
-    await c.env.DB.prepare(
-      `UPDATE narrative_comments SET curator_evaluation = ?, evaluated_at = ?, status = ? WHERE id = ?`
-    ).bind(
-      JSON.stringify(curatorResponse.evaluation),
-      Date.now(),
-      curatorResponse.evaluation.synthesizable ? 'approved' : 'rejected',
-      commentId
-    ).run();
-    
+    // Create conversation session for this comment thread
+    const conversationId = crypto.randomUUID();
+    const sessionId = `comment-${commentId}`;
+    const now = Date.now();
+
+    await c.env.DB.batch([
+      // Create conversation session
+      c.env.DB.prepare(
+        `INSERT INTO curator_conversations (id, node_id, user_id, session_id, comment_id, status, created_at, updated_at, turn_count)
+         VALUES (?, (SELECT nd.id FROM narratives n JOIN nodes nd ON n.node_id = nd.id WHERE n.id = ?), ?, ?, ?, 'active', ?, ?, 1)`
+      ).bind(conversationId, comment.narrative_id, auth.userId, sessionId, commentId, now, now),
+
+      // Add user's comment as first turn
+      c.env.DB.prepare(
+        `INSERT INTO curator_conversation_turns (id, conversation_id, turn_number, role, content, created_at)
+         VALUES (?, ?, 1, 'user', ?, ?)`
+      ).bind(crypto.randomUUID(), conversationId, comment.content, now),
+
+      // Add curator's response as second turn
+      c.env.DB.prepare(
+        `INSERT INTO curator_conversation_turns (id, conversation_id, turn_number, role, content, created_at)
+         VALUES (?, ?, 2, 'curator', ?, ?)`
+      ).bind(crypto.randomUUID(), conversationId, curatorResponse.response, now),
+
+      // Store response in the narrative-specific table (with conversation link)
+      c.env.DB.prepare(
+        `INSERT INTO narrative_curator_responses (id, comment_id, response, response_type, model, processing_time_ms, conversation_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        crypto.randomUUID(), commentId, curatorResponse.response, curatorResponse.type,
+        curatorResponse.model, curatorResponse.processingTimeMs, conversationId, now
+      ),
+
+      // Update comment with evaluation
+      c.env.DB.prepare(
+        `UPDATE narrative_comments SET curator_evaluation = ?, evaluated_at = ?, status = ? WHERE id = ?`
+      ).bind(
+        JSON.stringify(curatorResponse.evaluation),
+        now,
+        curatorResponse.evaluation.synthesizable ? 'approved' : 'rejected',
+        commentId
+      )
+    ]);
+
     return c.json({
-      responseId,
+      conversationId,
       response: curatorResponse.response,
       responseType: curatorResponse.type,
       evaluation: curatorResponse.evaluation,
@@ -375,23 +399,41 @@ curatorAgentRoutes.post('/comment/:commentId/respond', requireAuth(), async (c) 
 
 /**
  * GET /api/curator-agent/comment/:commentId/conversation
- * Get the full conversation thread for a comment
+ * Get the full conversation thread for a comment (all turns)
  */
 curatorAgentRoutes.get('/comment/:commentId/conversation', async (c) => {
   const commentId = c.req.param('commentId');
-  
+
   try {
     const comment = await c.env.DB.prepare(
-      `SELECT nc.*, cr.response as curator_response, cr.response_type, cr.created_at as response_at
+      `SELECT nc.*, ncr.conversation_id
        FROM narrative_comments nc
-       LEFT JOIN curator_responses cr ON nc.id = cr.comment_id
+       LEFT JOIN narrative_curator_responses ncr ON nc.id = ncr.comment_id
        WHERE nc.id = ?`
     ).bind(commentId).first<Record<string, unknown>>();
-    
+
     if (!comment) {
       return c.json({ error: 'Comment not found' }, 404);
     }
-    
+
+    // Get all conversation turns if conversation exists
+    let turns: any[] = [];
+    if (comment.conversation_id) {
+      const { results } = await c.env.DB.prepare(
+        `SELECT * FROM curator_conversation_turns
+         WHERE conversation_id = ?
+         ORDER BY turn_number ASC`
+      ).bind(comment.conversation_id).all();
+
+      turns = (results || []).map((turn: Record<string, unknown>) => ({
+        id: turn.id,
+        turnNumber: turn.turn_number,
+        role: turn.role,
+        content: turn.content,
+        createdAt: turn.created_at,
+      }));
+    }
+
     return c.json({
       comment: {
         id: comment.id,
@@ -400,17 +442,158 @@ curatorAgentRoutes.get('/comment/:commentId/conversation', async (c) => {
         status: comment.status,
         createdAt: comment.created_at,
       },
-      curatorResponse: comment.curator_response ? {
-        response: comment.curator_response,
-        type: comment.response_type,
-        respondedAt: comment.response_at,
-      } : null,
+      conversationId: comment.conversation_id || null,
+      turns,
       evaluation: comment.curator_evaluation ? JSON.parse(comment.curator_evaluation as string) : null,
     });
-    
+
   } catch (error) {
     console.error('[CURATOR-AGENT] Get conversation error:', error);
     return c.json({ error: 'Failed to get conversation' }, 500);
+  }
+});
+
+/**
+ * POST /api/curator-agent/comment/:commentId/reply
+ * User replies to curator in comment thread (bidirectional conversation)
+ */
+curatorAgentRoutes.post('/comment/:commentId/reply', requireAuth(), async (c) => {
+  const auth = getAuthContext(c);
+  const commentId = c.req.param('commentId');
+
+  try {
+    const { message } = await c.req.json();
+
+    if (!message || message.trim().length === 0) {
+      return c.json({ error: 'Message is required' }, 400);
+    }
+
+    // Get conversation and narrative context
+    const comment = await c.env.DB.prepare(
+      `SELECT nc.*, ncr.conversation_id, n.content as narrative_content, n.title as narrative_title, n.node_id,
+              nd.curator_rules, nd.curator_config
+       FROM narrative_comments nc
+       LEFT JOIN narrative_curator_responses ncr ON nc.id = ncr.comment_id
+       JOIN narratives n ON nc.narrative_id = n.id
+       JOIN nodes nd ON n.node_id = nd.id
+       WHERE nc.id = ?`
+    ).bind(commentId).first<Record<string, unknown>>();
+
+    if (!comment) {
+      return c.json({ error: 'Comment not found' }, 404);
+    }
+
+    if (!comment.conversation_id) {
+      return c.json({ error: 'No conversation exists for this comment' }, 404);
+    }
+
+    // Get conversation history
+    const { results: turns } = await c.env.DB.prepare(
+      `SELECT * FROM curator_conversation_turns
+       WHERE conversation_id = ?
+       ORDER BY turn_number ASC`
+    ).bind(comment.conversation_id).all();
+
+    const currentTurnNumber = (turns || []).length + 1;
+
+    // Get apex summary for context (IMPORTANT: Always include)
+    const apex = await c.env.DB.prepare(
+      `SELECT * FROM node_apex WHERE node_id = ?`
+    ).bind(comment.node_id).first<Record<string, unknown>>();
+
+    const apexContext = apex ? `
+
+NODE CONTEXT - The Apex Summary:
+Title: "${apex.source_title}" by ${apex.source_author}
+
+Core Themes:
+${apex.core_themes}
+
+The Question This Text Asks:
+${apex.the_question}
+
+Narrative Arc:
+${apex.narrative_arc}
+
+Voice Characteristics:
+${apex.voice_characteristics}
+` : '';
+
+    //Build conversation history for context
+    const conversationHistory = (turns || []).map((turn: Record<string, unknown>) => ({
+      role: turn.role as string,
+      content: turn.content as string,
+    }));
+
+    const rules = comment.curator_rules ? JSON.parse(comment.curator_rules as string) : getDefaultRules();
+    const personaName = rules.persona?.name || 'Curator';
+    const expertise = rules.persona?.expertise || [];
+
+    const systemPrompt = rules.persona?.systemPrompt ||
+      getPhenomenologicalCuratorPrompt({
+        nodeName: personaName !== 'Curator' ? personaName : undefined,
+        nodeExpertise: expertise.length > 0 ? expertise : undefined
+      }) + apexContext;
+
+    // Generate curator response with full conversation context
+    const response = await c.env.AI.run('@cf/meta/llama-3.1-8b-instruct' as Parameters<Ai['run']>[0], {
+      messages: [
+        { role: 'system', content: systemPrompt },
+        ...conversationHistory.map(turn => ({
+          role: turn.role === 'user' ? 'user' as const : 'assistant' as const,
+          content: turn.content
+        })),
+        { role: 'user', content: message }
+      ],
+      max_tokens: 600,
+      temperature: 0.7,
+    });
+
+    const responseText = typeof response === 'object' && 'response' in response
+      ? (response as { response: string }).response
+      : String(response);
+
+    const now = Date.now();
+
+    // Add both turns to the conversation
+    await c.env.DB.batch([
+      // User's reply
+      c.env.DB.prepare(
+        `INSERT INTO curator_conversation_turns (id, conversation_id, turn_number, role, content, created_at)
+         VALUES (?, ?, ?, 'user', ?, ?)`
+      ).bind(crypto.randomUUID(), comment.conversation_id, currentTurnNumber, message.trim(), now),
+
+      // Curator's response
+      c.env.DB.prepare(
+        `INSERT INTO curator_conversation_turns (id, conversation_id, turn_number, role, content, created_at)
+         VALUES (?, ?, ?, 'curator', ?, ?)`
+      ).bind(crypto.randomUUID(), comment.conversation_id, currentTurnNumber + 1, responseText, now),
+
+      // Update conversation metadata
+      c.env.DB.prepare(
+        `UPDATE curator_conversations SET turn_count = ?, updated_at = ? WHERE id = ?`
+      ).bind(currentTurnNumber + 1, now, comment.conversation_id)
+    ]);
+
+    return c.json({
+      success: true,
+      userTurn: {
+        turnNumber: currentTurnNumber,
+        role: 'user',
+        content: message.trim(),
+        createdAt: now,
+      },
+      curatorTurn: {
+        turnNumber: currentTurnNumber + 1,
+        role: 'curator',
+        content: responseText,
+        createdAt: now,
+      },
+    });
+
+  } catch (error) {
+    console.error('[CURATOR-AGENT] Reply error:', error);
+    return c.json({ error: 'Failed to send reply' }, 500);
   }
 });
 
