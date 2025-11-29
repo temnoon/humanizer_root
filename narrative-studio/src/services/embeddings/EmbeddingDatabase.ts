@@ -26,7 +26,7 @@ import type {
   SearchResult,
 } from './types.js';
 
-const SCHEMA_VERSION = 2;  // Bumped for vec0 tables
+const SCHEMA_VERSION = 3;  // Bumped for unified content tables (Facebook, etc.)
 const EMBEDDING_DIM = 384;  // all-MiniLM-L6-v2
 
 export class EmbeddingDatabase {
@@ -152,12 +152,122 @@ export class EmbeddingDatabase {
         created_at REAL
       );
 
+      -- ========================================================================
+      -- Unified Content Tables (Facebook posts, comments, photos, etc.)
+      -- ========================================================================
+      CREATE TABLE IF NOT EXISTS content_items (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,              -- 'post', 'comment', 'photo', 'video', 'message', 'document'
+        source TEXT NOT NULL,             -- 'facebook', 'openai', 'claude', 'instagram', 'local'
+
+        -- Content
+        text TEXT,                        -- Post text, comment text, message content
+        title TEXT,                       -- Optional title
+
+        -- Timestamps
+        created_at REAL NOT NULL,         -- Unix timestamp
+        updated_at REAL,
+
+        -- Author/Actor
+        author_name TEXT,                 -- "Tem Noon" or "Friend Name"
+        author_id TEXT,                   -- Facebook user ID
+        is_own_content INTEGER,           -- 1 if created by user, 0 if by others
+
+        -- Context/Relationships
+        parent_id TEXT,                   -- For replies/comments
+        thread_id TEXT,                   -- Top-level post ID
+        context TEXT,                     -- JSON: "commented on David Morris's post"
+
+        -- File System Reference
+        file_path TEXT,                   -- Path to folder: "facebook_import/posts/Q1_2008/post_123/"
+
+        -- Media
+        media_refs TEXT,                  -- JSON array of file paths
+        media_count INTEGER DEFAULT 0,
+
+        -- Metadata
+        metadata TEXT,                    -- JSON: source-specific fields
+        tags TEXT,                        -- JSON array
+
+        -- Embeddings
+        embedding BLOB,                   -- vec0 embedding (384-dim for all-MiniLM-L6-v2)
+        embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+
+        -- Search
+        search_text TEXT,                 -- Preprocessed for FTS
+
+        FOREIGN KEY (parent_id) REFERENCES content_items(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS media_files (
+        id TEXT PRIMARY KEY,
+        content_item_id TEXT,
+
+        file_path TEXT NOT NULL,
+        file_name TEXT,
+        file_size INTEGER,
+        mime_type TEXT,
+
+        type TEXT NOT NULL,               -- 'photo', 'video', 'audio', 'document'
+        width INTEGER,
+        height INTEGER,
+        duration INTEGER,
+
+        taken_at REAL,
+        uploaded_at REAL,
+
+        caption TEXT,
+        location TEXT,                    -- JSON
+        people_tagged TEXT,               -- JSON array
+        metadata TEXT,                    -- JSON
+
+        embedding BLOB,                   -- CLIP for visual similarity (future)
+        embedding_model TEXT,
+
+        FOREIGN KEY (content_item_id) REFERENCES content_items(id) ON DELETE SET NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS reactions (
+        id TEXT PRIMARY KEY,
+        content_item_id TEXT NOT NULL,
+
+        reaction_type TEXT NOT NULL,      -- 'like', 'love', 'haha', 'wow', 'sad', 'angry'
+        reactor_name TEXT,
+        reactor_id TEXT,
+
+        created_at REAL NOT NULL,
+
+        FOREIGN KEY (content_item_id) REFERENCES content_items(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS archive_settings (
+        archive_id TEXT PRIMARY KEY,      -- 'facebook_import_2025-11-18'
+        settings TEXT NOT NULL,           -- JSON of ArchiveOrganizationSettings
+        created_at REAL NOT NULL
+      );
+
       -- Indexes
       CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id);
       CREATE INDEX IF NOT EXISTS idx_chunks_message ON chunks(message_id);
       CREATE INDEX IF NOT EXISTS idx_chunks_granularity ON chunks(granularity);
       CREATE INDEX IF NOT EXISTS idx_user_marks_target ON user_marks(target_type, target_id);
       CREATE INDEX IF NOT EXISTS idx_conversations_interesting ON conversations(is_interesting);
+
+      -- Indexes for unified content tables
+      CREATE INDEX IF NOT EXISTS idx_content_type ON content_items(type);
+      CREATE INDEX IF NOT EXISTS idx_content_source ON content_items(source);
+      CREATE INDEX IF NOT EXISTS idx_content_created ON content_items(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_content_author ON content_items(author_name);
+      CREATE INDEX IF NOT EXISTS idx_content_thread ON content_items(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_content_own ON content_items(is_own_content);
+      CREATE INDEX IF NOT EXISTS idx_content_file_path ON content_items(file_path);
+
+      CREATE INDEX IF NOT EXISTS idx_media_content ON media_files(content_item_id);
+      CREATE INDEX IF NOT EXISTS idx_media_type ON media_files(type);
+      CREATE INDEX IF NOT EXISTS idx_media_taken ON media_files(taken_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_reactions_content ON reactions(content_item_id);
+      CREATE INDEX IF NOT EXISTS idx_reactions_type ON reactions(reaction_type);
     `);
 
     // Create vec0 virtual tables for vector search (if extension loaded)

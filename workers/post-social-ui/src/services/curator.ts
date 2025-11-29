@@ -346,16 +346,32 @@ export async function respondToComment(
 }
 
 /**
- * Get conversation thread for a comment
+ * Get conversation thread for a comment (with all turns)
  */
 export async function getCommentConversation(
   commentId: string
 ): Promise<{
   comment: { id: string; content: string; status: string; createdAt: number };
-  curatorResponse: { response: string; type: string; respondedAt: number } | null;
+  conversationId: string | null;
+  turns: Array<{ id: string; turnNumber: number; role: 'user' | 'curator'; content: string; createdAt: number }>;
   evaluation: CommentEvaluation | null;
 }> {
   return api.get(`/api/curator-agent/comment/${commentId}/conversation`);
+}
+
+/**
+ * Reply to curator in comment thread (bidirectional conversation)
+ */
+export async function replyToComment(
+  commentId: string,
+  message: string,
+  token: string
+): Promise<{
+  success: boolean;
+  userTurn: { turnNumber: number; role: 'user'; content: string; createdAt: number };
+  curatorTurn: { turnNumber: number; role: 'curator'; content: string; createdAt: number };
+}> {
+  return api.post(`/api/curator-agent/comment/${commentId}/reply`, { message }, token);
 }
 
 /**
@@ -414,6 +430,7 @@ export const curatorAgentService = {
   publishApprovedRequest,
   respondToComment,
   getCommentConversation,
+  replyToComment,
   compileSynthesis,
   listSynthesisTasks,
   applySynthesis,

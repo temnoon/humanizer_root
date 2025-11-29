@@ -186,7 +186,13 @@ const NarrativeContext: Component<{
   // Track which comments have expanded curator responses
   const [expandedComments, setExpandedComments] = createSignal<Set<string>>(new Set());
   
-  // Fetch comments with curator responses
+  // Track conversation turns for each comment
+  const [conversationTurns, setConversationTurns] = createSignal<Record<string, any[]>>({});
+  const [replyingTo, setReplyingTo] = createSignal<string | null>(null);
+  const [replyText, setReplyText] = createSignal('');
+  const [sendingReply, setSendingReply] = createSignal(false);
+
+  // Fetch comments with conversation threads
   const [comments, { refetch: refetchComments }] = createResource(
     () => props.narrative?.id,
     async (narrativeId) => {
@@ -194,25 +200,33 @@ const NarrativeContext: Component<{
       try {
         const token = authStore.token();
         const commentsList = await nodesService.listComments(narrativeId, undefined, token || undefined);
-        
-        // Fetch curator responses for each comment
-        const commentsWithResponses = await Promise.all(
+
+        // Fetch full conversation threads for each comment
+        const commentsWithConversations = await Promise.all(
           commentsList.map(async (comment) => {
             try {
               const conversation = await curatorAgentService.getCommentConversation(comment.id);
+
+              // Store turns in state
+              if (conversation.conversationId && conversation.turns?.length > 0) {
+                setConversationTurns(prev => ({
+                  ...prev,
+                  [comment.id]: conversation.turns
+                }));
+              }
+
               return {
                 ...comment,
-                curatorResponse: conversation.curatorResponse || undefined,
+                conversationId: conversation.conversationId,
                 curatorEvaluation: conversation.evaluation || comment.curatorEvaluation,
               };
             } catch (err) {
-              // Comment may not have a response yet
               return comment;
             }
           })
         );
-        
-        return commentsWithResponses;
+
+        return commentsWithConversations;
       } catch (err) {
         console.error('Failed to load comments:', err);
         return [];
@@ -238,24 +252,24 @@ const NarrativeContext: Component<{
     const narrativeId = props.narrative?.id;
     const token = authStore.token();
     if (!narrativeId || !token || !commentText().trim()) return;
-    
+
     setSubmitting(true);
     try {
       const newComment = await nodesService.postComment(narrativeId, {
         content: commentText(),
         contextQuote: '' // Could implement text selection
       }, token);
-      
+
       setCommentText('');
       setShowCommentForm(false);
-      
+
       // Trigger auto-respond if enabled
       // We'll check by attempting to respond - the backend will check node rules
       setAutoRespondPending(newComment.id);
-      
+
       // Refetch comments first to show the new one
       await refetchComments();
-      
+
       // Try to trigger curator auto-respond
       try {
         await curatorAgentService.respondToComment(newComment.id, token);
@@ -267,11 +281,36 @@ const NarrativeContext: Component<{
       } finally {
         setAutoRespondPending(null);
       }
-      
+
     } catch (err) {
       console.error('Failed to post comment:', err);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // Handle reply to curator
+  const handleSendReply = async (commentId: string) => {
+    const token = authStore.token();
+    if (!token || !replyText().trim()) return;
+
+    setSendingReply(true);
+    try {
+      const result = await curatorAgentService.replyToComment(commentId, replyText(), token);
+
+      // Add both turns to local state
+      setConversationTurns(prev => ({
+        ...prev,
+        [commentId]: [...(prev[commentId] || []), result.userTurn, result.curatorTurn]
+      }));
+
+      // Clear reply form
+      setReplyText('');
+      setReplyingTo(null);
+    } catch (err) {
+      console.error('Failed to send reply:', err);
+    } finally {
+      setSendingReply(false);
     }
   };
   
@@ -388,10 +427,21 @@ const NarrativeContext: Component<{
               >
                 <For each={comments()}>
                   {(comment) => (
-                    <CommentThreadCard 
-                      comment={comment} 
+                    <CommentThreadCard
+                      comment={comment}
                       expanded={expandedComments().has(comment.id)}
                       onToggleExpand={() => toggleExpanded(comment.id)}
+                      conversationTurns={conversationTurns()[comment.id] || []}
+                      isReplying={replyingTo() === comment.id}
+                      replyText={replyText()}
+                      sendingReply={sendingReply()}
+                      onStartReply={() => setReplyingTo(comment.id)}
+                      onCancelReply={() => {
+                        setReplyingTo(null);
+                        setReplyText('');
+                      }}
+                      onReplyTextChange={setReplyText}
+                      onSendReply={() => handleSendReply(comment.id)}
                     />
                   )}
                 </For>
@@ -435,11 +485,19 @@ const NarrativeContext: Component<{
   );
 };
 
-// Comment Thread Card - Shows comment with curator response
-const CommentThreadCard: Component<{ 
-  comment: NarrativeComment; 
+// Comment Thread Card - Shows comment with full conversation thread
+const CommentThreadCard: Component<{
+  comment: NarrativeComment;
   expanded: boolean;
   onToggleExpand: () => void;
+  conversationTurns: any[];
+  isReplying: boolean;
+  replyText: string;
+  sendingReply: boolean;
+  onStartReply: () => void;
+  onCancelReply: () => void;
+  onReplyTextChange: (text: string) => void;
+  onSendReply: () => void;
 }> = (props) => {
   const statusColor = () => {
     switch (props.comment.status) {
@@ -527,31 +585,77 @@ const CommentThreadCard: Component<{
         </div>
       </Show>
       
-      {/* Curator Response Section */}
-      <Show when={props.comment.curatorResponse}>
+      {/* Conversation Thread Section */}
+      <Show when={props.conversationTurns.length > 0}>
         <div class="curator-response-section">
-          {/* Response Header - Clickable to expand */}
-          <button 
+          {/* Thread Header - Clickable to expand */}
+          <button
             class="curator-response-header"
             onClick={props.onToggleExpand}
           >
-            <span class="response-icon">{responseTypeIcon()}</span>
-            <span class="response-type">{responseTypeLabel()}</span>
+            <span class="response-icon">💬</span>
+            <span class="response-type">Conversation ({props.conversationTurns.length} messages)</span>
             <span class="expand-icon">{props.expanded ? '▼' : '▶'}</span>
           </button>
-          
-          {/* Expanded Response */}
+
+          {/* Expanded Conversation Thread */}
           <Show when={props.expanded}>
-            <div class="curator-response-body">
-              <div class="curator-avatar">🤖</div>
-              <div class="curator-message">
-                <p>{props.comment.curatorResponse!.response}</p>
-                <span class="response-time">
-                  {formatTime(props.comment.curatorResponse!.respondedAt)}
-                </span>
-              </div>
+            <div class="conversation-thread">
+              <For each={props.conversationTurns}>
+                {(turn) => (
+                  <div class={`conversation-turn ${turn.role}`}>
+                    <div class="turn-header">
+                      <span class="turn-avatar">{turn.role === 'user' ? '👤' : '🤖'}</span>
+                      <span class="turn-role">{turn.role === 'user' ? 'You' : 'Curator'}</span>
+                      <span class="turn-time">{formatTime(turn.createdAt)}</span>
+                    </div>
+                    <div class="turn-content">
+                      <p>{turn.content}</p>
+                    </div>
+                  </div>
+                )}
+              </For>
+
+              {/* Reply UI */}
+              <Show when={authStore.isAuthenticated()}>
+                <div class="reply-section">
+                  <Show
+                    when={props.isReplying}
+                    fallback={
+                      <button class="reply-btn" onClick={props.onStartReply}>
+                        💬 Reply to Curator
+                      </button>
+                    }
+                  >
+                    <div class="reply-form">
+                      <textarea
+                        class="reply-input"
+                        placeholder="Continue the conversation..."
+                        value={props.replyText}
+                        onInput={(e) => props.onReplyTextChange(e.currentTarget.value)}
+                        rows={3}
+                      />
+                      <div class="reply-actions">
+                        <button
+                          class="btn-secondary"
+                          onClick={props.onCancelReply}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          class="btn-primary"
+                          onClick={props.onSendReply}
+                          disabled={props.sendingReply || !props.replyText.trim()}
+                        >
+                          {props.sendingReply ? 'Sending...' : 'Send Reply'}
+                        </button>
+                      </div>
+                    </div>
+                  </Show>
+                </div>
+              </Show>
             </div>
-            
+
             {/* Perspective note if available */}
             <Show when={props.comment.curatorEvaluation?.perspective}>
               <div class="curator-perspective">
@@ -561,9 +665,9 @@ const CommentThreadCard: Component<{
           </Show>
         </div>
       </Show>
-      
+
       {/* No response yet indicator */}
-      <Show when={!props.comment.curatorResponse && props.comment.status === 'pending'}>
+      <Show when={props.conversationTurns.length === 0 && props.comment.status === 'pending'}>
         <div class="awaiting-response">
           <span class="waiting-icon">⏳</span>
           <span>Awaiting curator review</span>
