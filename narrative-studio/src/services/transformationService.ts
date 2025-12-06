@@ -10,6 +10,7 @@ import * as ollamaService from './ollamaService';
 import { stripThinkingPreamble } from './ollamaService';
 import { filterCloudOutput } from './transformationPipeline';
 import { STORAGE_PATHS } from '../config/storage-paths';
+import { getCloudModelPreference } from '../components/settings/CloudAISettings';
 
 // Get current provider from localStorage
 function getCurrentProvider(): 'local' | 'cloudflare' {
@@ -533,6 +534,10 @@ export async function personaTransform(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
+  // Get user's model preference for cloud transformations
+  const cloudModel = getCloudModelPreference();
+  console.log(`[TransformationService] Persona using model: ${cloudModel}`);
+
   try {
     const response = await fetch(`${getApiBase()}/transformations/persona`, {
       method: 'POST',
@@ -542,6 +547,7 @@ export async function personaTransform(
         persona: options.persona,
         preserveLength: true,
         enableValidation: true,
+        model: cloudModel,
       }),
       signal: controller.signal,
     });
@@ -582,6 +588,7 @@ export async function personaTransform(
         burstinessBefore: data.baseline?.detection?.burstinessScore,
         burstinessAfter: data.final?.detection?.burstinessScore,
         filteringApplied: true,
+        modelUsed: data.model_used || cloudModel,
       },
     };
   } catch (error: any) {
@@ -623,6 +630,10 @@ export async function styleTransform(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
+  // Get user's model preference for cloud transformations
+  const cloudModel = getCloudModelPreference();
+  console.log(`[TransformationService] Style using model: ${cloudModel}`);
+
   try {
     const response = await fetch(`${getApiBase()}/transformations/style`, {
       method: 'POST',
@@ -632,6 +643,7 @@ export async function styleTransform(
         style: options.style,
         preserveLength: true,
         enableValidation: true,
+        model: cloudModel,
       }),
       signal: controller.signal,
     });
@@ -672,6 +684,7 @@ export async function styleTransform(
         burstinessBefore: data.baseline?.detection?.burstinessScore,
         burstinessAfter: data.final?.detection?.burstinessScore,
         filteringApplied: true,
+        modelUsed: data.model_used || cloudModel,
       },
     };
   } catch (error: any) {
@@ -699,6 +712,10 @@ export async function namespaceTransform(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
+  // Get user's model preference for cloud transformations
+  const cloudModel = getCloudModelPreference();
+  console.log(`[TransformationService] Namespace using model: ${cloudModel}`);
+
   try {
     const response = await fetch(`${getApiBase()}/transformations/namespace`, {
       method: 'POST',
@@ -708,6 +725,7 @@ export async function namespaceTransform(
         namespace: options.namespace,
         preserveLength: true,
         enableValidation: true,
+        model: cloudModel,
       }),
       signal: controller.signal,
     });
@@ -731,6 +749,7 @@ export async function namespaceTransform(
         aiConfidenceAfter: data.final?.detection?.aiConfidence,
         burstinessBefore: data.baseline?.detection?.burstinessScore,
         burstinessAfter: data.final?.detection?.burstinessScore,
+        modelUsed: data.model_used || cloudModel,
       },
     };
   } catch (error: any) {

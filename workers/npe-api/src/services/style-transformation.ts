@@ -7,11 +7,12 @@ import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
 import { hasCloudflareAI, detectEnvironment, getModelForUseCase } from '../config/llm-models';
 import { extractStructure, restoreStructure, stripInlineMarkdown } from './markdown-preserver';
-import { stripPreambles } from '../lib/strip-preambles';
+import { filterModelOutput, UnvettedModelError } from './model-vetting';
 
 export interface StyleTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
   preserveLength?: boolean;     // Default: true - keep similar length
+  model?: string;              // Override default model (e.g., '@cf/openai/gpt-oss-20b')
 }
 
 export interface StyleTransformationResult {
@@ -243,8 +244,9 @@ Transformed Text:`;
       temperature: 0.7
     });
 
-    // Strip any preambles
-    const strippedResult = stripPreambles(result.trim());
+    // Filter output using model-specific vetting profile
+    const filterResult = filterModelOutput(result.trim(), this.modelId);
+    const strippedResult = filterResult.content;
 
     // Restore markdown structure (paragraph breaks, lists)
     const withStructure = restoreStructure(strippedResult, structure);
@@ -263,12 +265,16 @@ export async function transformStyle(
   userId: string,
   options: StyleTransformationOptions = {}
 ): Promise<StyleTransformationResult> {
-  // Detect environment and select appropriate model
-  const hasAI = hasCloudflareAI(env);
-  const environment = detectEnvironment(hasAI);
-  const modelId = getModelForUseCase('style', environment);
+  // Use provided model or detect environment and select default
+  let modelId = options.model;
 
-  console.log(`[Style] Environment: ${environment}, Model: ${modelId}`);
+  if (!modelId) {
+    const hasAI = hasCloudflareAI(env);
+    const environment = detectEnvironment(hasAI);
+    modelId = getModelForUseCase('style', environment);
+  }
+
+  console.log(`[Style] Model: ${modelId}${options.model ? ' (user selected)' : ' (default)'}`);
 
   const service = new StyleTransformationService(env, style, userId, modelId);
   return service.transform(text, options);

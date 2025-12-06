@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { OllamaSettings } from './OllamaSettings';
+import { CloudAISettings } from './CloudAISettings';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = 'ollama' | 'archive' | 'appearance';
+type SettingsTab = 'ollama' | 'cloud' | 'archive' | 'appearance';
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('ollama');
@@ -14,7 +15,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   if (!isOpen) return null;
 
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
-    { id: 'ollama', label: 'Local AI', icon: '🤖' },
+    { id: 'ollama', label: 'Local AI', icon: '🏠' },
+    { id: 'cloud', label: 'Cloud AI', icon: '☁️' },
     { id: 'archive', label: 'Archive', icon: '📁' },
     { id: 'appearance', label: 'Appearance', icon: '🎨' },
   ];
@@ -100,6 +102,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           {/* Tab Content */}
           <div className="flex-1 overflow-y-auto">
             {activeTab === 'ollama' && <OllamaSettings />}
+
+            {activeTab === 'cloud' && <CloudAISettings />}
 
             {activeTab === 'archive' && (
               <div className="p-6">

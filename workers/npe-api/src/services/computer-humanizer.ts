@@ -17,7 +17,7 @@ import {
   hasBlockMarkers,
   getBlockMarkerInstructions
 } from '../lib/block-markers';
-import { stripPreambles } from '../lib/strip-preambles';
+import { filterModelOutput, UnvettedModelError } from './model-vetting';
 
 /**
  * Humanization intensity levels
@@ -265,8 +265,10 @@ Polished:`;
 
     const rawResponse = (response as any).response?.trim() || text;
 
-    // Strip any preambles like "Here's the rewritten text:"
-    const polished = stripPreambles(rawResponse);
+    // Filter output using model-specific vetting profile
+    const HUMANIZER_MODEL = '@cf/meta/llama-3-70b-instruct';
+    const filterResult = filterModelOutput(rawResponse, HUMANIZER_MODEL);
+    const polished = filterResult.content;
 
     // Safety check: If LLM reintroduced tell-words, return unpolished version
     const reintroducedDetection = await detectAILocal(polished);

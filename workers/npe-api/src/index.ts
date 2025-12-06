@@ -26,6 +26,7 @@ import booksRoutes from './routes/books';
 import feedbackRoutes from './routes/feedback';
 import adminProfileRoutes from './routes/admin-profiles';
 import { sessionsRoutes } from './routes/sessions';
+import modelVettingTestRoutes from './routes/model-vetting-test';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -139,6 +140,9 @@ app.route('/admin/profiles', adminProfileRoutes);
 
 // Studio Sessions routes (workspace state persistence)
 app.route('/api/sessions', sessionsRoutes);
+
+// Model Vetting Test routes (development only - test LLM output patterns)
+app.route('/api/model-vetting', modelVettingTestRoutes);
 
 // 404 handler
 app.notFound((c) => {

@@ -7,11 +7,12 @@ import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
 import { hasCloudflareAI, detectEnvironment, getModelForUseCase } from '../config/llm-models';
 import { extractStructure, restoreStructure, stripInlineMarkdown } from './markdown-preserver';
-import { stripPreambles } from '../lib/strip-preambles';
+import { filterModelOutput, UnvettedModelError } from './model-vetting';
 
 export interface PersonaTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
   preserveLength?: boolean;     // Default: true - keep similar length
+  model?: string;              // Override default model (e.g., '@cf/openai/gpt-oss-20b')
 }
 
 export interface PersonaTransformationResult {
@@ -250,8 +251,9 @@ Transformed Text:`;
       temperature: 0.7
     });
 
-    // Strip any preambles like "[assistant]:" or "Here's the rewritten text:"
-    const strippedResult = stripPreambles(result.trim());
+    // Filter output using model-specific vetting profile
+    const filterResult = filterModelOutput(result.trim(), this.modelId);
+    const strippedResult = filterResult.content;
 
     // Restore markdown structure (paragraph breaks, lists)
     const withStructure = restoreStructure(strippedResult, structure);
@@ -270,12 +272,16 @@ export async function transformPersona(
   userId: string,
   options: PersonaTransformationOptions = {}
 ): Promise<PersonaTransformationResult> {
-  // Detect environment and select appropriate model
-  const hasAI = hasCloudflareAI(env);
-  const environment = detectEnvironment(hasAI);
-  const modelId = getModelForUseCase('persona', environment);
+  // Use provided model or detect environment and select default
+  let modelId = options.model;
 
-  console.log(`[Persona] Environment: ${environment}, Model: ${modelId}`);
+  if (!modelId) {
+    const hasAI = hasCloudflareAI(env);
+    const environment = detectEnvironment(hasAI);
+    modelId = getModelForUseCase('persona', environment);
+  }
+
+  console.log(`[Persona] Model: ${modelId}${options.model ? ' (user selected)' : ' (default)'}`);
 
   const service = new PersonaTransformationService(env, persona, userId, modelId);
   return service.transform(text, options);

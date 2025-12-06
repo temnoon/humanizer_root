@@ -667,7 +667,7 @@ transformationRoutes.post('/persona', optionalLocalAuth(), async (c) => {
   try {
     const auth = getAuthContext(c);
     const body = await c.req.json();
-    const { text, persona, preserveLength, enableValidation } = body;
+    const { text, persona, preserveLength, enableValidation, model } = body;
 
     // Validate input
     if (!text || !persona) {
@@ -710,9 +710,13 @@ Your task is to transform text into how "${persona}" would express the same idea
       auth.userId,
       {
         preserveLength: preserveLength !== false,
-        enableValidation: enableValidation !== false
+        enableValidation: enableValidation !== false,
+        model: model  // Pass user's model preference
       }
     );
+
+    // Determine which model was actually used
+    const modelUsed = model || '@cf/meta/llama-3.1-70b-instruct';
 
     return c.json({
       transformation_id: result.transformationId,
@@ -720,7 +724,8 @@ Your task is to transform text into how "${persona}" would express the same idea
       baseline: result.baseline,
       final: result.final,
       improvement: result.improvement,
-      processing: result.processing
+      processing: result.processing,
+      model_used: modelUsed  // Return model info for UI feedback
     }, 200);
   } catch (error) {
     console.error('Persona transformation error:', error);
@@ -740,7 +745,7 @@ transformationRoutes.post('/namespace', optionalLocalAuth(), async (c) => {
   try {
     const auth = getAuthContext(c);
     const body = await c.req.json();
-    const { text, namespace, preserveLength, enableValidation } = body;
+    const { text, namespace, preserveLength, enableValidation, model } = body;
 
     // Validate input
     if (!text || !namespace) {
@@ -768,9 +773,12 @@ transformationRoutes.post('/namespace', optionalLocalAuth(), async (c) => {
       auth.userId,
       {
         preserveLength: preserveLength !== false,
-        enableValidation: enableValidation !== false
+        enableValidation: enableValidation !== false,
+        model: model  // Pass user's model preference
       }
     );
+
+    const modelUsed = model || '@cf/meta/llama-3.1-70b-instruct';
 
     return c.json({
       transformation_id: result.transformationId,
@@ -778,7 +786,8 @@ transformationRoutes.post('/namespace', optionalLocalAuth(), async (c) => {
       baseline: result.baseline,
       final: result.final,
       improvement: result.improvement,
-      processing: result.processing
+      processing: result.processing,
+      model_used: modelUsed
     }, 200);
   } catch (error) {
     console.error('Namespace transformation error:', error);
@@ -798,7 +807,7 @@ transformationRoutes.post('/style', optionalLocalAuth(), async (c) => {
   try {
     const auth = getAuthContext(c);
     const body = await c.req.json();
-    const { text, style, preserveLength, enableValidation } = body;
+    const { text, style, preserveLength, enableValidation, model } = body;
 
     // Validate input
     if (!text || !style) {
@@ -826,9 +835,12 @@ transformationRoutes.post('/style', optionalLocalAuth(), async (c) => {
       auth.userId,
       {
         preserveLength: preserveLength !== false,
-        enableValidation: enableValidation !== false
+        enableValidation: enableValidation !== false,
+        model: model  // Pass user's model preference
       }
     );
+
+    const modelUsed = model || '@cf/meta/llama-3.1-70b-instruct';
 
     return c.json({
       transformation_id: result.transformationId,
@@ -836,7 +848,8 @@ transformationRoutes.post('/style', optionalLocalAuth(), async (c) => {
       baseline: result.baseline,
       final: result.final,
       improvement: result.improvement,
-      processing: result.processing
+      processing: result.processing,
+      model_used: modelUsed
     }, 200);
   } catch (error) {
     console.error('Style transformation error:', error);

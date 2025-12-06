@@ -18,6 +18,19 @@ import { FeedbackWidget } from './FeedbackWidget';
 import { getCustomProfiles, type CustomProfile } from './ProfileFactoryPane';
 import { STORAGE_PATHS } from '../../config/storage-paths';
 
+// Helper to get friendly model name from model ID
+function getModelDisplayName(modelId: string | undefined): string | null {
+  if (!modelId) return null;
+  const modelMap: Record<string, string> = {
+    '@cf/meta/llama-3.1-70b-instruct': 'Llama 3.1 70B',
+    '@cf/meta/llama-3.1-8b-instruct': 'Llama 3.1 8B',
+    '@cf/openai/gpt-oss-120b': 'GPT-OSS 120B',
+    '@cf/openai/gpt-oss-20b': 'GPT-OSS 20B',
+    '@cf/meta/llama-3-70b-instruct': 'Llama 3 70B',
+  };
+  return modelMap[modelId] || modelId.split('/').pop() || modelId;
+}
+
 // Compact button styles for narrow panels
 const runButtonStyle = {
   width: '100%',
@@ -409,7 +422,7 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
         </div>
       )}
 
-      {/* Provider indicator */}
+      {/* Provider indicator with model info */}
       {providerUsed && !error && state.lastResult && (
         <div
           style={{
@@ -422,6 +435,11 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
           }}
         >
           ✓ Processed via {providerUsed}
+          {state.lastResult?.metadata?.modelUsed && (
+            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-primary)' }}>
+              Model: {getModelDisplayName(state.lastResult.metadata.modelUsed)}
+            </span>
+          )}
         </div>
       )}
 
@@ -430,7 +448,7 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
         <div style={{ marginTop: '8px' }}>
           <FeedbackWidget
             transformationId={transformationId}
-            modelUsed={providerUsed || undefined}
+            modelUsed={state.lastResult?.metadata?.modelUsed || providerUsed || undefined}
             transformationType="persona"
             personaOrStyle={state.selectedPersona}
             onDismiss={() => setShowFeedback(false)}
@@ -622,7 +640,7 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
         </div>
       )}
 
-      {/* Provider indicator */}
+      {/* Provider indicator with model info */}
       {providerUsed && !error && state.lastResult && (
         <div
           style={{
@@ -635,6 +653,11 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
           }}
         >
           ✓ Processed via {providerUsed}
+          {state.lastResult?.metadata?.modelUsed && (
+            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-primary)' }}>
+              Model: {getModelDisplayName(state.lastResult.metadata.modelUsed)}
+            </span>
+          )}
         </div>
       )}
 
@@ -643,7 +666,7 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
         <div style={{ marginTop: '8px' }}>
           <FeedbackWidget
             transformationId={transformationId}
-            modelUsed={providerUsed || undefined}
+            modelUsed={state.lastResult?.metadata?.modelUsed || providerUsed || undefined}
             transformationType="style"
             personaOrStyle={state.selectedStyle}
             onDismiss={() => setShowFeedback(false)}

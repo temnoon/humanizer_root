@@ -28,9 +28,10 @@ export class CloudflareProvider implements LLMProvider {
    * Detect API format for a given model
    */
   private getModelApiFormat(modelId: string): ApiFormat {
-    // Completion format models (use 'input' field)
+    // Completion format models (use 'input' field, return structured output)
     const completionModels = [
-      '@cf/openai/gpt-oss-20b'
+      '@cf/openai/gpt-oss-20b',
+      '@cf/openai/gpt-oss-120b'
     ];
 
     if (completionModels.includes(modelId)) {
@@ -50,27 +51,43 @@ export class CloudflareProvider implements LLMProvider {
       // Try different response field names based on API format
       let responseText = '';
       if (this.apiFormat === 'completion') {
-        // GPT-OSS returns output as array of objects with content
+        // GPT-OSS returns structured output with reasoning and message blocks:
+        // { output: [
+        //   { type: "reasoning", content: [{ type: "reasoning_text", text: "..." }] },
+        //   { type: "message", content: [{ type: "output_text", text: "..." }] }
+        // ]}
         const outputField = response.output;
         const textField = response.text;
 
-        // Try to extract from output field first (GPT-OSS format)
+        // Extract ONLY from message blocks (skip reasoning blocks)
         if (Array.isArray(outputField) && outputField.length > 0) {
-          // GPT-OSS format: [{id, content: [{text}]}]
-          responseText = outputField.map((item: any) => {
-            if (item.content && Array.isArray(item.content) && item.content.length > 0) {
-              return item.content[0].text || '';
-            }
-            return '';
-          }).join('');
+          responseText = outputField
+            .filter((item: any) => item.type === 'message')  // Only message blocks
+            .map((item: any) => {
+              if (item.content && Array.isArray(item.content)) {
+                // Extract only output_text content
+                return item.content
+                  .filter((c: any) => c.type === 'output_text')
+                  .map((c: any) => c.text || '')
+                  .join('');
+              }
+              return '';
+            })
+            .join('');
         } else if (Array.isArray(textField) && textField.length > 0) {
-          // Similar format but in text field
-          responseText = textField.map((item: any) => {
-            if (item.content && Array.isArray(item.content) && item.content.length > 0) {
-              return item.content[0].text || '';
-            }
-            return '';
-          }).join('');
+          // Fallback: similar format but in text field
+          responseText = textField
+            .filter((item: any) => item.type === 'message')
+            .map((item: any) => {
+              if (item.content && Array.isArray(item.content)) {
+                return item.content
+                  .filter((c: any) => c.type === 'output_text')
+                  .map((c: any) => c.text || '')
+                  .join('');
+              }
+              return '';
+            })
+            .join('');
         } else if (typeof textField === 'string' && textField) {
           responseText = textField;
         } else {

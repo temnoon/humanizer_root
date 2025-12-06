@@ -5,11 +5,12 @@
 import type { Env, NPENamespace } from '../../shared/types';
 import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
-import { stripPreambles } from '../lib/strip-preambles';
+import { filterModelOutput, UnvettedModelError } from './model-vetting';
 
 export interface NamespaceTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
   preserveLength?: boolean;     // Default: true - keep similar length
+  model?: string;              // Override default model (e.g., '@cf/openai/gpt-oss-20b')
 }
 
 export interface NamespaceTransformationResult {
@@ -268,8 +269,9 @@ Complete Narrative in ${this.namespace.name}:`;
       temperature: 0.8
     });
 
-    // Strip any preambles from final output
-    return stripPreambles(result.trim());
+    // Filter output using model-specific vetting profile
+    const filterResult = filterModelOutput(result.trim(), this.modelId);
+    return filterResult.content;
   }
 }
 
@@ -283,6 +285,8 @@ export async function transformNamespace(
   userId: string,
   options: NamespaceTransformationOptions = {}
 ): Promise<NamespaceTransformationResult> {
-  const service = new NamespaceTransformationService(env, namespace, userId);
+  const modelId = options.model || '@cf/meta/llama-3.1-70b-instruct';
+  console.log(`[Namespace] Model: ${modelId}${options.model ? ' (user selected)' : ' (default)'}`);
+  const service = new NamespaceTransformationService(env, namespace, userId, modelId);
   return service.transform(text, options);
 }
