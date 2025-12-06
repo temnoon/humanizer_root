@@ -9,6 +9,7 @@ import { BufferTabs } from './BufferTabs';
 import { ViewModeToggle } from './ViewModeToggle';
 import { BUFFER_IDS } from '../../config/buffer-constants';
 import { VIEW_MODES, DEFAULT_VIEW_MODE } from '../../config/view-modes';
+import { STORAGE_PATHS } from '../../config/storage-paths';
 
 interface MainWorkspaceProps {
   narrative: Narrative | null;
@@ -278,7 +279,7 @@ export function MainWorkspace({
   const mediaProps = narrative?.metadata ? {
     mediaManifest: narrative.metadata.mediaManifest as import('../../types').MediaManifest | undefined,
     mediaBaseUrl: narrative.metadata.mediaBaseUrl ?
-      `http://localhost:3002${narrative.metadata.mediaBaseUrl}` : undefined,
+      `${STORAGE_PATHS.archiveServerUrl}${narrative.metadata.mediaBaseUrl}` : undefined,
   } : {};
 
   // Single pane mode
@@ -415,7 +416,7 @@ export function MainWorkspace({
 
                 {/* GPTZero Premium - Show count of flagged sentences */}
                 {transformResult.metadata.aiDetection.method === 'gptzero' &&
-                  transformResult.metadata.aiDetection.highlightedSentences?.length > 0 && (
+                  (transformResult.metadata.aiDetection.highlightedSentences?.length ?? 0) > 0 && (
                   <div
                     className="rounded-md"
                     style={{
@@ -427,7 +428,7 @@ export function MainWorkspace({
                       AI-Flagged Sentences
                     </div>
                     <div className="heading-md" style={{ color: 'var(--accent-red)' }}>
-                      {transformResult.metadata.aiDetection.highlightedSentences.length} sentences flagged
+                      {transformResult.metadata.aiDetection.highlightedSentences?.length ?? 0} sentences flagged
                     </div>
                     <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
                       Highlighted in red below
@@ -491,12 +492,12 @@ export function MainWorkspace({
                   // Use pre-highlighted markdown from API (preserves markdown formatting + highlights)
                   <MarkdownRenderer content={transformResult.metadata.aiDetection.highlightedMarkdown} />
                 ) : transformResult.metadata.aiDetection.method === 'gptzero' &&
-                transformResult.metadata.aiDetection.highlightedSentences?.length > 0 ? (
+                (transformResult.metadata.aiDetection.highlightedSentences?.length ?? 0) > 0 ? (
                   // GPTZero: Fallback to manual highlighting if API didn't provide highlightedMarkdown
                   <div className="gptzero-highlighted-text">
                     {(() => {
                       let highlightedText = narrative.content;
-                      const sentences = transformResult.metadata.aiDetection.highlightedSentences;
+                      const sentences = transformResult.metadata.aiDetection.highlightedSentences ?? [];
                       const sortedSentences = [...sentences].sort((a, b) => b.length - a.length);
                       const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -816,7 +817,7 @@ export function MainWorkspace({
             </div>
           </div>
         </div>
-      ) : (useSessionRendering ? currentViewMode === VIEW_MODES.SPLIT : viewPreference === 'split') ? (
+      ) : (useSessionRendering ? currentViewMode === VIEW_MODES.SPLIT : mode === 'split') ? (
         /* Side-by-side layout (desktop only) */
         <div className="hidden md:flex flex-1 flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
           {/* Left pane: Original */}
@@ -1073,7 +1074,7 @@ export function MainWorkspace({
 
               {/* GPTZero Premium - Show count of flagged sentences */}
               {transformResult.metadata.aiDetection.method === 'gptzero' &&
-                transformResult.metadata.aiDetection.highlightedSentences?.length > 0 && (
+                (transformResult.metadata.aiDetection.highlightedSentences?.length ?? 0) > 0 && (
                 <div
                   className="rounded-md"
                   style={{
@@ -1085,7 +1086,7 @@ export function MainWorkspace({
                     AI-Flagged Sentences
                   </div>
                   <div className="heading-md" style={{ color: 'var(--accent-red)' }}>
-                    {transformResult.metadata.aiDetection.highlightedSentences.length} sentences flagged
+                    {transformResult.metadata.aiDetection.highlightedSentences?.length ?? 0} sentences flagged
                   </div>
                   <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
                     Highlighted in text below
@@ -1276,12 +1277,12 @@ export function MainWorkspace({
             {transformedViewMode === 'rendered' ? (
               // GPTZero highlighted sentences (inline highlighting)
               transformResult?.metadata?.aiDetection?.method === 'gptzero' &&
-              transformResult?.metadata?.aiDetection?.highlightedSentences?.length > 0 ? (
+              (transformResult?.metadata?.aiDetection?.highlightedSentences?.length ?? 0) > 0 ? (
                 <div className="prose" style={{ color: 'var(--text-primary)' }}>
                   {(() => {
                     // Highlight flagged sentences in the original text
                     let highlightedText = displayContent.transformed;
-                    const sentences = transformResult.metadata.aiDetection.highlightedSentences;
+                    const sentences = transformResult.metadata?.aiDetection?.highlightedSentences ?? [];
 
                     // Sort sentences by length (longest first) to avoid partial replacements
                     const sortedSentences = [...sentences].sort((a, b) => b.length - a.length);
@@ -1305,6 +1306,31 @@ export function MainWorkspace({
                         dangerouslySetInnerHTML={{ __html: highlightedText }}
                       />
                     );
+                  })()}
+                </div>
+              ) : transformResult?.metadata?.aiDetection?.tellWords &&
+                transformResult.metadata.aiDetection.tellWords.length > 0 ? (
+                // Lite Detector: Highlight tell-words in the text
+                <div className="prose lite-highlighted-text" style={{ color: 'var(--text-primary)' }}>
+                  {(() => {
+                    let highlightedText = displayContent.transformed;
+                    const tellWords = transformResult.metadata.aiDetection.tellWords;
+                    // Filter out invalid entries and sort by word length
+                    const sortedWords = [...tellWords]
+                      .filter(w => w && w.word && typeof w.word === 'string')
+                      .sort((a, b) => b.word.length - a.word.length);
+                    const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+                    sortedWords.forEach((wordObj) => {
+                      const escapedWord = escapeRegex(wordObj.word);
+                      const regex = new RegExp(`\\b(${escapedWord})\\b`, 'gi');
+                      highlightedText = highlightedText.replace(
+                        regex,
+                        `<mark class="lite-highlight">$1</mark>`
+                      );
+                    });
+
+                    return <div dangerouslySetInnerHTML={{ __html: highlightedText }} />;
                   })()}
                 </div>
               ) : transformResult?.metadata?.manualReviewSuggestions && transformResult.metadata.manualReviewSuggestions.length > 0 ? (

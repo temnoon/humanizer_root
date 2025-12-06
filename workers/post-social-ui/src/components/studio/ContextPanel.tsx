@@ -17,6 +17,8 @@ import { Component, Show, createSignal, For, createResource, createEffect } from
 import { authStore } from '@/stores/auth';
 import { nodesService } from '@/services/nodes';
 import { curatorAgentService } from '@/services/curator';
+import { AnimatedResponse } from './AnimatedText';
+import { ApexCard } from './ApexSummary';
 import type { CenterMode } from './NavigationPanel';
 import type { Narrative, NarrativeComment, Node } from '@/types/models';
 
@@ -118,55 +120,130 @@ const WelcomeContext: Component = () => {
 // Browse Context - For node list and detail views
 const BrowseContext: Component<{ mode: CenterMode }> = (props) => {
   const [isSubscribing, setIsSubscribing] = createSignal(false);
-  
+
+  // Fetch node data when in node-detail mode
+  const [node] = createResource(
+    () => {
+      if (props.mode.type === 'node-detail') {
+        return (props.mode as { type: 'node-detail'; nodeSlug: string }).nodeSlug;
+      }
+      return null;
+    },
+    async (slug) => {
+      if (!slug) return null;
+      try {
+        return await nodesService.getNode(slug, authStore.token() || undefined);
+      } catch (err) {
+        return null;
+      }
+    }
+  );
+
   const handleSubscribe = async (nodeId: string) => {
     const token = authStore.token();
     if (!token) return;
-    
+
     setIsSubscribing(true);
     try {
-      await nodesService.subscribe(nodeId, token);
+      await nodesService.subscribe(nodeId, {}, token);
     } catch (err) {
       console.error('Failed to subscribe:', err);
     } finally {
       setIsSubscribing(false);
     }
   };
-  
+
   return (
     <div class="context-section">
-      <h3>About Nodes</h3>
-      <p class="context-description">
-        Nodes are topical spaces where related narratives live. 
-        Subscribe to stay updated when new narratives are published 
-        or existing ones evolve.
-      </p>
-      
-      <Show when={props.mode.type === 'node-detail'}>
-        <div class="context-actions">
-          <button 
-            class="context-btn primary"
-            onClick={() => {
-              const mode = props.mode as { type: 'node-detail'; nodeId: string };
-              handleSubscribe(mode.nodeId);
-            }}
-            disabled={isSubscribing()}
-          >
-            {isSubscribing() ? 'Subscribing...' : '🔔 Subscribe to Node'}
-          </button>
+      {/* Node List Mode - General info */}
+      <Show when={props.mode.type === 'node-list'}>
+        <h3>Browse Nodes</h3>
+        <p class="context-description">
+          Nodes are topical spaces where related narratives live.
+          Subscribe to stay updated when new narratives are published
+          or existing ones evolve.
+        </p>
+
+        <div class="context-info">
+          <h4>How Narratives Evolve</h4>
+          <ol class="evolution-steps">
+            <li>Author publishes initial version</li>
+            <li>Readers leave comments with feedback</li>
+            <li>AI Curator evaluates and responds</li>
+            <li>Author synthesizes feedback into new version</li>
+            <li>Version history preserved for transparency</li>
+          </ol>
         </div>
       </Show>
-      
-      <div class="context-info">
-        <h4>How Narratives Evolve</h4>
-        <ol class="evolution-steps">
-          <li>Author publishes initial version</li>
-          <li>Readers leave comments with feedback</li>
-          <li>AI Curator evaluates and responds</li>
-          <li>Author synthesizes feedback into new version</li>
-          <li>Version history preserved for transparency</li>
-        </ol>
-      </div>
+
+      {/* Node Detail Mode - Rich context */}
+      <Show when={props.mode.type === 'node-detail' && node()}>
+        <div class="node-context">
+          <h3>Node Tools</h3>
+
+          {/* Quick Actions */}
+          <div class="node-quick-actions">
+            <Show when={authStore.isAuthenticated()}>
+              <button
+                class="context-btn primary"
+                onClick={() => handleSubscribe(node()!.id)}
+                disabled={isSubscribing()}
+              >
+                {isSubscribing() ? 'Subscribing...' : '🔔 Subscribe'}
+              </button>
+            </Show>
+            <button class="context-btn">
+              📤 Share Node
+            </button>
+          </div>
+
+          {/* Apex Summary Preview */}
+          <Show when={node()?.id}>
+            <div class="apex-preview">
+              <h4>Curator's Understanding</h4>
+              <ApexCard nodeId={node()!.id} />
+            </div>
+          </Show>
+
+          {/* Node Stats */}
+          <div class="node-stats-panel">
+            <h4>Statistics</h4>
+            <div class="stats-grid">
+              <div class="stat-item">
+                <span class="stat-value">{node()?.workingTextCount || 0}</span>
+                <span class="stat-label">Chapters</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value">{node()?.narrativeCount || 0}</span>
+                <span class="stat-label">Narratives</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-value">{node()?.subscriberCount || 0}</span>
+                <span class="stat-label">Subscribers</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Archive Tools */}
+          <div class="archive-tools">
+            <h4>Archive Tools</h4>
+            <div class="tool-buttons">
+              <button class="tool-btn">
+                <span class="tool-icon">🔍</span>
+                <span>Semantic Search</span>
+              </button>
+              <button class="tool-btn">
+                <span class="tool-icon">📊</span>
+                <span>View Clusters</span>
+              </button>
+              <button class="tool-btn">
+                <span class="tool-icon">📚</span>
+                <span>Export to Book</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Show>
     </div>
   );
 };
@@ -177,7 +254,7 @@ const NarrativeContext: Component<{
   narrativeSlug: string;
   narrative?: Narrative | null;
 }> = (props) => {
-  const [activeTab, setActiveTab] = createSignal<'comments' | 'analysis' | 'related'>('comments');
+  const [activeTab, setActiveTab] = createSignal<'comments' | 'curator' | 'analysis' | 'related'>('comments');
   const [showCommentForm, setShowCommentForm] = createSignal(false);
   const [commentText, setCommentText] = createSignal('');
   const [submitting, setSubmitting] = createSignal(false);
@@ -277,7 +354,6 @@ const NarrativeContext: Component<{
         await refetchComments();
       } catch (err) {
         // Auto-respond might be disabled or fail - that's okay
-        console.log('Auto-respond not triggered:', err);
       } finally {
         setAutoRespondPending(null);
       }
@@ -451,6 +527,37 @@ const NarrativeContext: Component<{
         </div>
       </Show>
       
+      {/* Curator Context Tab */}
+      <Show when={activeTab() === 'curator'}>
+        <div class="context-content curator-context">
+          <div class="curator-help">
+            <h4>What the Curator Knows</h4>
+            <p class="help-text">
+              This is the apex summary - the curator's "consciousness" of this text.
+              All responses are grounded in this understanding.
+            </p>
+          </div>
+
+          <Show when={props.narrative?.nodeId}>
+            <ApexCard
+              nodeId={props.narrative!.nodeId}
+              title="Apex Summary"
+            />
+          </Show>
+
+          <div class="curator-help" style="margin-top: 24px;">
+            <h4>How to Engage</h4>
+            <ul class="engagement-tips">
+              <li>Ask questions about themes and meaning</li>
+              <li>Explore connections to other works</li>
+              <li>Discuss character motivations</li>
+              <li>Challenge interpretations</li>
+              <li>Search semantically through the text</li>
+            </ul>
+          </div>
+        </div>
+      </Show>
+
       {/* Analysis Tab */}
       <Show when={activeTab() === 'analysis'}>
         <div class="context-content">
@@ -610,7 +717,16 @@ const CommentThreadCard: Component<{
                       <span class="turn-time">{formatTime(turn.createdAt)}</span>
                     </div>
                     <div class="turn-content">
-                      <p>{turn.content}</p>
+                      <Show
+                        when={turn.role === 'curator'}
+                        fallback={<p>{turn.content}</p>}
+                      >
+                        <AnimatedResponse
+                          content={turn.content}
+                          delay={100}
+                          speed={50}
+                        />
+                      </Show>
                     </div>
                   </div>
                 )}

@@ -1,7 +1,8 @@
 import { useState, useRef } from 'react';
 import { ImportPreviewModal } from './ImportPreviewModal';
+import { STORAGE_PATHS } from '../../config/storage-paths';
 
-const ARCHIVE_SERVER_URL = 'http://localhost:3002';
+const ARCHIVE_SERVER_URL = STORAGE_PATHS.archiveServerUrl;
 
 interface ImportJob {
   id: string;

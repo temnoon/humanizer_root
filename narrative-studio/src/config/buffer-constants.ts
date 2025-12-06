@@ -56,8 +56,8 @@ export function isOriginalBuffer(bufferId: string): boolean {
  * @returns Source buffer ID to use
  */
 export function getSourceBuffer(
-  sourceBufferId?: string,
-  fallback?: string
+  sourceBufferId?: string | null,
+  fallback?: string | null
 ): string {
   return sourceBufferId || fallback || BUFFER_IDS.ORIGINAL;
 }

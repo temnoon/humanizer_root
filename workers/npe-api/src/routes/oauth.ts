@@ -24,8 +24,11 @@ import { generateToken } from '../middleware/auth';
 
 const oauthRoutes = new Hono<{ Bindings: Env }>();
 
-// Valid providers
-const VALID_PROVIDERS: OAuthProvider[] = ['google', 'github', 'discord', 'facebook', 'apple'];
+// Providers enabled for launch (Google, GitHub, Discord)
+// Apple and Facebook require additional configuration and will be enabled post-launch
+const LAUNCH_PROVIDERS: OAuthProvider[] = ['google', 'github', 'discord'];
+const FUTURE_PROVIDERS: OAuthProvider[] = ['facebook', 'apple'];
+const VALID_PROVIDERS: OAuthProvider[] = [...LAUNCH_PROVIDERS, ...FUTURE_PROVIDERS];
 
 /**
  * Validate provider parameter
@@ -38,11 +41,17 @@ function validateProvider(provider: string): provider is OAuthProvider {
  * Get OAuth redirect URI
  */
 function getRedirectUri(env: Env, provider: OAuthProvider): string {
-  // TODO: Change to npe-api.humanizer.com once subdomain is configured
-  const baseUrl = env.ENVIRONMENT === 'production' 
-    ? 'https://npe-api.tem-527.workers.dev'
+  const baseUrl = env.ENVIRONMENT === 'production'
+    ? 'https://npe-api.humanizer.com'
     : 'http://localhost:8787';
   return `${baseUrl}/auth/oauth/${provider}/callback`;
+}
+
+/**
+ * Check if provider is enabled for launch
+ */
+function isProviderEnabled(provider: OAuthProvider): boolean {
+  return LAUNCH_PROVIDERS.includes(provider);
 }
 
 /**
@@ -50,13 +59,26 @@ function getRedirectUri(env: Env, provider: OAuthProvider): string {
  */
 oauthRoutes.get('/providers', async (c) => {
   const providers = VALID_PROVIDERS.map(provider => {
-    // Check if provider is configured
-    try {
-      getProviderCredentials(c.env, provider);
-      return { provider, name: OAUTH_PROVIDERS[provider].name, available: true };
-    } catch {
-      return { provider, name: OAUTH_PROVIDERS[provider].name, available: false };
+    const enabled = isProviderEnabled(provider);
+
+    // Check if provider is configured (only matters if enabled)
+    let configured = false;
+    if (enabled) {
+      try {
+        getProviderCredentials(c.env, provider);
+        configured = true;
+      } catch {
+        configured = false;
+      }
     }
+
+    return {
+      provider,
+      name: OAUTH_PROVIDERS[provider].name,
+      available: enabled && configured,
+      enabled,
+      comingSoon: !enabled
+    };
   });
 
   return c.json({ providers });
@@ -68,9 +90,17 @@ oauthRoutes.get('/providers', async (c) => {
  */
 oauthRoutes.get('/:provider/login', async (c) => {
   const provider = c.req.param('provider');
-  
+
   if (!validateProvider(provider)) {
     return c.json({ error: `Invalid OAuth provider: ${provider}` }, 400);
+  }
+
+  // Check if provider is enabled for launch
+  if (!isProviderEnabled(provider)) {
+    return c.json({
+      error: `${OAUTH_PROVIDERS[provider].name} login coming soon`,
+      hint: 'This provider will be available after launch. Use Google, GitHub, or Discord for now.'
+    }, 400);
   }
 
   // Check if provider is configured

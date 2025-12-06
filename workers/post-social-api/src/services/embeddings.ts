@@ -111,8 +111,6 @@ export async function indexPost(
       values: embedding,
       metadata: metadata as unknown as Record<string, VectorizeVectorMetadata>,
     }]);
-    
-    console.log(`[EMBEDDINGS] Indexed post ${postId}`);
   } catch (error) {
     console.error('[EMBEDDINGS] Index error:', error);
     throw error;
@@ -128,7 +126,6 @@ export async function removeFromIndex(
 ): Promise<void> {
   try {
     await vectorize.deleteByIds([postId]);
-    console.log(`[EMBEDDINGS] Removed post ${postId} from index`);
   } catch (error) {
     console.error('[EMBEDDINGS] Remove error:', error);
     throw error;

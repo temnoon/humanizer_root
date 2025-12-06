@@ -5,11 +5,15 @@ import { TextSizeProvider } from './contexts/TextSizeContext';
 import { SessionProvider, useSession } from './contexts/SessionContext';
 import { ProviderProvider } from './contexts/ProviderContext';
 import { ExploreProvider } from './contexts/ExploreContext';
+import { ActiveBookProvider } from './contexts/ActiveBookContext';
+import { UnifiedBufferProvider } from './contexts/UnifiedBufferContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
 import { PanelToggle } from './components/layout/PanelToggle';
 import { ArchivePanel } from './components/panels/ArchivePanel';
 import { ToolsPanel } from './components/panels/ToolsPanel';
+import { StudioToolsPanel } from './components/panels/StudioToolsPanel';
+import { TabbedToolsPanel } from './components/tools';
 import { MainWorkspace } from './components/workspace/MainWorkspace';
 import { SetupWizard } from './components/onboarding';
 import { SettingsModal } from './components/settings';
@@ -23,6 +27,8 @@ import type {
   Narrative,
   TransformConfig,
   TransformResult,
+  TransformationType,
+  TransformParameters,
   WorkspaceMode,
 } from './types';
 
@@ -66,6 +72,10 @@ function AppContent() {
     end: number;
   } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [useStudioTools, setUseStudioTools] = useState<boolean>(() => {
+    const saved = localStorage.getItem('narrative-studio-use-studio-tools');
+    return saved === 'true';
+  });
 
   // Transformation configuration state (lifted from ToolsPanel)
   const [selectedTransformType, setSelectedTransformType] = useState<TransformationType>('computer-humanizer');
@@ -104,6 +114,11 @@ function AppContent() {
   useEffect(() => {
     localStorage.setItem('narrative-studio-tools-width', String(toolsPanelWidth));
   }, [toolsPanelWidth]);
+
+  // Persist studio tools preference
+  useEffect(() => {
+    localStorage.setItem('narrative-studio-use-studio-tools', String(useStudioTools));
+  }, [useStudioTools]);
 
   // Responsive panel behavior
   useEffect(() => {
@@ -363,15 +378,18 @@ function AppContent() {
           // Buffer is automatically added to session by createTransformationBuffer
           // and becomes the new active buffer
         }
+
+        // Update view mode for existing session transformations
+        if (result.metadata?.aiDetection) {
+          updateViewMode(ANALYSIS_VIEW_MODE);
+        } else {
+          updateViewMode(TRANSFORMATION_VIEW_MODE);
+        }
       }
 
-      // AI detection is analysis (not transformation), so use single-pane mode
-      // Other transformations use split mode to show original vs transformed
-      if (result.metadata?.aiDetection) {
-        setWorkspaceMode('single');
-      } else {
-        setWorkspaceMode('split');
-      }
+      // All transformations use split mode: original left, result right
+      // AI detection shows highlighted text in right pane
+      setWorkspaceMode('split');
 
       // Clear selection after transform
       setSelectedText(null);
@@ -400,6 +418,8 @@ function AppContent() {
         toolsOpen={toolsPanelOpen}
         viewPreference={viewPreference}
         workspaceMode={workspaceMode}
+        useStudioTools={useStudioTools}
+        onToggleStudioTools={() => setUseStudioTools((v) => !v)}
       />
 
       <div className="flex-1 flex overflow-hidden relative">
@@ -485,16 +505,31 @@ function AppContent() {
               transition: 'background-color 0.2s',
             }}
           />
-          <ToolsPanel
-            isOpen={toolsPanelOpen}
-            onClose={() => setToolsPanelOpen(false)}
-            onRunTransform={handleRunTransform}
-            isTransforming={isTransforming}
-            selectedType={selectedTransformType}
-            setSelectedType={setSelectedTransformType}
-            parameters={transformParameters}
-            setParameters={setTransformParameters}
-          />
+          {useStudioTools ? (
+            <StudioToolsPanel
+              isOpen={toolsPanelOpen}
+              onClose={() => setToolsPanelOpen(false)}
+              content={currentNarrative?.content ?? ''}
+              onApplyTransform={(transformedText) => {
+                // Apply the transformed text to the current narrative
+                if (currentNarrative) {
+                  handleUpdateNarrative(transformedText);
+                }
+              }}
+            />
+          ) : (
+            <TabbedToolsPanel
+              isOpen={toolsPanelOpen}
+              onClose={() => setToolsPanelOpen(false)}
+              content={currentNarrative?.content ?? ''}
+              onApplyTransform={(transformedText) => {
+                // Apply the transformed text to the current narrative
+                if (currentNarrative) {
+                  handleUpdateNarrative(transformedText);
+                }
+              }}
+            />
+          )}
           </div>
         )}
       </div>
@@ -550,9 +585,13 @@ function AppWithSession() {
 
   return (
     <SessionProvider userTier={userTier} archiveName="main">
-      <ExploreProvider>
-        <AppContent />
-      </ExploreProvider>
+      <UnifiedBufferProvider archiveName="main">
+        <ExploreProvider>
+          <ActiveBookProvider>
+            <AppContent />
+          </ActiveBookProvider>
+        </ExploreProvider>
+      </UnifiedBufferProvider>
     </SessionProvider>
   );
 }

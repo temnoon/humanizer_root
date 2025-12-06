@@ -25,6 +25,10 @@ export function SemanticSearchView({
     setSearchQuery,
     searchResults,
     searchLoading,
+    searchSource,
+    setSearchSource,
+    searchType,
+    setSearchType,
     executeSearch,
   } = useExplore();
 
@@ -125,6 +129,54 @@ export function SemanticSearchView({
             </div>
           )}
         </div>
+
+        {/* Source and Type Filters */}
+        <div style={{
+          display: 'flex',
+          gap: 'var(--space-sm, 0.5rem)',
+          marginTop: 'var(--space-sm, 0.5rem)',
+          flexWrap: 'wrap',
+        }}>
+          <select
+            value={searchSource}
+            onChange={(e) => setSearchSource(e.target.value as '' | 'openai' | 'facebook')}
+            className="ui-text"
+            style={{
+              padding: '0.4rem 0.6rem',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '4px',
+              color: 'var(--text-primary)',
+              fontSize: '0.85rem',
+              cursor: 'pointer',
+            }}
+          >
+            <option value="">All Sources</option>
+            <option value="openai">OpenAI/Claude</option>
+            <option value="facebook">📘 Facebook</option>
+          </select>
+
+          {searchSource === 'facebook' && (
+            <select
+              value={searchType}
+              onChange={(e) => setSearchType(e.target.value as '' | 'post' | 'comment')}
+              className="ui-text"
+              style={{
+                padding: '0.4rem 0.6rem',
+                backgroundColor: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '4px',
+                color: 'var(--text-primary)',
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="">All Types</option>
+              <option value="post">📝 Posts</option>
+              <option value="comment">💬 Comments</option>
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Results List */}
@@ -182,6 +234,12 @@ export function SemanticSearchView({
           const simColor = getSimilarityColor(result.similarity);
           const isSelectedForAnchor = selectedForAnchor.includes(result.embeddingId || result.id);
 
+          // Detect if this is a Facebook result (has 'source' field) or OpenAI message
+          const isFacebook = (result as any).source === 'facebook';
+          const contentType = isFacebook ? (result as any).type : result.messageRole;
+          const contentTitle = isFacebook ? (result as any).title : result.conversationTitle;
+          const contentText = isFacebook ? (result as any).text : result.content;
+
           return (
             <div
               key={`${result.id}-${idx}`}
@@ -197,7 +255,11 @@ export function SemanticSearchView({
                 border: '2px solid transparent',
                 transition: 'all 0.15s ease',
               }}
-              onClick={() => onNavigate(result.conversationId)}
+              onClick={() => {
+                if (!isFacebook && result.conversationId) {
+                  onNavigate(result.conversationId);
+                }
+              }}
               onMouseEnter={(e) => {
                 if (!isSelectedForAnchor) {
                   e.currentTarget.style.borderColor = 'var(--accent-primary)';
@@ -228,7 +290,8 @@ export function SemanticSearchView({
                       : 'var(--text-tertiary)',
                   }}
                 >
-                  {result.messageRole}
+                  {isFacebook && '📘 '}
+                  {contentType}
                 </span>
                 <span
                   style={{
@@ -259,7 +322,7 @@ export function SemanticSearchView({
                   opacity: isSelectedForAnchor ? 1 : 0.9,
                 }}
               >
-                {result.content}
+                {contentText}
               </p>
 
               {/* Footer Row */}
@@ -284,7 +347,7 @@ export function SemanticSearchView({
                     flex: 1,
                   }}
                 >
-                  {result.conversationTitle}
+                  {contentTitle || (isFacebook ? 'Facebook Post' : 'Message')}
                 </span>
 
                 <div style={{ display: 'flex', gap: '4px' }}>

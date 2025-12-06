@@ -1,0 +1,268 @@
+/**
+ * Humanizer Shared Styles
+ *
+ * Main entry point for shared SCSS.
+ * Import this file to get all theme variables and utilities.
+ *
+ * Usage in project:
+ *   @use '../../../shared/styles' as humanizer;
+ *
+ * Or import the compiled CSS directly.
+ */
+
+// Forward all modules for external use
+@forward 'variables';
+@forward 'mixins';
+@forward 'themes';
+
+// Import themes to generate CSS custom properties
+@use 'themes';
+@use 'mixins' as *;
+@use 'variables' as *;
+
+// ============================================================
+// BASE RESET
+// ============================================================
+
+*,
+*::before,
+*::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-normal);
+}
+
+// ============================================================
+// TYPOGRAPHY BASE
+// ============================================================
+
+// UI elements use UI font
+button,
+input,
+select,
+textarea,
+label,
+.ui-text {
+  font-family: var(--font-ui);
+}
+
+// Code elements use mono font
+code,
+pre,
+kbd,
+samp,
+.mono {
+  font-family: var(--font-mono);
+}
+
+// ============================================================
+// UTILITY CLASSES - Buttons
+// ============================================================
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  min-height: 40px;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  font-family: var(--font-ui);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-in-out);
+  text-decoration: none;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+.btn-primary {
+  @include btn-primary;
+}
+
+.btn-secondary {
+  @include btn-secondary;
+}
+
+.btn-ghost {
+  @include btn-ghost;
+}
+
+.btn-success {
+  background: var(--color-success);
+  color: white;
+  border: none;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+}
+
+.btn-error,
+.btn-danger {
+  background: var(--color-error);
+  color: white;
+  border: none;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+}
+
+// Button sizes
+.btn-sm {
+  min-height: 32px;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: var(--text-xs);
+}
+
+.btn-lg {
+  min-height: 48px;
+  padding: var(--space-md) var(--space-lg);
+  font-size: var(--text-base);
+}
+
+// ============================================================
+// UTILITY CLASSES - Forms
+// ============================================================
+
+.input,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="url"],
+input[type="number"],
+textarea,
+select {
+  @include input-base;
+}
+
+.input-search {
+  @include input-search;
+}
+
+// ============================================================
+// UTILITY CLASSES - Cards
+// ============================================================
+
+.card {
+  @include card;
+}
+
+.card-elevated {
+  @include card-elevated;
+}
+
+.card-interactive {
+  @include card-interactive;
+}
+
+// ============================================================
+// UTILITY CLASSES - Status
+// ============================================================
+
+// Generate all status badge classes
+@include status-badge(success);
+@include status-badge(warning);
+@include status-badge(error);
+@include status-badge(info);
+
+// Status text colors
+.text-success { color: var(--color-success); }
+.text-warning { color: var(--color-warning); }
+.text-error { color: var(--color-error); }
+.text-info { color: var(--color-info); }
+
+// Status backgrounds
+.bg-success { background-color: rgba(var(--color-success-rgb), 0.15); }
+.bg-warning { background-color: rgba(var(--color-warning-rgb), 0.15); }
+.bg-error { background-color: rgba(var(--color-error-rgb), 0.15); }
+
+// ============================================================
+// UTILITY CLASSES - Layout
+// ============================================================
+
+.flex { display: flex; }
+.flex-col { flex-direction: column; }
+.flex-wrap { flex-wrap: wrap; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.gap-xs { gap: var(--space-xs); }
+.gap-sm { gap: var(--space-sm); }
+.gap-md { gap: var(--space-md); }
+.gap-lg { gap: var(--space-lg); }
+
+// ============================================================
+// UTILITY CLASSES - Text
+// ============================================================
+
+.text-xs { font-size: var(--text-xs); }
+.text-sm { font-size: var(--text-sm); }
+.text-base { font-size: var(--text-base); }
+.text-lg { font-size: var(--text-lg); }
+.text-xl { font-size: var(--text-xl); }
+.text-2xl { font-size: var(--text-2xl); }
+
+.font-normal { font-weight: var(--weight-normal); }
+.font-medium { font-weight: var(--weight-medium); }
+.font-semibold { font-weight: var(--weight-semibold); }
+.font-bold { font-weight: var(--weight-bold); }
+
+.text-primary { color: var(--color-text-primary); }
+.text-secondary { color: var(--color-text-secondary); }
+.text-tertiary { color: var(--color-text-tertiary); }
+.text-accent { color: var(--color-primary); }
+
+.truncate { @include text-truncate; }
+.line-clamp-2 { @include text-clamp(2); }
+.line-clamp-3 { @include text-clamp(3); }
+
+// ============================================================
+// UTILITY CLASSES - Spacing
+// ============================================================
+
+.p-xs { padding: var(--space-xs); }
+.p-sm { padding: var(--space-sm); }
+.p-md { padding: var(--space-md); }
+.p-lg { padding: var(--space-lg); }
+.p-xl { padding: var(--space-xl); }
+
+.m-xs { margin: var(--space-xs); }
+.m-sm { margin: var(--space-sm); }
+.m-md { margin: var(--space-md); }
+.m-lg { margin: var(--space-lg); }
+.m-xl { margin: var(--space-xl); }
+
+// ============================================================
+// SCROLLBAR
+// ============================================================
+
+.custom-scrollbar {
+  @include custom-scrollbar;
+}
+
+.hide-scrollbar {
+  @include hide-scrollbar;
+}

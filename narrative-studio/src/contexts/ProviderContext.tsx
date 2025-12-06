@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { isOllamaAvailable } from '../services/ollamaService';
+import { STORAGE_PATHS } from '../config/storage-paths';
 
 export type Provider = 'local' | 'cloudflare';
 
@@ -56,9 +57,9 @@ export function ProviderProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Check local availability (wrangler dev on :8787)
+  // Check local availability (wrangler dev)
   useEffect(() => {
-    fetch('http://localhost:8787/health', { signal: AbortSignal.timeout(2000) })
+    fetch(`${STORAGE_PATHS.npeApiUrl}/health`, { signal: AbortSignal.timeout(2000) })
       .then(res => res.ok)
       .then(ok => {
         setIsLocalAvailable(ok);

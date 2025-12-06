@@ -346,4 +346,12 @@ export interface Env {
   FACEBOOK_CLIENT_SECRET?: string;
   APPLE_CLIENT_ID?: string;
   APPLE_CLIENT_SECRET?: string;
+
+  // Signup Controls
+  ALLOW_NEW_SIGNUPS?: string; // 'true' to allow new signups, any other value blocks them
+  ADMIN_EMAILS?: string; // Comma-separated list of emails that can always sign up
+
+  // Stripe Billing
+  STRIPE_SECRET_KEY: string;
+  STRIPE_WEBHOOK_SECRET: string;
 }

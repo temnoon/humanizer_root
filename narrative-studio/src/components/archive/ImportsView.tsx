@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { ImportPreviewModal } from './ImportPreviewModal';
 import { ArchiveSelector } from './ArchiveSelector';
+import { STORAGE_PATHS } from '../../config/storage-paths';
 
-const ARCHIVE_SERVER_URL = 'http://localhost:3002';
+const ARCHIVE_SERVER_URL = STORAGE_PATHS.archiveServerUrl;
 
 type ArchiveType = 'auto' | 'openai' | 'claude' | 'facebook' | 'custom';
 
 interface ImportJob {
   id: string;
-  status: 'uploaded' | 'parsing' | 'previewing' | 'ready' | 'applying' | 'completed' | 'failed';
+  status: 'uploaded' | 'parsing' | 'processing' | 'previewing' | 'ready' | 'applying' | 'completed' | 'failed';
   progress: number;
   filename?: string;
   size?: number;
@@ -43,6 +44,8 @@ export function ImportsView() {
   const [showHistory, setShowHistory] = useState(false);
   const [folderPath, setFolderPath] = useState('');
   const [mediaFolderPath, setMediaFolderPath] = useState('');
+  const [facebookBirthday, setFacebookBirthday] = useState('04-21');
+  const [generateEmbeddings, setGenerateEmbeddings] = useState(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonInputRef = useRef<HTMLInputElement>(null);
@@ -270,6 +273,75 @@ export function ImportsView() {
     }
   };
 
+  const handleFacebookImport = async () => {
+    if (!folderPath.trim()) {
+      alert('Please enter the Facebook export folder path');
+      return;
+    }
+
+    setUploading(true);
+    setJob({ id: 'facebook-import', status: 'parsing', progress: 0 });
+
+    try {
+      const response = await fetch(`${ARCHIVE_SERVER_URL}/api/import/facebook/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          exportDir: folderPath.trim(),
+          targetDir: '/tmp/facebook-import',
+          archivePath: undefined, // Will use current archive
+          settings: {
+            periodType: 'quarters',
+            periodLength: 90,
+            yearStartType: 'birthday',
+            birthday: facebookBirthday,
+            useQuarterNames: true,
+            includeDateRanges: true,
+          },
+          preserveSource: true,
+          generateEmbeddings: generateEmbeddings,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Facebook import failed');
+      }
+
+      const result = await response.json();
+
+      // Add to history
+      saveToHistory({
+        id: result.archive_id || `facebook-${Date.now()}`,
+        filename: folderPath.split('/').pop() || 'facebook-export',
+        archiveType: 'facebook',
+        conversationCount: 0, // Facebook uses posts instead
+        messageCount: result.posts_imported + result.comments_imported || 0,
+        mediaCount: 0,
+        timestamp: Date.now(),
+        status: 'completed',
+      });
+
+      alert(
+        `Facebook import complete!\n\n` +
+        `Posts: ${result.posts_imported}\n` +
+        `Comments: ${result.comments_imported}\n` +
+        `Reactions: ${result.reactions_imported}\n` +
+        `Periods: ${result.periods?.length || 0}\n\n` +
+        `Refresh the page to see your Facebook content.`
+      );
+
+      setUploading(false);
+      setJob(null);
+      setFolderPath('');
+    } catch (err: any) {
+      console.error('Error importing Facebook:', err);
+      alert(`Failed to import Facebook archive: ${err.message}`);
+      setUploading(false);
+      setJob(null);
+    }
+  };
+
   const handleFolderImport = async () => {
     if (!folderPath.trim()) {
       alert('Please enter a folder path');
@@ -479,77 +551,243 @@ export function ImportsView() {
           </div>
         </div>
 
-        {/* Import Buttons */}
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.75rem 1.25rem',
-              borderRadius: '8px',
-              backgroundColor: uploading ? 'var(--bg-tertiary)' : 'var(--accent-primary)',
-              color: uploading ? 'var(--text-secondary)' : 'var(--text-inverse)',
-              fontSize: '0.95rem',
-              fontWeight: 600,
-              cursor: uploading ? 'not-allowed' : 'pointer',
-              opacity: uploading ? 0.6 : 1,
-            }}
-          >
-            {uploading && job?.status !== 'parsing' ? (
-              <>
-                <span>⏳</span>
-                <span>Uploading...</span>
-              </>
-            ) : uploading && job?.status === 'parsing' ? (
-              <>
-                <span>⏳</span>
-                <span>Parsing... {job.progress > 0 ? `(${job.progress}%)` : ''}</span>
-              </>
-            ) : (
-              <>
-                <span>📦</span>
-                <span>Import ZIP Archive</span>
-              </>
-            )}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".zip"
-              onChange={handleZipUpload}
-              style={{ display: 'none' }}
-              disabled={uploading}
-            />
-          </label>
+        {/* Facebook Import Form */}
+        {archiveType === 'facebook' ? (
+          <div style={{ marginTop: '1rem' }}>
+            <div
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                borderRadius: '8px',
+                padding: '1rem',
+                marginBottom: '1rem',
+                border: '2px solid var(--accent-primary)',
+              }}
+            >
+              <h4
+                style={{
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  marginBottom: '0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <span>📘</span> Facebook Archive Import
+              </h4>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                Import your Facebook data export with posts, comments, and reactions organized by birthday-based quarters.
+              </div>
 
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.75rem 1.25rem',
-              borderRadius: '8px',
-              backgroundColor: 'var(--bg-tertiary)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-color)',
-              fontSize: '0.95rem',
-              fontWeight: 600,
-              cursor: uploading ? 'not-allowed' : 'pointer',
-              opacity: uploading ? 0.6 : 1,
-            }}
-          >
-            <span>📄</span>
-            <span>Import JSON File</span>
-            <input
-              ref={jsonInputRef}
-              type="file"
-              accept=".json"
-              onChange={handleJsonUpload}
-              style={{ display: 'none' }}
-              disabled={uploading}
-            />
-          </label>
-        </div>
+              {/* Export Folder Path */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: 'var(--text-secondary)',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  Facebook Export Folder
+                </label>
+                <input
+                  type="text"
+                  value={folderPath}
+                  onChange={(e) => setFolderPath(e.target.value)}
+                  placeholder="/Users/you/Downloads/facebook-export-2025-11-18"
+                  disabled={uploading}
+                  style={{
+                    width: '100%',
+                    padding: '0.6rem 0.75rem',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-color)',
+                    backgroundColor: 'var(--bg-elevated)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9rem',
+                    fontFamily: 'monospace',
+                    opacity: uploading ? 0.6 : 1,
+                  }}
+                />
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.35rem' }}>
+                  Path to extracted Facebook data export folder
+                </div>
+              </div>
+
+              {/* Birthday Input */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                    color: 'var(--text-secondary)',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  Your Birthday (MM-DD)
+                </label>
+                <input
+                  type="text"
+                  value={facebookBirthday}
+                  onChange={(e) => setFacebookBirthday(e.target.value)}
+                  placeholder="04-21"
+                  disabled={uploading}
+                  style={{
+                    width: '120px',
+                    padding: '0.6rem 0.75rem',
+                    borderRadius: '6px',
+                    border: '1px solid var(--border-color)',
+                    backgroundColor: 'var(--bg-elevated)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.9rem',
+                    textAlign: 'center',
+                    opacity: uploading ? 0.6 : 1,
+                  }}
+                />
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.35rem' }}>
+                  Used to organize content into birthday-based quarters
+                </div>
+              </div>
+
+              {/* Generate Embeddings Checkbox */}
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.85rem',
+                  color: 'var(--text-secondary)',
+                  cursor: uploading ? 'not-allowed' : 'pointer',
+                  marginBottom: '1rem',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={generateEmbeddings}
+                  onChange={(e) => setGenerateEmbeddings(e.target.checked)}
+                  disabled={uploading}
+                  style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}
+                />
+                <span>Generate semantic embeddings for search (recommended)</span>
+              </label>
+
+              {/* Import Button */}
+              <button
+                onClick={handleFacebookImport}
+                disabled={uploading || !folderPath.trim()}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem 1.25rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundImage: uploading || !folderPath.trim()
+                    ? 'none'
+                    : 'var(--accent-primary-gradient)',
+                  backgroundColor: uploading || !folderPath.trim()
+                    ? 'var(--bg-tertiary)'
+                    : 'transparent',
+                  color: uploading || !folderPath.trim()
+                    ? 'var(--text-tertiary)'
+                    : 'var(--text-inverse)',
+                  fontSize: '0.95rem',
+                  fontWeight: 600,
+                  cursor: uploading || !folderPath.trim() ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                {uploading ? (
+                  <>
+                    <span>⏳</span>
+                    <span>Importing... This may take several minutes</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🚀</span>
+                    <span>Start Facebook Import</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Regular Import Buttons for Other Types */
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1.25rem',
+                borderRadius: '8px',
+                backgroundColor: uploading ? 'var(--bg-tertiary)' : 'var(--accent-primary)',
+                color: uploading ? 'var(--text-secondary)' : 'var(--text-inverse)',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                cursor: uploading ? 'not-allowed' : 'pointer',
+                opacity: uploading ? 0.6 : 1,
+              }}
+            >
+              {uploading && job?.status !== 'parsing' ? (
+                <>
+                  <span>⏳</span>
+                  <span>Uploading...</span>
+                </>
+              ) : uploading && job?.status === 'parsing' ? (
+                <>
+                  <span>⏳</span>
+                  <span>Parsing... {job.progress > 0 ? `(${job.progress}%)` : ''}</span>
+                </>
+              ) : (
+                <>
+                  <span>📦</span>
+                  <span>Import ZIP Archive</span>
+                </>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".zip"
+                onChange={handleZipUpload}
+                style={{ display: 'none' }}
+                disabled={uploading}
+              />
+            </label>
+
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                padding: '0.75rem 1.25rem',
+                borderRadius: '8px',
+                backgroundColor: 'var(--bg-tertiary)',
+                color: 'var(--text-primary)',
+                border: '1px solid var(--border-color)',
+                fontSize: '0.95rem',
+                fontWeight: 600,
+                cursor: uploading ? 'not-allowed' : 'pointer',
+                opacity: uploading ? 0.6 : 1,
+              }}
+            >
+              <span>📄</span>
+              <span>Import JSON File</span>
+              <input
+                ref={jsonInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleJsonUpload}
+                style={{ display: 'none' }}
+                disabled={uploading}
+              />
+            </label>
+          </div>
+        )}
 
         {/* Folder Path Input */}
         <div style={{ marginBottom: '1rem' }}>
@@ -839,7 +1077,7 @@ export function ImportsView() {
                         {item.mediaCount > 0 && ` • ${item.mediaCount} media`}
                       </>
                     ) : (
-                      <span style={{ color: '#ff6464' }}>{item.error || 'Import failed'}</span>
+                      <span className="text-error">{item.error || 'Import failed'}</span>
                     )}
                   </div>
                 </div>

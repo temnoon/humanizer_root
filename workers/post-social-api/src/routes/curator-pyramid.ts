@@ -112,7 +112,6 @@ pyramidRoutes.post('/build', requireAuth(), async (c) => {
     // This runs after pyramid building to ensure the node exists and has content
     let workingTextResult = { success: false, chapters: 0, stored: 0 };
     try {
-      console.log('[CURATOR-PYRAMID] Starting text reformatting for reading...');
       const reformatted = await reformatGutenbergText(c.env.AI, preprocessed.text);
 
       if (reformatted.success && reformatted.chapters.length > 0) {

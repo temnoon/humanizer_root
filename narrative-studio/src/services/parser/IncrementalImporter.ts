@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { Conversation, ImportPreview, ImportConflict, MergeResult, ImportResult } from './types';
+import type { Conversation, ImportPreview, ImportConflict, MergeResult, ImportResult } from './types';
 import { readJSON, writeJSON, ensureDir, copyFile, hashContent, generateFolderName } from './utils';
 import { MediaReferenceExtractor } from './MediaReferenceExtractor';
 

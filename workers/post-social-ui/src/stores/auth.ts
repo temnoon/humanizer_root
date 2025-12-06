@@ -72,6 +72,18 @@ export const authStore = {
     return `${AUTH_API_URL}/auth/oauth/github/login?redirect=${encodeURIComponent(callbackUrl)}`;
   },
 
+  // Google OAuth
+  getGoogleLoginUrl() {
+    const callbackUrl = `${window.location.origin}/callback`;
+    return `${AUTH_API_URL}/auth/oauth/google/login?redirect=${encodeURIComponent(callbackUrl)}`;
+  },
+
+  // Discord OAuth
+  getDiscordLoginUrl() {
+    const callbackUrl = `${window.location.origin}/callback`;
+    return `${AUTH_API_URL}/auth/oauth/discord/login?redirect=${encodeURIComponent(callbackUrl)}`;
+  },
+
   // Handle OAuth callback
   handleCallback(token: string, isNewUser: string) {
     setToken(token);

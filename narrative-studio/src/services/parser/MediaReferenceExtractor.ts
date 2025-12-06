@@ -4,7 +4,7 @@
 // Comprehensive extraction of ALL media references from conversation JSON
 // Ported from Python: openai_export_parser/media_reference_extractor.py
 
-import { Conversation } from './types';
+import type { Conversation } from './types';
 
 export interface AssetPointerRef {
   pointer: string;

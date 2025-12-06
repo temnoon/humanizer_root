@@ -3,6 +3,9 @@ main = "src/index.ts"
 compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 
+# Keep workers.dev URL active during transition to custom domain
+workers_dev = true
+
 # D1 Database
 [[d1_databases]]
 binding = "DB"
@@ -43,5 +46,17 @@ ENVIRONMENT = "production"
 [env.dev]
 vars = { ENVIRONMENT = "development" }
 
+# Custom domain routes
+# Note: DNS must be configured in Cloudflare dashboard first
+[[routes]]
+pattern = "npe-api.humanizer.com/*"
+zone_name = "humanizer.com"
+
 # Secrets (set via wrangler secret put)
 # JWT_SECRET - set via: wrangler secret put JWT_SECRET
+# STRIPE_SECRET_KEY - set via: wrangler secret put STRIPE_SECRET_KEY
+# STRIPE_WEBHOOK_SECRET - set via: wrangler secret put STRIPE_WEBHOOK_SECRET
+# GOOGLE_CLIENT_SECRET - Google OAuth
+# GITHUB_CLIENT_SECRET - GitHub OAuth
+# DISCORD_CLIENT_SECRET - Discord OAuth
+# (Apple/Facebook configured post-launch)

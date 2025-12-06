@@ -50,9 +50,7 @@ export default defineConfig({
       }
     ]),
     // Enable Node.js integration in renderer for certain modules
-    renderer({
-      nodeIntegration: false // Keep false for security
-    })
+    renderer({})
   ],
   resolve: {
     alias: {

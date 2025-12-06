@@ -10,6 +10,9 @@ import { A, useParams, useNavigate } from '@solidjs/router';
 import { authStore } from '@/stores/auth';
 import { nodesService } from '@/services/nodes';
 import { Button } from '@/components/ui/Button';
+import { ApexSummary } from '@/components/studio/ApexSummary';
+import { WorkingTextsList } from '@/components/studio/WorkingTextsList';
+import { CuratorChat } from '@/components/studio/CuratorChat';
 import type { Node, Narrative } from '@/types/models';
 
 // Helper to format relative time
@@ -213,7 +216,40 @@ export const NodeDetailPage: Component = () => {
                 </p>
               </div>
             </Show>
-            
+
+            {/* Apex Summary Section */}
+            <div class="node-apex-section">
+              <div class="section-header">
+                <h2>What This Text Is About</h2>
+                <p class="section-description">
+                  The curator's understanding of this work - the phenomenological core.
+                </p>
+              </div>
+              <ApexSummary nodeId={node()!.id} />
+            </div>
+
+            {/* Working Texts / Chapters Section */}
+            <div class="node-chapters-section">
+              <div class="section-header">
+                <h2>Read the Book</h2>
+                <p class="section-description">
+                  Beautifully reformatted chapters from the original text.
+                </p>
+              </div>
+              <WorkingTextsList nodeId={node()!.id} />
+            </div>
+
+            {/* Curator Chat Section */}
+            <div class="node-chat-section">
+              <div class="section-header">
+                <h2>Chat with the Curator</h2>
+                <p class="section-description">
+                  Ask questions and explore the text through conversation. Responses are grounded in the source with cited passages.
+                </p>
+              </div>
+              <CuratorChat nodeId={node()!.id} />
+            </div>
+
             {/* Narratives List */}
             <div class="narratives-section">
               <div class="section-header">

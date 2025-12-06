@@ -3,9 +3,13 @@
 // ============================================================
 // Handles routing to Ollama (local) or Cloudflare AI (cloud)
 // Provides unified interface for all transformation tools
+// Uses 3-stage pipeline for reliable output filtering
 
 import type { TransformConfig, TransformResult } from '../types';
 import * as ollamaService from './ollamaService';
+import { stripThinkingPreamble } from './ollamaService';
+import { filterCloudOutput } from './transformationPipeline';
+import { STORAGE_PATHS } from '../config/storage-paths';
 
 // Get current provider from localStorage
 function getCurrentProvider(): 'local' | 'cloudflare' {
@@ -18,43 +22,43 @@ function getCurrentProvider(): 'local' | 'cloudflare' {
 /**
  * Check if we should use direct Ollama calls instead of API
  * This is true when:
- * 1. Running in Electron
- * 2. Provider is 'local'
- * 3. User hasn't skipped Ollama setup
+ * 1. Provider is 'local'
+ * 2. Ollama is available (running on localhost:11434)
+ * 3. User hasn't skipped Ollama setup (Electron only)
+ *
+ * Note: Works in both Electron AND web browser - if Ollama is running,
+ * we can call it directly via fetch (CORS should be enabled by default).
  */
 async function shouldUseOllama(): Promise<boolean> {
-  // Must be in Electron
-  if (!window.isElectron || !window.electronAPI) {
-    return false;
-  }
-
   // Must have 'local' provider selected
   const provider = getCurrentProvider();
   if (provider !== 'local') {
     return false;
   }
 
-  // Check if user skipped Ollama
-  try {
-    const ollamaSkipped = await window.electronAPI.store.get('ollamaSkipped');
-    if (ollamaSkipped) {
-      return false;
+  // In Electron mode, check if user skipped Ollama
+  if (window.isElectron && window.electronAPI?.store) {
+    try {
+      const ollamaSkipped = await window.electronAPI.store.get('ollamaSkipped');
+      if (ollamaSkipped) {
+        return false;
+      }
+    } catch {
+      // Continue to check Ollama availability
     }
-  } catch {
-    return false;
   }
 
-  // Check if Ollama is actually running
+  // Check if Ollama is actually running (works in both Electron and browser)
   const available = await ollamaService.isOllamaAvailable();
+  console.log(`[TransformationService] Ollama available: ${available}`);
   return available;
 }
 
 // Get API base URL based on user's provider preference
 function getApiBase(): string {
   const provider = getCurrentProvider();
-  const apiBase = provider === 'local'
-    ? 'http://localhost:8787'  // Local wrangler dev server
-    : 'https://npe-api.tem-527.workers.dev';  // Cloud production
+  // Use centralized config - handles local/production automatically
+  const apiBase = STORAGE_PATHS.npeApiUrl;
 
   console.log(`[TransformationService] Using ${provider.toUpperCase()} backend: ${apiBase}`);
   return apiBase;
@@ -209,6 +213,33 @@ export interface AIDetectionResult extends TransformResult {
       perplexity: number;
       reasoning: string;
       highlightedMarkdown?: string; // Markdown with <mark> tags for highlights
+      method?: 'lite' | 'gptzero'; // Which detector was used
+      // Lite detector additional metrics
+      avgSentenceLength?: number;
+      sentenceLengthStd?: number;
+      typeTokenRatio?: number;
+      repeatedNgrams?: number;
+      heuristicScore?: number;
+      llmScore?: number;
+      confidence_level?: 'low' | 'medium' | 'high';
+      highlights?: Array<{
+        start: number;
+        end: number;
+        reason: string;
+        score?: number;
+      }>;
+      // GPTZero specific fields
+      highlightedSentences?: string[]; // AI-flagged sentences (GPTZero)
+      paraphrasedProbability?: number; // GPTZero paraphrased detection probability
+      confidenceCategory?: string; // GPTZero confidence category
+      subclassType?: string; // GPTZero subclass type
+      paragraphScores?: Array<{
+        start_sentence_index: number;
+        num_sentences: number;
+        completely_generated_prob: number;
+      }>;
+      modelVersion?: string; // GPTZero model version
+      processingTimeMs?: number; // Processing time
     };
   };
 }
@@ -278,9 +309,15 @@ async function liteDetection(
 
 /**
  * Map lite detection API response to TransformResult format
+ *
+ * Backend returns:
+ *   ai_likelihood: 0-1, confidence: 'low'|'medium'|'high', label: 'likely_human'|'mixed'|'likely_ai'
+ *   metrics: { burstiness, avgSentenceLength, sentenceLengthStd, typeTokenRatio, repeatedNgrams }
+ *   phraseHits: Array<{phrase, count, weight, category}>
+ *   highlights: Array<{start, end, reason, score}>
+ *   heuristicScore: number, llmScore?: number
  */
 function mapLiteDetectionResponse(data: any, text: string): AIDetectionResult {
-
   // Convert ai_likelihood (0-1) to confidence percentage (0-100)
   const confidence = data.ai_likelihood * 100;
 
@@ -290,10 +327,15 @@ function mapLiteDetectionResponse(data: any, text: string): AIDetectionResult {
     data.label === 'likely_ai' ? 'ai' :
     'mixed';
 
-  // Extract tell-words from phraseHits
-  const tellWords = data.phraseHits?.map((hit: any) => ({ word: hit.phrase })) || [];
+  // Extract tell-words from phraseHits with full structure
+  const tellWords = data.phraseHits?.map((hit: any) => ({
+    word: hit.phrase,
+    category: hit.category || 'unknown',
+    count: hit.count ?? 1,
+    weight: hit.weight ?? 0.5,
+  })) || [];
 
-  // Map to TransformResult format
+  // Map to TransformResult format - pass through all fields for UI
   return {
     transformation_id: crypto.randomUUID(),
     original: text,
@@ -305,6 +347,16 @@ function mapLiteDetectionResponse(data: any, text: string): AIDetectionResult {
         tellWords,
         burstiness: data.metrics?.burstiness || 0,
         perplexity: (data.metrics?.typeTokenRatio || 0) * 100, // Convert 0-1 to 0-100
+        // Pass through additional metrics for UI
+        avgSentenceLength: data.metrics?.avgSentenceLength || 0,
+        sentenceLengthStd: data.metrics?.sentenceLengthStd || 0,
+        typeTokenRatio: data.metrics?.typeTokenRatio || 0,
+        repeatedNgrams: data.metrics?.repeatedNgrams || 0,
+        // Pass through detection details
+        heuristicScore: data.heuristicScore,
+        llmScore: data.llmScore,
+        confidence_level: data.confidence, // 'low' | 'medium' | 'high'
+        highlights: data.highlights || [],
         reasoning: data.llmScore !== undefined
           ? `Lite detector (with LLM meta-judge): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`
           : `Lite detector (heuristic only): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`,
@@ -503,16 +555,33 @@ export async function personaTransform(
 
     const data = await response.json();
 
+    // Use LLM-based filtering for cloud responses (more reliable than regex)
+    let cleanedText = data.transformed_text || '';
+    try {
+      // Check if Ollama is available for filtering
+      const ollamaAvailable = await ollamaService.isOllamaAvailable();
+      if (ollamaAvailable) {
+        cleanedText = await filterCloudOutput(cleanedText, text);
+      } else {
+        // Fallback to regex stripping if Ollama not available
+        cleanedText = stripThinkingPreamble(cleanedText);
+      }
+    } catch (filterError) {
+      console.warn('[TransformationService] Cloud filtering failed, using regex fallback:', filterError);
+      cleanedText = stripThinkingPreamble(cleanedText);
+    }
+
     // Map backend response to TransformResult format
     return {
       transformation_id: data.transformation_id,
       original: text,
-      transformed: data.transformed_text,
+      transformed: cleanedText,
       metadata: {
         aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
         aiConfidenceAfter: data.final?.detection?.aiConfidence,
         burstinessBefore: data.baseline?.detection?.burstinessScore,
         burstinessAfter: data.final?.detection?.burstinessScore,
+        filteringApplied: true,
       },
     };
   } catch (error: any) {
@@ -576,16 +645,33 @@ export async function styleTransform(
 
     const data = await response.json();
 
+    // Use LLM-based filtering for cloud responses (more reliable than regex)
+    let cleanedText = data.transformed_text || '';
+    try {
+      // Check if Ollama is available for filtering
+      const ollamaAvailable = await ollamaService.isOllamaAvailable();
+      if (ollamaAvailable) {
+        cleanedText = await filterCloudOutput(cleanedText, text);
+      } else {
+        // Fallback to regex stripping if Ollama not available
+        cleanedText = stripThinkingPreamble(cleanedText);
+      }
+    } catch (filterError) {
+      console.warn('[TransformationService] Cloud filtering failed, using regex fallback:', filterError);
+      cleanedText = stripThinkingPreamble(cleanedText);
+    }
+
     // Map backend response to TransformResult format
     return {
       transformation_id: data.transformation_id,
       original: text,
-      transformed: data.transformed_text,
+      transformed: cleanedText,
       metadata: {
         aiConfidenceBefore: data.baseline?.detection?.aiConfidence,
         aiConfidenceAfter: data.final?.detection?.aiConfidence,
         burstinessBefore: data.baseline?.detection?.burstinessScore,
         burstinessAfter: data.final?.detection?.burstinessScore,
+        filteringApplied: true,
       },
     };
   } catch (error: any) {

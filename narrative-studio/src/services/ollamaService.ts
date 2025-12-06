@@ -343,7 +343,85 @@ Respond with ONLY a number from 0-100:`;
 }
 
 /**
+ * Strip thinking/preamble from LLM responses
+ * DEPRECATED: Use transformationPipeline for better filtering
+ * This is kept for backwards compatibility and simple cases
+ */
+export function stripThinkingPreamble(text: string): string {
+  // Import the model registry for better stripping
+  // Using dynamic import to avoid circular dependency
+  let result = text.trim();
+
+  // Quick patterns for obvious cases
+  const quickPatterns = [
+    // Thinking tags (qwen models)
+    /^<think>[\s\S]*?<\/think>\s*/i,
+    // "Okay, let's tackle this..."
+    /^(?:okay|ok|alright|sure|let me|let's|i'll|i will|so,?|well,?)[\s,]+(?:let's|let me|i'll|i will|tackle|handle|work on|approach|rewrite|transform).*?(?:\n\n|\.\s+(?=[A-Z]))/si,
+    // "The user wants me to..." / "I need to..."
+    /^(?:the user|you|i need|first,? i|to accomplish).*?(?:\n\n|\.\s+(?=[A-Z]))/si,
+    // "An intriguing task..." / "This is an interesting..."
+    /^(?:an? )?(?:intriguing|interesting|fascinating|excellent|great|good).*?(?:task|request|challenge|undertaking).*?(?:\n\n|\.\s+(?=[A-Z]))/si,
+    // "Here's the rewritten text:" style headers
+    /^(?:here'?s?|here is|below is).*?(?:rewritten|transformed|revised|version|text).*?[:]\s*/si,
+    // Multi-paragraph thinking blocks
+    /^(?:(?:.*?(?:let me|i'll|i need|first|the user|to do this).*?\n)+\n)/si,
+  ];
+
+  // Try each pattern
+  for (const pattern of quickPatterns) {
+    const match = result.match(pattern);
+    if (match && match.index === 0) {
+      result = result.slice(match[0].length).trim();
+    }
+  }
+
+  // If still starts with meta-commentary, try to find where actual content begins
+  const doubleNewlineIdx = result.indexOf('\n\n');
+  if (doubleNewlineIdx > 0 && doubleNewlineIdx < 500) {
+    const beforeDoubleNewline = result.substring(0, doubleNewlineIdx).toLowerCase();
+    if (
+      beforeDoubleNewline.includes('let me') ||
+      beforeDoubleNewline.includes('i need to') ||
+      beforeDoubleNewline.includes('the user') ||
+      beforeDoubleNewline.includes('i\'ll') ||
+      beforeDoubleNewline.includes('rewrite') ||
+      beforeDoubleNewline.includes('transform')
+    ) {
+      result = result.substring(doubleNewlineIdx + 2).trim();
+    }
+  }
+
+  return result;
+}
+
+// Storage key for custom profiles (must match ProfileFactoryPane)
+const CUSTOM_PROFILES_KEY = 'custom-transformation-profiles';
+
+interface CustomProfile {
+  id: string;
+  name: string;
+  type: 'persona' | 'style';
+  prompt: string;
+  sourceExcerpt: string;
+  analysisNotes: string;
+  createdAt: string;
+}
+
+function getCustomProfile(profileId: string): CustomProfile | null {
+  try {
+    const stored = localStorage.getItem(CUSTOM_PROFILES_KEY);
+    if (!stored) return null;
+    const profiles: CustomProfile[] = JSON.parse(stored);
+    return profiles.find(p => p.id === profileId) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Local Persona Transformation using Ollama
+ * Now uses the transformation pipeline for better filtering
  */
 export async function localPersonaTransform(
   text: string,
@@ -351,34 +429,127 @@ export async function localPersonaTransform(
 ): Promise<{
   transformation_id: string;
   transformed_text: string;
+  raw_output?: string;
+  model_used?: string;
+  filtering_applied?: boolean;
 }> {
+  // Import pipeline dynamically to avoid circular dependency
+  const { runTransformationPipeline } = await import('./transformationPipeline');
+  const { modelRegistry, buildOptimizedPrompt } = await import('./modelProfileRegistry');
+
+  // Base preservation instruction
+  const BASE_PRESERVATION = `CRITICAL: Preserve ALL factual information, specific details, names, dates, concepts, and technical terms from the original. Transform ONLY the voice and tone, not the content. If the original mentions specific topics (e.g., Husserl, phenomenology), the output MUST include those same topics.`;
+
+  // Stronger preservation for creative/dramatic styles that tend to drop terms
+  const STRICT_PRESERVATION = `MANDATORY: You MUST include EVERY proper noun, technical term, and concept from the original. This includes: all author names, all work titles, all philosophical terms (phenomenological, epoché, transcendental, intentionality, intersubjectivity, etc.). NEVER paraphrase or omit these - copy them exactly. Transform ONLY the style, not the terminology.`;
+
+  // Check for custom profile first
+  const customProfile = getCustomProfile(options.persona);
+  if (customProfile && customProfile.type === 'persona') {
+    console.log(`[ollamaService] Using custom persona profile: ${customProfile.name}`);
+    const systemPrompt = customProfile.prompt;
+
+    try {
+      const result = await runTransformationPipeline(
+        text,
+        `Transform this text using the ${customProfile.name} voice.`,
+        systemPrompt,
+        {
+          provider: 'local',
+          transformationType: 'persona',
+          personaOrStyle: options.persona,
+        }
+      );
+
+      return {
+        transformation_id: result.transformationId,
+        transformed_text: result.filteredOutput,
+        raw_output: result.rawOutput,
+        model_used: result.modelUsed,
+        filtering_applied: result.filteringApplied,
+      };
+    } catch (error) {
+      console.warn('[ollamaService] Pipeline failed for custom profile, using fallback:', error);
+      const rawTransformed = await chat([
+        { role: 'system', content: systemPrompt + ' Output ONLY the rewritten text.' },
+        { role: 'user', content: `Rewrite this text:\n\n${text}` },
+      ], { temperature: 0.8 });
+
+      return {
+        transformation_id: crypto.randomUUID(),
+        transformed_text: stripThinkingPreamble(rawTransformed),
+      };
+    }
+  }
+
+  // Note: scout_innocent removed - character incompatible with technical content preservation
   const personaPrompts: Record<string, string> = {
-    'holmes_analytical': 'Write in the style of Sherlock Holmes - precise, deductive, with keen observations',
-    'watson_chronicler': 'Write as Dr. Watson would - warm, descriptive, slightly awed',
-    'austen_ironic_observer': 'Write in Jane Austen\'s style - witty, ironic, with social observations',
-    'dickens_dramatic': 'Write like Charles Dickens - vivid descriptions, dramatic, emotionally rich',
+    'holmes_analytical': `Rewrite in Sherlock Holmes's voice: precise, deductive, observant. Use logical analysis and keen observations. ${BASE_PRESERVATION}`,
+    'watson_chronicler': `Rewrite as Dr. Watson: warm, descriptive, earnest, slightly awed by intellectual matters. ${BASE_PRESERVATION}`,
+    'austen_ironic_observer': `Rewrite in Jane Austen's style: witty, ironic, socially perceptive, with elegant balanced sentences. ${STRICT_PRESERVATION}`,
+    'dickens_dramatic': `Rewrite like Dickens: vivid imagery, dramatic flair, emotionally rich, with memorable turns of phrase. ${STRICT_PRESERVATION}`,
+    'ishmael_philosophical': `Rewrite as Ishmael from Moby Dick: philosophical, finding metaphysical meaning in experience, reflective maritime voice. ${STRICT_PRESERVATION}`,
+    'marlow_reflective': `Rewrite as Marlow from Heart of Darkness: contemplative, layered meaning, measured storytelling. ${BASE_PRESERVATION}`,
+    'nick_observant': `Rewrite as Nick Carraway: reserved, observant, elegantly detached, literary. ${STRICT_PRESERVATION}`,
+    'tech_optimist': `Rewrite as a Silicon Valley tech optimist: enthusiastic about innovation, uses startup/tech jargon ("pivot", "disrupt", "ecosystem"), sees transformative potential everywhere. ${STRICT_PRESERVATION}`,
+    'academic_formal': `Rewrite in formal academic voice: precise terminology, hedged claims, citations-ready, scholarly tone. ${BASE_PRESERVATION}`,
+    'hemingway_terse': `Rewrite in Hemingway's style: short declarative sentences, simple words, understated emotion, no adjectives where none needed. ${BASE_PRESERVATION}`,
   };
 
   const systemPrompt = personaPrompts[options.persona] ||
-    `Write in the style of ${options.persona.replace(/_/g, ' ')}`;
+    `Rewrite text in the style of ${options.persona.replace(/_/g, ' ')}. ${STRICT_PRESERVATION}`;
 
-  const prompt = `Rewrite the following text in the specified style. Preserve the core meaning and information, but transform the voice and perspective:
+  try {
+    // Use the pipeline for better filtering
+    const result = await runTransformationPipeline(
+      text,
+      `Transform this text using the ${options.persona.replace(/_/g, ' ')} voice. ${PRESERVATION_INSTRUCTION}`,
+      systemPrompt,
+      {
+        provider: 'local',
+        transformationType: 'persona',
+        personaOrStyle: options.persona,
+      }
+    );
 
-${text}`;
+    return {
+      transformation_id: result.transformationId,
+      transformed_text: result.filteredOutput,
+      raw_output: result.rawOutput,
+      model_used: result.modelUsed,
+      filtering_applied: result.filteringApplied,
+    };
+  } catch (error) {
+    // Fallback to simple approach if pipeline fails
+    console.warn('[ollamaService] Pipeline failed, using fallback:', error);
 
-  const transformed = await chat([
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: prompt },
-  ], { temperature: 0.8 });
+    const prompt = `IMPORTANT: Output ONLY the transformed text. Do NOT explain your process. Do NOT include any preamble or commentary. Just output the rewritten text directly.
 
-  return {
-    transformation_id: crypto.randomUUID(),
-    transformed_text: transformed,
-  };
+Rewrite the following text, preserving its meaning but transforming the voice:
+
+---
+${text}
+---
+
+Transformed text:`;
+
+    const rawTransformed = await chat([
+      { role: 'system', content: systemPrompt + ' Output ONLY the rewritten text.' },
+      { role: 'user', content: prompt },
+    ], { temperature: 0.8 });
+
+    const transformed = stripThinkingPreamble(rawTransformed);
+
+    return {
+      transformation_id: crypto.randomUUID(),
+      transformed_text: transformed,
+    };
+  }
 }
 
 /**
  * Local Style Transformation using Ollama
+ * Now uses the transformation pipeline for better filtering
  */
 export async function localStyleTransform(
   text: string,
@@ -386,30 +557,122 @@ export async function localStyleTransform(
 ): Promise<{
   transformation_id: string;
   transformed_text: string;
+  raw_output?: string;
+  model_used?: string;
+  filtering_applied?: boolean;
 }> {
+  // Import pipeline dynamically to avoid circular dependency
+  const { runTransformationPipeline } = await import('./transformationPipeline');
+
+  // Base style preservation
+  const BASE_STYLE = `CRITICAL: Preserve ALL factual content, specific details, names, concepts, and meaning. Transform ONLY the writing style, not the information.`;
+
+  // Stricter preservation for creative styles that drop terms
+  const STRICT_STYLE = `MANDATORY: You MUST include EVERY proper noun, technical term, and concept from the original. This includes: all author names, all work titles, all philosophical terms (phenomenological, epoché, transcendental, intentionality, intersubjectivity, etc.). NEVER paraphrase or omit these - copy them exactly. Transform ONLY the prose style, not the terminology.`;
+
+  // Check for custom profile first
+  const customProfile = getCustomProfile(options.style);
+  if (customProfile && customProfile.type === 'style') {
+    console.log(`[ollamaService] Using custom style profile: ${customProfile.name}`);
+    const systemPrompt = `You are a text transformation tool. ${customProfile.prompt}`;
+
+    try {
+      const result = await runTransformationPipeline(
+        text,
+        `Apply the following style: ${customProfile.prompt}`,
+        systemPrompt,
+        {
+          provider: 'local',
+          transformationType: 'style',
+          personaOrStyle: options.style,
+        }
+      );
+
+      return {
+        transformation_id: result.transformationId,
+        transformed_text: result.filteredOutput,
+        raw_output: result.rawOutput,
+        model_used: result.modelUsed,
+        filtering_applied: result.filteringApplied,
+      };
+    } catch (error) {
+      console.warn('[ollamaService] Pipeline failed for custom style, using fallback:', error);
+      const rawTransformed = await generate(
+        `${customProfile.prompt}\n\nTransform this text:\n---\n${text}\n---\n\nTransformed text:`,
+        { temperature: 0.7, system: 'You are a text transformation tool. Output ONLY the transformed text.' }
+      );
+
+      return {
+        transformation_id: crypto.randomUUID(),
+        transformed_text: stripThinkingPreamble(rawTransformed),
+      };
+    }
+  }
+
+  // Note: poetic_lyrical and noir_hardboiled removed - atmospheric styles lose factual precision
   const stylePrompts: Record<string, string> = {
-    'austen_precision': 'Use precise, elegant language with balanced sentences',
-    'dickens_dramatic': 'Use vivid, dramatic language with rich descriptions',
-    'hemingway_sparse': 'Use short, direct sentences. Simple words. Clear meaning.',
-    'reddit_casual_prose': 'Write casually, like a friendly Reddit comment',
+    'austen_precision': `Apply Austen-style prose: precise, elegant, balanced sentences with subtle irony. ${BASE_STYLE}`,
+    'dickens_dramatic': `Apply Dickensian style: vivid imagery, dramatic flair, emotionally rich descriptions. ${STRICT_STYLE}`,
+    'hemingway_sparse': `Apply Hemingway style: short sentences. Simple words. Direct. MUST KEEP: Author names (Husserl, etc.), work titles (Cartesian Meditations, etc.), and ALL technical terms. Simplify sentence structure only - never remove proper nouns or concepts. ${STRICT_STYLE}`,
+    'reddit_casual_prose': `Apply casual Reddit style: conversational, uses "honestly", "tbh", friendly tone, relatable. ${BASE_STYLE}`,
+    'academic_formal': `Apply academic style: formal register, precise terminology, hedged claims, objective tone. ${BASE_STYLE}`,
+    'journalistic_clear': `Apply journalistic style: clear, factual, inverted pyramid, no jargon, accessible. ${BASE_STYLE}`,
+    'technical_precise': `Apply technical style: exact terminology, structured, unambiguous, specification-like. ${BASE_STYLE}`,
+    'conversational_warm': `Apply warm conversational style: friendly, uses contractions, inclusive "we", approachable. ${STRICT_STYLE}`,
   };
 
   const styleInstruction = stylePrompts[options.style] ||
-    `Write in ${options.style.replace(/_/g, ' ')} style`;
+    `Write in ${options.style.replace(/_/g, ' ')} style. ${STRICT_STYLE}`;
 
-  const prompt = `Rewrite the following text using this style: ${styleInstruction}
+  const systemPrompt = `You are a text transformation tool. ${styleInstruction}`;
+
+  try {
+    // Use the pipeline for better filtering
+    const result = await runTransformationPipeline(
+      text,
+      `Apply the following style: ${styleInstruction}`,
+      systemPrompt,
+      {
+        provider: 'local',
+        transformationType: 'style',
+        personaOrStyle: options.style,
+      }
+    );
+
+    return {
+      transformation_id: result.transformationId,
+      transformed_text: result.filteredOutput,
+      raw_output: result.rawOutput,
+      model_used: result.modelUsed,
+      filtering_applied: result.filteringApplied,
+    };
+  } catch (error) {
+    // Fallback to simple approach if pipeline fails
+    console.warn('[ollamaService] Pipeline failed, using fallback:', error);
+
+    const prompt = `IMPORTANT: Output ONLY the transformed text. Do NOT explain your process. Do NOT include any preamble, commentary, or thinking. Just output the rewritten text directly.
+
+Style to use: ${styleInstruction}
 
 Original text:
+---
 ${text}
+---
 
-Rewrite:`;
+Transformed text (output ONLY the rewritten content):`;
 
-  const transformed = await generate(prompt, { temperature: 0.7 });
+    const rawTransformed = await generate(prompt, {
+      temperature: 0.7,
+      system: 'You are a text transformation tool. Output ONLY the transformed text, never explanations or commentary.',
+    });
 
-  return {
-    transformation_id: crypto.randomUUID(),
-    transformed_text: transformed,
-  };
+    const transformed = stripThinkingPreamble(rawTransformed);
+
+    return {
+      transformation_id: crypto.randomUUID(),
+      transformed_text: transformed,
+    };
+  }
 }
 
 /**

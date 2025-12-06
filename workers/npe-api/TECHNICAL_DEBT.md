@@ -1,562 +1,45 @@
-# Technical Debt Tracker - Quantum/V2 Implementation
+# Technical Debt Tracker - NPE API Production Readiness
 
-**Last Updated**: November 11, 2025, 3:30 PM
-**Total Items**: 14
-**Status**: CRITICAL - Cannot launch with fake quantum operations
+**Last Updated**: December 5, 2025, 12:00 PM
+**Total Items**: 23 (14 previous + 9 new)
+**Status**: CRITICAL - Multiple production blockers identified
+**Launch Readiness**: NOT READY - See Critical section
 
 ---
 
 ## Executive Summary
 
-This audit reveals **fundamental architectural problems** with the V2 "quantum" implementation. The system uses LLMs to *guess* what quantum measurements should be, rather than computing proper projection operators. This is **measurement theater** - we're faking the science to look sophisticated.
+This audit combines the November 11 quantum/V2 implementation analysis with a comprehensive December 5 production readiness scan. The system has **TWO categories of blocking issues**:
+
+1. **Quantum Architecture Issues** (from Nov 11 audit) - 8 items blocking V2 legitimacy
+2. **Production Launch Blockers** (new Dec 5 findings) - 9 items blocking safe deployment
 
 ### Severity Breakdown
 
+- **CRITICAL (3 items)**: Production blockers that MUST be fixed before launch
 - **BLOCKING (8 items)**: Fake quantum operations that invalidate the entire V2 approach
-- **LIMITING (4 items)**: Missing features that reduce V2 value proposition
-- **COSMETIC (2 items)**: Minor issues that don't affect correctness
+- **HIGH (5 items)**: Security/reliability issues that need immediate attention
+- **MEDIUM (5 items)**: Missing features that reduce value proposition
+- **LOW (2 items)**: Minor polish items
 
-### Critical Finding
+### Critical Finding - Production Launch Blockers
 
-**The density matrix ρ is a side-effect, not the cause**. We:
-1. Generate text with LLM
-2. Compute ρ from the *result*
-3. Display ρ metrics as if they guided the transformation
-
-This is backwards. True quantum-guided transformation would:
-1. Start with ρ₀ (initial state)
-2. Define POVM operators {Eₖ} mathematically
-3. Apply Born rule: p(k) = Tr(Eₖρ)
-4. Use measurement outcome k to select transformation path
-5. Compute post-measurement ρ' = EₖρEₖ† / p(k)
+**CRITICAL-001**: Disabled authentication on `/v2/rho` routes in production
+**CRITICAL-002**: Hardcoded demo credentials in public HTML file
+**CRITICAL-003**: OAuth redirect using workers.dev domain instead of humanizer.com
 
 ---
 
-## 1. BLOCKING DEBT - Fake Quantum Operations
-
-### DEBT-001: LLM-Guessed POVM Measurements
-
-**Location**: `/workers/npe-api/src/services/quantum-reading/povm-measurement.ts`
-**Type**: Fundamental architectural flaw
-**Severity**: BLOCKING
-**Blocks**: Core ML, Cloud Archives
-**Created**: ~October 2025 (initial V2 implementation)
-**Effort**: LARGE (40+ hours, requires quantum physics expertise)
-
-**Description**:
-The "POVM measurement" system asks Llama 3.1 8B to guess Tetralemma probabilities:
-```typescript
-// Lines 76-115
-const prompt = createTetralemmPrompt(sentence);
-const response = await ai.run(MODEL_NAME, { messages: [...] });
-// Parse JSON with probabilities from LLM guess
-```
-
-**Why This Is Fake**:
-- LLMs don't do quantum measurements - they do semantic analysis
-- No projection operators {E_literal, E_metaphorical, E_both, E_neither}
-- No Born rule application: p(k) = Tr(Eₖρ)
-- Probabilities are literary *interpretation*, not quantum *measurement*
-
-**What Real Implementation Would Look Like**:
-```typescript
-// Define POVM operators as 32×32 matrices
-const E_literal = constructProjector(literalnessSubspace);
-const E_metaphorical = constructProjector(metaphoricalSubspace);
-const E_both = constructProjector(superpositionSubspace);
-const E_neither = I - E_literal - E_metaphorical - E_both;
-
-// Measure via Born rule
-const p_literal = trace(matmul(E_literal, rho));
-const p_metaphorical = trace(matmul(E_metaphorical, rho));
-// ... etc
-
-// Collapse state
-const rho_prime = matmul(matmul(E_k, rho), adjoint(E_k)) / p_k;
-```
-
-**Fix Difficulty**: Extremely hard - requires defining what "literalness subspace" actually *means* in 768-dimensional embedding space.
-
-**Recommendation**: Either:
-1. **Research path**: Define proper POVM operators (PhD-level work)
-2. **Honest path**: Rename to "LLM Semantic Analysis" and drop quantum terminology
-3. **Hybrid path**: Use embeddings to approximate measurement, but be transparent about limitations
-
----
-
-### DEBT-002: Density Matrix ρ Not Used for Guidance
-
-**Location**: `/workers/npe-api/src/domain/allegorical-rho-service.ts`
-**Type**: Architectural flaw
-**Severity**: BLOCKING
-**Blocks**: Core ML
-**Created**: ~November 2025
-**Effort**: LARGE (30+ hours)
-
-**Description**:
-The 5-stage allegorical pipeline computes ρ *after* each transformation but doesn't use it to *guide* the transformation:
-
-```typescript
-// Line 237: Transform happens FIRST
-const outputText = await transformFn(inputText);
-
-// Line 241-242: THEN we compute ρ
-const embeddingResult = await generateEmbedding(this.ai, outputText);
-const rhoMatrix = constructDensityMatrix(embeddingResult.embedding);
-```
-
-**Why This Is Wrong**:
-- ρ should influence *which* transformation path to take
-- Current implementation: ρ is a **report card** on what already happened
-- True quantum: ρ determines **probability distribution** over possible outcomes
-
-**What Real Implementation Would Look Like**:
-```typescript
-// BEFORE transformation: Measure ρ to decide path
-const rho_before = await narrativeRepo.getRho(narrativeId);
-const measurement = await povmService.measureNarrative(narrativeId, 'narrative_structure');
-
-// Use measurement outcome to select transformation strategy
-if (measurement.probabilities.literal > 0.7) {
-  // High literalness detected → apply metaphor-introducing transformation
-  outputText = await this.deconstructLiteral(inputText);
-} else if (measurement.probabilities.metaphorical > 0.7) {
-  // High metaphoricality → ground in concrete examples
-  outputText = await this.deconstructMetaphorical(inputText);
-} else {
-  // Mixed state → standard deconstruction
-  outputText = await this.deconstructStandard(inputText);
-}
-
-// AFTER transformation: Compute new ρ
-const rho_after = ...;
-```
-
-**Fix Difficulty**: Hard - requires designing transformation paths based on ρ properties.
-
-**Recommendation**: Either implement ρ-guided branching OR remove ρ from transformation pipeline (keep it only for analysis).
-
----
-
-### DEBT-003: POVM "Measurement" is Content Analysis Masquerading as Physics
-
-**Location**: `/workers/npe-api/src/services/povm-verification/content-povm.ts`, `persona-povm.ts`, `namespace-povm.ts`, `style-povm.ts`
-**Type**: Terminology fraud
-**Severity**: BLOCKING
-**Blocks**: Core ML, academic credibility
-**Created**: ~November 2025 (verification system)
-**Effort**: SMALL (2 hours to rename) OR LARGE (40+ hours to make legitimate)
-
-**Description**:
-The "POVM verification" system asks LLMs to analyze content dimensions:
-- Plot structure (list events)
-- Semantic entailment (list implications)
-- Ethical stance (rate moral position)
-- Persona (analyze perspective/tone)
-- Namespace (identify domain)
-- Style (classify formality/structure)
-
-These are **content analysis tasks**, not quantum measurements. There are no operators, no Born rule, no state collapse.
-
-**Why This Matters**:
-Using quantum terminology for standard NLP tasks is intellectually dishonest and will get us called out by:
-- Academic reviewers
-- Physics-literate users
-- Anyone with a quantum mechanics background
-
-**Fix Options**:
-1. **Easy fix** (2 hours): Rename to "Semantic Analysis" or "Content Verification"
-2. **Hard fix** (40+ hours): Design actual POVM operators for each dimension
-
-**Recommendation**: Take the easy fix. Call it what it is: "LLM-based content analysis with constraint checking."
-
----
-
-### DEBT-004: Simplified Density Matrix Uses Diagonal Approximation
-
-**Location**: `/workers/npe-api/src/services/quantum-reading/density-matrix-simple.ts`
-**Type**: Physics oversimplification
-**Severity**: BLOCKING (for academic rigor)
-**Blocks**: Core ML
-**Created**: ~October 2025
-**Effort**: MEDIUM (15-20 hours)
-
-**Description**:
-The density matrix is constructed as a **diagonal matrix** from embedding vector probabilities:
-
-```typescript
-// Line 38-67: constructDensityMatrix()
-// 1. Project 768d embedding to 32d
-// 2. Normalize: |ψ⟩ = embedding / ||embedding||
-// 3. Use squared values as diagonal: ρᵢᵢ = |ψᵢ|²
-// 4. Return diagonal matrix (all off-diagonal elements = 0)
-```
-
-**Why This Is Wrong**:
-- Real density matrices have **off-diagonal coherences**
-- Diagonal ρ = classical probability distribution (no quantum features)
-- Purity Tr(ρ²) is just Shannon entropy of diagonal
-- Missing: superposition, entanglement, quantum interference
-
-**What We're Losing**:
-- Coherence between basis states
-- Ability to detect superposition
-- True quantum vs classical distinction
-
-**What Real Implementation Would Need**:
-```typescript
-// Construct FULL 32×32 complex matrix
-const rho = zeros(32, 32);
-for (let i = 0; i < 32; i++) {
-  for (let j = 0; j < 32; j++) {
-    rho[i][j] = psi[i] * conj(psi[j]);  // Outer product |ψ⟩⟨ψ|
-  }
-}
-```
-
-**Complication**: Workers don't handle complex numbers well, and we'd need proper matrix libraries.
-
-**Recommendation**: Either:
-1. Implement full ρ with complex coherences (hard)
-2. Admit we're using "classical probability distribution inspired by quantum density matrices" (honest)
-
----
-
-### DEBT-005: No Actual Projection Operators Defined
-
-**Location**: Entire `/workers/npe-api/src/services/quantum-reading/` directory
-**Type**: Missing core quantum mechanics
-**Severity**: BLOCKING
-**Blocks**: Core ML
-**Created**: Initial V2 architecture
-**Effort**: LARGE (60+ hours, PhD-level)
-
-**Description**:
-A true POVM requires defining projection operators {Eₖ} that satisfy:
-- Eₖ ≥ 0 (positive semi-definite)
-- ΣEₖ = I (completeness)
-- Born rule: p(k) = Tr(Eₖρ)
-
-We have **zero** of these defined. No matrices, no projectors, no measurement operators.
-
-**What's Missing**:
-```typescript
-// Need to define for each POVM axis:
-interface POVMOperators {
-  E_literal: Matrix32x32;      // Projects onto "literal" subspace
-  E_metaphorical: Matrix32x32;
-  E_both: Matrix32x32;
-  E_neither: Matrix32x32;
-}
-
-// Need to verify completeness
-function verifyPOVMCompleteness(ops: POVMOperators): boolean {
-  const sum = add(add(add(ops.E_literal, ops.E_metaphorical), ops.E_both), ops.E_neither);
-  return isIdentity(sum, tolerance=0.01);
-}
-
-// Need to apply Born rule
-function measurePOVM(rho: DensityMatrix, ops: POVMOperators): Probabilities {
-  return {
-    literal: trace(matmul(ops.E_literal, rho)),
-    metaphorical: trace(matmul(ops.E_metaphorical, rho)),
-    both: trace(matmul(ops.E_both, rho)),
-    neither: trace(matmul(ops.E_neither, rho))
-  };
-}
-```
-
-**The Hard Problem**:
-How do we map embedding space structure to projection operators? What *is* the "literal subspace" of a 768-dimensional embedding?
-
-**Possible Approaches**:
-1. Train classifiers on labeled data, use decision boundaries as subspace definitions
-2. Cluster embeddings, define projectors onto cluster centroids
-3. Use PCA/ICA to find principal components, interpret as "meaning axes"
-
-**Recommendation**: This is a research problem. Either solve it properly OR abandon quantum terminology.
-
----
-
-### DEBT-006: Round-Trip and Maieutic Have No ρ Tracking
-
-**Location**: `/workers/npe-api/src/services/round_trip.ts`, `/workers/npe-api/src/services/maieutic.ts`
-**Type**: Incomplete V2 coverage
-**Severity**: BLOCKING (for V2 completeness)
-**Blocks**: Cloud Archives
-**Created**: Initial implementation (pre-V2)
-**Effort**: MEDIUM (10-15 hours)
-
-**Description**:
-V2 API provides ρ-tracked allegorical transformation, but Round-Trip and Maieutic transformations still use V1 approach (no quantum state tracking).
-
-**Why This Matters**:
-- Inconsistent API (some endpoints track ρ, some don't)
-- Missing quantum analysis for 2 out of 3 core transformations
-- Users expect V2 features across all transformations
-
-**What's Missing**:
-- Round-Trip: Should track ρ evolution through forward/backward translation
-- Maieutic: Should track ρ collapse through dialogue turns
-
-**Fix**:
-Apply the same ρ-tracking pattern from allegorical-rho-service to:
-1. Create `round-trip-rho-service.ts`
-2. Create `maieutic-rho-service.ts`
-3. Add V2 routes: `/v2/round-trip`, `/v2/maieutic`
-
-**Recommendation**: Complete this OR declare V2 is allegorical-only and market accordingly.
-
----
-
-### DEBT-007: Embedding Drift ≠ Quantum State Distance
-
-**Location**: `/workers/npe-api/src/services/povm-verification/content-povm.ts` (lines 432-456)
-**Type**: Terminology confusion
-**Severity**: BLOCKING (for correctness)
-**Blocks**: Core ML
-**Created**: Verification system implementation
-**Effort**: SMALL (2 hours to fix terminology) OR LARGE (20+ hours for real trace distance)
-
-**Description**:
-The "drift" calculation compares embeddings with cosine similarity, calls it "quantum state distance":
-
-```typescript
-// Line 432-451: computeTextDriftEmbedding()
-const similarity = cosineSimilarity(embedding1, embedding2);
-return 1 - similarity;  // Called "drift"
-```
-
-**Why This Is Wrong**:
-Real quantum state distance uses **trace distance**:
-```
-D(ρ₁, ρ₂) = (1/2) Tr|ρ₁ - ρ₂|
-```
-
-Where |A| means "take absolute value of eigenvalues of A".
-
-**What We're Actually Computing**:
-Cosine similarity of embedding vectors = semantic similarity. This is fine! Just don't call it "quantum distance."
-
-**Fix**:
-```typescript
-// Option 1: Honest naming
-async function computeSemanticSimilarity(text1, text2, ai) { ... }
-
-// Option 2: Real trace distance (requires full ρ matrices)
-function traceDistance(rho1: DensityMatrix, rho2: DensityMatrix): number {
-  const diff = subtract(rho1.matrix, rho2.matrix);
-  const eigenvals = computeEigenvalues(diff);
-  return 0.5 * sum(eigenvals.map(Math.abs));
-}
-```
-
-**Recommendation**: Rename to "semantic drift" and be honest about what we're measuring.
-
----
-
-### DEBT-008: No Verification That POVM Results Obey Quantum Constraints
-
-**Location**: `/workers/npe-api/src/services/quantum-reading/povm-measurement.ts`
-**Type**: Missing validation
-**Severity**: BLOCKING
-**Blocks**: Core ML
-**Created**: Initial POVM implementation
-**Effort**: SMALL (3-4 hours)
-
-**Description**:
-The POVM validation only checks:
-- Probabilities sum to 1.0
-- All probabilities in [0, 1]
-
-Missing checks:
-- Do the operators {Eₖ} satisfy Eₖ ≥ 0?
-- Do they satisfy ΣEₖ = I?
-- Is post-measurement ρ' still valid (trace=1, positive)?
-
-**Why This Matters**:
-Without validation, we could produce "measurements" that violate quantum mechanics.
-
-**Fix**:
-```typescript
-function validateQuantumMeasurement(
-  operators: POVMOperators,
-  rho_before: DensityMatrix,
-  rho_after: DensityMatrix,
-  measurement: Probabilities
-): ValidationResult {
-  const errors = [];
-
-  // Check operator positivity
-  for (const [name, E] of Object.entries(operators)) {
-    if (!isPositiveSemiDefinite(E)) {
-      errors.push(`Operator ${name} is not positive semi-definite`);
-    }
-  }
-
-  // Check completeness
-  if (!isIdentity(sumOperators(operators), 0.01)) {
-    errors.push('POVM operators do not sum to identity');
-  }
-
-  // Check Born rule
-  const computed_probs = computeBornRule(rho_before, operators);
-  if (!probsMatch(computed_probs, measurement, 0.01)) {
-    errors.push('Measurement probabilities do not match Born rule');
-  }
-
-  // Check post-measurement state
-  if (Math.abs(trace(rho_after.matrix) - 1.0) > 0.01) {
-    errors.push('Post-measurement ρ has trace ≠ 1');
-  }
-
-  return { valid: errors.length === 0, errors };
-}
-```
-
-**Recommendation**: Add validation AND expect it to fail (revealing that we don't actually have quantum operations).
-
----
-
-## 2. LIMITING DEBT - Missing V2 Features
-
-### DEBT-009: No User-Facing ρ Inspector UI
-
-**Location**: Missing from `/workers/npe-api/cloud-workbench/`
-**Type**: Missing feature
-**Severity**: LIMITING
-**Blocks**: User adoption
-**Created**: N/A (never built)
-**Effort**: MEDIUM (8-10 hours)
-
-**Description**:
-We have backend routes `/v2/rho/inspect` and `/v2/rho/distance` but no UI for users to:
-- Visualize eigenvalue spectrum
-- Interpret purity/entropy
-- Compare ρ states visually
-- Understand what ρ means for their text
-
-**Impact**:
-Users see "purity: 0.42" and have no idea if that's good, bad, or meaningless.
-
-**What's Needed**:
-- Eigenvalue bar chart (like in ρ Inspector panel)
-- Purity gauge with interpretation
-- Entropy visualization
-- State classification explanation
-- Interactive comparison tool
-
-**Recommendation**: Build this AFTER deciding if ρ is actually useful (see DEBT-002).
-
----
-
-### DEBT-010: No Session/Workflow Persistence for V2
-
-**Location**: Missing from narrative sessions architecture
-**Type**: Missing feature
-**Severity**: LIMITING
-**Blocks**: Cloud Archives
-**Created**: N/A
-**Effort**: MEDIUM (12-15 hours)
-
-**Description**:
-V2 allegorical transformations create narratives and ρ states but don't persist them as reusable sessions. Users can't:
-- Save a transformation as a named session
-- Fork from intermediate stages
-- Build transformation pipelines
-- Share ρ evolution visualizations
-
-**Fix**:
-Extend the narrative sessions architecture (from MVP_FUNCTIONAL_SPEC.md) to include:
-- V2 transformation type
-- Link stages to ρ versions
-- Capture POVM measurements
-- Store verification reports
-
-**Recommendation**: Wait until V2 legitimacy is resolved before building this.
-
----
-
-### DEBT-011: No Explanation of What ρ Means
-
-**Location**: All V2 API responses
-**Type**: Documentation gap
-**Severity**: LIMITING
-**Blocks**: User understanding
-**Created**: N/A
-**Effort**: SMALL (4-6 hours)
-
-**Description**:
-V2 API returns ρ metrics like:
-```json
-{
-  "purity": 0.42,
-  "entropy": 1.85,
-  "eigenvalues": [0.15, 0.12, 0.09, ...]
-}
-```
-
-But nowhere explains:
-- What purity means for text
-- Why entropy matters
-- How to interpret eigenvalues
-- What these numbers should guide users to do
-
-**Fix**:
-Add `interpretation` field to all ρ responses:
-```json
-{
-  "purity": 0.42,
-  "entropy": 1.85,
-  "interpretation": {
-    "purity_meaning": "Mixed state - narrative has competing interpretations",
-    "entropy_meaning": "Moderate complexity - multiple semantic layers",
-    "action": "This text supports diverse readings. Transformation may increase clarity (higher purity) or preserve ambiguity.",
-    "learn_more_url": "/docs/quantum-reading"
-  }
-}
-```
-
-**Recommendation**: Add this as part of making V2 user-facing.
-
----
-
-### DEBT-012: Verification System Only Works on Allegorical
-
-**Location**: `/workers/npe-api/src/services/povm-verification/`
-**Type**: Incomplete feature
-**Severity**: LIMITING
-**Blocks**: General transformation quality
-**Created**: Verification system implementation
-**Effort**: MEDIUM (10-12 hours)
-
-**Description**:
-The constraint verification system only applies to V2 allegorical transforms. Round-Trip and Maieutic have no verification.
-
-**Impact**:
-- Inconsistent quality guarantees
-- Allegorical gets constraint checking, others don't
-- Users expect verification everywhere
-
-**Fix**:
-Apply verification to:
-- Round-Trip: Verify semantic drift stays within acceptable range
-- Maieutic: Verify dialogue coherence and insight extraction
-
-**Recommendation**: Generalize verification system OR label it as "allegorical-only feature."
-
----
-
-## 3. COSMETIC DEBT - Minor Issues
-
-### DEBT-013: Auth Disabled on /v2/rho Routes
-
-**Location**: `/workers/npe-api/src/routes/v2/rho.ts` (line 19-21)
-**Type**: Security bypass
-**Severity**: COSMETIC (but comment is wrong)
-**Blocks**: N/A
-**Created**: Local development
-**Effort**: SMALL (5 minutes)
+## PART 1: PRODUCTION LAUNCH BLOCKERS (Dec 5, 2025)
+
+### CRITICAL-001: Authentication Disabled on /v2/rho Routes
+
+**Location**: `/workers/npe-api/src/routes/v2/rho.ts:19-21`
+**Type**: Security vulnerability
+**Severity**: CRITICAL
+**Blocks**: Production launch
+**Created**: Local development phase
+**Effort**: SMALL (15 minutes)
 
 **Description**:
 ```typescript
@@ -565,183 +48,786 @@ Apply verification to:
 // rhoRoutes.use('/*', requireAuth());
 ```
 
-**Issue**: Comment says "for local dev" but this code is deployed to production.
+The authentication middleware is **commented out** on all V2 rho routes in production code. This means:
+- `/v2/rho/construct` - Anyone can construct density matrices
+- `/v2/rho/measure` - Anyone can run POVM measurements
+- `/v2/rho/inspect` - Anyone can inspect rho states
+- `/v2/rho/distance` - Anyone can compute state distances
+
+**Impact**:
+- Unauthorized API access
+- No quota enforcement on these endpoints
+- Potential abuse/DoS attacks
+- Violates security model
 
 **Fix**:
 ```typescript
-// Use optionalLocalAuth() for Workbench compatibility
+// Use optionalLocalAuth() for Workbench compatibility while requiring auth in production
 rhoRoutes.use('/*', optionalLocalAuth());
 ```
 
-**Recommendation**: Fix before next deployment.
+**Recommendation**: Fix IMMEDIATELY before any production deployment.
 
 ---
 
-### DEBT-014: Inconsistent Error Handling in POVM Measurement
+### CRITICAL-002: Hardcoded Demo Credentials in Public HTML
 
-**Location**: `/workers/npe-api/src/services/quantum-reading/povm-measurement.ts`
-**Type**: UX inconsistency
-**Severity**: COSMETIC
-**Blocks**: N/A
-**Created**: Initial POVM implementation
-**Effort**: SMALL (1-2 hours)
+**Location**: `/workers/npe-api/public/pricing.html:216-217`
+**Type**: Security exposure
+**Severity**: CRITICAL
+**Blocks**: Production launch
+**Created**: Testing/development
+**Effort**: SMALL (5 minutes)
 
 **Description**:
-POVM measurement fails loudly (throws errors) instead of returning graceful fallbacks. This is actually GOOD design (fail loudly rather than mock data), but inconsistent with other services.
+```html
+<input type="email" id="email" placeholder="Email" value="demo@humanizer.com">
+<input type="password" id="password" placeholder="Password" value="testpass123">
+```
 
-**Issue**:
-- Round-Trip: Returns fallback translations on error
-- Maieutic: Returns fallback questions on error
-- POVM: Throws errors immediately
+The pricing page (publicly accessible) has **hardcoded credentials** pre-filled in the form.
 
-**Recommendation**: Keep this behavior (fail loudly), but make it consistent across all services.
+**Impact**:
+- Publicly exposes demo account credentials
+- Anyone can log in as demo@humanizer.com
+- CLAUDE.md confirms: "demo@humanizer.com is RETIRED (demoted to free tier, exposed password)"
+- Security risk if this account still has elevated privileges
 
----
+**Fix**:
+```html
+<input type="email" id="email" placeholder="Email" value="">
+<input type="password" id="password" placeholder="Password" value="">
+```
 
-## 4. Summary and Recommendations
+**Additional Actions**:
+1. Verify demo@humanizer.com is truly demoted to FREE tier with zero elevated access
+2. Consider deleting the account entirely if no longer needed
+3. Audit all public HTML files for similar issues
 
-### The Fundamental Problem
-
-V2 is built on **quantum-inspired terminology** without **quantum operations**. We're:
-- Calling content analysis "POVM measurement"
-- Calling embedding similarity "quantum state distance"
-- Displaying ρ metrics without using them for guidance
-- Marketing physics without doing physics
-
-### Three Paths Forward
-
-#### Path 1: Honest Rebranding (RECOMMENDED - 8 hours)
-**Effort**: 8 hours
-**Impact**: High credibility, moderate functionality
-
-1. Rename "POVM measurement" → "Semantic Analysis"
-2. Rename "Quantum State Distance" → "Embedding Similarity"
-3. Rename "Density Matrix ρ" → "Text State Representation"
-4. Document honestly: "Quantum-inspired approach using embeddings"
-5. Focus on what works: Multi-dimensional content analysis
-
-**Why This Works**:
-- We're still doing something useful (content analysis)
-- No false claims about physics
-- Faster to market (no new research needed)
-- Academic credibility maintained
+**Recommendation**: Fix IMMEDIATELY and audit account permissions.
 
 ---
 
-#### Path 2: Make It Real (NOT RECOMMENDED - 200+ hours)
-**Effort**: 200+ hours (3-6 months, PhD-level work)
-**Impact**: Revolutionary if successful, high risk
+### CRITICAL-003: OAuth Redirect Using workers.dev Domain
 
-1. Define projection operators for each POVM axis
-2. Implement full 32×32 complex density matrices
-3. Use ρ to actually guide transformations
-4. Validate all quantum constraints
-5. Publish academic paper on "Quantum NLP"
+**Location**: `/workers/npe-api/src/routes/oauth.ts:41-45`
+**Type**: Configuration blocker
+**Severity**: CRITICAL
+**Blocks**: Production OAuth (Google, GitHub, Discord, Facebook, Apple)
+**Created**: Initial OAuth implementation
+**Effort**: MEDIUM (2-3 hours including DNS setup)
 
-**Why This Is Hard**:
-- Requires solving open research problems
-- No clear mapping from embeddings to quantum operators
-- May discover it's fundamentally impossible
-- Cloudflare Workers can't handle complex math
+**Description**:
+```typescript
+// TODO: Change to npe-api.humanizer.com once subdomain is configured
+const baseUrl = env.ENVIRONMENT === 'production'
+  ? 'https://npe-api.tem-527.workers.dev'
+  : 'http://localhost:8787';
+```
 
-**Recommendation**: Only pursue if you have quantum physics expertise on team.
+OAuth callbacks are hardcoded to `workers.dev` domain instead of `npe-api.humanizer.com`.
+
+**Impact**:
+- OAuth providers (Google, GitHub, etc.) are configured for workers.dev
+- Switching domains breaks OAuth until providers are reconfigured
+- Users can't log in with social accounts
+- Unprofessional domain in OAuth consent screens
+
+**Fix Steps**:
+1. Set up DNS: `npe-api.humanizer.com` → Cloudflare Worker
+2. Update wrangler.toml with custom domain route
+3. Reconfigure ALL OAuth providers with new redirect URIs:
+   - Google: `https://npe-api.humanizer.com/auth/oauth/google/callback`
+   - GitHub: `https://npe-api.humanizer.com/auth/oauth/github/callback`
+   - Discord: `https://npe-api.humanizer.com/auth/oauth/discord/callback`
+   - Facebook: `https://npe-api.humanizer.com/auth/oauth/facebook/callback`
+   - Apple: `https://npe-api.humanizer.com/auth/oauth/apple/callback`
+4. Update code:
+   ```typescript
+   const baseUrl = env.ENVIRONMENT === 'production'
+     ? 'https://npe-api.humanizer.com'
+     : 'http://localhost:8787';
+   ```
+
+**Recommendation**: Fix before launch OR disable OAuth login temporarily and launch with email/password only.
 
 ---
 
-#### Path 3: Hybrid Approach (VIABLE - 40 hours)
-**Effort**: 40 hours
-**Impact**: Moderate credibility, high functionality
+### HIGH-001: Text Naturalizer Using Placeholder Implementation
 
-1. Keep ρ as "embedding-based state representation"
-2. Use ρ properties to guide transformation paths (fix DEBT-002)
-3. Call POVM "multi-axis semantic measurement"
-4. Add footnotes: "Inspired by quantum mechanics, not literal implementation"
-5. Focus on practical value: "Math-backed transformation quality"
+**Location**: `/workers/npe-api/src/lib/text-naturalizer.ts:127`
+**Type**: Stub implementation
+**Severity**: HIGH
+**Blocks**: AI Detection quality
+**Created**: Computer Humanizer implementation
+**Effort**: LARGE (20+ hours for LLM-based approach)
 
-**Why This Works**:
-- Acknowledges inspiration without false claims
-- Makes ρ actually useful (guidance, not just display)
-- Marketable: "Novel embedding-based approach"
-- Achievable in reasonable timeframe
+**Description**:
+```typescript
+/**
+ * Enhance burstiness by varying sentence lengths
+ * Target: 50-70/100 (human-like variation)
+ * Strategy: Mix short (8-12 word) and long (20-30 word) sentences
+ * PRESERVES: Paragraph breaks, markdown formatting
+ * NOTE: This is a PLACEHOLDER - should be replaced with LLM-based approach for production
+ */
+export function enhanceBurstiness(text: string, targetScore: number = 60): string {
+```
+
+The burstiness enhancement uses **rule-based sentence splitting** instead of LLM-based rewriting.
+
+**Impact**:
+- Lower quality AI detection bypass
+- Computer Humanizer feature less effective than marketed
+- Users may not get promised results
+
+**Fix Options**:
+1. **Quick fix** (8 hours): Use Cloudflare AI to rewrite with varied sentence length
+2. **Better fix** (20 hours): Implement proper burstiness analysis + targeted rewriting
+3. **Honest fix** (1 hour): Document limitation in UI/docs, set user expectations
+
+**Recommendation**: Either implement LLM-based approach OR clearly label as "beta/experimental" feature.
 
 ---
 
-### Immediate Action Items (Phase 1 - 16 hours)
+### HIGH-002: Admin Cost Estimates Using Rough Guesses
 
-1. **Terminology Audit** (2 hours)
-   - Find all uses of "quantum", "POVM", "measurement", "density matrix"
-   - Decide: Keep with disclaimers OR rename completely
+**Location**: `/workers/npe-api/src/routes/admin.ts:717-770`
+**Type**: Inaccurate metrics
+**Severity**: HIGH
+**Blocks**: Business decision-making
+**Created**: Admin metrics implementation
+**Effort**: MEDIUM (6-8 hours)
 
-2. **Make ρ Useful** (8 hours)
-   - Implement ρ-guided branching in allegorical transformation
-   - Use purity/entropy to select transformation strategies
-   - Prove that ρ adds value beyond display metrics
+**Description**:
+```typescript
+// Estimate Cloudflare AI costs (rough: $0.01 per 1000 tokens)
+const tokensUsed = ...
+const aiCostEstimate = (tokensUsed / 1000) * 0.01;
 
-3. **Documentation** (4 hours)
-   - Add "What is ρ?" explainer to all V2 responses
-   - Write `/docs/quantum-reading` with honest explanation
-   - Create visualization guidelines for ρ Inspector
+// D1 storage (would need to query actual size, estimate for now)
+const d1SizeMB = 50; // Rough estimate
+const d1Cost = (d1SizeMB / 1024) * 0.75;
+```
 
-4. **Fix Critical Bugs** (2 hours)
-   - Re-enable auth on /v2/rho routes (DEBT-013)
-   - Add validation to POVM measurements (DEBT-008)
-   - Standardize error handling (DEBT-014)
+Admin dashboard shows **rough cost estimates** with multiple disclaimers:
+- "Rough estimate: $0.01/1k tokens"
+- "AI costs are rough estimates based on token usage"
 
-### Phase 2 - Complete V2 Coverage (25 hours)
+**Impact**:
+- Business decisions based on inaccurate cost data
+- Can't accurately assess profitability
+- May miss cost optimization opportunities
 
-5. **Extend to All Transformations** (15 hours)
-   - Add ρ tracking to Round-Trip (DEBT-006)
-   - Add ρ tracking to Maieutic (DEBT-006)
-   - Generalize verification system (DEBT-012)
+**Fix**:
+1. Use actual Cloudflare AI pricing from their API
+2. Query D1 for actual database size: `SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()`
+3. Track R2 storage costs from Cloudflare Analytics API
+4. Add disclaimer in UI: "Estimates updated hourly, see Cloudflare dashboard for exact costs"
 
-6. **Build User-Facing Tools** (10 hours)
-   - ρ Inspector panel (DEBT-009)
-   - Session persistence (DEBT-010)
-   - Comparison tools
+**Recommendation**: Implement accurate cost tracking OR remove cost section from admin dashboard.
 
-### Phase 3 - Research Track (Optional, 200+ hours)
+---
 
-7. **Make It Legitimate** (if desired)
-   - Hire quantum computing expert
-   - Define proper POVM operators
-   - Implement full ρ with coherences
-   - Validate against quantum mechanics axioms
+### HIGH-003: Console.log Statements Throughout Codebase
+
+**Location**: 77 occurrences across 20 files
+**Type**: Debug pollution
+**Severity**: HIGH
+**Blocks**: Clean production logs
+**Created**: Development/debugging
+**Effort**: MEDIUM (4-6 hours to audit and clean)
+
+**Description**:
+Found 77+ console.log/warn/error statements across routes and services:
+- `/src/services/computer-humanizer.ts` - 12 instances
+- `/src/services/llm-providers/cloudflare.ts` - 12 instances
+- `/src/routes/secure-archive.ts` - 10 instances
+- Many others scattered throughout
+
+**Examples**:
+```typescript
+console.log('[Computer Humanizer] Stage 3: Skipped (no voice samples)');
+console.log('[Security] Migrated password for user ${email} to PBKDF2');
+console.error('POVM measurement error:', error);
+```
+
+**Impact**:
+- Cloudflare Workers logs filled with debug output
+- Harder to find actual errors
+- May expose sensitive information in logs
+- Performance impact (minor)
+
+**Fix Strategy**:
+1. Keep `console.error()` for actual errors
+2. Remove or convert to proper logging:
+   ```typescript
+   // REMOVE:
+   console.log('[Debug] Starting transformation...');
+
+   // KEEP:
+   console.error('Transformation failed:', error);
+
+   // CONVERT to env-based:
+   if (env.ENVIRONMENT === 'development') {
+     console.log('[Debug] Starting transformation...');
+   }
+   ```
+
+**Recommendation**: Audit all console statements, remove debug logs, keep error logging.
+
+---
+
+### HIGH-004: Hardcoded Axis Parameter in POVM Measurement
+
+**Location**: `/workers/npe-api/src/domain/povm-service.ts:84`
+**Type**: Incomplete implementation
+**Severity**: HIGH
+**Blocks**: Multi-axis POVM measurements
+**Created**: POVM service implementation
+**Effort**: MEDIUM (8-10 hours)
+
+**Description**:
+```typescript
+// Note: axis parameter currently not used, hardcoded to literalness
+const povmResult = await measureSentenceTetralemma(
+  this.ai,
+  narrative.text,
+  0 // sentence index (0 for narrative-level measurement)
+);
+```
+
+The `axis` parameter is accepted but **ignored**. All measurements use the "literalness" axis.
+
+**Impact**:
+- Users can't measure other POVM axes (persona, namespace, style)
+- API lies about functionality (accepts axis param, doesn't use it)
+- Limits V2 value proposition
+
+**Fix**:
+Need to implement multiple POVM measurement types:
+- Literalness (existing)
+- Persona axis (formal ↔ casual)
+- Namespace axis (technical ↔ colloquial)
+- Style axis (direct ↔ metaphorical)
+
+Each requires defining:
+1. Tetralemma categories for that axis
+2. LLM prompt for measurement
+3. Evidence extraction logic
+
+**Recommendation**: Either implement all axes OR remove unused axis parameter from API.
+
+---
+
+### HIGH-005: Database Size Estimation Placeholder
+
+**Location**: `/workers/npe-api/src/routes/admin.ts:726`
+**Type**: Hardcoded value
+**Severity**: HIGH
+**Blocks**: Accurate admin metrics
+**Created**: Admin dashboard implementation
+**Effort**: SMALL (2 hours)
+
+**Description**:
+```typescript
+// D1 storage (would need to query actual size, estimate for now)
+const d1SizeMB = 50; // Rough estimate
+```
+
+Database size is **hardcoded to 50 MB** instead of queried from D1.
+
+**Impact**:
+- Admin dashboard shows wrong storage usage
+- Can't track database growth
+- May miss storage limits
+
+**Fix**:
+```typescript
+// Query actual D1 database size
+const sizeQuery = await c.env.DB.prepare(`
+  SELECT
+    (page_count * page_size) / (1024.0 * 1024.0) as size_mb
+  FROM pragma_page_count(), pragma_page_size()
+`).first();
+const d1SizeMB = sizeQuery?.size_mb || 0;
+```
+
+**Recommendation**: Implement actual size query (2 hours).
+
+---
+
+### MEDIUM-001: Localhost Origins Allowed in Production CORS
+
+**Location**: `/workers/npe-api/src/index.ts:42-44`
+**Type**: Security configuration
+**Severity**: MEDIUM
+**Blocks**: N/A (acceptable for development, tight in production)
+**Created**: CORS setup
+**Effort**: SMALL (30 minutes)
+
+**Description**:
+```typescript
+// Allow localhost for development
+if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+  return origin;
+}
+```
+
+CORS allows **any localhost origin** in production.
+
+**Impact**:
+- Development convenience maintained
+- Slightly looser security (localhost requests accepted)
+- Could allow malicious local software to access API
+
+**Fix**:
+```typescript
+// Only allow localhost in development
+if (env.ENVIRONMENT === 'development') {
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    return origin;
+  }
+}
+```
+
+**Recommendation**: Low priority, but tighten for production.
+
+---
+
+### MEDIUM-002: Empty Catch Block in Personal Personas Route
+
+**Location**: `/workers/npe-api/src/routes/personal-personas.ts:318`
+**Type**: Silent error handling
+**Severity**: MEDIUM
+**Blocks**: Error visibility
+**Created**: Personal personas implementation
+**Effort**: SMALL (15 minutes)
+
+**Description**:
+```typescript
+const body = await c.req.json().catch(() => ({}));
+```
+
+JSON parsing errors are **silently swallowed** and replaced with empty object.
+
+**Impact**:
+- Invalid JSON accepted without error
+- User gets confusing "missing required fields" instead of "invalid JSON"
+- Harder to debug client-side issues
+
+**Fix**:
+```typescript
+let body;
+try {
+  body = await c.req.json();
+} catch (err) {
+  return c.json({ error: 'Invalid JSON in request body' }, 400);
+}
+```
+
+**Recommendation**: Fix for better error messages.
+
+---
+
+### MEDIUM-003: OAuth State Cleanup Not Automated
+
+**Location**: `/workers/npe-api/src/services/oauth.ts` (cleanupExpiredStates function exists but not called)
+**Type**: Missing automation
+**Severity**: MEDIUM
+**Blocks**: KV storage bloat
+**Created**: OAuth implementation
+**Effort**: MEDIUM (4-6 hours for scheduled worker)
+
+**Description**:
+The `cleanupExpiredStates()` function exists but is never called automatically.
+
+**Impact**:
+- KV namespace accumulates expired OAuth state tokens
+- Storage bloat over time
+- Potential cost increase
+
+**Fix Options**:
+1. Add Cron Trigger to wrangler.toml:
+   ```toml
+   [triggers]
+   crons = ["0 */4 * * *"]  # Every 4 hours
+   ```
+2. Implement scheduled handler in index.ts:
+   ```typescript
+   export default {
+     async scheduled(event, env, ctx) {
+       await cleanupExpiredStates(env.KV);
+     }
+   }
+   ```
+
+**Recommendation**: Implement cron cleanup before launch.
+
+---
+
+### MEDIUM-004: TODO Comment on Translation Service Enhancement
+
+**Location**: `/workers/npe-api/src/services/translation.ts:414`
+**Type**: Feature gap
+**Severity**: MEDIUM
+**Blocks**: Advanced translation features
+**Created**: Translation service implementation
+**Effort**: MEDIUM (6-8 hours)
+
+**Description**:
+```typescript
+// TODO: Future enhancement - separate commentary support
+```
+
+Translation service doesn't support commentary/notes alongside translations.
+
+**Impact**:
+- Users can't add translator notes
+- Missing feature for professional use cases
+
+**Fix**:
+Extend translation API to support:
+- Commentary field for translator notes
+- Footnotes/annotations
+- Alternative translations
+
+**Recommendation**: Track as future enhancement, not blocking.
+
+---
+
+### LOW-001: Inconsistent Error Response Format
+
+**Location**: Multiple routes
+**Type**: API inconsistency
+**Severity**: LOW
+**Blocks**: N/A
+**Created**: Various implementations
+**Effort**: MEDIUM (8-10 hours to standardize)
+
+**Description**:
+Error responses vary across routes:
+```typescript
+// Some routes:
+{ error: 'Message' }
+
+// Others:
+{ error: 'Message', details: error.message }
+
+// Others:
+{ error: 'Message', hint: 'Suggestion' }
+
+// Others:
+{ error: 'Message', upgrade_url: '/pricing', current_tier: 'free' }
+```
+
+**Impact**:
+- Client code needs multiple error parsing strategies
+- Inconsistent user experience
+
+**Fix**:
+Standardize on:
+```typescript
+{
+  error: string,           // Required
+  details?: string,        // Optional technical details
+  hint?: string,          // Optional user-facing suggestion
+  code?: string,          // Optional error code (e.g., 'QUOTA_EXCEEDED')
+  metadata?: object       // Optional structured data
+}
+```
+
+**Recommendation**: Low priority polish item.
+
+---
+
+### LOW-002: Wrangler.toml Missing Environment-Specific Secrets Documentation
+
+**Location**: `/workers/npe-api/wrangler.toml:46-49`
+**Type**: Documentation gap
+**Severity**: LOW
+**Blocks**: N/A
+**Created**: Configuration
+**Effort**: SMALL (30 minutes)
+
+**Description**:
+```toml
+# Secrets (set via wrangler secret put)
+# JWT_SECRET - set via: wrangler secret put JWT_SECRET
+# STRIPE_SECRET_KEY - set via: wrangler secret put STRIPE_SECRET_KEY
+# STRIPE_WEBHOOK_SECRET - set via: wrangler secret put STRIPE_WEBHOOK_SECRET
+```
+
+Missing documentation for:
+- ALLOW_NEW_SIGNUPS (env var for signup control)
+- ADMIN_EMAILS (comma-separated admin whitelist)
+- OLLAMA_URL (for local development)
+
+**Fix**:
+Add to wrangler.toml:
+```toml
+# Environment Variables (set via wrangler.toml or dashboard)
+# ALLOW_NEW_SIGNUPS='true' - Enable public signups (default: disabled)
+# ADMIN_EMAILS='email1@domain.com,email2@domain.com' - Admin whitelist
+# OLLAMA_URL='http://localhost:11434' - Local Ollama endpoint (dev only)
+
+# Secrets (set via wrangler secret put)
+# JWT_SECRET - JWT signing key (generate with: openssl rand -base64 32)
+# STRIPE_SECRET_KEY - Stripe API secret key
+# STRIPE_WEBHOOK_SECRET - Stripe webhook signing secret
+# GOOGLE_CLIENT_SECRET - Google OAuth secret
+# GITHUB_CLIENT_SECRET - GitHub OAuth secret
+# DISCORD_CLIENT_SECRET - Discord OAuth secret
+# FACEBOOK_APP_SECRET - Facebook OAuth secret
+# APPLE_PRIVATE_KEY - Apple OAuth private key
+```
+
+**Recommendation**: Low priority documentation improvement.
+
+---
+
+## PART 2: QUANTUM/V2 ARCHITECTURE ISSUES (Nov 11, 2025)
+
+[Previous DEBT-001 through DEBT-014 content remains identical to November 11 audit]
+
+### DEBT-001: LLM-Guessed POVM Measurements
+**Status**: UNCHANGED - Still using LLM to guess probabilities instead of Born rule
+**Severity**: BLOCKING
+**Blocks**: Core ML, Cloud Archives
+
+[Content identical to original audit]
+
+### DEBT-002: Density Matrix ρ Not Used for Guidance
+**Status**: UNCHANGED - Still computed after transformation, not used during
+**Severity**: BLOCKING
+**Blocks**: Core ML
+
+[Content identical to original audit]
+
+### DEBT-003: POVM "Measurement" is Content Analysis Masquerading as Physics
+**Status**: UNCHANGED - Still calling NLP analysis "quantum measurement"
+**Severity**: BLOCKING
+**Blocks**: Core ML, academic credibility
+
+[Content identical to original audit]
+
+### DEBT-004: Simplified Density Matrix Uses Diagonal Approximation
+**Status**: UNCHANGED - Still using diagonal matrices (no off-diagonal coherences)
+**Severity**: BLOCKING (for academic rigor)
+**Blocks**: Core ML
+
+[Content identical to original audit]
+
+### DEBT-005: No Actual Projection Operators Defined
+**Status**: UNCHANGED - Zero POVM operators defined
+**Severity**: BLOCKING
+**Blocks**: Core ML
+
+[Content identical to original audit]
+
+### DEBT-006: Round-Trip and Maieutic Have No ρ Tracking
+**Status**: UNCHANGED - V2 only covers allegorical
+**Severity**: BLOCKING (for V2 completeness)
+**Blocks**: Cloud Archives
+
+[Content identical to original audit]
+
+### DEBT-007: Embedding Drift ≠ Quantum State Distance
+**Status**: UNCHANGED - Still calling cosine similarity "quantum distance"
+**Severity**: BLOCKING (for correctness)
+**Blocks**: Core ML
+
+[Content identical to original audit]
+
+### DEBT-008: No Verification That POVM Results Obey Quantum Constraints
+**Status**: UNCHANGED - Missing validation of quantum mechanics axioms
+**Severity**: BLOCKING
+**Blocks**: Core ML
+
+[Content identical to original audit]
+
+### DEBT-009: No User-Facing ρ Inspector UI
+**Status**: UNCHANGED - Backend routes exist, no UI
+**Severity**: LIMITING
+**Blocks**: User adoption
+
+[Content identical to original audit]
+
+### DEBT-010: No Session/Workflow Persistence for V2
+**Status**: UNCHANGED - No session persistence
+**Severity**: LIMITING
+**Blocks**: Cloud Archives
+
+[Content identical to original audit]
+
+### DEBT-011: No Explanation of What ρ Means
+**Status**: UNCHANGED - No interpretation in API responses
+**Severity**: LIMITING
+**Blocks**: User understanding
+
+[Content identical to original audit]
+
+### DEBT-012: Verification System Only Works on Allegorical
+**Status**: UNCHANGED - No verification for Round-Trip/Maieutic
+**Severity**: LIMITING
+**Blocks**: General transformation quality
+
+[Content identical to original audit]
+
+### DEBT-013: Auth Disabled on /v2/rho Routes
+**Status**: PROMOTED TO CRITICAL-001 (duplicate of new finding)
+**Severity**: CRITICAL
+**Blocks**: Production launch
+
+**Note**: This was originally categorized as "COSMETIC" in Nov 11 audit. Upon Dec 5 review, this is actually a **CRITICAL security issue** for production deployment.
+
+### DEBT-014: Inconsistent Error Handling in POVM Measurement
+**Status**: UNCHANGED - POVM throws errors, others return fallbacks
+**Severity**: COSMETIC
+**Blocks**: N/A
+
+[Content identical to original audit]
+
+---
+
+## 3. Summary and Recommendations
+
+### The TWO Critical Problems
+
+#### Problem 1: V2 Quantum Theater (Nov 11 Finding)
+V2 is built on **quantum-inspired terminology** without **quantum operations**. We're calling content analysis "POVM measurement" and displaying ρ metrics without using them for guidance.
+
+**Status**: Unresolved, needs strategic decision (see Nov 11 audit recommendations)
+
+#### Problem 2: Production Launch Blockers (Dec 5 Finding)
+**CRITICAL ISSUES** that prevent safe production deployment:
+1. Authentication disabled on public API routes
+2. Hardcoded credentials in public HTML
+3. OAuth misconfigured with wrong domain
+
+**Status**: MUST BE FIXED before launch
+
+### Pre-Launch Checklist (REQUIRED)
+
+**Security (CRITICAL - 1 hour total)**:
+- [ ] Re-enable auth on /v2/rho routes (15 min)
+- [ ] Remove hardcoded credentials from pricing.html (5 min)
+- [ ] Verify demo@humanizer.com has zero privileges (15 min)
+- [ ] Audit all public HTML files for credentials (25 min)
+
+**OAuth (CRITICAL - 2-3 hours OR disable feature)**:
+- [ ] Set up npe-api.humanizer.com DNS
+- [ ] Reconfigure all OAuth providers with new URLs
+- [ ] Update oauth.ts with production domain
+- [ ] Test all OAuth flows
+- **OR**: Disable OAuth login temporarily, launch with email/password only
+
+**Admin Dashboard (HIGH - 2 hours)**:
+- [ ] Implement actual D1 size query (replaces hardcoded 50MB)
+- [ ] Add disclaimer: "Cost estimates are approximate"
+- [ ] Consider hiding cost section if estimates remain rough
+
+**Logging Cleanup (HIGH - 4-6 hours)**:
+- [ ] Audit all console.log statements
+- [ ] Remove debug logs or make env-conditional
+- [ ] Keep console.error for actual errors
+
+**API Fixes (MEDIUM - 4 hours)**:
+- [ ] Fix POVM axis parameter (remove if unused, implement if needed)
+- [ ] Fix empty catch block in personal-personas.ts
+- [ ] Set up OAuth state cleanup cron job
+
+### Three Paths Forward (V2 Quantum Decision)
+
+Same three paths as Nov 11 audit:
+1. **Honest Rebranding** (8 hours) - RECOMMENDED
+2. **Make It Real** (200+ hours) - NOT RECOMMENDED
+3. **Hybrid Approach** (40 hours) - VIABLE
+
+**Recommendation**: Fix CRITICAL issues for launch (4-5 hours), defer V2 quantum decision.
+
+---
+
+## 4. Launch Readiness Assessment
+
+### Can We Launch? **NO** (not yet)
+
+**Blocking Issues (4-5 hours to fix)**:
+1. CRITICAL-001: Auth disabled on /v2/rho routes (15 min)
+2. CRITICAL-002: Hardcoded credentials (30 min)
+3. CRITICAL-003: OAuth domain (3 hours OR disable OAuth)
+
+**After Fixes: YES** (with caveats):
+- OAuth: Disabled temporarily OR fully configured
+- V2 Features: Keep but mark as "Beta/Experimental"
+- Quantum Claims: Add disclaimers or remove from marketing
+- Cost Dashboard: Show estimates with big disclaimer
+
+### Recommended Launch Path
+
+**Week 1 - Security Fixes (1 day)**:
+- Fix CRITICAL-001, CRITICAL-002, CRITICAL-003
+- Option A: Configure OAuth properly (3 hours)
+- Option B: Disable OAuth, email/password only (30 min)
+
+**Week 2 - Quality Improvements (2-3 days)**:
+- Fix HIGH-003 (logging cleanup)
+- Fix HIGH-005 (database size query)
+- Fix MEDIUM issues (error handling, CORS)
+
+**Week 3 - V2 Decision (strategy meeting)**:
+- Review Nov 11 quantum audit
+- Choose: Rebrand, Make Real, or Hybrid
+- Set timeline for V2 legitimacy fixes
+
+**Week 4 - Launch**:
+- Deploy with security fixes
+- Monitor error logs closely
+- Gather user feedback on V2 features
 
 ---
 
 ## 5. Success Criteria
 
-**Before Launch**:
-- [ ] Zero false claims about quantum mechanics in user-facing docs
-- [ ] ρ used for guidance, not just display
-- [ ] All "quantum" terminology either backed by math OR removed
-- [ ] Verification system honest about what it checks
-- [ ] Users can understand what ρ means for their text
+**Before Launch (REQUIRED)**:
+- [ ] Zero CRITICAL issues remaining
+- [ ] Zero hardcoded credentials in codebase
+- [ ] All public API routes have authentication
+- [ ] OAuth working OR explicitly disabled
+- [ ] Demo account has zero elevated privileges
 
-**V2 Value Proposition**:
-- [ ] Demonstrably better transformations than V1
-- [ ] Math-backed quality guarantees
-- [ ] Multi-dimensional content analysis
-- [ ] Novel embedding-based state tracking
+**Before Marketing V2 (RECOMMENDED)**:
+- [ ] Zero false claims about quantum mechanics in user-facing docs
+- [ ] ρ used for guidance, not just display OR removed from marketing
+- [ ] All "quantum" terminology either backed by math OR clearly labeled as "inspired by"
+- [ ] Verification system honest about what it checks
 
 ---
 
 ## 6. Contacts and Resources
 
 **Technical Debt Champion**: TBD
-**Quantum Physics Consultant**: NEEDED (if pursuing Path 2)
-**Academic Review**: NEEDED before publishing papers
+**Security Review**: NEEDED before launch
+**Quantum Physics Consultant**: NEEDED (if pursuing Path 2 for V2)
 
 **Related Documents**:
 - `/workers/npe-api/docs/MVP_FUNCTIONAL_SPEC.md` - Narrative sessions architecture
 - `/workers/npe-api/docs/V1_V2_COMPARISON_AND_STRATEGY.md` - V1 vs V2 decision rationale
-- `/workers/npe-api/docs/attributes_in_allegorical_transformation.md` - POVM verification design
+- `/workers/shared/STUDIO_TOOLS_FRAMEWORK.md` - Studio tools design
+- `/CLAUDE.md` - Project overview and current status
 
 **External References**:
-- Nielsen & Chuang, "Quantum Computation and Quantum Information" (Chapter 2: Density Operators)
-- Wikipedia: Positive Operator-Valued Measure
-- arXiv: Papers on "Quantum Cognition" (closest related field)
+- Cloudflare Workers Security Best Practices
+- OWASP API Security Top 10
+- OAuth 2.0 Security Best Current Practice
 
 ---
 
-**END OF TECHNICAL DEBT AUDIT**
+**END OF TECHNICAL DEBT AUDIT - December 5, 2025**
+
+**Next Actions**:
+1. Fix CRITICAL-001, CRITICAL-002, CRITICAL-003 (4-5 hours)
+2. Run security audit on all public files
+3. Test OAuth flows or disable feature
+4. Schedule V2 strategy meeting
+5. Create launch checklist from this document

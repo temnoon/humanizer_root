@@ -78,14 +78,11 @@ function base64URLToUint8Array(base64url: string): Uint8Array {
 webauthnRoutes.post('/register-challenge', requireAuth(), requireAdmin(), async (c) => {
   try {
     const auth = c.get('auth');
-    console.log('[WebAuthn] Generating registration challenge for user:', auth.userId);
 
     // Get user's existing credentials
     const existingCreds = await c.env.DB.prepare(
       'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?'
     ).bind(auth.userId).all();
-
-    console.log('[WebAuthn] Existing credentials count:', existingCreds.results.length);
 
     const options = await generateRegistrationOptions({
       rpName: RP_NAME,
@@ -111,12 +108,9 @@ webauthnRoutes.post('/register-challenge', requireAuth(), requireAdmin(), async 
       { expirationTtl: 300 }
     );
 
-    console.log('[WebAuthn] Challenge generated successfully');
     return c.json(options);
   } catch (error) {
-    console.error('[WebAuthn] Register challenge error:', error);
-    console.error('[WebAuthn] Error stack:', error instanceof Error ? error.stack : 'No stack');
-    console.error('[WebAuthn] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[WebAuthn] Register challenge error:', error instanceof Error ? error.message : String(error));
     return c.json({
       error: 'Failed to generate registration challenge',
       details: error instanceof Error ? error.message : String(error)
@@ -132,15 +126,11 @@ webauthnRoutes.post('/register-challenge', requireAuth(), requireAdmin(), async 
 webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c) => {
   try {
     const auth = c.get('auth');
-    console.log('[WebAuthn] Starting registration verification for user:', auth.userId);
 
     const { response, deviceName } = await c.req.json<{
       response: RegistrationResponseJSON;
       deviceName: string;
     }>();
-
-    console.log('[WebAuthn] Device name:', deviceName);
-    console.log('[WebAuthn] Response received:', JSON.stringify(response).substring(0, 200));
 
     if (!deviceName || deviceName.trim().length === 0) {
       return c.json({ error: 'Device name is required' }, 400);
@@ -148,13 +138,10 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
 
     // Get stored challenge
     const expectedChallenge = await c.env.KV.get(`webauthn:challenge:${auth.userId}`);
-    console.log('[WebAuthn] Expected challenge found:', !!expectedChallenge);
 
     if (!expectedChallenge) {
       return c.json({ error: 'Challenge expired or not found' }, 400);
     }
-
-    console.log('[WebAuthn] Calling verifyRegistrationResponse with origin:', `https://${RP_ID}`);
 
     // Verify registration
     const verification = await verifyRegistrationResponse({
@@ -164,8 +151,6 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
       expectedRPID: RP_ID,
     });
 
-    console.log('[WebAuthn] Verification result:', verification.verified);
-
     if (!verification.verified || !verification.registrationInfo) {
       return c.json({ error: 'Verification failed' }, 400);
     }
@@ -173,8 +158,6 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
     // SimpleWebAuthn v13: credential data is now nested under 'credential' object
     const { credential } = verification.registrationInfo;
     const { id: credentialID, publicKey: credentialPublicKey, counter, transports: credentialTransports } = credential;
-
-    console.log('[WebAuthn] Credential extracted successfully');
 
     // Store credential in database (use base64URL for v13 compatibility)
     const credentialId = uint8ArrayToBase64URL(credentialID);
@@ -201,9 +184,7 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
       deviceName: deviceName.trim(),
     });
   } catch (error) {
-    console.error('[WebAuthn] Register verify error:', error);
-    console.error('[WebAuthn] Error stack:', error instanceof Error ? error.stack : 'No stack');
-    console.error('[WebAuthn] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[WebAuthn] Register verify error:', error instanceof Error ? error.message : String(error));
     return c.json({
       error: 'Failed to verify registration',
       details: error instanceof Error ? error.message : String(error)
@@ -219,7 +200,6 @@ webauthnRoutes.post('/register-verify', requireAuth(), requireAdmin(), async (c)
 webauthnRoutes.post('/login-challenge', async (c) => {
   try {
     const { email } = await c.req.json<{ email: string }>();
-    console.log('[WebAuthn Login] Challenge requested for email:', email);
 
     if (!email) {
       return c.json({ error: 'Email is required' }, 400);
@@ -230,8 +210,6 @@ webauthnRoutes.post('/login-challenge', async (c) => {
       'SELECT id, email, role FROM users WHERE email = ?'
     ).bind(email).first();
 
-    console.log('[WebAuthn Login] User found:', !!userRow);
-
     if (!userRow) {
       return c.json({ error: 'User not found' }, 404);
     }
@@ -241,29 +219,19 @@ webauthnRoutes.post('/login-challenge', async (c) => {
       'SELECT credential_id, transports FROM webauthn_credentials WHERE user_id = ?'
     ).bind(userRow.id).all();
 
-    console.log('[WebAuthn Login] Credentials found:', creds.results.length);
-    console.log('[WebAuthn Login] First credential:', creds.results[0]);
-
     if (creds.results.length === 0) {
       return c.json({ error: 'No devices registered for this user' }, 404);
     }
-
-    console.log('[WebAuthn Login] Generating authentication options...');
-    console.log('[WebAuthn Login] credential_id type:', typeof creds.results[0].credential_id);
-    console.log('[WebAuthn Login] credential_id value:', JSON.stringify(creds.results[0].credential_id));
 
     const options = await generateAuthenticationOptions({
       rpID: RP_ID,
       allowCredentials: creds.results.map((cred: any) => {
         const credId = String(cred.credential_id);
-        console.log('[WebAuthn Login] Processing credential:', credId);
 
         // Convert standard base64 to base64URL if needed (for backwards compatibility)
         const base64URLId = credId.includes('+') || credId.includes('/') || credId.includes('=')
           ? uint8ArrayToBase64URL(base64ToUint8Array(credId))
           : credId;
-
-        console.log('[WebAuthn Login] Converted to base64URL:', base64URLId);
 
         return {
           id: base64URLId,  // v13 expects base64URL string, not Uint8Array
@@ -274,8 +242,6 @@ webauthnRoutes.post('/login-challenge', async (c) => {
       userVerification: 'preferred',
     });
 
-    console.log('[WebAuthn Login] Authentication options generated successfully');
-
     // Store challenge in KV (expires in 5 minutes)
     await c.env.KV.put(
       `webauthn:auth:${email}`,
@@ -285,9 +251,7 @@ webauthnRoutes.post('/login-challenge', async (c) => {
 
     return c.json(options);
   } catch (error) {
-    console.error('[WebAuthn Login] Challenge error:', error);
-    console.error('[WebAuthn Login] Error stack:', error instanceof Error ? error.stack : 'No stack');
-    console.error('[WebAuthn Login] Error message:', error instanceof Error ? error.message : String(error));
+    console.error('[WebAuthn Login] Challenge error:', error instanceof Error ? error.message : String(error));
     return c.json({
       error: 'Failed to generate login challenge',
       details: error instanceof Error ? error.message : String(error)

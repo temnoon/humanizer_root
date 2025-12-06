@@ -11,18 +11,20 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@humanizer/studio-tools": "file:../shared/studio-tools",
     "@solidjs/router": "^0.15.4",
-    "diff": "^5.1.0",
-    "katex": "^0.16.9",
-    "marked": "^11.0.0",
-    "solid-js": "^1.8.0"
+    "diff": "^8.0.2",
+    "katex": "^0.16.25",
+    "marked": "^17.0.1",
+    "solid-js": "^1.9.10"
   },
   "devDependencies": {
     "@types/katex": "^0.16.7",
-    "@types/node": "^20.10.0",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.10",
-    "vite-plugin-solid": "^2.8.2",
-    "wrangler": "^3.19.0"
+    "@types/node": "^24.10.1",
+    "sass": "^1.94.2",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4",
+    "vite-plugin-solid": "^2.11.10",
+    "wrangler": "^4.51.0"
   }
 }

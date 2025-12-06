@@ -6,7 +6,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { Conversation, Message, MessageAuthor, MessageContent, MessageAttachment } from './types';
+import type { Conversation, Message, MessageAuthor, MessageContent, MessageAttachment } from './types';
 import { readJSON, findFiles } from './utils';
 
 /**

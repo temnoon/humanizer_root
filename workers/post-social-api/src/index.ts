@@ -17,6 +17,7 @@ import curatorRoutes from './routes/curator';
 import curatorAgentRoutes from './routes/curator-agent';
 import curatorPyramidRoutes from './routes/curator-pyramid';
 import workingTextRoutes from './routes/working-text';
+import nodeAdminRoutes from './routes/node-admin';
 import { validateConfig } from './config/ai-models';
 
 // Environment bindings type
@@ -123,6 +124,9 @@ app.route('/api/curator-pyramid', curatorPyramidRoutes);
 
 // API routes - Working Text (Gutenberg text reformatting)
 app.route('/api/working-text', workingTextRoutes);
+
+// API routes - Node Admin (Rebuild pipeline, health checks)
+app.route('/api/admin/node', nodeAdminRoutes);
 
 // 404 handler
 app.notFound((c) => {

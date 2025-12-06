@@ -11,7 +11,7 @@ import { ClaudeParser } from './ClaudeParser';
 import { FacebookParser } from './FacebookParser';
 import { ComprehensiveMediaIndexer } from './ComprehensiveMediaIndexer';
 import { ComprehensiveMediaMatcher } from './ComprehensiveMediaMatcher';
-import { ParsedArchive, Conversation, ExportFormat } from './types';
+import type { ParsedArchive, Conversation, ExportFormat } from './types';
 import { extractZip, ensureDir, generateId } from './utils';
 
 export class ConversationParser {

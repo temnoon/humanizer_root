@@ -3,6 +3,7 @@ import { Icons } from './Icons';
 import { ThemeToggle } from './ThemeToggle';
 import { TextSizeControl } from './TextSizeControl';
 import { ProviderSwitcher } from './ProviderSwitcher';
+import { BookSelector } from './BookSelector';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Narrative, WorkspaceMode } from '../../types';
 
@@ -16,6 +17,8 @@ interface TopBarProps {
   toolsOpen: boolean;
   viewPreference: 'split' | 'tabs';
   workspaceMode: WorkspaceMode;
+  useStudioTools?: boolean;
+  onToggleStudioTools?: () => void;
 }
 
 export function TopBar({
@@ -28,6 +31,8 @@ export function TopBar({
   toolsOpen,
   viewPreference,
   workspaceMode,
+  useStudioTools,
+  onToggleStudioTools,
 }: TopBarProps) {
   const { user, logout } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -39,7 +44,7 @@ export function TopBar({
 
   return (
     <header
-      className="h-16 flex items-center justify-between sticky top-0 z-50"
+      className="h-16 flex items-center justify-between sticky top-0 z-[60]"
       style={{
         backgroundColor: 'var(--bg-elevated)',
         borderBottom: '1px solid var(--border-color)',
@@ -68,9 +73,9 @@ export function TopBar({
         </h1>
       </div>
 
-      {/* Center: Empty space for future content (menus, quotes, subtitle, etc.) */}
+      {/* Center: Active Book Selector */}
       <div className="hidden md:block">
-        {/* Placeholder for future content */}
+        <BookSelector />
       </div>
 
       {/* Right: User menu + Tools button + Theme toggle */}
@@ -171,6 +176,23 @@ export function TopBar({
             title={viewPreference === 'split' ? 'Switch to tabs' : 'Switch to split view'}
           >
             {viewPreference === 'split' ? <Icons.Tabs /> : <Icons.Split />}
+          </button>
+        )}
+
+        {/* Studio Tools Mode Toggle */}
+        {onToggleStudioTools && (
+          <button
+            onClick={onToggleStudioTools}
+            className="ui-text px-2 py-1 rounded-md transition-smooth hover:opacity-70 text-xs font-medium"
+            style={{
+              backgroundImage: useStudioTools ? 'var(--accent-primary-gradient)' : 'none',
+              backgroundColor: useStudioTools ? 'transparent' : 'var(--bg-secondary)',
+              color: useStudioTools ? 'var(--text-inverse)' : 'var(--text-tertiary)',
+            }}
+            aria-label="Toggle studio tools mode"
+            title={useStudioTools ? 'Using Studio Tools (click for Classic)' : 'Using Classic Tools (click for Studio)'}
+          >
+            {useStudioTools ? 'Studio' : 'Classic'}
           </button>
         )}
 

@@ -55,10 +55,8 @@ quantumAnalysisRoutes.post('/start', async (c) => {
   try {
     const auth = getAuthContext(c);
     const userId = auth.userId;
-    console.log('User ID:', userId);
 
     const body = await c.req.json();
-    console.log('Request body:', body);
     const { text } = body;
 
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
@@ -66,24 +64,17 @@ quantumAnalysisRoutes.post('/start', async (c) => {
     }
 
     // Split text into sentences
-    console.log('Splitting text into sentences...');
     const sentences = splitIntoSentences(text);
-    console.log('Sentences found:', sentences.length);
 
     if (sentences.length === 0) {
       return c.json({ error: 'Could not parse any sentences from text' }, 400);
     }
 
     // Create maximally-mixed initial density matrix (ρ₀)
-    console.log('Creating initial density matrix...');
     const initialRho = createMaximallyMixedState();
-    console.log('Initial rho created, purity:', initialRho.purity);
-
     const sessionId = uuidv4();
-    console.log('Session ID:', sessionId);
 
     // Store session in D1
-    console.log('Storing session in D1...');
     await c.env.DB.prepare(`
       INSERT INTO quantum_analysis_sessions
       (id, user_id, text, total_sentences, current_sentence, initial_rho_json, current_rho_json)
@@ -98,8 +89,6 @@ quantumAnalysisRoutes.post('/start', async (c) => {
       serializeDensityMatrix(initialRho)
     ).run();
 
-    console.log('Session stored successfully');
-
     return c.json({
       session_id: sessionId,
       total_sentences: sentences.length,
@@ -111,9 +100,7 @@ quantumAnalysisRoutes.post('/start', async (c) => {
       }
     }, 201);
   } catch (error) {
-    console.error('Error in /start endpoint:', error);
-    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack');
-    console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error in quantum-analysis /start:', error instanceof Error ? error.message : String(error));
     return c.json({
       error: 'Failed to create session',
       details: error instanceof Error ? error.message : String(error)

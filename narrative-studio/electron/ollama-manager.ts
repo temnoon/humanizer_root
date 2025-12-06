@@ -154,8 +154,8 @@ export async function listModels(): Promise<OllamaModel[]> {
       return [];
     }
 
-    const data = await response.json();
-    return (data.models || []).map((model: any) => ({
+    const data = await response.json() as { models?: Array<{ name: string; size: number; modified_at: string; digest: string }> };
+    return (data.models || []).map((model) => ({
       name: model.name,
       size: model.size,
       modified: model.modified_at,
@@ -245,7 +245,7 @@ export async function generate(
     throw new Error(`Ollama generate failed: ${response.statusText}`);
   }
 
-  const data = await response.json();
+  const data = await response.json() as { response: string };
   return data.response;
 }
 

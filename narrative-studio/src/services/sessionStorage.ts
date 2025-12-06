@@ -44,13 +44,9 @@ class SessionStorageService {
   private readonly INITIAL_RETRY_DELAY = 1000; // 1 second
 
   constructor() {
-    // Detect environment
-    const isLocalhost = window.location.hostname === 'localhost' ||
-                       window.location.hostname === '127.0.0.1';
-
-    this.baseUrl = isLocalhost
-      ? `${STORAGE_PATHS.archiveServerUrl}${STORAGE_PATHS.sessionEndpoint}`
-      : '/api/sessions'; // Cloud endpoint
+    // Sessions always go through npe-api (D1 backed)
+    // This works consistently across local dev, cloud, and Electron
+    this.baseUrl = `${STORAGE_PATHS.npeApiUrl}${STORAGE_PATHS.sessionEndpoint}`;
   }
 
   /**

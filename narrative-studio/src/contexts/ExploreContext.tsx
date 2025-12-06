@@ -46,6 +46,8 @@ interface ExploreState {
   searchQuery: string;
   searchResults: SearchResult[];
   searchLoading: boolean;
+  searchSource: '' | 'openai' | 'facebook';
+  searchType: '' | 'post' | 'comment';
 
   // Clustering state
   clusters: Cluster[];
@@ -67,6 +69,8 @@ interface ExploreState {
 interface ExploreContextValue extends ExploreState {
   // Search actions
   setSearchQuery: (query: string) => void;
+  setSearchSource: (source: '' | 'openai' | 'facebook') => void;
+  setSearchType: (type: '' | 'post' | 'comment') => void;
   executeSearch: (query: string) => Promise<void>;
   clearSearch: () => void;
 
@@ -108,6 +112,8 @@ export function ExploreProvider({ children }: ExploreProviderProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [searchSource, setSearchSource] = useState<'' | 'openai' | 'facebook'>('');
+  const [searchType, setSearchType] = useState<'' | 'post' | 'comment'>('');
 
   // Clustering state
   const [clusters, setClusters] = useState<Cluster[]>([]);
@@ -137,15 +143,26 @@ export function ExploreProvider({ children }: ExploreProviderProps) {
 
     setSearchLoading(true);
     try {
-      const data = await embeddingService.searchMessages(query, 50);
-      setSearchResults(data.results);
+      // Use content search if source is specified, otherwise use message search
+      if (searchSource) {
+        const data = await embeddingService.searchContent({
+          query,
+          limit: 50,
+          source: searchSource,
+          type: searchType || undefined,
+        });
+        setSearchResults(data.results);
+      } else {
+        const data = await embeddingService.searchMessages(query, 50);
+        setSearchResults(data.results);
+      }
     } catch (err) {
       console.error('Search failed:', err);
       setSearchResults([]);
     } finally {
       setSearchLoading(false);
     }
-  }, []);
+  }, [searchSource, searchType]);
 
   const clearSearch = useCallback(() => {
     setSearchQuery('');
@@ -280,6 +297,8 @@ export function ExploreProvider({ children }: ExploreProviderProps) {
     searchQuery,
     searchResults,
     searchLoading,
+    searchSource,
+    searchType,
     clusters,
     clusteringJob,
     clusteringParams,
@@ -291,6 +310,8 @@ export function ExploreProvider({ children }: ExploreProviderProps) {
 
     // Actions
     setSearchQuery,
+    setSearchSource,
+    setSearchType,
     executeSearch,
     clearSearch,
     setClusteringParams,

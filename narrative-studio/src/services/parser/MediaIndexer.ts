@@ -4,7 +4,7 @@
 // Builds comprehensive indices of media files for matching
 
 import * as path from 'path';
-import { FileIndices, MediaFile } from './types';
+import type { FileIndices, MediaFile } from './types';
 import { findFiles, getFileSize, getFileExtension, hashFile, isMediaFile } from './utils';
 
 export class MediaIndexer {

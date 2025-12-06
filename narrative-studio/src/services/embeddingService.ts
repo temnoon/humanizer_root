@@ -5,7 +5,9 @@
  * clustering, and anchor management.
  */
 
-const BASE_URL = 'http://localhost:3002';
+import { STORAGE_PATHS } from '../config/storage-paths';
+
+const BASE_URL = STORAGE_PATHS.archiveServerUrl;
 
 export interface EmbeddingStatus {
   status: 'idle' | 'indexing' | 'error';
@@ -121,6 +123,24 @@ export const embeddingService = {
       body: JSON.stringify({ query, limit }),
     });
     if (!res.ok) throw new Error('Search failed');
+    return res.json();
+  },
+
+  /**
+   * Search content items (messages + Facebook posts/comments) by semantic meaning
+   */
+  async searchContent(params: {
+    query: string;
+    limit?: number;
+    source?: 'openai' | 'facebook';
+    type?: 'post' | 'comment';
+  }): Promise<{ results: any[] }> {
+    const res = await fetch(`${BASE_URL}/api/content/search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+    if (!res.ok) throw new Error('Content search failed');
     return res.json();
   },
 

@@ -9,16 +9,15 @@
  */
 
 import { Hono } from 'hono';
-import { requireAuth, getAuthContext } from '../../middleware/auth';
+import { requireAuth, getAuthContext, optionalLocalAuth } from '../../middleware/auth';
 import { NarrativeRepository } from '../../domain/narrative-repository';
 import { POVMService } from '../../domain/povm-service';
 import type { Env } from '../../../shared/types';
 
 export const rhoRoutes = new Hono<{ Bindings: Env }>();
 
-// TODO: Re-enable auth for production deployment
-// For local dev, auth is disabled to allow Workbench access
-// rhoRoutes.use('/*', requireAuth());
+// Use optionalLocalAuth for Workbench compatibility while requiring auth in production
+rhoRoutes.use('/*', optionalLocalAuth());
 
 /**
  * POST /rho/construct

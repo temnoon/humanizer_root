@@ -12,6 +12,7 @@
 import { Component, createSignal, Show } from 'solid-js';
 import { useParams, useNavigate, useSearchParams } from '@solidjs/router';
 import { authStore } from '@/stores/auth';
+import { toast } from '@/components/ui/Toast';
 import { nodesService } from '@/services/nodes';
 import { StudioLayout } from '@/components/studio/StudioLayout';
 import { ArchivePanel } from '@/components/studio/ArchivePanel';
@@ -69,7 +70,7 @@ export const NarrativeStudioPage: Component = () => {
     
     if (!token || !targetNodeId) {
       // TODO: Show node selection modal
-      alert('Please select a Node to publish to');
+      toast.warning('Please select a Node to publish to');
       return;
     }
     
@@ -89,7 +90,7 @@ export const NarrativeStudioPage: Component = () => {
       navigate(`/node/${params.nodeSlug || 'phenomenology'}/${narrative.slug}`);
     } catch (err) {
       console.error('Failed to publish:', err);
-      alert('Failed to publish narrative. Please try again.');
+      toast.error('Failed to publish narrative. Please try again.');
     } finally {
       setIsPublishing(false);
     }

@@ -1,5 +1,5 @@
-name = "narrative-studio"
+name = "humanizer-studio"
 compatibility_date = "2025-11-15"
 
-[site]
-bucket = "./dist"
+# Pages configuration
+pages_build_output_dir = "./dist"

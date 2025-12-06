@@ -11,6 +11,13 @@ import {
   addConversationalElements
 } from '../lib/text-naturalizer';
 import { extractVoiceProfile, applyVoiceProfile, type VoiceProfile } from '../lib/voice-profile';
+import {
+  insertBlockMarkers,
+  stripBlockMarkers,
+  hasBlockMarkers,
+  getBlockMarkerInstructions
+} from '../lib/block-markers';
+import { stripPreambles } from '../lib/strip-preambles';
 
 /**
  * Humanization intensity levels
@@ -106,17 +113,18 @@ export async function humanizeText(
   const baselineDetection = await detectAILocal(trimmedText);
   stage1Time = Date.now() - stage1Start;
 
-  console.log('[Computer Humanizer] Stage 1: Analysis complete', {
-    confidence: baselineDetection.confidence,
-    burstiness: baselineDetection.signals.burstiness,
-    tellWords: baselineDetection.detectedTellWords.length
-  });
+  // ========================================
+  // FORMAT PRESERVATION: Add block markers
+  // ========================================
+  // Detect if input has markdown structure worth preserving
+  const hasMarkdownStructure = /^#+\s|^\s*[-*+]\s|^\s*\d+\.\s|^>/m.test(trimmedText);
+  const markedInput = hasMarkdownStructure ? insertBlockMarkers(trimmedText) : trimmedText;
 
   // ========================================
   // STAGE 2: Rule-Based Naturalizer (500ms)
   // ========================================
   const stage2Start = Date.now();
-  let naturalized = trimmedText;
+  let naturalized = markedInput;
 
   // Step 2.1: Enhance burstiness
   naturalized = enhanceBurstiness(
@@ -141,11 +149,6 @@ export async function humanizeText(
 
   stage2Time = Date.now() - stage2Start;
 
-  console.log('[Computer Humanizer] Stage 2: Naturalizer complete', {
-    lengthChange: naturalized.length - trimmedText.length,
-    intensity: options.intensity
-  });
-
   // ========================================
   // STAGE 3: User Voice Matching (1-2s)
   // ========================================
@@ -158,17 +161,9 @@ export async function humanizeText(
       voiceProfile = extractVoiceProfile(options.voiceSamples);
       voiceMatched = applyVoiceProfile(naturalized, voiceProfile);
 
-      console.log('[Computer Humanizer] Stage 3: Voice profile applied', {
-        sampleCount: options.voiceSamples.length,
-        avgSentenceLength: voiceProfile.avgSentenceLength,
-        formalityScore: voiceProfile.formalityScore
-      });
     } catch (error) {
-      console.warn('[Computer Humanizer] Stage 3: Voice profile extraction failed', error);
       // Continue without voice matching
     }
-  } else {
-    console.log('[Computer Humanizer] Stage 3: Skipped (no voice samples)');
   }
 
   stage3Time = Date.now() - stage3Start;
@@ -183,15 +178,9 @@ export async function humanizeText(
     try {
       polished = await llmPolishPass(env, voiceMatched);
 
-      console.log('[Computer Humanizer] Stage 4: LLM polish complete', {
-        lengthChange: polished.length - voiceMatched.length
-      });
     } catch (error) {
-      console.warn('[Computer Humanizer] Stage 4: LLM polish failed', error);
       // Continue with naturalizer output
     }
-  } else {
-    console.log('[Computer Humanizer] Stage 4: Skipped (LLM polish disabled)');
   }
 
   stage4Time = Date.now() - stage4Start;
@@ -203,12 +192,6 @@ export async function humanizeText(
   const finalDetection = await detectAILocal(polished);
   stage5Time = Date.now() - stage5Start;
 
-  console.log('[Computer Humanizer] Stage 5: Validation complete', {
-    confidence: finalDetection.confidence,
-    burstiness: finalDetection.signals.burstiness,
-    tellWords: finalDetection.detectedTellWords.length
-  });
-
   // Calculate improvement metrics
   const improvement = {
     aiConfidenceDrop: baselineDetection.confidence - finalDetection.confidence,
@@ -219,15 +202,15 @@ export async function humanizeText(
 
   const totalTime = Date.now() - totalStartTime;
 
-  console.log('[Computer Humanizer] Pipeline complete', {
-    aiConfidenceDrop: improvement.aiConfidenceDrop,
-    burstinessIncrease: improvement.burstinessIncrease,
-    tellWordsRemoved: improvement.tellWordsRemoved,
-    totalTimeMs: totalTime
-  });
+  // ========================================
+  // FORMAT PRESERVATION: Strip block markers
+  // ========================================
+  const finalText = hasMarkdownStructure && hasBlockMarkers(polished)
+    ? stripBlockMarkers(polished)
+    : polished;
 
   return {
-    humanizedText: polished,
+    humanizedText: finalText,
     baseline: {
       detection: baselineDetection
     },
@@ -260,7 +243,13 @@ export async function humanizeText(
 async function llmPolishPass(env: Env, text: string): Promise<string> {
   // Use Workers AI Llama 70b (Claude not available on Cloudflare Workers AI)
   const wordCount = text.split(/\s+/).length;
-  const prompt = `Make this text sound natural and conversational, like a real person wrote it. Use simpler words. Remove any remaining formal or robotic language. Keep it around ${wordCount} words (±10%). Don't add new facts or explanations. Return ONLY the polished text.
+  const hasMarkers = hasBlockMarkers(text);
+
+  // Include block marker instructions if text has markers
+  const markerInstructions = hasMarkers ? `\n\n${getBlockMarkerInstructions()}\n` : '';
+
+  const prompt = `Make this text sound natural and conversational, like a real person wrote it. Use simpler words. Remove any remaining formal or robotic language. Keep it around ${wordCount} words (±10%). Don't add new facts or explanations.${markerInstructions}
+Return ONLY the polished text.
 
 Text:
 ${text}
@@ -274,14 +263,16 @@ Polished:`;
       temperature: 0.7
     });
 
-    const polished = (response as any).response?.trim() || text;
+    const rawResponse = (response as any).response?.trim() || text;
+
+    // Strip any preambles like "Here's the rewritten text:"
+    const polished = stripPreambles(rawResponse);
 
     // Safety check: If LLM reintroduced tell-words, return unpolished version
     const reintroducedDetection = await detectAILocal(polished);
     const originalDetection = await detectAILocal(text);
 
     if (reintroducedDetection.detectedTellWords.length > originalDetection.detectedTellWords.length) {
-      console.warn('[LLM Polish] Tell-words reintroduced, returning unpolished version');
       return text;
     }
 

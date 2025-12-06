@@ -1,0 +1,53 @@
+.panel-control {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 100;
+
+  width: 24px;
+  height: 64px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.panel-control:hover {
+  opacity: 1;
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+
+.panel-control.left {
+  right: -12px;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.panel-control.right {
+  left: -12px;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+/* When panel is collapsed */
+.panel-control.collapsed {
+  opacity: 0.8;
+}
+
+.panel-control.collapsed:hover {
+  opacity: 1;
+  background: var(--accent-primary);
+  color: white;
+}
+
+/* Focus mode hides controls */
+.layout.focus-mode .panel-control {
+  display: none;
+}

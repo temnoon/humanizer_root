@@ -7,7 +7,17 @@ import { ImageLightbox } from './ImageLightbox';
 import { SessionsView } from '../archive/SessionsView';
 import { ImportsView } from '../archive/ImportsView';
 import { ExploreView } from '../archive/ExploreView';
+import { FacebookFeedView } from '../archive/FacebookFeedView';
+import { BooksView } from '../archive/BooksView';
+import { BookStructureTree } from '../archive/BookStructureTree';
+import { ThisBookView } from '../archive/ThisBookView';
+import { PageEditorView } from '../archive/PageEditorView';
+import { useActiveBook } from '../../contexts/ActiveBookContext';
+import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
+import { STORAGE_PATHS } from '../../config/storage-paths';
 import type { Session } from '../../services/sessionStorage';
+
+const API_BASE = STORAGE_PATHS.archiveServerUrl;
 
 interface ArchivePanelProps {
   onSelectNarrative: (narrative: any) => void;
@@ -15,7 +25,7 @@ interface ArchivePanelProps {
   onClose: () => void;
 }
 
-type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions' | 'imports' | 'explore';
+type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions' | 'imports' | 'explore' | 'facebook' | 'books' | 'thisbook';
 type FilterCategory = 'date' | 'size' | 'media';
 
 interface ActiveFilters {
@@ -39,6 +49,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [conversations, setConversations] = useState<ConversationMetadata[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
   const [selectedMessageIndex, setSelectedMessageIndex] = useState<number | null>(null);
+  const [selectedFacebookItem, setSelectedFacebookItem] = useState<any | null>(null);
+  const [relatedFacebookItems, setRelatedFacebookItems] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>('conversations');
   const [conversationSearch, setConversationSearch] = useState('');
   const [messageSearch, setMessageSearch] = useState('');
@@ -51,6 +63,26 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [focusedIndex, setFocusedIndex] = useState<number>(0);
   const [sortDirection, setSortDirection] = useState<'ascending' | 'descending'>('descending');
 
+  // Book structure tree state
+  const [bookTreeCollapsed, setBookTreeCollapsed] = useState(() => {
+    const saved = localStorage.getItem('archive-book-tree-collapsed');
+    return saved === 'true';
+  });
+  const { activeBook, refreshActiveBook } = useActiveBook();
+
+  // Unified buffer for sending content to tools
+  const {
+    setWorkingBuffer,
+    createFromMessage,
+    createFromConversation,
+    createFromFacebookPost,
+    createFromMedia,
+    workingBuffer,
+  } = useUnifiedBuffer();
+
+  // Page editor state
+  const [editingPage, setEditingPage] = useState<{ bookId: string; pageId: string } | null>(null);
+
   // Gallery state
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
   const [galleryOffset, setGalleryOffset] = useState(0);
@@ -60,6 +92,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
   const [galleryFolder, setGalleryFolder] = useState<string | undefined>(undefined); // Filter gallery by conversation folder
   const [gallerySearch, setGallerySearch] = useState<string>(''); // Search query for gallery
+  const [gallerySource, setGallerySource] = useState<'openai' | 'facebook'>('openai'); // Source toggle for gallery
 
   // Current archive state
   const [currentArchiveName, setCurrentArchiveName] = useState<string>('');
@@ -67,6 +100,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
   const itemRefs = useRef<Map<number, HTMLElement>>(new Map());
   const prevViewModeRef = useRef<ViewMode>(viewMode);
+  const iconTabScrollRef = useRef<HTMLDivElement>(null);
 
   // Load state from localStorage on mount
   useEffect(() => {
@@ -97,6 +131,11 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [conversationSearch, messageSearch, activeFilters, recentSearches, sortDirection]);
 
+  // Persist book tree collapsed state
+  useEffect(() => {
+    localStorage.setItem('archive-book-tree-collapsed', String(bookTreeCollapsed));
+  }, [bookTreeCollapsed]);
+
   // Load conversations on mount
   useEffect(() => {
     if (isOpen) {
@@ -110,7 +149,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     try {
       // Fetch current archive info
       try {
-        const archiveRes = await fetch('http://localhost:3002/api/archives/current');
+        const archiveRes = await fetch(`${API_BASE}/api/archives/current`);
         if (archiveRes.ok) {
           const archiveInfo = await archiveRes.json();
           setCurrentArchiveName(archiveInfo.name || '');
@@ -138,6 +177,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     try {
       const conv = await archiveService.fetchConversation(folder);
       setSelectedConversation(conv);
+      setSelectedFacebookItem(null); // Clear any previous Facebook item
       setViewMode('messages');
       setMessageSearch(''); // Clear message search when entering conversation
       setSelectedMessageIndex(null);
@@ -159,6 +199,86 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     }
   };
 
+  const loadFacebookItem = async (item: any) => {
+    setSelectedFacebookItem(item);
+    setSelectedConversation(null); // Clear any previous conversation
+    setViewMode('messages');
+
+    // Build content with inline images
+    let content = item.text || '[No text content]';
+
+    // Parse media_refs and append markdown images
+    try {
+      const mediaRefs = item.media_refs ? JSON.parse(item.media_refs) : [];
+      if (mediaRefs.length > 0) {
+        content += '\n\n'; // Add spacing before images
+
+        // Add each image as markdown
+        mediaRefs.forEach((imagePath: string, index: number) => {
+          // Base64 encode the path for URL safety (browser-compatible)
+          const encodedPath = btoa(imagePath);
+          const imageUrl = `${API_BASE}/api/facebook/image?path=${encodedPath}`;
+
+          // Add markdown image syntax
+          content += `![Image ${index + 1}](${imageUrl})\n\n`;
+        });
+      }
+    } catch (e) {
+      console.error('Failed to parse media_refs:', e);
+    }
+
+    // Convert Facebook item to narrative format for transformation
+    const narrative = {
+      id: item.id,
+      title: item.title || `Facebook ${item.type}`,
+      content: content,
+      metadata: {
+        source: 'facebook',
+        type: item.type,
+        created_at: item.created_at,
+        author: item.author_name,
+        context: item.context,
+        media_count: item.media_count || 0,
+      },
+    };
+
+    onSelectNarrative(narrative);
+    console.log(`Loaded Facebook ${item.type}:`, item.id);
+
+    // Check if this item has media - if so, load related items from same day
+    const hasMedia = item.media_refs && JSON.parse(item.media_refs || '[]').length > 0;
+    if (hasMedia) {
+      await loadRelatedFacebookItems(item.created_at);
+    } else {
+      setRelatedFacebookItems([]);
+    }
+  };
+
+  // Load related Facebook items from the same day as the given timestamp
+  const loadRelatedFacebookItems = async (timestamp: number) => {
+    try {
+      const date = new Date(timestamp * 1000);
+      const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() / 1000;
+      const endOfDay = startOfDay + 86400; // +24 hours
+
+      const response = await fetch(`${API_BASE}/api/content/items?source=facebook&limit=100`);
+      const data = await response.json();
+
+      // Filter items from the same day, excluding the current item
+      const related = data.items.filter((item: any) =>
+        item.created_at >= startOfDay &&
+        item.created_at < endOfDay &&
+        item.id !== selectedFacebookItem?.id
+      );
+
+      setRelatedFacebookItems(related);
+      console.log(`Found ${related.length} related items from same day`);
+    } catch (err) {
+      console.error('Failed to load related Facebook items:', err);
+      setRelatedFacebookItems([]);
+    }
+  };
+
   // Load gallery images
   const loadGalleryImages = async (reset = false) => {
     if (galleryLoading) return;
@@ -167,19 +287,52 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     setError(null);
     try {
       const offset = reset ? 0 : galleryOffset;
-      const data = await galleryService.fetchImages(50, offset, galleryFolder, gallerySearch || undefined);
 
-      if (reset) {
-        setGalleryImages(data.images);
-        setGalleryOffset(data.limit);
+      if (gallerySource === 'facebook') {
+        // Load Facebook media
+        const params = new URLSearchParams({
+          limit: '50',
+          offset: offset.toString(),
+        });
+        const response = await fetch(`${API_BASE}/api/facebook/media?${params}`);
+        const data = await response.json();
+
+        // Convert Facebook media to GalleryImage format
+        const images: GalleryImage[] = data.media.map((m: any) => ({
+          url: `file://${m.url}`,
+          conversationTitle: m.postTitle || m.postText?.substring(0, 50) || 'Facebook Post',
+          conversationId: m.postId,
+          messageRole: m.postType,
+          timestamp: m.created_at,
+        }));
+
+        if (reset) {
+          setGalleryImages(images);
+          setGalleryOffset(50);
+        } else {
+          setGalleryImages(prev => [...prev, ...images]);
+          setGalleryOffset(prev => prev + 50);
+        }
+
+        setGalleryTotal(data.total);
+        setGalleryHasMore(data.hasMore);
+        console.log(`Loaded ${images.length} Facebook images`);
       } else {
-        setGalleryImages(prev => [...prev, ...data.images]);
-        setGalleryOffset(prev => prev + data.limit);
-      }
+        // Load OpenAI images
+        const data = await galleryService.fetchImages(50, offset, galleryFolder, gallerySearch || undefined);
 
-      setGalleryTotal(data.total);
-      setGalleryHasMore(data.hasMore);
-      console.log(`Loaded ${data.images.length} images (${data.offset}-${data.offset + data.images.length} of ${data.total})`);
+        if (reset) {
+          setGalleryImages(data.images);
+          setGalleryOffset(data.limit);
+        } else {
+          setGalleryImages(prev => [...prev, ...data.images]);
+          setGalleryOffset(prev => prev + data.limit);
+        }
+
+        setGalleryTotal(data.total);
+        setGalleryHasMore(data.hasMore);
+        console.log(`Loaded ${data.images.length} images (${data.offset}-${data.offset + data.images.length} of ${data.total})`);
+      }
     } catch (err: any) {
       setError(err.message);
       console.error('Failed to load gallery:', err);
@@ -195,12 +348,12 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     }
   }, [viewMode]);
 
-  // Reload gallery when filter or search changes
+  // Reload gallery when filter, search, or source changes
   useEffect(() => {
     if (viewMode === 'gallery') {
       loadGalleryImages(true);
     }
-  }, [galleryFolder, gallerySearch]);
+  }, [galleryFolder, gallerySearch, gallerySource]);
 
   // Listen for lightbox navigation events
   useEffect(() => {
@@ -326,6 +479,77 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       onSelectNarrative(narrative);
       console.log('Loaded full conversation to canvas');
     }
+  };
+
+  // ============================================================
+  // SEND TO BUFFER HANDLERS
+  // ============================================================
+
+  /** Send a single message to the unified buffer */
+  const sendMessageToBuffer = (index: number) => {
+    if (selectedConversation && selectedConversation.messages[index]) {
+      const message = selectedConversation.messages[index];
+      const bufferContent = createFromMessage(message, selectedConversation, index);
+      setWorkingBuffer(bufferContent);
+      console.log('[Buffer] Sent message to buffer:', bufferContent.displayName);
+    }
+  };
+
+  /** Send full conversation to the unified buffer */
+  const sendConversationToBuffer = () => {
+    if (selectedConversation) {
+      const bufferContent = createFromConversation(selectedConversation);
+      setWorkingBuffer(bufferContent);
+      console.log('[Buffer] Sent conversation to buffer:', bufferContent.displayName);
+    }
+  };
+
+  /** Send Facebook post/comment to the unified buffer */
+  const sendFacebookItemToBuffer = (item: any) => {
+    // Parse media refs if present
+    let mediaUrls: string[] = [];
+    try {
+      const mediaRefs = item.media_refs ? JSON.parse(item.media_refs) : [];
+      mediaUrls = mediaRefs.map((ref: any) => `${API_BASE}/media/${ref.path}`);
+    } catch (e) {
+      console.warn('Failed to parse media refs:', e);
+    }
+
+    // Parse comments if this is a post
+    let comments: any[] = [];
+    if (item.comments) {
+      try {
+        comments = typeof item.comments === 'string' ? JSON.parse(item.comments) : item.comments;
+      } catch (e) {
+        comments = [];
+      }
+    }
+
+    const bufferContent = createFromFacebookPost({
+      text: item.text || '',
+      timestamp: item.created_at ? item.created_at * 1000 : undefined,
+      author: item.author || 'Unknown',
+      postType: item.type === 'post' ? 'status' : undefined,
+      mediaUrls,
+      comments: comments.map((c: any) => ({
+        text: c.text || c.comment || '',
+        timestamp: c.timestamp ? c.timestamp * 1000 : undefined,
+        author: c.author || 'Unknown',
+      })),
+      location: item.place ? {
+        name: item.place.name,
+        city: item.place.city,
+      } : undefined,
+    });
+    setWorkingBuffer(bufferContent);
+    console.log('[Buffer] Sent Facebook item to buffer:', bufferContent.displayName);
+  };
+
+  /** Send gallery image to the unified buffer */
+  const sendImageToBuffer = (image: GalleryImage) => {
+    const bufferContent = createFromMedia(image);
+    setWorkingBuffer(bufferContent);
+    console.log('[Buffer] Sent image to buffer:', bufferContent.displayName);
   };
 
   // Categorize tags from conversations
@@ -465,13 +689,24 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     return sorted;
   }, [conversations, conversationSearch, activeFilters, sortDirection]);
 
-  // Filter messages
+  // Filter messages (works for both conversations and Facebook items)
   const filteredMessages = useMemo(() => {
-    if (!selectedConversation) return [];
-    return selectedConversation.messages.filter((msg) =>
-      !messageSearch || msg.content.toLowerCase().includes(messageSearch.toLowerCase())
-    );
-  }, [selectedConversation, messageSearch]);
+    if (selectedConversation && selectedConversation.messages) {
+      return selectedConversation.messages.filter((msg) =>
+        !messageSearch || msg.content.toLowerCase().includes(messageSearch.toLowerCase())
+      );
+    } else if (selectedFacebookItem) {
+      // Facebook items are single items, not conversations with multiple messages
+      // Just return a single "message" object
+      return [{
+        id: selectedFacebookItem.id,
+        role: selectedFacebookItem.type,
+        content: selectedFacebookItem.text || '[No text content]',
+        created_at: selectedFacebookItem.created_at,
+      }];
+    }
+    return [];
+  }, [selectedConversation, selectedFacebookItem, messageSearch]);
 
   // Format message content (handle DALL-E prompts)
   const formatMessageContent = (content: string): React.ReactElement | string => {
@@ -594,10 +829,106 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     prevViewModeRef.current = viewMode;
   }, [viewMode, selectedConversation, filteredConversations]);
 
+  // Tab list for navigation
+  const tabList = [
+    { id: 'conversations', icon: '📄', title: 'Archive' },
+    ...(activeBook ? [{ id: 'thisbook', icon: '📖', title: `This Book - "${activeBook.title}"` }] : []),
+    { id: 'sessions', icon: '📋', title: 'Sessions' },
+    { id: 'gallery', icon: '🖼️', title: 'Gallery' },
+    { id: 'imports', icon: '📥', title: 'Imports' },
+    { id: 'explore', icon: '🧭', title: 'Explore' },
+    { id: 'facebook', icon: '📘', title: 'Facebook' },
+    { id: 'books', icon: '📚', title: 'Books' },
+  ];
+
+  // Scroll selected tab into view
+  const scrollTabIntoView = (index: number) => {
+    const container = iconTabScrollRef.current;
+    if (!container) return;
+    const tabWidth = 38; // 34px button + 4px gap
+    const scrollTarget = index * tabWidth - container.clientWidth / 2 + tabWidth / 2;
+    container.scrollTo({ left: Math.max(0, scrollTarget), behavior: 'smooth' });
+  };
+
+  // Navigate to previous/next tab (like right pane does)
+  const navigatePrevTab = () => {
+    const currentIndex = tabList.findIndex(t => t.id === viewMode);
+    const prevIndex = currentIndex <= 0 ? tabList.length - 1 : currentIndex - 1;
+    setViewMode(tabList[prevIndex].id as ViewMode);
+    scrollTabIntoView(prevIndex);
+  };
+
+  const navigateNextTab = () => {
+    const currentIndex = tabList.findIndex(t => t.id === viewMode);
+    const nextIndex = currentIndex >= tabList.length - 1 ? 0 : currentIndex + 1;
+    setViewMode(tabList[nextIndex].id as ViewMode);
+    scrollTabIntoView(nextIndex);
+  };
+
+  // Determine which tab should appear selected (handle 'messages' view case)
+  const effectiveTabId = viewMode === 'messages'
+    ? (selectedFacebookItem ? 'facebook' : 'conversations')
+    : viewMode;
+
+  // Shared icon tab bar component - MUST be defined BEFORE early returns
+  const IconTabBar = () => (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px',
+        padding: '6px 8px',
+        borderBottom: '1px solid var(--border-color)',
+      }}
+    >
+      <button
+        onClick={navigatePrevTab}
+        style={{ width: '22px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '14px', fontWeight: 600, flexShrink: 0 }}
+        title="Previous tab"
+      >‹</button>
+      <div
+        ref={iconTabScrollRef}
+        style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', overflowX: 'auto', scrollbarWidth: 'none', flex: 1 }}
+      >
+        {tabList.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setViewMode(tab.id as ViewMode);
+              if (tab.id === 'conversations' && selectedConversation) {
+                const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
+                setFocusedIndex(idx !== -1 ? idx : 0);
+              }
+            }}
+            title={tab.title}
+            style={{
+              width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              backgroundColor: effectiveTabId === tab.id ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+              backgroundImage: effectiveTabId === tab.id ? 'var(--accent-primary-gradient)' : 'none',
+              border: effectiveTabId === tab.id ? '2px solid var(--accent-primary)' : '1px solid var(--border-color)',
+              borderRadius: 'var(--radius-sm)', color: effectiveTabId === tab.id ? 'var(--text-inverse)' : 'var(--text-primary)',
+              cursor: 'pointer', fontSize: '1.1rem', flexShrink: 0,
+            }}
+          >{tab.icon}</button>
+        ))}
+      </div>
+      <button
+        onClick={navigateNextTab}
+        style={{ width: '22px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '14px', fontWeight: 600, flexShrink: 0 }}
+        title="Next tab"
+      >›</button>
+    </div>
+  );
+
   if (!isOpen) return null;
 
-  // MESSAGES VIEW
-  if (viewMode === 'messages' && selectedConversation) {
+  // MESSAGES VIEW (for both conversations and Facebook items)
+  if (viewMode === 'messages' && (selectedConversation || selectedFacebookItem)) {
+    const isConversation = !!selectedConversation;
+    const title = isConversation
+      ? selectedConversation.title
+      : (selectedFacebookItem.title || `Facebook ${selectedFacebookItem.type}`);
+
     return (
       <>
         {/* Mobile backdrop */}
@@ -609,161 +940,103 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
         {/* Panel */}
         <aside
-          className="fixed top-16 left-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 overflow-y-auto panel"
+          className="fixed top-16 left-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 panel"
           style={{
             backgroundColor: 'var(--bg-panel)',
             borderRight: '1px solid var(--border-color)',
             borderRadius: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
           }}
         >
-          {/* Header */}
-          <div
-            className="panel-header"
-            style={{
-              padding: 'var(--space-lg)',
-              borderBottom: '1px solid var(--border-color)',
-            }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="heading-md" style={{ color: 'var(--text-primary)' }}>
-                Messages
-              </h2>
-              <button
-                onClick={onClose}
-                className="md:hidden p-2 rounded-md hover:opacity-70"
-                style={{
-                  color: 'var(--text-secondary)',
-                  backgroundColor: 'var(--bg-tertiary)',
-                }}
-              >
-                <Icons.Close />
-              </button>
+          {/* Header with title */}
+          <div style={{ padding: 'var(--space-md) var(--space-lg)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+            <div className="flex items-center justify-between">
+              <h2 className="heading-md" style={{ color: 'var(--text-primary)' }}>Archive</h2>
+              <button onClick={onClose} title="Collapse" style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontSize: '16px' }}>‹</button>
             </div>
+          </div>
 
+          {/* Icon Tab Bar */}
+          <IconTabBar />
+
+          {/* Messages header */}
+          <div style={{ padding: 'var(--space-md)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
             {/* Back button + Title */}
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-3">
               <button
                 onClick={() => {
-                  // Go back to conversations view
-                  setViewMode('conversations');
-                  // Restore focus to the selected conversation
-                  if (selectedConversation) {
-                    const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
-                    if (idx !== -1) {
-                      setFocusedIndex(idx);
+                  if (isConversation) {
+                    setViewMode('conversations');
+                    if (selectedConversation) {
+                      const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
+                      if (idx !== -1) setFocusedIndex(idx);
                     }
+                  } else {
+                    setViewMode('facebook');
+                    setSelectedFacebookItem(null);
                   }
                 }}
-                className="rounded-md transition-smooth hover:opacity-70 font-medium"
-                style={{
-                  backgroundColor: 'var(--bg-secondary)',
-                  color: 'var(--text-primary)',
-                  padding: 'var(--space-xs) var(--space-sm)',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                ← Back
-              </button>
-              <div className="flex-1 font-medium text-small line-clamp-1" style={{ color: 'var(--text-primary)' }}>
-                {selectedConversation.title}
-              </div>
+                style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem' }}
+              >← Back</button>
+              <div className="flex-1 font-medium text-small line-clamp-1" style={{ color: 'var(--text-primary)' }}>{title}</div>
             </div>
 
-            {/* Search */}
-            <div className="relative mb-4">
+            {/* Search - compact */}
+            <div className="relative mb-3">
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
+                <Icons.Search />
+              </div>
               <input
                 type="text"
                 value={currentSearchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onFocus={() => setShowRecentSearches(true)}
                 onBlur={() => setTimeout(() => setShowRecentSearches(false), 200)}
-                placeholder="Search messages..."
-                className="ui-text w-full"
+                placeholder="Search..."
                 style={{
-                  backgroundColor: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-primary)',
-                  paddingLeft: '2.75rem',
-                  paddingRight: currentSearchQuery ? '2.75rem' : '1rem',
+                  width: '100%', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+                  color: 'var(--text-primary)', paddingLeft: '2.5rem', paddingRight: currentSearchQuery ? '2.5rem' : '0.75rem',
+                  paddingTop: '0.5rem', paddingBottom: '0.5rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem',
                 }}
               />
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
-                <Icons.Search />
-              </div>
               {currentSearchQuery && (
-                <button
-                  onClick={() => handleSearchChange('')}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:opacity-70 transition-opacity"
-                  style={{ color: 'var(--text-tertiary)' }}
-                  title="Clear search"
-                  aria-label="Clear search"
-                >
+                <button onClick={() => handleSearchChange('')} className="absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}>
                   <Icons.Close />
                 </button>
               )}
-              {showRecentSearches && recentSearches.length > 0 && (
-                <div
-                  className="absolute top-full left-0 right-0 mt-1 rounded-md shadow-lg z-10 max-h-48 overflow-y-auto"
-                  style={{
-                    backgroundColor: 'var(--bg-elevated)',
-                    border: '1px solid var(--border-color)',
-                  }}
-                >
-                  {recentSearches.map((search, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => selectRecentSearch(search)}
-                      className="w-full text-left px-4 py-2 text-small hover:opacity-70"
-                      style={{
-                        color: 'var(--text-primary)',
-                        backgroundColor: idx === 0 ? 'var(--bg-tertiary)' : 'transparent',
-                      }}
-                    >
-                      <span style={{ display: 'inline-block', marginRight: '8px', color: 'var(--text-tertiary)' }}>
-                        <Icons.Search />
-                      </span>
-                      {search}
-                    </button>
-                  ))}
-                </div>
-              )}
             </div>
 
-            {/* Action buttons */}
-            <div className="flex items-center justify-between text-small" style={{ color: 'var(--text-secondary)' }}>
+            {/* Action row - compact */}
+            <div className="flex items-center justify-between" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
               <span>
-                {currentSearchQuery
-                  ? `${filteredMessages.length} of ${selectedConversation.messages.length}`
-                  : `${selectedConversation.messages.length} messages`}
+                {selectedConversation?.messages ? (
+                  currentSearchQuery ? `${filteredMessages.length}/${selectedConversation.messages.length}` : `${selectedConversation.messages.length} msgs`
+                ) : selectedFacebookItem ? 'Facebook' : ''}
               </span>
-              <button
-                onClick={loadFullConversationToCanvas}
-                className="font-medium rounded-md transition-smooth"
-                style={{
-                  backgroundImage: 'var(--accent-primary-gradient)',
-                  backgroundColor: 'transparent',
-                  color: 'var(--text-inverse)',
-                  padding: 'var(--space-xs) var(--space-sm)',
-                  fontSize: '0.8125rem',
-                }}
-              >
-                Load All →
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Load All button */}
+                <button
+                  onClick={loadFullConversationToCanvas}
+                  style={{
+                    backgroundImage: 'var(--accent-primary-gradient)', backgroundColor: 'transparent',
+                    color: 'var(--text-inverse)', padding: '4px 10px', fontSize: '0.75rem', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 600,
+                  }}
+                >Load All →</button>
+              </div>
             </div>
           </div>
 
           {/* Messages list */}
-          <div
-            className="overflow-y-auto"
-            style={{
-              height: 'calc(100% - 240px)',
-              padding: 'var(--space-md)',
-            }}
-          >
+          <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)', minHeight: 0 }}>
             <div className="space-y-2">
               {filteredMessages.map((msg, idx) => {
-                const originalIndex = selectedConversation.messages.findIndex(m => m.id === msg.id);
-                const isSelected = selectedMessageIndex === originalIndex;
+                const isFacebookItem = !!selectedFacebookItem;
+                const originalIndex = isFacebookItem
+                  ? 0
+                  : selectedConversation?.messages.findIndex(m => m.id === msg.id) ?? -1;
+                const isSelected = isFacebookItem || selectedMessageIndex === originalIndex;
                 const isFocused = focusedIndex === idx;
 
                 return (
@@ -773,7 +1046,12 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                       if (el) itemRefs.current.set(idx, el);
                       else itemRefs.current.delete(idx);
                     }}
-                    onClick={() => loadMessageToCanvas(originalIndex)}
+                    onClick={() => {
+                      if (!isFacebookItem) {
+                        loadMessageToCanvas(originalIndex);
+                      }
+                      // Facebook items are already loaded, no need to reload
+                    }}
                     className="card cursor-pointer transition-all"
                     style={{
                       ...(isSelected
@@ -801,6 +1079,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                             ? 'rgba(255, 255, 255, 0.25)'
                             : msg.role === 'user'
                             ? 'rgba(6, 182, 212, 0.2)'
+                            : isFacebookItem
+                            ? 'rgba(59, 130, 246, 0.2)'
                             : 'rgba(167, 139, 250, 0.2)',
                           color: isSelected
                             ? 'var(--text-inverse)'
@@ -812,11 +1092,16 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                           fontWeight: 600,
                         }}
                       >
+                        {isFacebookItem && '📘 '}
                         {msg.role.toUpperCase()}
                       </span>
-                      <span className="text-tiny" style={{ opacity: 0.75 }}>
-                        #{originalIndex + 1}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {!isFacebookItem && (
+                          <span className="text-tiny" style={{ opacity: 0.75 }}>
+                            #{originalIndex + 1}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="text-small line-clamp-3" style={{ opacity: isSelected ? 1 : 0.9 }}>
                       {formatMessageContent(msg.content)}
@@ -825,6 +1110,64 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 );
               })}
             </div>
+
+            {/* Related items from same day (for media items) */}
+            {selectedFacebookItem && relatedFacebookItems.length > 0 && (
+              <div style={{
+                marginTop: 'var(--space-lg)',
+                paddingTop: 'var(--space-md)',
+                borderTop: '1px solid var(--border-color)',
+              }}>
+                <h4 style={{
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  marginBottom: 'var(--space-sm)',
+                }}>
+                  Related Items from Same Day ({relatedFacebookItems.length})
+                </h4>
+                <div className="space-y-1">
+                  {relatedFacebookItems.slice(0, 10).map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => loadFacebookItem(item)}
+                      className="card cursor-pointer transition-all"
+                      style={{
+                        padding: 'var(--space-sm)',
+                        borderRadius: 'var(--radius-md)',
+                        border: '1px solid var(--border-color)',
+                      }}
+                    >
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 'var(--space-xs)',
+                        marginBottom: 'var(--space-xs)',
+                      }}>
+                        <span style={{
+                          fontSize: '0.625rem',
+                          fontWeight: 600,
+                          color: item.type === 'post' ? 'var(--accent-secondary)' : 'var(--accent-primary)',
+                        }}>
+                          {item.type === 'post' ? '📝 POST' : '💬 COMMENT'}
+                        </span>
+                        <span className="text-tiny" style={{ opacity: 0.75 }}>
+                          {new Date(item.created_at * 1000).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <div className="text-small line-clamp-2" style={{ opacity: 0.9 }}>
+                        {item.text || '[No text content]'}
+                      </div>
+                    </div>
+                  ))}
+                  {relatedFacebookItems.length > 10 && (
+                    <div className="text-tiny" style={{ color: 'var(--text-tertiary)', textAlign: 'center', paddingTop: 'var(--space-xs)' }}>
+                      +{relatedFacebookItems.length - 10} more items
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </aside>
       </>
@@ -844,88 +1187,77 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
         {/* Panel */}
         <aside
-          className="fixed top-16 left-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 overflow-y-auto panel"
+          className="fixed top-16 left-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 panel"
           style={{
             backgroundColor: 'var(--bg-panel)',
             borderRight: '1px solid var(--border-color)',
             borderRadius: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
           }}
         >
+          {/* Header with title */}
+          <div style={{ padding: 'var(--space-md) var(--space-lg)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+            <div className="flex items-center justify-between">
+              <h2 className="heading-md" style={{ color: 'var(--text-primary)' }}>Archive</h2>
+              <button onClick={onClose} title="Collapse" style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontSize: '16px' }}>‹</button>
+            </div>
+          </div>
+
+          {/* Icon Tab Bar */}
+          <IconTabBar />
+
           {/* Gallery content */}
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* Header */}
-            <div style={{ padding: 'var(--space-lg)', borderBottom: '1px solid var(--border-color)' }}>
-              <div className="flex items-center gap-2 mb-3">
-                {galleryFolder && (
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            {/* Gallery-specific header */}
+            <div style={{ padding: 'var(--space-md)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+              {/* Source Toggle - compact */}
+              {!galleryFolder && (
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
                   <button
-                    onClick={() => {
-                      setGalleryFolder(undefined);
-                      setGallerySearch('');
+                    onClick={() => setGallerySource('openai')}
+                    style={{
+                      padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border-color)',
+                      backgroundColor: gallerySource === 'openai' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                      color: gallerySource === 'openai' ? 'white' : 'var(--text-primary)',
+                      cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
                     }}
-                    className="p-1 rounded hover:opacity-70 transition-opacity"
-                    style={{ color: 'var(--text-secondary)' }}
-                    title="Back to all images"
-                    aria-label="Back to all images"
-                  >
-                    <Icons.ArrowLeft />
-                  </button>
-                )}
-                <button
-                  onClick={() => {
-                    setViewMode('conversations');
-                    // Restore focus to selected conversation
-                    if (selectedConversation) {
-                      const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
-                      setFocusedIndex(idx !== -1 ? idx : 0);
-                    }
-                  }}
-                  className="p-1 rounded hover:opacity-70 transition-opacity"
-                  style={{ color: 'var(--text-secondary)' }}
-                  title="Back to conversations"
-                  aria-label="Back to conversations"
-                >
-                  <Icons.Archive />
-                </button>
-                <h3 className="heading-sm flex-1" style={{ color: 'var(--text-primary)' }}>
-                  {galleryFolder ? (
-                    galleryImages[0]?.conversationTitle || 'Conversation Gallery'
-                  ) : (
-                    'Media Gallery'
-                  )}
-                </h3>
-              </div>
-              <div className="text-small mb-3" style={{ color: 'var(--text-secondary)' }}>
+                  >OpenAI</button>
+                  <button
+                    onClick={() => setGallerySource('facebook')}
+                    style={{
+                      padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border-color)',
+                      backgroundColor: gallerySource === 'facebook' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                      color: gallerySource === 'facebook' ? 'white' : 'var(--text-primary)',
+                      cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
+                    }}
+                  >📘 Facebook</button>
+                </div>
+              )}
+
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
                 {galleryTotal.toLocaleString()} images • {galleryImages.length} loaded
               </div>
-              {/* Gallery search */}
+
+              {/* Gallery search - compact */}
               <div className="relative">
                 <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
                   <Icons.Search />
                 </div>
                 <input
                   type="text"
-                  placeholder="Search images..."
+                  placeholder="Search..."
                   value={gallerySearch}
                   onChange={(e) => setGallerySearch(e.target.value)}
-                  className="w-full text-body rounded-md focus:outline-none focus:ring-2 transition-all"
                   style={{
-                    backgroundColor: 'var(--bg-secondary)',
-                    border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)',
-                    paddingLeft: '2.75rem',
-                    paddingRight: gallerySearch ? '2.75rem' : '1rem',
-                    paddingTop: '0.625rem',
-                    paddingBottom: '0.625rem',
+                    width: '100%', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+                    color: 'var(--text-primary)', paddingLeft: '2.5rem', paddingRight: gallerySearch ? '2.5rem' : '0.75rem',
+                    paddingTop: '0.5rem', paddingBottom: '0.5rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem',
                   }}
                 />
                 {gallerySearch && (
-                  <button
-                    onClick={() => setGallerySearch('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:opacity-70 transition-opacity"
-                    style={{ color: 'var(--text-tertiary)' }}
-                    title="Clear search"
-                    aria-label="Clear search"
-                  >
+                  <button onClick={() => setGallerySearch('')} className="absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}>
                     <Icons.Close />
                   </button>
                 )}
@@ -933,7 +1265,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             </div>
 
             {/* Gallery grid */}
-            <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)' }}>
+            <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)', minHeight: 0 }}>
               {galleryLoading && galleryImages.length === 0 ? (
                 <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: 'var(--space-xl)' }}>
                   Loading images...
@@ -1083,56 +1415,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             </button>
           </div>
 
-          {/* View Mode Tabs */}
-          <div className="tab-bar">
-            <button
-              onClick={() => {
-                setViewMode('conversations');
-                // Restore focus to selected conversation when returning from other tabs
-                if (selectedConversation) {
-                  const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
-                  setFocusedIndex(idx !== -1 ? idx : 0);
-                }
-              }}
-              className={`tab ${viewMode === 'conversations' ? 'tab-active' : ''}`}
-              title="Browse conversation archive"
-            >
-              <span>📄</span>
-              <span className="tab-text">Archive</span>
-            </button>
-            <button
-              onClick={() => setViewMode('sessions')}
-              className={`tab ${viewMode === 'sessions' ? 'tab-active' : ''}`}
-              title="Manage transformation sessions"
-            >
-              <span>📋</span>
-              <span className="tab-text">Sessions</span>
-            </button>
-            <button
-              onClick={() => setViewMode('gallery')}
-              className={`tab ${viewMode === 'gallery' ? 'tab-active' : ''}`}
-              title="View image gallery"
-            >
-              <span>🖼️</span>
-              <span className="tab-text">Gallery</span>
-            </button>
-            <button
-              onClick={() => setViewMode('imports')}
-              className={`tab ${viewMode === 'imports' ? 'tab-active' : ''}`}
-              title="Import conversation archives"
-            >
-              <span>📥</span>
-              <span className="tab-text">Imports</span>
-            </button>
-            <button
-              onClick={() => setViewMode('explore')}
-              className={`tab ${viewMode === 'explore' ? 'tab-active' : ''}`}
-              title="Semantic search and clustering"
-            >
-              <span>🧭</span>
-              <span className="tab-text">Explore</span>
-            </button>
-          </div>
+          {/* Icon Tab Bar */}
+          <IconTabBar />
 
           {/* Conversations View - Header Content */}
           {viewMode === 'conversations' && (
@@ -1384,6 +1668,65 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           </div>
         )}
 
+        {/* Facebook View - posts and comments feed */}
+        {viewMode === 'facebook' && (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            <FacebookFeedView onSelectItem={loadFacebookItem} />
+          </div>
+        )}
+
+        {/* Books View - bookmaking tool */}
+        {viewMode === 'books' && (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            <BooksView
+              onSelectContent={(content, metadata) => {
+                // Convert book page to narrative format for transformation
+                const narrative = {
+                  id: `book-${metadata.pageId}`,
+                  title: `${metadata.bookTitle} - Page`,
+                  content: content,
+                  metadata: metadata,
+                };
+                onSelectNarrative(narrative);
+              }}
+            />
+          </div>
+        )}
+
+        {/* This Book View - browse active book pages as source */}
+        {viewMode === 'thisbook' && (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <ThisBookView
+              onSelectPage={(content, metadata) => {
+                // Convert book page to narrative format for transformation
+                const narrative = {
+                  id: `book-${metadata.pageId}`,
+                  title: `${metadata.bookTitle} - ${metadata.chapterTitle}`,
+                  content: content,
+                  metadata: metadata,
+                };
+                onSelectNarrative(narrative);
+              }}
+            />
+          </div>
+        )}
+
         {/* Conversations list - outside header for proper scrolling */}
         {viewMode === 'conversations' && (
           <div
@@ -1499,7 +1842,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                               }),
                           color: isSelected ? 'var(--text-inverse)' : 'var(--text-primary)',
                           padding: 'var(--space-sm)',
-                          paddingRight: hasImages ? '3rem' : 'var(--space-sm)',
+                          paddingRight: (hasImages || activeBook) ? '3rem' : 'var(--space-sm)',
                           border: `2px solid ${isFocused ? 'var(--accent-primary)' : 'transparent'}`,
                         }}
                       >
@@ -1546,11 +1889,99 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                           <Icons.Image />
                         </button>
                       )}
+                      {activeBook && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // Load conversation and navigate to "This Book" tab with add dialog
+                            loadConversation(conv.folder).then(() => {
+                              setViewMode('thisbook');
+                            });
+                          }}
+                          className="absolute right-2 p-2 rounded-md transition-all hover:opacity-70"
+                          style={{
+                            top: hasImages ? '2.5rem' : '0.5rem',
+                            color: isSelected ? 'var(--text-inverse)' : 'var(--accent-primary)',
+                            backgroundColor: isSelected ? 'rgba(255, 255, 255, 0.15)' : 'var(--bg-secondary)',
+                            fontSize: '0.875rem',
+                          }}
+                          title={`Quick add to "${activeBook.title}"`}
+                          aria-label="Add to book"
+                        >
+                          📖+
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Book Structure Tree - shows at bottom when active book exists */}
+        {activeBook && (
+          <div
+            style={{
+              flexShrink: 0,
+              maxHeight: bookTreeCollapsed ? 'auto' : '40%',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <BookStructureTree
+              collapsed={bookTreeCollapsed}
+              onToggleCollapse={() => setBookTreeCollapsed(!bookTreeCollapsed)}
+              onSelectPage={async (pageId, bookId) => {
+                // Load page as narrative for transformation
+                try {
+                  const { booksService } = await import('../../services/booksService');
+                  const page = await booksService.getPage(bookId, pageId);
+                  const narrative = {
+                    id: `book-page-${pageId}`,
+                    title: `Page from ${activeBook.title}`,
+                    content: page.content,
+                    metadata: {
+                      source: 'book',
+                      bookId,
+                      pageId,
+                      bookTitle: activeBook.title,
+                    },
+                  };
+                  onSelectNarrative(narrative);
+                } catch (err) {
+                  console.error('Failed to load page:', err);
+                }
+              }}
+              onEditPage={(pageId, bookId) => {
+                setEditingPage({ bookId, pageId });
+              }}
+            />
+          </div>
+        )}
+
+        {/* Page Editor Modal */}
+        {editingPage && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'var(--bg-panel)',
+              zIndex: 100,
+            }}
+          >
+            <PageEditorView
+              bookId={editingPage.bookId}
+              pageId={editingPage.pageId}
+              onClose={() => setEditingPage(null)}
+              onSaved={() => {
+                refreshActiveBook();
+              }}
+            />
           </div>
         )}
       </aside>

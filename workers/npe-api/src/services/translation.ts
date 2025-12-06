@@ -89,7 +89,6 @@ export class TranslationService {
     // Use roundTrip model config (same multilingual requirements)
     this.modelId = getModelForUseCase('roundTrip', environment);
 
-    console.log(`[Translation] Environment: ${environment}, Model: ${this.modelId}`);
   }
 
   /**
@@ -166,7 +165,6 @@ export class TranslationService {
       remaining = remaining.substring(breakPoint).trim();
     }
 
-    console.log(`[Translation] Split text into ${chunks.length} chunks (${text.length} chars total)`);
     return chunks;
   }
 
@@ -280,7 +278,6 @@ JSON response:`;
       const detection = await this.detectLanguage(text);
       actualSourceLanguage = detection.language;
       detectedLanguage = true;
-      console.log(`[Translation] Auto-detected language: ${actualSourceLanguage} (confidence: ${detection.confidence})`);
     }
 
     // Normalize target language
@@ -321,11 +318,9 @@ JSON response:`;
         );
       } else {
         // Multiple chunks - translate each and combine
-        console.log(`[Translation] Translating ${chunks.length} chunks...`);
         const translatedChunks: string[] = [];
 
         for (let i = 0; i < chunks.length; i++) {
-          console.log(`[Translation] Chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`);
           const translated = await this.translateChunk(
             chunks[i],
             actualSourceLanguage,

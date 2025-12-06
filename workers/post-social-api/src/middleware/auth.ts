@@ -59,8 +59,7 @@ export function requireAuth(options: RequireAuthOptions = {}) {
     // Check role if required
     if (options.roles && options.roles.length > 0) {
       if (!options.roles.includes(authContext.role)) {
-        console.log(`[AUTH] Role check failed: user has '${authContext.role}', needs one of: ${options.roles.join(', ')}`);
-        return c.json({ 
+        return c.json({
           error: 'Insufficient permissions',
           required: options.roles,
           current: authContext.role,
@@ -108,7 +107,6 @@ export function optionalLocalAuth() {
                       c.env.ENVIRONMENT === 'development';
 
     if (isLocalDev) {
-      console.log('[AUTH] Local dev mode - using test user');
       c.set('auth', {
         userId: 'test-user-local',
         email: 'local@test.com',

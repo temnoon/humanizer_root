@@ -30,6 +30,7 @@ export type TransformationType =
   | 'allegorical'
   | 'persona'
   | 'style'
+  | 'namespace'
   | 'ai-detection'
   | 'round-trip';
 
@@ -97,6 +98,7 @@ export interface TransformMetadata {
     burstiness: number;
     perplexity: number;
     reasoning: string;
+    highlightedMarkdown?: string; // Markdown with AI-detected sections highlighted
     method?: 'lite' | 'gptzero'; // Which detector was used
     // GPTZero Premium fields:
     highlightedSentences?: string[]; // AI-flagged sentences

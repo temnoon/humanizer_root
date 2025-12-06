@@ -101,22 +101,22 @@
 }
 
 .comment-status.success {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(var(--color-success-rgb, 16, 185, 129), 0.15);
   color: var(--success-color, #10b981);
 }
 
 .comment-status.error {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(var(--color-error-rgb, 239, 68, 68), 0.15);
   color: var(--error-color, #ef4444);
 }
 
 .comment-status.pending {
-  background: rgba(245, 158, 11, 0.15);
+  background: rgba(var(--color-warning-rgb, 245, 158, 11), 0.15);
   color: var(--warning-color, #f59e0b);
 }
 
 .comment-status.synthesized {
-  background: rgba(139, 92, 246, 0.15);
+  background: rgba(var(--color-accent-rgb, 139, 92, 246), 0.15);
   color: var(--accent-color, #8b5cf6);
 }
 
@@ -162,12 +162,12 @@
 }
 
 .eval-synth.yes {
-  background: rgba(16, 185, 129, 0.15);
+  background: rgba(var(--color-success-rgb, 16, 185, 129), 0.15);
   color: var(--success-color, #10b981);
 }
 
 .eval-synth.no {
-  background: rgba(239, 68, 68, 0.15);
+  background: rgba(var(--color-error-rgb, 239, 68, 68), 0.15);
   color: var(--error-color, #ef4444);
 }
 
@@ -251,7 +251,7 @@
 
 .curator-perspective {
   padding: 8px 12px;
-  background: rgba(139, 92, 246, 0.1);
+  background: rgba(var(--color-accent-rgb, 139, 92, 246), 0.1);
   border-top: 1px dashed var(--border-color);
   font-size: 0.8rem;
   color: var(--text-secondary);
@@ -295,7 +295,7 @@
 .add-comment-btn:hover {
   border-color: var(--accent-color);
   color: var(--accent-color);
-  background: rgba(139, 92, 246, 0.05);
+  background: rgba(var(--color-accent-rgb, 139, 92, 246), 0.05);
 }
 
 /* Comment Form Enhancement */

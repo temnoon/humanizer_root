@@ -1,0 +1,586 @@
+ Here is Claude's plan:
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Comprehensive Architecture Remediation Plan
+
+ Date: December 6, 2025
+ Scope: Unified output filtering, simplified buffer flow, model-specific vetting profiles
+
+ ---
+ Executive Summary
+
+ Three critical architectural issues prevent the system from functioning correctly:
+
+ 1. Regex-based preamble stripping is fragile - 200+ hardcoded patterns across 6 files
+ 2. Split view depends on broken session system - useSessionRendering always false
+ 3. State fragmentation - App.tsx, SessionContext, and UnifiedBufferContext don't sync
+
+ User Direction
+
+ 1. Single unified backend filter - One system, run after all tool use, with model-specific "vetting profiles"
+ 2. Set aside sessions entirely - Use only buffers, no pipeline persistence for now
+ 3. Simplify to universal buffer abstraction - Archive → Main Pane → Tool → Output
+
+ ---
+ Key Terminology
+
+ - Vetting Profile: Internal model-specific configuration for output filtering (NOT user-facing profiles)
+ - Universal Buffer: Single abstraction for content flowing through the system
+ - Output Filter: Backend service that cleans LLM output based on vetting profiles
+
+ ---
+ Phase 1: Unified Output Filtering with Model Vetting Profiles (Priority 1)
+
+ Problem
+
+ Current approach uses string matching that:
+ - Can't scale to millions of texts
+ - Has different patterns on frontend (6) vs backend (51)
+ - Over-strips or under-strips unpredictably
+ - Doesn't account for model-specific behavior
+
+ Solution: Model Vetting Profile System
+
+ Create a single backend output filter that uses model-specific "vetting profiles" to clean output.
+
+ 1.1 Model Vetting Profile Registry
+
+ // workers/npe-api/src/services/model-vetting/profiles.ts
+
+ export interface ModelVettingProfile {
+   modelId: string;              // e.g., 'llama-3.1-8b-instruct', 'llama-3.1-70b-instruct'
+   provider: 'cloudflare' | 'ollama' | 'openai';
+
+   // Known output patterns for this model
+   patterns: {
+     thinkingTags: string[];     // e.g., ['<think>', '<reasoning>']
+     preamblePhrases: string[];  // Model-specific preamble indicators
+     closingPhrases: string[];   // Model-specific closing meta-commentary
+   };
+
+   // Filtering strategy
+   strategy: 'xml-tags' | 'heuristic' | 'llm-extraction';
+
+   // Whether this model has been validated
+   vetted: boolean;
+   vettedDate?: string;
+   vettedBy?: string;
+ }
+
+ // Registry of vetted models
+ export const MODEL_VETTING_PROFILES: Record<string, ModelVettingProfile> = {
+   '@cf/meta/llama-3.1-8b-instruct': {
+     modelId: 'llama-3.1-8b-instruct',
+     provider: 'cloudflare',
+     patterns: {
+       thinkingTags: ['<think>', '</think>', '<reasoning>', '</reasoning>'],
+       preamblePhrases: ['Here is', 'Here\'s the', 'I\'ve rewritten', 'Let me'],
+       closingPhrases: ['I hope this', 'Let me know if', 'Is there anything'],
+     },
+     strategy: 'heuristic',  // This model doesn't reliably use XML tags
+     vetted: true,
+     vettedDate: '2025-12-06',
+   },
+
+   'qwen2.5:3b': {  // Ollama local
+     modelId: 'qwen2.5:3b',
+     provider: 'ollama',
+     patterns: {
+       thinkingTags: ['<think>', '</think>'],  // Qwen uses proper XML
+       preamblePhrases: [],
+       closingPhrases: [],
+     },
+     strategy: 'xml-tags',  // Just strip XML, content is clean
+     vetted: true,
+     vettedDate: '2025-12-06',
+   },
+
+   // Unvetted models use LLM extraction as fallback
+ };
+
+ 1.2 Unified Output Filter
+
+ // workers/npe-api/src/services/model-vetting/output-filter.ts
+
+ import { MODEL_VETTING_PROFILES, ModelVettingProfile } from './profiles';
+
+ export interface FilterResult {
+   content: string;
+   hadPreamble: boolean;
+   strategy: string;
+   modelVetted: boolean;
+ }
+
+ export async function filterModelOutput(
+   rawOutput: string,
+   modelId: string,
+   ai?: Ai  // For LLM fallback
+ ): Promise<FilterResult> {
+
+   const profile = MODEL_VETTING_PROFILES[modelId];
+
+   if (!profile || !profile.vetted) {
+     // UNVETTED MODEL: Use conservative LLM extraction
+     console.warn(`[OutputFilter] Unvetted model: ${modelId}, using LLM extraction`);
+     return llmExtraction(rawOutput, ai);
+   }
+
+   // Apply model-specific strategy
+   switch (profile.strategy) {
+     case 'xml-tags':
+       return filterXmlTags(rawOutput, profile);
+
+     case 'heuristic':
+       return filterHeuristic(rawOutput, profile);
+
+     case 'llm-extraction':
+       return llmExtraction(rawOutput, ai);
+
+     default:
+       return { content: rawOutput, hadPreamble: false, strategy: 'passthrough', modelVetted: false };
+   }
+ }
+
+ function filterXmlTags(text: string, profile: ModelVettingProfile): FilterResult {
+   let content = text;
+   let hadPreamble = false;
+
+   for (const tag of profile.patterns.thinkingTags) {
+     const openTag = tag;
+     const closeTag = tag.replace('<', '</');
+     const regex = new RegExp(`${escapeRegex(openTag)}[\\s\\S]*?${escapeRegex(closeTag)}`, 'gi');
+     if (regex.test(content)) hadPreamble = true;
+     content = content.replace(regex, '');
+   }
+
+   return { content: content.trim(), hadPreamble, strategy: 'xml-tags', modelVetted: true };
+ }
+
+ function filterHeuristic(text: string, profile: ModelVettingProfile): FilterResult {
+   let content = text;
+   let hadPreamble = false;
+
+   // Remove XML tags first
+   content = filterXmlTags(content, profile).content;
+
+   // Check for preamble phrases at start
+   for (const phrase of profile.patterns.preamblePhrases) {
+     if (content.toLowerCase().startsWith(phrase.toLowerCase())) {
+       // Find first paragraph break
+       const firstBreak = content.indexOf('\n\n');
+       if (firstBreak > 0 && firstBreak < 500) {
+         content = content.slice(firstBreak + 2);
+         hadPreamble = true;
+       }
+     }
+   }
+
+   // Remove closing meta-commentary
+   for (const phrase of profile.patterns.closingPhrases) {
+     const idx = content.toLowerCase().lastIndexOf(phrase.toLowerCase());
+     if (idx > content.length * 0.8) {  // Only if in last 20% of text
+       content = content.slice(0, idx).trim();
+       hadPreamble = true;
+     }
+   }
+
+   return { content, hadPreamble, strategy: 'heuristic', modelVetted: true };
+ }
+
+ async function llmExtraction(text: string, ai?: Ai): Promise<FilterResult> {
+   if (!ai) {
+     // No AI available, return as-is with warning
+     return { content: text, hadPreamble: false, strategy: 'no-filter', modelVetted: false };
+   }
+
+   const response = await ai.run('@cf/meta/llama-3.1-8b-instruct', {
+     messages: [{
+       role: 'system',
+       content: 'Extract only the actual content from the following text. Remove any thinking, preambles, explanations,
+ or meta-commentary. Return ONLY the core content.'
+     }, {
+       role: 'user',
+       content: text
+     }],
+     max_tokens: text.length * 2,
+     temperature: 0.1
+   });
+
+   return {
+     content: response.response.trim(),
+     hadPreamble: true,
+     strategy: 'llm-extraction',
+     modelVetted: false
+   };
+ }
+
+ 1.3 Model Vetting Procedure
+
+ Create a procedure to derive vetting profiles for new models:
+
+ // workers/npe-api/src/services/model-vetting/derive-profile.ts
+
+ export interface VettingTestCase {
+   prompt: string;
+   expectedCleanOutput: string;  // Manual ground truth
+ }
+
+ const VETTING_TEST_CASES: VettingTestCase[] = [
+   {
+     prompt: "Rewrite this formally: The dog ran fast.",
+     expectedCleanOutput: /^(The canine|A dog)/i,  // Should start with content
+   },
+   {
+     prompt: "Transform to casual: The meeting is scheduled for tomorrow.",
+     expectedCleanOutput: /^(Hey|So|The meeting|We)/i,
+   },
+   // More test cases...
+ ];
+
+ export async function deriveVettingProfile(
+   modelId: string,
+   runModel: (prompt: string) => Promise<string>
+ ): Promise<Partial<ModelVettingProfile>> {
+
+   const results = [];
+   const detectedPatterns = {
+     thinkingTags: new Set<string>(),
+     preamblePhrases: new Set<string>(),
+     closingPhrases: new Set<string>(),
+   };
+
+   for (const testCase of VETTING_TEST_CASES) {
+     const rawOutput = await runModel(testCase.prompt);
+
+     // Detect XML-style thinking tags
+     const xmlMatch = rawOutput.match(/<(\w+)>[\s\S]*?<\/\1>/g);
+     if (xmlMatch) {
+       xmlMatch.forEach(m => {
+         const tag = m.match(/<(\w+)>/)?.[1];
+         if (tag && ['think', 'thinking', 'reasoning', 'internal'].includes(tag.toLowerCase())) {
+           detectedPatterns.thinkingTags.add(`<${tag}>`);
+         }
+       });
+     }
+
+     // Detect preamble phrases
+     const firstLine = rawOutput.split('\n')[0];
+     if (/^(Here|I've|Let me|Sure|Okay)/i.test(firstLine)) {
+       detectedPatterns.preamblePhrases.add(firstLine.split(/[.!?:]/)[0]);
+     }
+
+     // Detect closing phrases
+     const lastParagraph = rawOutput.split('\n\n').slice(-1)[0];
+     if (/^(I hope|Let me know|Is there|Feel free)/i.test(lastParagraph)) {
+       detectedPatterns.closingPhrases.add(lastParagraph.split(/[.!?]/)[0]);
+     }
+
+     results.push({ rawOutput, testCase });
+   }
+
+   // Determine strategy based on detected patterns
+   const strategy = detectedPatterns.thinkingTags.size > 0 ? 'xml-tags' : 'heuristic';
+
+   return {
+     modelId,
+     patterns: {
+       thinkingTags: Array.from(detectedPatterns.thinkingTags),
+       preamblePhrases: Array.from(detectedPatterns.preamblePhrases),
+       closingPhrases: Array.from(detectedPatterns.closingPhrases),
+     },
+     strategy,
+     vetted: false,  // Requires manual review
+   };
+ }
+
+ Files to Create/Modify
+
+ | File                                                         | Action
+     |
+ |--------------------------------------------------------------|--------------------------------------------------------
+ ----|
+ | workers/npe-api/src/services/model-vetting/profiles.ts       | CREATE - Vetting profile registry
+     |
+ | workers/npe-api/src/services/model-vetting/output-filter.ts  | CREATE - Unified filter
+     |
+ | workers/npe-api/src/services/model-vetting/derive-profile.ts | CREATE - Profile derivation procedure
+     |
+ | workers/npe-api/src/services/model-vetting/index.ts          | CREATE - Exports
+     |
+ | workers/npe-api/src/lib/strip-preambles.ts                   | DELETE after migration
+     |
+ | workers/npe-api/src/services/persona-transformation.ts       | Replace stripPreambles() with filterModelOutput()
+     |
+ | workers/npe-api/src/services/style-transformation.ts         | Same
+     |
+ | workers/npe-api/src/services/namespace-transformation.ts     | Same
+     |
+ | workers/npe-api/src/services/computer-humanizer.ts           | Same
+     |
+ | narrative-studio/src/services/ollamaService.ts               | Remove stripThinkingPreamble(), send modelId with
+ requests |
+ | narrative-studio/src/services/transformationPipeline.ts      | Remove Stage 3 LLM filter
+     |
+
+ Initial Vetted Models
+
+ | Model ID                        | Provider   | Strategy  | Status        |
+ |---------------------------------|------------|-----------|---------------|
+ | @cf/meta/llama-3.1-8b-instruct  | Cloudflare | heuristic | Needs vetting |
+ | @cf/meta/llama-3.1-70b-instruct | Cloudflare | heuristic | Needs vetting |
+ | qwen2.5:3b                      | Ollama     | xml-tags  | Needs vetting |
+ | llama3.2:3b                     | Ollama     | heuristic | Needs vetting |
+
+ ---
+ Phase 2: Decouple Split View from Sessions (Priority 1)
+
+ Problem
+
+ MainWorkspace line 85:
+ const useSessionRendering = hasSession && buffers.length > 0;
+
+ This is always false because sessions don't populate buffers. Split view never triggers.
+
+ Solution: Remove Session Dependency from Split View
+
+ The split view decision should be based on whether there's a transform result, not sessions.
+
+ Before:
+ if (mode === 'single' || !transformResult) {
+   // single pane
+ } else if (useSessionRendering ? currentViewMode === VIEW_MODES.SPLIT : mode === 'split') {
+   // split view
+ }
+
+ After:
+ // Simple: If we have a transform result and mode is split, show split view
+ if (!transformResult) {
+   // single pane - no transformation yet
+ } else if (mode === 'split') {
+   // split view - transformation exists
+ }
+ // Add local view toggle state for user control
+ const [viewMode, setViewMode] = useState<'original' | 'split' | 'transformed'>('split');
+
+ Files to Modify
+
+ | File                                                        | Action
+         |
+ |-------------------------------------------------------------|---------------------------------------------------------
+ --------|
+ | narrative-studio/src/components/workspace/MainWorkspace.tsx | Remove useSessionRendering condition, add local view
+ toggle     |
+ | narrative-studio/src/App.tsx                                | Already fixed to set workspaceMode='split' after all
+ transforms |
+
+ ---
+ Phase 3: View Toggle Buttons (Priority 2)
+
+ Add Simple View Controls
+
+ Add toggle buttons above the content panes:
+
+ // In MainWorkspace, when transformResult exists
+ <div className="view-toggle-bar">
+   <button
+     className={viewMode === 'original' ? 'active' : ''}
+     onClick={() => setViewMode('original')}
+   >
+     Original
+   </button>
+   <button
+     className={viewMode === 'split' ? 'active' : ''}
+     onClick={() => setViewMode('split')}
+   >
+     Split
+   </button>
+   <button
+     className={viewMode === 'transformed' ? 'active' : ''}
+     onClick={() => setViewMode('transformed')}
+   >
+     Transformed
+   </button>
+ </div>
+
+ ---
+ Phase 4: Fix Text Display in Middle Pane (Priority 2)
+
+ Problem
+
+ User says: "The indication of what text is being sent to a tool should be indicated in the middle pane."
+
+ Currently, the tools panel shows content but the main workspace doesn't indicate what's selected for transformation.
+
+ Solution: Add Selection Indicator
+
+ When text is loaded into tools:
+ 1. Show a subtle highlight/border on the source content in the middle pane
+ 2. Add a small indicator: "This text will be transformed"
+
+ // In MainWorkspace, when narrative.content is being used by tools
+ {toolsPanelOpen && (
+   <div className="transform-source-indicator">
+     <span>Text below will be transformed</span>
+   </div>
+ )}
+
+ ---
+ Phase 5: Highlighting in Transform Results (Priority 2)
+
+ Current State
+
+ - AI Detection generates highlights array with positions
+ - Highlights passed via onHighlightText callback
+ - But MainWorkspace never renders them
+
+ Solution: Render Highlights in Right Pane
+
+ The code for highlighting already exists in MainWorkspace (lines 1277-1335) but it only triggers for specific
+ conditions. Ensure it renders for all AI detection results.
+
+ Key Fix: The displayContent.transformed for AI detection should use highlightedMarkdown if available:
+
+ // In split view right pane content section
+ {transformResult?.metadata?.aiDetection?.highlightedMarkdown ? (
+   <MarkdownRenderer content={transformResult.metadata.aiDetection.highlightedMarkdown} />
+ ) : transformResult?.metadata?.aiDetection?.tellWords?.length > 0 ? (
+   // Inline highlighting for tell-words
+   <div dangerouslySetInnerHTML={{ __html: highlightedText }} />
+ ) : (
+   <MarkdownRenderer content={displayContent.transformed} />
+ )}
+
+ ---
+ Phase 6: Universal Buffer Abstraction (Priority 2)
+
+ Finding
+
+ Three competing systems cause fragmentation:
+ - App.tsx state - transformResult, workspaceMode
+ - SessionContext - sessions, bufferManager (BROKEN - don't use)
+ - UnifiedBufferContext - workingBuffer, buffers
+
+ Solution: Single Buffer Flow
+
+ Simplify to ONE system: Use UnifiedBufferContext as the single source of truth.
+
+ Content Flow:
+ Archive Panel selects content
+     ↓
+ UnifiedBufferContext.setWorkingBuffer(createFromMessage/Conversation)
+     ↓
+ MainWorkspace reads: workingBuffer
+     ↓
+ Tools Panel reads: workingBuffer.text (via getTextContent())
+     ↓
+ Tool executes transformation
+     ↓
+ UnifiedBufferContext.recordTransformation() → creates new buffer
+     ↓
+ MainWorkspace displays: original buffer + transformed buffer (split view)
+
+ Files to Modify
+
+ | File                                                        | Action                                          |
+ |-------------------------------------------------------------|-------------------------------------------------|
+ | narrative-studio/src/App.tsx                                | Remove transformResult state, use UnifiedBuffer |
+ | narrative-studio/src/components/workspace/MainWorkspace.tsx | Read from UnifiedBuffer, not props              |
+ | narrative-studio/src/components/tools/TabbedToolsPanel.tsx  | Already uses UnifiedBuffer - verify             |
+ | narrative-studio/src/contexts/SessionContext.tsx            | SET ASIDE - don't import or use                 |
+
+ Remove Session Dependencies
+
+ 1. Remove useSession() from MainWorkspace
+ 2. Remove useSessionRendering check
+ 3. Remove hasSession conditionals
+ 4. Keep UnifiedBufferContext as sole buffer manager
+
+ Buffer-Based Split View
+
+ // MainWorkspace - simplified
+ const { workingBuffer, buffers, activeBufferId } = useUnifiedBuffer();
+
+ // Original = first buffer (from archive)
+ const originalBuffer = buffers[0];
+
+ // Transformed = active buffer if different from original
+ const transformedBuffer = activeBufferId !== originalBuffer?.id
+   ? buffers.find(b => b.id === activeBufferId)
+   : null;
+
+ // Show split if we have a transformation
+ const showSplit = transformedBuffer !== null;
+
+ ---
+ Implementation Order
+
+ | Phase                         | Priority | Effort  | Dependencies    |
+ |-------------------------------|----------|---------|-----------------|
+ | Phase 6: Universal Buffer     | P0       | 2 hours | None - FIRST    |
+ | Phase 2: Decouple split view  | P0       | 1 hour  | Phase 6         |
+ | Phase 3: View toggle buttons  | P0       | 30 min  | Phase 2         |
+ | Phase 5: Fix highlighting     | P1       | 1 hour  | Phase 2         |
+ | Phase 4: Source indicator     | P2       | 30 min  | Phase 6         |
+ | Phase 1: Model Vetting System | P1       | 4 hours | None (parallel) |
+
+ Recommended Execution
+
+ Batch 1 (Core Flow):
+ 1. Phase 6 - Unify on UnifiedBufferContext, remove SessionContext usage
+ 2. Phase 2 - Split view based on buffer state, not sessions
+ 3. Phase 3 - View toggle buttons
+
+ Batch 2 (Enhancement):
+ 4. Phase 5 - Highlighting in results
+ 5. Phase 4 - Source indicator
+
+ Batch 3 (Backend - Parallel):
+ 6. Phase 1 - Model vetting profiles and unified output filter
+
+ ---
+ Critical Files
+
+ Phase 6: Universal Buffer (FIRST)
+
+ | File                                                        | Action                                              |
+ |-------------------------------------------------------------|-----------------------------------------------------|
+ | narrative-studio/src/App.tsx                                | Remove transformResult state, SessionProvider usage |
+ | narrative-studio/src/components/workspace/MainWorkspace.tsx | Use useUnifiedBuffer(), remove useSession()         |
+ | narrative-studio/src/components/tools/TabbedToolsPanel.tsx  | Verify UnifiedBuffer integration                    |
+ | narrative-studio/src/components/panels/ArchivePanel.tsx     | Use setWorkingBuffer() when selecting content       |
+
+ Phase 2-3: Split View & Toggle
+
+ | File                                                        | Action                                   |
+ |-------------------------------------------------------------|------------------------------------------|
+ | narrative-studio/src/components/workspace/MainWorkspace.tsx | Add local viewMode state, toggle buttons |
+
+ Phase 1: Model Vetting System
+
+ | File                                                         | Action                  |
+ |--------------------------------------------------------------|-------------------------|
+ | workers/npe-api/src/services/model-vetting/profiles.ts       | CREATE                  |
+ | workers/npe-api/src/services/model-vetting/output-filter.ts  | CREATE                  |
+ | workers/npe-api/src/services/model-vetting/derive-profile.ts | CREATE                  |
+ | workers/npe-api/src/services/persona-transformation.ts       | Use filterModelOutput() |
+ | workers/npe-api/src/services/style-transformation.ts         | Use filterModelOutput() |
+ | workers/npe-api/src/services/namespace-transformation.ts     | Use filterModelOutput() |
+ | workers/npe-api/src/services/computer-humanizer.ts           | Use filterModelOutput() |
+
+ Can Delete After Migration
+
+ | File                                                     | Reason                    |
+ |----------------------------------------------------------|---------------------------|
+ | workers/npe-api/src/lib/strip-preambles.ts               | Replaced by model-vetting |
+ | Frontend stripThinkingPreamble() in ollamaService.ts     | Backend handles filtering |
+ | Frontend filterCloudOutput() in transformationService.ts | Backend handles filtering |
+
+ ---
+ Success Criteria
+
+ 1. Single buffer abstraction - Content flows Archive → Buffer → Tool → Buffer without fragmentation
+ 2. Split view works after any transformation based on buffer state, not sessions
+ 3. View toggle buttons allow switching between original/split/transformed
+ 4. Highlights render in the right pane for AI detection results
+ 5. Single output filter in backend with model-specific vetting profiles
+ 6. No session dependency - Sessions are set aside, UnifiedBuffer is sole state manager
+ 7. Vetted models only - Unvetted models use conservative LLM extraction fallback

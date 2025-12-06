@@ -23,7 +23,7 @@ import { EditorPanel } from '@/components/studio/EditorPanel';
 import { CuratorPanel } from '@/components/studio/CuratorPanel';
 import { CuratorRulesEditor } from '@/components/studio/CuratorRulesEditor';
 import { NodeCreationWizard } from '@/components/studio/NodeCreationWizard';
-import { TransformPanel } from '@/components/studio/TransformPanel';
+import { StudioToolsPanel } from '@/components/studio/StudioToolsPanel';
 import { Lightbox, useLightbox } from '@/components/studio/Lightbox';
 import { ThemeToggle } from '@/components/common/ThemeToggle';
 import { curatorService, type Suggestion, type CuratorRules } from '@/services/curator';
@@ -188,9 +188,7 @@ export const StudioShell: Component = () => {
   
   // Handle applying a curator suggestion
   const handleApplySuggestion = (suggestion: Suggestion) => {
-    // This could insert text, modify content, etc.
-    console.log('Apply suggestion:', suggestion);
-    // For now, just log - actual implementation would depend on suggestion type
+    // TODO: Implement suggestion application based on suggestion type
   };
   
   // Handle cancel editing
@@ -246,8 +244,7 @@ export const StudioShell: Component = () => {
   
   // Handle curator rules saved
   const handleCuratorRulesSaved = (rules: CuratorRules) => {
-    console.log('Curator rules saved:', rules);
-    // Could show a toast notification here
+    // Rules saved successfully
   };
 
   // Handle apply transformation to editor
@@ -291,6 +288,20 @@ export const StudioShell: Component = () => {
           </Show>
         </div>
         <div class="header-right">
+          {/* Upgrade link - show to free/member users */}
+          <Show when={authStore.user()?.role !== 'pro' && authStore.user()?.role !== 'admin'}>
+            <a href="/pricing" class="header-upgrade-link">
+              Upgrade
+            </a>
+          </Show>
+
+          {/* Admin link - only for admin users */}
+          <Show when={authStore.user()?.role === 'admin'}>
+            <a href="/admin" class="header-admin-link">
+              Admin
+            </a>
+          </Show>
+
           <ThemeToggle />
           <span class="user-name">{authStore.user()?.email}</span>
           <button class="logout-btn" onClick={handleLogout}>
@@ -321,7 +332,7 @@ export const StudioShell: Component = () => {
                 targetNodeId={targetNodeId()}
                 onChange={handleEditorChange}
                 onSave={(content, title) => {
-                  console.log('Draft saved:', title);
+                  // Draft auto-saved
                 }}
                 onPublish={handlePublishSuccess}
                 onCancel={handleCancelEdit}
@@ -372,13 +383,12 @@ export const StudioShell: Component = () => {
                   nodeId={targetNodeId()}
                   onApplySuggestion={handleApplySuggestion}
                   onIncorporateComment={(comment) => {
-                    // Insert comment content into editor
-                    console.log('Incorporate comment:', comment);
+                    // TODO: Insert comment content into editor
                   }}
                 />
               }
             >
-              <TransformPanel
+              <StudioToolsPanel
                 content={editorContent()}
                 onApplyTransform={handleApplyTransform}
                 onSubmitAsNarrative={handleSubmitAsNarrative}

@@ -188,11 +188,7 @@ export function requireAuth() {
   return async (c: Context<{ Bindings: Env }>, next: () => Promise<void>) => {
     const authHeader = c.req.header('Authorization');
 
-    console.log('[AUTH] Header:', authHeader ? `Bearer ${authHeader.substring(7, 30)}...` : 'MISSING');
-    console.log('[AUTH] JWT_SECRET available:', !!c.env?.JWT_SECRET);
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('[AUTH] FAILED: Missing or invalid header format');
       return c.json({ error: 'Missing or invalid authorization header' }, 401);
     }
 
@@ -200,7 +196,6 @@ export function requireAuth() {
     const authContext = await verifyToken(token, c.env.JWT_SECRET);
 
     if (!authContext) {
-      console.log('[AUTH] FAILED: Invalid or expired token');
       return c.json({ error: 'Invalid or expired token' }, 401);
     }
 
@@ -224,7 +219,6 @@ export function optionalLocalAuth() {
                       c.env.ENVIRONMENT === 'development';
 
     if (isLocalDev) {
-      console.log('[AUTH] Local dev mode - using test user');
       // Set test user context for local development
       c.set('auth', {
         userId: 'test-user-local',
@@ -238,11 +232,7 @@ export function optionalLocalAuth() {
     // Production: require auth
     const authHeader = c.req.header('Authorization');
 
-    console.log('[AUTH] Header:', authHeader ? `Bearer ${authHeader.substring(7, 30)}...` : 'MISSING');
-    console.log('[AUTH] JWT_SECRET available:', !!c.env?.JWT_SECRET);
-
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('[AUTH] FAILED: Missing or invalid header format');
       return c.json({ error: 'Missing or invalid authorization header' }, 401);
     }
 
@@ -250,7 +240,6 @@ export function optionalLocalAuth() {
     const authContext = await verifyToken(token, c.env.JWT_SECRET);
 
     if (!authContext) {
-      console.log('[AUTH] FAILED: Invalid or expired token');
       return c.json({ error: 'Invalid or expired token' }, 401);
     }
 

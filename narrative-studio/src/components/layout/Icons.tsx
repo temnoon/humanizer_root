@@ -82,6 +82,12 @@ export const Icons = {
     </svg>
   ),
 
+  ChevronLeft: () => (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
+      <path d="M13 16l-6-6 6-6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+
   Split: () => (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor">
       <rect x="2" y="3" width="16" height="14" rx="1" strokeWidth="2" />

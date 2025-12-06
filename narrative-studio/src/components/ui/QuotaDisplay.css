@@ -38,12 +38,12 @@
 }
 
 .tier-badge--pro {
-  background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
-  color: white;
+  background: var(--accent-primary-gradient);
+  color: var(--text-inverse);
 }
 
 .tier-badge--premium {
-  background: linear-gradient(135deg, var(--accent-yellow), var(--accent-red));
+  background: var(--gradient-highlight);
   color: var(--text-primary);
 }
 
@@ -155,7 +155,7 @@
   width: 1.5rem;
   height: 1.5rem;
   flex-shrink: 0;
-  color: var(--accent-purple);
+  color: var(--accent-primary);
 }
 
 .quota-display__upgrade {

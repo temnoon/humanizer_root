@@ -4,7 +4,7 @@
 // Parses OpenAI conversation exports (conversations.json format)
 
 import * as path from 'path';
-import { Conversation } from './types';
+import type { Conversation } from './types';
 import { readJSON, findFiles } from './utils';
 
 export class OpenAIParser {

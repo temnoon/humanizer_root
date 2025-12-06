@@ -11,16 +11,13 @@ const app = new Hono<{ Bindings: Env }>();
 
 // Test endpoint
 app.get('/test', (c) => {
-  console.log('[AI Detection] Test endpoint hit');
   return c.json({ message: 'AI Detection routes loaded successfully' });
 });
 
 // Simple test endpoint without auth
 app.post('/test-detect', async (c) => {
-  console.log('[AI Detection] Test detect endpoint hit');
   try {
     const body = await c.req.json();
-    console.log('[AI Detection] Body:', body);
     return c.json({ message: 'Test detect successful', received: body });
   } catch (err) {
     console.error('[AI Detection] Test error:', err);
@@ -55,13 +52,11 @@ app.post('/test-detect', async (c) => {
  * }
  */
 app.post('/detect', optionalLocalAuth(), async (c) => {
-  console.log('[GPTZero Detection] Handler called');
   const startTime = Date.now();
 
   try {
     // Get user info from auth context
     const auth = getAuthContext(c);
-    console.log('[GPTZero Detection] User:', auth.email, auth.role);
     if (!auth) {
       return c.json({ error: 'Authentication required' }, 401);
     }
@@ -78,7 +73,6 @@ app.post('/detect', optionalLocalAuth(), async (c) => {
     // Parse request body
     const body = await c.req.json();
     const { text } = body;
-    console.log('[GPTZero Detection] Request body parsed, text length:', text?.length);
 
     // Validate input
     if (!text || typeof text !== 'string') {
@@ -112,15 +106,6 @@ app.post('/detect', optionalLocalAuth(), async (c) => {
     // Generate transformation ID
     const transformationId = crypto.randomUUID();
 
-    // Log API call START
-    console.log('[GPTZero Detection] CALLING GPTZERO API', {
-      transformationId,
-      userId: auth.userId,
-      textLength: trimmedText.length,
-      wordCount: words.length,
-      timestamp: new Date().toISOString()
-    });
-
     // Save to history before starting
     try {
       await saveTransformationToHistory(c.env.DB, {
@@ -140,17 +125,6 @@ app.post('/detect', optionalLocalAuth(), async (c) => {
       const result = await detectAIWithGPTZeroMarkdown(trimmedText, apiKey);
 
       const processingTimeMs = Date.now() - startTime;
-
-      // Log API call SUCCESS
-      console.log('[GPTZero Detection] API CALL SUCCESSFUL', {
-        transformationId,
-        verdict: result.verdict,
-        confidence: result.confidence,
-        processingTimeMs,
-        classVersion: result.classVersion,
-        modelVersion: result.modelVersion,
-        timestamp: new Date().toISOString()
-      });
 
       // Format response with premium GPTZero features (including markdown highlights)
       const response = {
@@ -253,7 +227,6 @@ app.post('/detect', optionalLocalAuth(), async (c) => {
  * }
  */
 app.post('/lite', async (c) => {
-  console.log('[Lite Detection Route] Handler called');
   try {
     // Get user info from auth context (optional for free tier)
     let auth = null;
@@ -263,12 +236,10 @@ app.post('/lite', async (c) => {
       // No auth context - that's fine for Lite detector
     }
     const userId = auth?.userId || null;
-    console.log('[Lite Detection Route] User:', auth?.email || 'anonymous');
 
     // Parse request body
     const body = await c.req.json();
     const { text, useLLMJudge = false } = body;
-    console.log('[Lite Detection Route] Request body parsed, text length:', text?.length);
 
     // Validate input
     if (!text || typeof text !== 'string') {
@@ -285,14 +256,10 @@ app.post('/lite', async (c) => {
       return c.json({ error: 'Text must be at least 20 words for accurate detection' }, 400);
     }
 
-    console.log('[Lite Detection] Starting detection, words:', words.length, 'useLLMJudge:', useLLMJudge);
-
     // Run Lite detection (markdown-aware)
     const startTime = Date.now();
     const result = await detectWithLiteMarkdown(trimmedText, useLLMJudge, c.env.AI);
     const processingTimeMs = Date.now() - startTime;
-
-    console.log('[Lite Detection] Result:', result.label, result.ai_likelihood, result.confidence);
 
     // Save to database if user is authenticated
     if (userId && c.env.DB) {
@@ -323,8 +290,6 @@ app.post('/lite', async (c) => {
           null, // No quota remaining
           now
         ).run();
-
-        console.log('[Lite Detection] Saved to database:', runId);
       } catch (dbError) {
         console.error('[Lite Detection] Failed to save to database:', dbError);
         // Don't fail the request if DB save fails

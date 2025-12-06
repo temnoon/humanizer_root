@@ -169,7 +169,6 @@ export const CuratorPanel: Component<CuratorPanelProps> = (props) => {
       }
       // Debounce: wait 2 seconds after user stops typing
       analysisDebounceTimer = setTimeout(() => {
-        console.log('[CuratorPanel] Auto-triggering analysis after content change');
         handleAnalyze();
       }, 2000);
     }
@@ -192,8 +191,6 @@ export const CuratorPanel: Component<CuratorPanelProps> = (props) => {
         token || undefined
       );
       
-      // Show synthesis suggestion (could be a modal or panel)
-      console.log('Synthesis suggestion:', synthesis);
       // TODO: Display synthesis suggestion UI
       
     } catch (err) {

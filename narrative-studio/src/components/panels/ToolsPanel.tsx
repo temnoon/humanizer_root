@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { TransformConfig, TransformationType, TransformParameters } from '../../types';
 import { Icons } from '../layout/Icons';
 import { api } from '../../utils/api';
+import { AddToBookSection } from './AddToBookSection';
 
 interface ToolsPanelProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface ToolsPanelProps {
   setSelectedType: (type: TransformationType) => void;
   parameters: TransformParameters;
   setParameters: (params: TransformParameters) => void;
+  content?: string;
 }
 
 const TRANSFORM_TYPES: { value: TransformationType; label: string; description: string }[] = [
@@ -51,6 +53,7 @@ export function ToolsPanel({
   setSelectedType,
   parameters,
   setParameters,
+  content = '',
 }: ToolsPanelProps) {
   const [transformSource, setTransformSource] = useState<'original' | 'active'>(() => {
     const saved = localStorage.getItem('narrative-studio-transform-source');
@@ -521,6 +524,12 @@ export function ToolsPanel({
             <Icons.Play />
             {isTransforming ? 'Running...' : 'Run Transformation'}
           </button>
+
+          {/* Add to Book Section */}
+          <AddToBookSection
+            content={content}
+            sourceType="archive"
+          />
           </div>
         </div>
       </aside>

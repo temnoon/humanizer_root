@@ -21,6 +21,11 @@ import { rhoRoutes } from './routes/v2/rho';
 import { adminRoutes } from './routes/admin';
 import { secureArchive } from './routes/secure-archive';
 import gutenbergRoutes from './routes/gutenberg';
+import stripeRoutes from './routes/stripe';
+import booksRoutes from './routes/books';
+import feedbackRoutes from './routes/feedback';
+import adminProfileRoutes from './routes/admin-profiles';
+import { sessionsRoutes } from './routes/sessions';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -119,6 +124,21 @@ app.route('/secure-archive', secureArchive);
 
 // Gutenberg routes (book search and persona extraction)
 app.route('/gutenberg', gutenbergRoutes);
+
+// Stripe billing routes (webhook, checkout, portal)
+app.route('/stripe', stripeRoutes);
+
+// Bookmaking Tool routes (books, chapters, sections, pages, annotations)
+app.route('/books', booksRoutes);
+
+// Feedback routes (user transformation feedback)
+app.route('/feedback', feedbackRoutes);
+
+// Admin Profile Management routes (CRUD for global profiles)
+app.route('/admin/profiles', adminProfileRoutes);
+
+// Studio Sessions routes (workspace state persistence)
+app.route('/api/sessions', sessionsRoutes);
 
 // 404 handler
 app.notFound((c) => {

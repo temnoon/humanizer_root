@@ -91,12 +91,8 @@ export async function verifyTransformation(
 ): Promise<VerificationResult> {
   const fullConfig = { ...DEFAULT_CONFIG, ...config };
 
-  console.log('[Verification] Starting verification pipeline');
-  console.log('[Verification] Constraints:', JSON.stringify(constraints, null, 2));
-
   // Measure baseline
   const baseline = await measureContentPOVM(originalText, ai);
-  console.log('[Verification] Baseline measured');
 
   // Start correction loop
   const attempts: CorrectionAttempt[] = [];
@@ -104,19 +100,14 @@ export async function verifyTransformation(
   let previousConvergence = 0;
 
   for (let pass = 1; pass <= fullConfig.maxCorrectionPasses; pass++) {
-    console.log(`[Verification] Pass ${pass}/${fullConfig.maxCorrectionPasses}`);
 
     // Measure current state
     const current = await measureContentPOVM(currentText, ai);
     const withDrift = await computeContentDrift(baseline, current, ai);
     const report = generateViolationReport(withDrift, constraints, fullConfig);
 
-    console.log(`[Verification] Pass ${pass} - Convergence: ${(report.convergenceRatio * 100).toFixed(1)}%`);
-
     // Check if converged (all constraints met)
     if (report.passed) {
-      console.log('[Verification] ✓ Full convergence achieved');
-
       attempts.push({
         passNumber: pass,
         text: currentText,
@@ -140,8 +131,6 @@ export async function verifyTransformation(
     // Check for partial convergence (acceptable)
     if (fullConfig.allowPartialConvergence &&
         report.convergenceRatio >= fullConfig.partialConvergenceRatio) {
-      console.log(`[Verification] ⚠ Partial convergence: ${(report.convergenceRatio * 100).toFixed(1)}%`);
-
       attempts.push({
         passNumber: pass,
         text: currentText,
@@ -165,8 +154,6 @@ export async function verifyTransformation(
     // Check for stagnation (not improving)
     const improved = report.convergenceRatio > previousConvergence || pass === 1;
     if (!improved && pass > 1) {
-      console.warn(`[Verification] ✗ Stagnation detected at pass ${pass}`);
-
       attempts.push({
         passNumber: pass,
         text: currentText,
@@ -209,8 +196,6 @@ export async function verifyTransformation(
 
     // If we're on the last pass, return what we have
     if (pass === fullConfig.maxCorrectionPasses) {
-      console.log('[Verification] ✗ Max passes reached without convergence');
-
       return {
         finalText: currentText,
         attempts,
@@ -224,8 +209,6 @@ export async function verifyTransformation(
     }
 
     // Generate and apply correction
-    console.log(`[Verification] Generating correction for ${report.violations.length} violations`);
-
     const correctionPrompt = buildCorrectionPrompt(
       originalText,
       currentText,

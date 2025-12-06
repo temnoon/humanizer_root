@@ -15,8 +15,11 @@ import { Component, createSignal, createResource, Show, For } from 'solid-js';
 import { authStore } from '@/stores/auth';
 import { nodesService } from '@/services/nodes';
 import { GutenbergBrowser } from './GutenbergBrowser';
+import { CloudArchiveBrowser } from './CloudArchiveBrowser';
+import './CloudArchiveBrowser.css';
 import type { Node, Narrative, NodeSubscription } from '@/types/models';
 import type { GutenbergBook } from '@/services/gutenberg';
+import type { EncryptedFile } from '@/services/secure-archive';
 
 // Navigation sections
 type NavSection = 'subscribed' | 'browse' | 'search' | 'recent' | 'archive';
@@ -45,6 +48,7 @@ interface NavigationPanelProps {
   onCreateNew: () => void;
   onCreateNode?: () => void;
   onImportFromGutenberg?: (content: string, title: string, source: BookSource) => void;
+  onImportFromCloudArchive?: (content: any, metadata: EncryptedFile) => void;
 }
 
 // Helper to format relative time
@@ -63,7 +67,7 @@ function formatRelativeTime(timestamp: number): string {
 }
 
 // Archive sub-tabs
-type ArchiveSubTab = 'my-archive' | 'gutenberg';
+type ArchiveSubTab = 'cloud' | 'gutenberg';
 
 export const NavigationPanel: Component<NavigationPanelProps> = (props) => {
   const [activeSection, setActiveSection] = createSignal<NavSection>('subscribed');
@@ -267,10 +271,11 @@ export const NavigationPanel: Component<NavigationPanelProps> = (props) => {
             {/* Archive Sub-tabs */}
             <div class="archive-subtabs">
               <button
-                class={`archive-subtab ${archiveSubTab() === 'my-archive' ? 'active' : ''}`}
-                onClick={() => setArchiveSubTab('my-archive')}
+                class={`archive-subtab ${archiveSubTab() === 'cloud' ? 'active' : ''}`}
+                onClick={() => setArchiveSubTab('cloud')}
+                title="Encrypted cloud storage"
               >
-                📁 My Archive
+                ☁️ Cloud
               </button>
               <button
                 class={`archive-subtab ${archiveSubTab() === 'gutenberg' ? 'active' : ''}`}
@@ -281,13 +286,14 @@ export const NavigationPanel: Component<NavigationPanelProps> = (props) => {
               </button>
             </div>
 
-            {/* My Archive Content */}
-            <Show when={archiveSubTab() === 'my-archive'}>
-              <div class="archive-content">
-                <div class="nav-empty">
-                  <p>Personal archive coming soon.</p>
-                  <p class="nav-hint">Import conversations, notes, and bookmarks.</p>
-                </div>
+            {/* Cloud Archive Browser */}
+            <Show when={archiveSubTab() === 'cloud'}>
+              <div class="archive-content cloud-container">
+                <CloudArchiveBrowser
+                  onSelectConversation={(content, metadata) => {
+                    props.onImportFromCloudArchive?.(content, metadata);
+                  }}
+                />
               </div>
             </Show>
 
@@ -296,7 +302,7 @@ export const NavigationPanel: Component<NavigationPanelProps> = (props) => {
               <div class="archive-content gutenberg-container">
                 <GutenbergBrowser
                   onSelectBook={(book: GutenbergBook) => {
-                    console.log('Selected book:', book);
+                    // Book selected - handled by import callback
                   }}
                   onImport={(content, title, source) => {
                     props.onImportFromGutenberg?.(content, title, source);

@@ -421,6 +421,15 @@ export async function completeOAuthFlow(
     };
   }
 
+  // Check if new signups are allowed
+  const allowNewSignups = env.ALLOW_NEW_SIGNUPS === 'true';
+  const adminEmails = (env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  const isAdminEmail = adminEmails.includes(userInfo.email.toLowerCase());
+
+  if (!allowNewSignups && !isAdminEmail) {
+    throw new Error('New signups are currently disabled. Please check back later or contact support.');
+  }
+
   // Create new user
   const { userId } = await createOAuthUser(
     env.DB,

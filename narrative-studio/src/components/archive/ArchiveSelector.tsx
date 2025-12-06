@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { STORAGE_PATHS } from '../../config/storage-paths';
 
-const ARCHIVE_SERVER_URL = 'http://localhost:3002';
+const ARCHIVE_SERVER_URL = STORAGE_PATHS.archiveServerUrl;
 
 interface Archive {
   name: string;

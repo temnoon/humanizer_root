@@ -14,8 +14,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { ConversationWithMedia } from './ComprehensiveMediaMatcher';
-import { Conversation } from './types';
+import type { ConversationWithMedia } from './ComprehensiveMediaMatcher';
+import type { Conversation } from './types';
 
 export interface OrganizerStats {
   conversationsProcessed: number;

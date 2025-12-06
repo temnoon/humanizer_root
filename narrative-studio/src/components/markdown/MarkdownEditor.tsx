@@ -3,6 +3,7 @@ import { useRef, useEffect } from 'react';
 interface MarkdownEditorProps {
   content: string;
   onChange: (content: string) => void;
+  onCursorChange?: (position: number) => void;
   className?: string;
   placeholder?: string;
 }
@@ -10,6 +11,7 @@ interface MarkdownEditorProps {
 export function MarkdownEditor({
   content,
   onChange,
+  onCursorChange,
   className = '',
   placeholder = 'Enter markdown...',
 }: MarkdownEditorProps) {
@@ -23,11 +25,23 @@ export function MarkdownEditor({
     }
   }, [content]);
 
+  const handleCursorUpdate = () => {
+    if (textareaRef.current && onCursorChange) {
+      onCursorChange(textareaRef.current.selectionStart);
+    }
+  };
+
   return (
     <textarea
       ref={textareaRef}
       value={content}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => {
+        onChange(e.target.value);
+        handleCursorUpdate();
+      }}
+      onSelect={handleCursorUpdate}
+      onClick={handleCursorUpdate}
+      onKeyUp={handleCursorUpdate}
       placeholder={placeholder}
       className={`w-full min-h-[400px] p-6 mono text-sm resize-none focus:outline-none ${className}`}
       style={{

@@ -1,0 +1,180 @@
+/**
+ * Humanizer Shared Variables
+ *
+ * Single source of truth for all theme tokens.
+ * Use SCSS maps for programmatic access.
+ */
+
+// ============================================================
+// COLOR PALETTE - Cyan/Teal Theme (NO PURPLE!)
+// ============================================================
+
+// Primary - Cyan/Teal
+$primary-cyan: #0891b2;
+$primary-cyan-hover: #0e7490;
+$primary-cyan-light: #22d3ee;
+$primary-cyan-lighter: #67e8f9;
+$primary-cyan-lightest: #a5f3fc;
+$primary-cyan-dark: #164e63;
+
+// Semantic Colors
+$success-green: #10b981;
+$success-green-light: #34d399;
+$warning-amber: #f59e0b;
+$warning-amber-light: #fbbf24;
+$error-red: #ef4444;
+$error-red-light: #f87171;
+$info-blue: #3b82f6;
+
+// Light Mode Backgrounds
+$light-bg-primary: #fafafa;
+$light-bg-secondary: #ffffff;
+$light-bg-tertiary: #f3f4f6;
+$light-bg-elevated: #ffffff;
+$light-bg-panel: #ffffff;
+
+// Dark Mode Backgrounds
+$dark-bg-primary: #0a0f1a;
+$dark-bg-secondary: #111827;
+$dark-bg-tertiary: #1f2937;
+$dark-bg-elevated: #1f2937;
+$dark-bg-panel: #111827;
+
+// Light Mode Text
+$light-text-primary: #111827;
+$light-text-secondary: #4b5563;
+$light-text-tertiary: #9ca3af;
+$light-text-inverse: #ffffff;
+
+// Dark Mode Text
+$dark-text-primary: #f9fafb;
+$dark-text-secondary: #d1d5db;
+$dark-text-tertiary: #9ca3af;
+$dark-text-inverse: #0a0f1a;
+
+// Light Mode Borders
+$light-border: #e5e7eb;
+$light-border-strong: #d1d5db;
+
+// Dark Mode Borders
+$dark-border: #1f2937;
+$dark-border-strong: #374151;
+
+// RGB Values for rgba() usage
+$primary-rgb-light: 8, 145, 178;
+$primary-rgb-dark: 34, 211, 238;
+$success-rgb: 16, 185, 129;
+$warning-rgb: 245, 158, 11;
+$error-rgb: 239, 68, 68;
+
+// ============================================================
+// GRADIENTS - Keep these user-approved gradients
+// ============================================================
+
+$gradient-primary: linear-gradient(135deg, #{$primary-cyan} 0%, #{$primary-cyan-light} 100%);
+$gradient-header: linear-gradient(180deg, #{$primary-cyan-hover} 0%, #{$primary-cyan} 100%);
+$gradient-button: linear-gradient(135deg, #{$primary-cyan} 0%, #06b6d4 100%);
+$gradient-accent: linear-gradient(135deg, #06b6d4 0%, #{$primary-cyan-light} 100%);
+
+// Dark mode gradient variations
+$gradient-header-dark: linear-gradient(180deg, #{$primary-cyan-dark} 0%, #{$primary-cyan-hover} 100%);
+$gradient-button-dark: linear-gradient(135deg, #{$primary-cyan-hover} 0%, #{$primary-cyan-light} 100%);
+$gradient-accent-dark: linear-gradient(135deg, #{$primary-cyan-light} 0%, #{$primary-cyan-lighter} 100%);
+
+// ============================================================
+// TYPOGRAPHY
+// ============================================================
+
+$font-body: 'Crimson Text', Georgia, serif;
+$font-ui: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+$font-mono: "SF Mono", Monaco, "Cascadia Code", "Roboto Mono", Consolas, monospace;
+
+// Font Sizes
+$text-xs: 0.75rem;    // 12px
+$text-sm: 0.875rem;   // 14px
+$text-base: 1rem;     // 16px
+$text-lg: 1.125rem;   // 18px
+$text-xl: 1.25rem;    // 20px
+$text-2xl: 1.5rem;    // 24px
+$text-3xl: 1.875rem;  // 30px
+$text-4xl: 2.25rem;   // 36px
+
+// Font Weights
+$weight-normal: 400;
+$weight-medium: 500;
+$weight-semibold: 600;
+$weight-bold: 700;
+
+// Line Heights
+$line-height-tight: 1.25;
+$line-height-normal: 1.5;
+$line-height-relaxed: 1.75;
+$line-height-loose: 2;
+
+// ============================================================
+// SPACING
+// ============================================================
+
+$space-xs: 0.25rem;   // 4px
+$space-sm: 0.5rem;    // 8px
+$space-md: 1rem;      // 16px
+$space-lg: 1.5rem;    // 24px
+$space-xl: 2rem;      // 32px
+$space-2xl: 3rem;     // 48px
+$space-3xl: 4rem;     // 64px
+
+// ============================================================
+// BORDER RADIUS
+// ============================================================
+
+$radius-sm: 0.25rem;  // 4px
+$radius-md: 0.5rem;   // 8px
+$radius-lg: 0.75rem;  // 12px
+$radius-xl: 1rem;     // 16px
+$radius-full: 9999px;
+
+// ============================================================
+// ANIMATION
+// ============================================================
+
+$duration-fast: 150ms;
+$duration-normal: 250ms;
+$duration-slow: 350ms;
+
+$ease-linear: linear;
+$ease-in: cubic-bezier(0.4, 0, 1, 1);
+$ease-out: cubic-bezier(0, 0, 0.2, 1);
+$ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+// ============================================================
+// LAYOUT
+// ============================================================
+
+$max-width-content: 65ch;
+$panel-min-width: 200px;
+$panel-max-width: 600px;
+$panel-default-width: 300px;
+$header-height: 4rem;
+
+// ============================================================
+// Z-INDEX
+// ============================================================
+
+$z-base: 0;
+$z-dropdown: 1000;
+$z-sticky: 1020;
+$z-modal: 1030;
+$z-popover: 1040;
+$z-toast: 1050;
+
+// ============================================================
+// SHADOWS
+// ============================================================
+
+$shadow-sm-light: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+$shadow-md-light: 0 4px 12px 0 rgba(0, 0, 0, 0.1);
+$shadow-lg-light: 0 8px 24px 0 rgba(0, 0, 0, 0.12);
+
+$shadow-sm-dark: 0 1px 3px 0 rgba(0, 0, 0, 0.5);
+$shadow-md-dark: 0 4px 12px 0 rgba(0, 0, 0, 0.5);
+$shadow-lg-dark: 0 8px 24px 0 rgba(0, 0, 0, 0.6);

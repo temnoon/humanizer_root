@@ -5,6 +5,7 @@
 import type { Env, NPENamespace } from '../../shared/types';
 import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
+import { stripPreambles } from '../lib/strip-preambles';
 
 export interface NamespaceTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
@@ -267,7 +268,8 @@ Complete Narrative in ${this.namespace.name}:`;
       temperature: 0.8
     });
 
-    return result.trim();
+    // Strip any preambles from final output
+    return stripPreambles(result.trim());
   }
 }
 

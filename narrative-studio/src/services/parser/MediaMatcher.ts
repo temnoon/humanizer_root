@@ -3,7 +3,7 @@
 // ============================================================
 // Matches media files to conversations using multiple strategies
 
-import { Conversation, FileIndices, MediaReferences, MatchStats, MatchStrategy } from './types';
+import type { Conversation, FileIndices, MediaReferences, MatchStats, MatchStrategy } from './types';
 import { MediaIndexer } from './MediaIndexer';
 import { extractFileId } from './utils';
 

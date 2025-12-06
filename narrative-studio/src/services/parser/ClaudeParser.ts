@@ -6,7 +6,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { Conversation, ClaudeExport, ClaudeChatMessage } from './types';
+import type { Conversation, ClaudeExport, ClaudeChatMessage } from './types';
 import { readJSON, findFiles, parseISOTimestamp } from './utils';
 
 export class ClaudeParser {

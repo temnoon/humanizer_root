@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
 // Paths
 const RENDERER_DEV_URL = process.env.VITE_DEV_SERVER_URL;
 const DIST = path.join(__dirname, '../dist');
-const DIST_ELECTRON = path.join(__dirname, '../dist-electron');
+// const DIST_ELECTRON = path.join(__dirname, '../dist-electron'); // Reserved for future use
 
 // Initialize store for persistent settings
 const store = new Store({

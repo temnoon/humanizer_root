@@ -338,6 +338,17 @@ export class EmbeddingDatabase {
         embedding float[${EMBEDDING_DIM}]
       );
     `);
+
+    // Content item embeddings (Facebook posts, comments, etc.)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_content_items USING vec0(
+        id TEXT PRIMARY KEY,
+        content_item_id TEXT,
+        type TEXT,
+        source TEXT,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
   }
 
   private migrateSchema(fromVersion: number): void {
@@ -345,6 +356,103 @@ export class EmbeddingDatabase {
     if (fromVersion < 2 && this.vecLoaded) {
       this.createVectorTables();
     }
+
+    // Migration from version 2 to 3: add unified content tables
+    if (fromVersion < 3) {
+      this.db.exec(`
+        -- Unified content tables for Facebook posts, comments, photos, etc.
+        CREATE TABLE IF NOT EXISTS content_items (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          source TEXT NOT NULL,
+          text TEXT,
+          title TEXT,
+          created_at REAL NOT NULL,
+          updated_at REAL,
+          author_name TEXT,
+          author_id TEXT,
+          is_own_content INTEGER,
+          parent_id TEXT,
+          thread_id TEXT,
+          context TEXT,
+          file_path TEXT,
+          media_refs TEXT,
+          media_count INTEGER DEFAULT 0,
+          metadata TEXT,
+          tags TEXT,
+          embedding BLOB,
+          embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+          search_text TEXT,
+          FOREIGN KEY (parent_id) REFERENCES content_items(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS media_files (
+          id TEXT PRIMARY KEY,
+          content_item_id TEXT,
+          file_path TEXT NOT NULL,
+          file_name TEXT,
+          file_size INTEGER,
+          mime_type TEXT,
+          type TEXT NOT NULL,
+          width INTEGER,
+          height INTEGER,
+          duration INTEGER,
+          taken_at REAL,
+          uploaded_at REAL,
+          caption TEXT,
+          location TEXT,
+          people_tagged TEXT,
+          metadata TEXT,
+          embedding BLOB,
+          embedding_model TEXT,
+          FOREIGN KEY (content_item_id) REFERENCES content_items(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS reactions (
+          id TEXT PRIMARY KEY,
+          content_item_id TEXT NOT NULL,
+          reaction_type TEXT NOT NULL,
+          reactor_name TEXT,
+          reactor_id TEXT,
+          created_at REAL NOT NULL,
+          FOREIGN KEY (content_item_id) REFERENCES content_items(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS archive_settings (
+          archive_id TEXT PRIMARY KEY,
+          settings TEXT NOT NULL,
+          created_at REAL NOT NULL
+        );
+
+        -- Indexes
+        CREATE INDEX IF NOT EXISTS idx_content_type ON content_items(type);
+        CREATE INDEX IF NOT EXISTS idx_content_source ON content_items(source);
+        CREATE INDEX IF NOT EXISTS idx_content_created ON content_items(created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_content_author ON content_items(author_name);
+        CREATE INDEX IF NOT EXISTS idx_content_thread ON content_items(thread_id);
+        CREATE INDEX IF NOT EXISTS idx_content_own ON content_items(is_own_content);
+        CREATE INDEX IF NOT EXISTS idx_content_file_path ON content_items(file_path);
+        CREATE INDEX IF NOT EXISTS idx_media_content ON media_files(content_item_id);
+        CREATE INDEX IF NOT EXISTS idx_media_type ON media_files(type);
+        CREATE INDEX IF NOT EXISTS idx_media_taken ON media_files(taken_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_reactions_content ON reactions(content_item_id);
+        CREATE INDEX IF NOT EXISTS idx_reactions_type ON reactions(reaction_type);
+      `);
+
+      // Add vector table for content items if vec extension is loaded
+      if (this.vecLoaded) {
+        this.db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_content_items USING vec0(
+            id TEXT PRIMARY KEY,
+            content_item_id TEXT,
+            type TEXT,
+            source TEXT,
+            embedding float[${EMBEDDING_DIM}]
+          );
+        `);
+      }
+    }
+
     this.db.prepare('UPDATE schema_version SET version = ?').run(SCHEMA_VERSION);
   }
 
@@ -1258,6 +1366,202 @@ export class EmbeddingDatabase {
       clusterCount: clusterCount.count,
       anchorCount: anchorCount.count,
     };
+  }
+
+  // ===========================================================================
+  // Content Items (Facebook posts, comments, etc.)
+  // ===========================================================================
+
+  insertContentItem(item: {
+    id: string;
+    type: string;
+    source: string;
+    text?: string;
+    title?: string;
+    created_at: number;
+    updated_at?: number;
+    author_name?: string;
+    author_id?: string;
+    is_own_content: boolean;
+    parent_id?: string;
+    thread_id?: string;
+    context?: string;
+    file_path?: string;
+    media_refs?: string;
+    media_count?: number;
+    metadata?: string;
+    tags?: string;
+    search_text?: string;
+  }): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO content_items (
+        id, type, source, text, title, created_at, updated_at,
+        author_name, author_id, is_own_content, parent_id, thread_id,
+        context, file_path, media_refs, media_count, metadata, tags, search_text
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      item.id,
+      item.type,
+      item.source,
+      item.text,
+      item.title,
+      item.created_at,
+      item.updated_at,
+      item.author_name,
+      item.author_id,
+      item.is_own_content ? 1 : 0,
+      item.parent_id,
+      item.thread_id,
+      item.context,
+      item.file_path,
+      item.media_refs,
+      item.media_count,
+      item.metadata,
+      item.tags,
+      item.search_text
+    );
+  }
+
+  insertContentItemsBatch(items: Array<{
+    id: string;
+    type: string;
+    source: string;
+    text?: string;
+    title?: string;
+    created_at: number;
+    updated_at?: number;
+    author_name?: string;
+    author_id?: string;
+    is_own_content: boolean;
+    parent_id?: string;
+    thread_id?: string;
+    context?: string;
+    file_path?: string;
+    media_refs?: string;
+    media_count?: number;
+    metadata?: string;
+    tags?: string;
+    search_text?: string;
+  }>): void {
+    const insertMany = this.db.transaction((items: any[]) => {
+      for (const item of items) {
+        this.insertContentItem(item);
+      }
+    });
+
+    insertMany(items);
+  }
+
+  getContentItem(id: string): any | null {
+    const row = this.db.prepare('SELECT * FROM content_items WHERE id = ?').get(id);
+    return row || null;
+  }
+
+  getContentItemsBySource(source: string): any[] {
+    return this.db.prepare('SELECT * FROM content_items WHERE source = ? ORDER BY created_at DESC').all(source);
+  }
+
+  getContentItemsByType(type: string): any[] {
+    return this.db.prepare('SELECT * FROM content_items WHERE type = ? ORDER BY created_at DESC').all(type);
+  }
+
+  /**
+   * Insert content item embedding into vec_content_items
+   */
+  insertContentItemEmbedding(
+    id: string,
+    contentItemId: string,
+    type: string,
+    source: string,
+    embedding: number[]
+  ): void {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+    this.db.prepare(`
+      INSERT OR REPLACE INTO vec_content_items (id, content_item_id, type, source, embedding)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, contentItemId, type, source, this.embeddingToJson(embedding));
+  }
+
+  /**
+   * Search content items by semantic similarity
+   */
+  searchContentItems(
+    queryEmbedding: number[],
+    limit: number = 20,
+    type?: string,
+    source?: string
+  ): Array<{ id: string; content_item_id: string; type: string; source: string; distance: number }> {
+    if (!this.vecLoaded) throw new Error('Vector operations not available');
+
+    let sql = `
+      SELECT id, content_item_id, type, source, distance
+      FROM vec_content_items
+      WHERE embedding MATCH ?
+    `;
+
+    const params: any[] = [this.embeddingToJson(queryEmbedding)];
+
+    if (type) {
+      sql += ` AND type = ?`;
+      params.push(type);
+    }
+
+    if (source) {
+      sql += ` AND source = ?`;
+      params.push(source);
+    }
+
+    sql += ` ORDER BY distance LIMIT ?`;
+    params.push(limit);
+
+    return this.db.prepare(sql).all(...params) as any[];
+  }
+
+  // ===========================================================================
+  // Reactions
+  // ===========================================================================
+
+  insertReaction(reaction: {
+    id: string;
+    content_item_id: string;
+    reaction_type: string;
+    reactor_name?: string;
+    reactor_id?: string;
+    created_at: number;
+  }): void {
+    this.db.prepare(`
+      INSERT OR REPLACE INTO reactions (
+        id, content_item_id, reaction_type, reactor_name, reactor_id, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      reaction.id,
+      reaction.content_item_id,
+      reaction.reaction_type,
+      reaction.reactor_name,
+      reaction.reactor_id,
+      reaction.created_at
+    );
+  }
+
+  insertReactionsBatch(reactions: Array<{
+    id: string;
+    content_item_id: string;
+    reaction_type: string;
+    reactor_name?: string;
+    reactor_id?: string;
+    created_at: number;
+  }>): void {
+    const insertMany = this.db.transaction((reactions: any[]) => {
+      for (const reaction of reactions) {
+        this.insertReaction(reaction);
+      }
+    });
+
+    insertMany(reactions);
+  }
+
+  getReactionsForContentItem(contentItemId: string): any[] {
+    return this.db.prepare('SELECT * FROM reactions WHERE content_item_id = ? ORDER BY created_at DESC').all(contentItemId);
   }
 
   // ===========================================================================

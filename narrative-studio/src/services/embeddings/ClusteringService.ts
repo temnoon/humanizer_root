@@ -117,7 +117,7 @@ export class ClusteringService {
     const hdbscan = new HDBSCAN({
       minClusterSize: opts.minClusterSize!,
       minSamples: opts.minSamples!,
-      metric: 'cosine',
+      metric: 'cosine' as 'euclidean', // cosine works at runtime but types only define euclidean
     });
 
     const labels = hdbscan.fit(sampledEmbeddings);

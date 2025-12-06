@@ -895,6 +895,22 @@
   margin-bottom: var(--space-xl);
 }
 
+/* ===== NODE CONTENT SECTIONS ===== */
+
+.node-apex-section,
+.node-chapters-section,
+.node-chat-section {
+  margin-top: var(--space-xl);
+  margin-bottom: var(--space-xl);
+}
+
+.section-description {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 0;
+  font-style: italic;
+}
+
 /* ===== RESPONSIVE ===== */
 
 @media (max-width: 768px) {

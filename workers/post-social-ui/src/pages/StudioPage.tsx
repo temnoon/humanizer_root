@@ -10,6 +10,7 @@
 import { Component, createSignal, Show } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 import { authStore } from '@/stores/auth';
+import { toast } from '@/components/ui/Toast';
 import { nodesService } from '@/services/nodes';
 import { 
   StudioLayout, 
@@ -64,7 +65,7 @@ export const StudioPage: Component = () => {
     const token = authStore.token();
     if (!token || !params.nodeId) {
       // Need to select a node first
-      alert('Please select a target Node first');
+      toast.warning('Please select a target Node first');
       return;
     }
     
@@ -80,7 +81,7 @@ export const StudioPage: Component = () => {
       navigate(`/node/${narrative.nodeSlug || params.nodeId}/${narrative.slug}`);
     } catch (err) {
       console.error('Failed to publish:', err);
-      alert('Failed to publish narrative');
+      toast.error('Failed to publish narrative');
     } finally {
       setIsPublishing(false);
     }
@@ -89,13 +90,11 @@ export const StudioPage: Component = () => {
   // Handle AI suggestion
   const handleApplySuggestion = (suggestion: any) => {
     // In future: intelligently apply suggestion to content
-    console.log('Apply suggestion:', suggestion);
   };
-  
+
   // Handle comment incorporation
   const handleIncorporateComment = (comment: any) => {
     // In future: AI-assisted comment synthesis
-    console.log('Incorporate comment:', comment);
   };
   
   // Open media in lightbox

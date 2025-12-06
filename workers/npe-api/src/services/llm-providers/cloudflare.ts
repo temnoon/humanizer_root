@@ -45,29 +45,7 @@ export class CloudflareProvider implements LLMProvider {
     try {
       // Format request body based on API format
       const requestBody = this.formatRequest(request);
-
-      console.log('CloudflareProvider calling AI.run:', {
-        modelId: this.modelId,
-        apiFormat: this.apiFormat,
-        max_tokens: request.max_tokens
-      });
-
       const response = await this.env.AI.run(this.modelId, requestBody);
-
-      // Debug: Log response structure
-      console.log('CloudflareProvider response keys:', Object.keys(response));
-      console.log('CloudflareProvider response.text type:', typeof response.text);
-      console.log('CloudflareProvider response.output type:', typeof response.output);
-
-      // Log object structure to understand the format
-      if (typeof response.text === 'object' && response.text !== null) {
-        console.log('CloudflareProvider response.text keys:', Object.keys(response.text));
-        console.log('CloudflareProvider response.text:', JSON.stringify(response.text).substring(0, 200));
-      }
-      if (typeof response.output === 'object' && response.output !== null) {
-        console.log('CloudflareProvider response.output keys:', Object.keys(response.output));
-        console.log('CloudflareProvider response.output:', JSON.stringify(response.output).substring(0, 200));
-      }
 
       // Try different response field names based on API format
       let responseText = '';
@@ -105,13 +83,7 @@ export class CloudflareProvider implements LLMProvider {
 
       // Ensure responseText is a string
       if (typeof responseText !== 'string') {
-        console.log('CloudflareProvider WARNING: responseText is not a string, converting');
         responseText = String(responseText || '');
-      }
-
-      console.log('CloudflareProvider extracted text length:', responseText.length);
-      if (responseText.length > 0) {
-        console.log('CloudflareProvider text preview:', responseText.substring(0, 200));
       }
 
       // Post-process response (e.g., clean reasoning artifacts)

@@ -14,14 +14,26 @@ import type {
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || 'https://npe-api.tem-527.workers.dev';
 
+// Token storage keys - check multiple for cross-app compatibility
+const TOKEN_KEYS = [
+  'narrative-studio-auth-token',
+  'post-social:token',  // post-social-ui compatibility
+];
+
 class HumanizerAPI {
   private baseURL: string;
   private token: string | null = null;
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL;
-    // Try to load token from localStorage
-    this.token = localStorage.getItem('narrative-studio-auth-token');
+    // Try to load token from localStorage - check multiple keys for compatibility
+    for (const key of TOKEN_KEYS) {
+      const token = localStorage.getItem(key);
+      if (token) {
+        this.token = token;
+        break;
+      }
+    }
   }
 
   // ============================================================
@@ -44,13 +56,17 @@ class HumanizerAPI {
 
     const data = await response.json();
     this.token = data.token;
+    // Store in both keys for cross-app compatibility
     localStorage.setItem('narrative-studio-auth-token', data.token);
+    localStorage.setItem('post-social:token', data.token);
     return data;
   }
 
   async logout(): Promise<void> {
     this.token = null;
+    // Clear all token keys
     localStorage.removeItem('narrative-studio-auth-token');
+    localStorage.removeItem('post-social:token');
   }
 
   async me(): Promise<{ email: string; role: string }> {
@@ -93,7 +109,9 @@ class HumanizerAPI {
       case 'style':
         return '/transformations/style';
       case 'ai-detection':
-        return '/transformations/ai-detection';
+        return '/ai-detection/lite';
+      case 'round-trip':
+        return '/transformations/round-trip';
       default:
         throw new Error(`Unknown transformation type: ${type}`);
     }

@@ -8,26 +8,26 @@ const authRoutes = new Hono<{ Bindings: Env }>();
 /**
  * POST /auth/register - Register new user
  *
- * Environment-based registration control:
- * - Local development (ENVIRONMENT != "production"): Registration ENABLED
- * - Production (ENVIRONMENT == "production"): Registration DISABLED during testing
- *
- * This allows local API distribution and testing while protecting production.
+ * Signup control:
+ * - ALLOW_NEW_SIGNUPS='true': Registration enabled for all
+ * - ADMIN_EMAILS: Comma-separated list of emails that can always register
+ * - Default: Registration disabled (for pre-launch control)
  */
 authRoutes.post('/register', async (c) => {
-  const environment = c.env.ENVIRONMENT || 'development';
-
-  // Block registration in production during testing phase
-  if (environment === 'production') {
-    return c.json({
-      error: 'Registration is temporarily disabled. We are currently in testing phase and not accepting new signups at this time.',
-      hint: 'For local development, ensure ENVIRONMENT is set to "development" or "local".'
-    }, 503);
-  }
-
-  // Registration enabled for local/dev environments
   try {
     const { email, password }: RegisterRequest = await c.req.json();
+
+    // Check if new signups are allowed
+    const allowNewSignups = c.env.ALLOW_NEW_SIGNUPS === 'true';
+    const adminEmails = (c.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+    const isAdminEmail = email && adminEmails.includes(email.toLowerCase());
+
+    if (!allowNewSignups && !isAdminEmail) {
+      return c.json({
+        error: 'New signups are currently disabled. Please check back later or contact support.',
+        hint: 'Join the waitlist at humanizer.com for early access.'
+      }, 503);
+    }
 
     // Validate input
     if (!email || !password) {

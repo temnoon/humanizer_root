@@ -1,0 +1,64 @@
+{
+  "name": "@humanizer/studio-tools",
+  "version": "1.0.0",
+  "description": "Unified tool framework for humanizer.com studio interfaces",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types/index.mjs",
+      "require": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./solid": {
+      "import": "./src/components/solid/index.tsx",
+      "types": "./src/components/solid/index.tsx"
+    },
+    "./react": {
+      "import": "./src/components/react/index.ts",
+      "types": "./src/components/react/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "humanizer",
+    "studio",
+    "tools",
+    "transformation"
+  ],
+  "author": "humanizer.com",
+  "license": "UNLICENSED",
+  "peerDependencies": {
+    "solid-js": "^1.8.0",
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "solid-js": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "solid-js": "^1.9.10",
+    "@types/react": "^19.0.0",
+    "react": "^19.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  }
+}

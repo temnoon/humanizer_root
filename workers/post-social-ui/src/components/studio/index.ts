@@ -32,9 +32,14 @@ export { GutenbergBrowser } from './GutenbergBrowser';
 export { NodeSeeder } from './NodeSeeder';
 export { NodeCreationWizard } from './NodeCreationWizard';
 export { TransformPanel } from './TransformPanel';
+export { StudioToolsPanel } from './StudioToolsPanel';
 export { PersonaBrowser } from './PersonaBrowser';
 export { CommentSection } from './CommentSection';
 
 // Overlay
 export { Lightbox, openLightbox, closeLightbox, useLightbox } from './Lightbox';
 export type { LightboxItem } from './Lightbox';
+
+// Mobile Components
+export { BottomSheet, useBottomSheet } from './BottomSheet';
+export type { SheetState, BottomSheetProps } from './BottomSheet';

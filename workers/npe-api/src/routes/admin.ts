@@ -3,11 +3,20 @@
  * Protected endpoints for site administration
  *
  * All endpoints require ADMIN role
+ *
+ * Endpoints:
+ * - GET  /admin/metrics         - Site-wide analytics
+ * - GET  /admin/billing         - Stripe billing metrics
+ * - GET  /admin/costs           - Service cost estimates
+ * - GET  /admin/users           - List/search users
+ * - PATCH /admin/users/:id      - Update user
+ * - POST /admin/users/provision - Create test users
+ * - GET  /admin/system-health   - Health check
  */
 
 import { Hono } from 'hono';
-import { requireAuth, requireAdmin, getAuthContext } from '../middleware/auth';
-import type { Env } from '../../shared/types';
+import { requireAuth, requireAdmin, getAuthContext, hashPassword, generateToken } from '../middleware/auth';
+import type { Env, UserRole } from '../../shared/types';
 
 const adminRoutes = new Hono<{ Bindings: Env }>();
 
@@ -438,6 +447,377 @@ adminRoutes.get('/system-health', requireAuth(), requireAdmin(), async (c) => {
       error: error.message,
       timestamp: new Date().toISOString()
     }, 500);
+  }
+});
+
+/**
+ * POST /admin/users/provision
+ *
+ * Create test users with specific tiers for testing Stripe flows
+ *
+ * Request body:
+ * {
+ *   "email": "testuser@example.com",
+ *   "password": "testpass123",
+ *   "role": "pro",                    // free, member, pro, premium
+ *   "withStripeCustomer": true,       // Create Stripe customer record
+ *   "note": "Test user for billing"   // Optional note
+ * }
+ *
+ * Response:
+ * {
+ *   "user": { ... },
+ *   "token": "jwt-token",
+ *   "stripeCustomerId": "cus_xxx" (if withStripeCustomer)
+ * }
+ */
+adminRoutes.post('/users/provision', requireAuth(), requireAdmin(), async (c) => {
+  try {
+    const { email, password, role = 'free', withStripeCustomer = false, note } = await c.req.json();
+
+    // Validate
+    if (!email || !password) {
+      return c.json({ error: 'Email and password are required' }, 400);
+    }
+
+    if (password.length < 8) {
+      return c.json({ error: 'Password must be at least 8 characters' }, 400);
+    }
+
+    const validRoles: UserRole[] = ['free', 'member', 'pro', 'premium', 'admin'];
+    if (!validRoles.includes(role)) {
+      return c.json({ error: `Role must be one of: ${validRoles.join(', ')}` }, 400);
+    }
+
+    // Check if user exists
+    const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
+    if (existing) {
+      return c.json({ error: 'User with this email already exists' }, 409);
+    }
+
+    // Create user
+    const userId = crypto.randomUUID();
+    const now = Date.now();
+    const passwordHash = await hashPassword(password);
+
+    await c.env.DB.prepare(
+      `INSERT INTO users (id, email, password_hash, role, created_at, monthly_transformations, monthly_tokens_used, last_reset_date)
+       VALUES (?, ?, ?, ?, ?, 0, 0, ?)`
+    ).bind(userId, email, passwordHash, role, now, now).run();
+
+    // Generate token
+    const token = await generateToken(userId, email, role, c.env.JWT_SECRET);
+
+    // Optionally create Stripe customer record
+    let stripeCustomerId: string | null = null;
+    if (withStripeCustomer && c.env.STRIPE_SECRET_KEY) {
+      try {
+        const stripeResponse = await fetch('https://api.stripe.com/v1/customers', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${c.env.STRIPE_SECRET_KEY}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            email,
+            'metadata[user_id]': userId,
+            'metadata[provisioned]': 'true',
+            'metadata[note]': note || 'Admin provisioned test user',
+          }).toString(),
+        });
+
+        if (stripeResponse.ok) {
+          const stripeCustomer = await stripeResponse.json() as { id: string };
+          stripeCustomerId = stripeCustomer.id;
+
+          // Store in our DB
+          const scId = crypto.randomUUID();
+          await c.env.DB.prepare(
+            `INSERT INTO stripe_customers (id, user_id, stripe_customer_id, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?)`
+          ).bind(scId, userId, stripeCustomerId, now, now).run();
+        }
+      } catch (stripeError) {
+        console.error('Stripe customer creation failed:', stripeError);
+        // Continue - user created, just no Stripe customer
+      }
+    }
+
+    const user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+
+    return c.json({
+      success: true,
+      user,
+      token,
+      stripeCustomerId,
+      loginCommand: `curl -X POST https://npe-api.tem-527.workers.dev/auth/login -H "Content-Type: application/json" -d '{"email":"${email}","password":"${password}"}'`
+    }, 201);
+
+  } catch (error: any) {
+    console.error('Provision user error:', error);
+    return c.json({ error: 'Failed to provision user', details: error.message }, 500);
+  }
+});
+
+/**
+ * GET /admin/billing
+ *
+ * Stripe billing metrics and subscription analytics
+ *
+ * Response:
+ * {
+ *   "subscriptions": {
+ *     "active": 25,
+ *     "trialing": 10,
+ *     "past_due": 2,
+ *     "canceled": 5
+ *   },
+ *   "revenue": {
+ *     "mrr_cents": 45000,
+ *     "day_passes_24h": 5,
+ *     "day_passes_total": 45
+ *   },
+ *   "by_tier": { "member": 15, "pro": 8, "premium": 2 },
+ *   "recent_events": [ ... ]
+ * }
+ */
+adminRoutes.get('/billing', requireAuth(), requireAdmin(), async (c) => {
+  try {
+    const env = c.env;
+
+    // Subscription counts by status
+    const subsByStatus = await env.DB.prepare(`
+      SELECT status, COUNT(*) as count
+      FROM stripe_subscriptions
+      GROUP BY status
+    `).all();
+
+    const statusCounts: Record<string, number> = {
+      active: 0, trialing: 0, past_due: 0, canceled: 0, unpaid: 0
+    };
+    subsByStatus.results.forEach((row: any) => {
+      statusCounts[row.status] = row.count;
+    });
+
+    // Subscriptions by tier
+    const subsByTier = await env.DB.prepare(`
+      SELECT tier, COUNT(*) as count
+      FROM stripe_subscriptions
+      WHERE status IN ('active', 'trialing')
+      GROUP BY tier
+    `).all();
+
+    const tierCounts: Record<string, number> = { member: 0, pro: 0, premium: 0 };
+    subsByTier.results.forEach((row: any) => {
+      tierCounts[row.tier] = row.count;
+    });
+
+    // Calculate MRR (Monthly Recurring Revenue)
+    // member: $9.99, pro: $29.99, premium: $99.99
+    const mrrCents = (tierCounts.member * 999) + (tierCounts.pro * 2999) + (tierCounts.premium * 9999);
+
+    // Day passes
+    const now = Date.now();
+    const dayAgo = now - (24 * 60 * 60 * 1000);
+
+    const dayPasses24h = await env.DB.prepare(`
+      SELECT COUNT(*) as count FROM day_passes WHERE purchased_at >= ?
+    `).bind(dayAgo).first();
+
+    const dayPassesTotal = await env.DB.prepare(`
+      SELECT COUNT(*) as count FROM day_passes
+    `).first();
+
+    // Payment history summary
+    const revenueTotal = await env.DB.prepare(`
+      SELECT SUM(amount_cents) as total FROM payment_history WHERE status = 'succeeded'
+    `).first();
+
+    // Recent Stripe events
+    const recentEvents = await env.DB.prepare(`
+      SELECT stripe_event_id, event_type, processed, error_message, created_at
+      FROM stripe_events
+      ORDER BY created_at DESC
+      LIMIT 20
+    `).all();
+
+    // Recent payments
+    const recentPayments = await env.DB.prepare(`
+      SELECT ph.*, u.email
+      FROM payment_history ph
+      JOIN users u ON ph.user_id = u.id
+      ORDER BY ph.created_at DESC
+      LIMIT 20
+    `).all();
+
+    return c.json({
+      subscriptions: {
+        active: statusCounts.active,
+        trialing: statusCounts.trialing,
+        past_due: statusCounts.past_due,
+        canceled: statusCounts.canceled,
+        unpaid: statusCounts.unpaid,
+        total_paying: statusCounts.active + statusCounts.trialing
+      },
+      revenue: {
+        mrr_cents: mrrCents,
+        mrr_formatted: `$${(mrrCents / 100).toFixed(2)}`,
+        total_revenue_cents: revenueTotal?.total || 0,
+        total_revenue_formatted: `$${((revenueTotal?.total || 0) / 100).toFixed(2)}`,
+        day_passes_24h: dayPasses24h?.count || 0,
+        day_passes_total: dayPassesTotal?.count || 0
+      },
+      by_tier: tierCounts,
+      recent_events: recentEvents.results,
+      recent_payments: recentPayments.results
+    });
+
+  } catch (error: any) {
+    console.error('Billing metrics error:', error);
+    return c.json({ error: 'Failed to fetch billing metrics', details: error.message }, 500);
+  }
+});
+
+/**
+ * GET /admin/costs
+ *
+ * Estimated service costs and usage metrics
+ *
+ * Response:
+ * {
+ *   "services": {
+ *     "cloudflare_workers": { "requests": 50000, "estimated_cost": 0 },
+ *     "cloudflare_d1": { "size_mb": 12.82, "estimated_cost": 0 },
+ *     "cloudflare_ai": { "tokens_used": 150000, "estimated_cost": 1.50 },
+ *     "stripe": { "transactions": 25, "fee_cents": 7250 }
+ *   },
+ *   "totals": {
+ *     "estimated_monthly": 8.75,
+ *     "revenue": 450.00,
+ *     "margin_percent": 98
+ *   }
+ * }
+ */
+adminRoutes.get('/costs', requireAuth(), requireAdmin(), async (c) => {
+  try {
+    const env = c.env;
+
+    // Get token usage from transformations
+    const tokenUsage = await env.DB.prepare(`
+      SELECT SUM(monthly_tokens_used) as total_tokens FROM users
+    `).first();
+
+    // Get payment count for Stripe fees
+    const paymentCount = await env.DB.prepare(`
+      SELECT COUNT(*) as count, SUM(amount_cents) as total
+      FROM payment_history
+      WHERE status = 'succeeded'
+    `).first();
+
+    // Estimate Cloudflare AI costs (rough: $0.01 per 1000 tokens)
+    const tokensUsed = (tokenUsage?.total_tokens as number) || 0;
+    const aiCostEstimate = (tokensUsed / 1000) * 0.01;
+
+    // Stripe fees: 2.9% + $0.30 per transaction
+    const transactionCount = (paymentCount?.count as number) || 0;
+    const totalRevenue = (paymentCount?.total as number) || 0;
+    const stripeFeesCents = Math.round((totalRevenue * 0.029) + (transactionCount * 30));
+
+    // D1 storage (would need to query actual size, estimate for now)
+    const d1SizeMb = 12.82; // From CLAUDE.md
+    const d1Cost = d1SizeMb > 5000 ? 5 : 0; // Free tier is 5GB
+
+    // Workers (free tier is 100k requests/day)
+    const workersCost = 0; // Likely within free tier
+
+    const totalCosts = aiCostEstimate + d1Cost + workersCost + (stripeFeesCents / 100);
+    const revenue = totalRevenue / 100;
+    const margin = revenue > 0 ? Math.round(((revenue - totalCosts) / revenue) * 100) : 0;
+
+    return c.json({
+      services: {
+        cloudflare_workers: {
+          note: 'Free tier: 100k requests/day',
+          estimated_cost: workersCost
+        },
+        cloudflare_d1: {
+          size_mb: d1SizeMb,
+          note: 'Free tier: 5GB, then $5/5GB',
+          estimated_cost: d1Cost
+        },
+        cloudflare_ai: {
+          tokens_used: tokensUsed,
+          note: 'Rough estimate: $0.01/1k tokens',
+          estimated_cost: parseFloat(aiCostEstimate.toFixed(2))
+        },
+        stripe: {
+          transactions: transactionCount,
+          fee_percent: 2.9,
+          fee_per_transaction_cents: 30,
+          total_fees_cents: stripeFeesCents,
+          total_fees_formatted: `$${(stripeFeesCents / 100).toFixed(2)}`
+        }
+      },
+      totals: {
+        estimated_monthly_costs: parseFloat(totalCosts.toFixed(2)),
+        total_revenue: parseFloat(revenue.toFixed(2)),
+        margin_percent: margin,
+        profit_estimate: parseFloat((revenue - totalCosts).toFixed(2))
+      },
+      notes: [
+        'Cloudflare Workers likely within free tier',
+        'D1 at 12.82MB, well under 5GB free tier',
+        'AI costs are rough estimates based on token usage',
+        'Stripe fees are calculated from actual transactions'
+      ]
+    });
+
+  } catch (error: any) {
+    console.error('Cost metrics error:', error);
+    return c.json({ error: 'Failed to fetch cost metrics', details: error.message }, 500);
+  }
+});
+
+/**
+ * DELETE /admin/users/:id
+ *
+ * Delete a user and all associated data (for test cleanup)
+ * Protected: Cannot delete admin users
+ */
+adminRoutes.delete('/users/:id', requireAuth(), requireAdmin(), async (c) => {
+  try {
+    const userId = c.req.param('id');
+    const auth = getAuthContext(c);
+
+    // Prevent self-deletion
+    if (userId === auth.userId) {
+      return c.json({ error: 'Cannot delete your own account' }, 400);
+    }
+
+    // Check if user exists and is not admin
+    const user = await c.env.DB.prepare('SELECT id, email, role FROM users WHERE id = ?').bind(userId).first();
+    if (!user) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    if (user.role === 'admin') {
+      return c.json({ error: 'Cannot delete admin users' }, 403);
+    }
+
+    // Delete user (cascades to related tables via FK)
+    await c.env.DB.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
+
+    return c.json({
+      success: true,
+      deleted: {
+        id: userId,
+        email: user.email
+      }
+    });
+
+  } catch (error: any) {
+    console.error('Delete user error:', error);
+    return c.json({ error: 'Failed to delete user', details: error.message }, 500);
   }
 });
 

@@ -3,7 +3,6 @@ import cors from 'cors';
 import fs from 'fs/promises';
 import path from 'path';
 import os from 'os';
-import { JSDOM } from 'jsdom';
 import multer from 'multer';
 import { ConversationParser, IncrementalImporter } from './src/services/parser/index.ts';
 
@@ -2892,6 +2891,744 @@ app.delete('/api/anchors/:id', (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting anchor:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
+// FACEBOOK FULL IMPORT ENDPOINTS
+// ============================================================
+
+// POST /api/import/facebook/preview - Get preview of Facebook export
+app.post('/api/import/facebook/preview', async (req, res) => {
+  try {
+    const { exportDir, settings } = req.body;
+
+    if (!exportDir) {
+      return res.status(400).json({ error: 'exportDir is required' });
+    }
+
+    console.log(`👀 Getting Facebook import preview: ${exportDir}`);
+
+    const { FacebookFullParser } = await import('./src/services/facebook/index.js');
+    const parser = new FacebookFullParser();
+
+    const preview = await parser.getImportPreview(exportDir, settings);
+
+    res.json(preview);
+  } catch (error) {
+    console.error('Error getting Facebook import preview:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/import/facebook/start - Start Facebook full import
+app.post('/api/import/facebook/start', async (req, res) => {
+  try {
+    const { exportDir, targetDir, archivePath, settings, preserveSource, generateEmbeddings } = req.body;
+
+    if (!exportDir || !targetDir) {
+      return res.status(400).json({ error: 'exportDir and targetDir are required' });
+    }
+
+    console.log(`🎯 Starting Facebook full import...`);
+    console.log(`   Export: ${exportDir}`);
+    console.log(`   Target: ${targetDir}`);
+    console.log(`   Archive: ${archivePath || 'auto'}`);
+
+    const { FacebookFullParser } = await import('./src/services/facebook/index.js');
+    const parser = new FacebookFullParser();
+
+    // Run import (this could be long-running, consider making it async in the future)
+    const result = await parser.importExport({
+      exportDir,
+      targetDir,
+      archivePath: archivePath || getArchiveRoot(),
+      settings,
+      preserveSource: preserveSource !== false,
+      generateEmbeddings: generateEmbeddings !== false,
+      onProgress: (progress) => {
+        console.log(`   Progress: ${progress.stage} - ${progress.message}`);
+      },
+    });
+
+    console.log(`✅ Facebook import complete!`);
+    console.log(`   Archive: ${result.archive_id}`);
+    console.log(`   Items: ${result.total_items}`);
+
+    res.json(result);
+  } catch (error) {
+    console.error('Error importing Facebook export:', error);
+    res.status(500).json({ error: error.message, stack: error.stack });
+  }
+});
+
+// GET /api/content/items - Get content items from database
+app.get('/api/content/items', async (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+    const source = req.query.source;
+    const type = req.query.type;
+    const period = req.query.period; // NEW: Filter by period
+    const limit = parseInt(req.query.limit) || 100;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const indexer = getIndexer(archivePath);
+    const db = indexer.getDatabase();
+
+    let items;
+    if (source) {
+      items = db.getContentItemsBySource(source);
+
+      // Apply type filter if specified
+      if (type) {
+        items = items.filter(item => item.type === type);
+      }
+
+      // Apply period filter if specified (e.g., "Q2_2015")
+      if (period) {
+        const [qStr, yearStr] = period.split('_');
+        const targetQuarter = parseInt(qStr.replace('Q', ''));
+        const targetYear = parseInt(yearStr);
+
+        items = items.filter(item => {
+          const date = new Date(item.created_at * 1000);
+          const year = date.getFullYear();
+          const month = date.getMonth();
+          const day = date.getDate();
+
+          // Calculate quarter for this item
+          let quarter, qYear;
+          const BIRTHDAY_MONTH = 3; // April
+          const BIRTHDAY_DAY = 21;
+
+          if ((month === BIRTHDAY_MONTH && day >= BIRTHDAY_DAY) || (month > BIRTHDAY_MONTH && month < 6) || (month === 6 && day < 20)) {
+            quarter = 1;
+            qYear = year;
+          } else if ((month === 6 && day >= 20) || (month > 6 && month < 9) || (month === 9 && day < 18)) {
+            quarter = 2;
+            qYear = year;
+          } else if ((month === 9 && day >= 18) || month === 10 || month === 11 || (month === 0 && day < 16)) {
+            quarter = 3;
+            qYear = month >= 9 ? year : year - 1;
+          } else {
+            quarter = 4;
+            qYear = month === 0 ? year - 1 : year;
+          }
+
+          return quarter === targetQuarter && qYear === targetYear;
+        });
+      }
+    } else if (type) {
+      items = db.getContentItemsByType(type);
+    } else {
+      // Get all - not implemented yet, would need a new method
+      items = [];
+    }
+
+    // Apply pagination
+    const paginated = items.slice(offset, offset + limit);
+
+    res.json({
+      items: paginated,
+      total: items.length,
+      limit,
+      offset,
+    });
+  } catch (error) {
+    console.error('Error getting content items:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/facebook/periods - Get all available periods/quarters
+app.get('/api/facebook/periods', async (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+    const indexer = getIndexer(archivePath);
+    const db = indexer.getDatabase();
+
+    // Birthday: April 21 (month 3, day 21 in 0-indexed)
+    const BIRTHDAY_MONTH = 3; // April (0-indexed)
+    const BIRTHDAY_DAY = 21;
+
+    // Get all Facebook items
+    const items = db.db.prepare(`
+      SELECT created_at
+      FROM content_items
+      WHERE source = 'facebook'
+      ORDER BY created_at ASC
+    `).all();
+
+    // Calculate periods for each item and group
+    const periodMap = new Map();
+
+    items.forEach(item => {
+      const date = new Date(item.created_at * 1000);
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+
+      // Calculate quarter (birthday-based, starting Apr 21)
+      // Q1: Apr 21 - Jul 19, Q2: Jul 20 - Oct 17, Q3: Oct 18 - Jan 15, Q4: Jan 16 - Apr 20
+      let quarter, qYear;
+
+      if ((month === BIRTHDAY_MONTH && day >= BIRTHDAY_DAY) || (month > BIRTHDAY_MONTH && month < 6) || (month === 6 && day < 20)) {
+        quarter = 1;
+        qYear = year;
+      } else if ((month === 6 && day >= 20) || (month > 6 && month < 9) || (month === 9 && day < 18)) {
+        quarter = 2;
+        qYear = year;
+      } else if ((month === 9 && day >= 18) || month === 10 || month === 11 || (month === 0 && day < 16)) {
+        quarter = 3;
+        qYear = month >= 9 ? year : year - 1;
+      } else {
+        quarter = 4;
+        qYear = month === 0 ? year - 1 : year;
+      }
+
+      const periodKey = `Q${quarter}_${qYear}`;
+
+      if (!periodMap.has(periodKey)) {
+        periodMap.set(periodKey, {
+          period: periodKey,
+          count: 0,
+          start_date: item.created_at,
+          end_date: item.created_at,
+          quarter,
+          year: qYear,
+        });
+      }
+
+      const period = periodMap.get(periodKey);
+      period.count++;
+      period.start_date = Math.min(period.start_date, item.created_at);
+      period.end_date = Math.max(period.end_date, item.created_at);
+    });
+
+    const periods = Array.from(periodMap.values())
+      .sort((a, b) => b.year - a.year || b.quarter - a.quarter);
+
+    res.json({ periods });
+  } catch (error) {
+    console.error('Error getting Facebook periods:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/facebook/media - Get Facebook images/media
+app.get('/api/facebook/media', async (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+    const period = req.query.period;
+    const limit = parseInt(req.query.limit) || 50;
+    const offset = parseInt(req.query.offset) || 0;
+
+    const indexer = getIndexer(archivePath);
+    const db = indexer.getDatabase();
+
+    // Get items with media
+    let items = db.db.prepare(`
+      SELECT id, type, text, title, created_at, media_refs, media_count, file_path
+      FROM content_items
+      WHERE source = 'facebook' AND media_count > 0
+      ${period ? "AND file_path LIKE '%' || ? || '%'" : ""}
+      ORDER BY created_at DESC
+      LIMIT ? OFFSET ?
+    `).all(...(period ? [period, limit, offset] : [limit, offset]));
+
+    // Parse media_refs and flatten
+    const media = [];
+    items.forEach(item => {
+      try {
+        const refs = JSON.parse(item.media_refs || '[]');
+        refs.forEach(ref => {
+          media.push({
+            url: ref,
+            postId: item.id,
+            postType: item.type,
+            postText: item.text,
+            postTitle: item.title,
+            created_at: item.created_at,
+          });
+        });
+      } catch (e) {
+        // Skip invalid JSON
+      }
+    });
+
+    res.json({
+      media,
+      total: media.length,
+      hasMore: items.length === limit,
+    });
+  } catch (error) {
+    console.error('Error getting Facebook media:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/facebook/image - Serve Facebook images by encoded path
+app.get('/api/facebook/image', async (req, res) => {
+  try {
+    // Path is base64-encoded to avoid URL encoding issues
+    const encodedPath = req.query.path;
+    if (!encodedPath) {
+      return res.status(400).json({ error: 'path parameter is required' });
+    }
+
+    const imagePath = Buffer.from(encodedPath, 'base64').toString('utf-8');
+
+    // Check if file exists
+    await fs.access(imagePath);
+
+    // Determine content type
+    const ext = path.extname(imagePath).toLowerCase();
+    const contentTypes = {
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.gif': 'image/gif',
+      '.webp': 'image/webp',
+      '.bmp': 'image/bmp',
+      '.svg': 'image/svg+xml',
+    };
+    const contentType = contentTypes[ext] || 'application/octet-stream';
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+
+    const fileData = await fs.readFile(imagePath);
+    res.send(fileData);
+  } catch (error) {
+    console.error(`Error serving Facebook image:`, error);
+    res.status(404).json({ error: 'Image file not found' });
+  }
+});
+
+// GET /api/facebook/media-gallery - Get all media with advanced filters
+app.get('/api/facebook/media-gallery', async (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+
+    // Parse query parameters
+    const filters = {
+      sourceType: req.query.sourceType,
+      mediaType: req.query.mediaType,
+      period: req.query.period,
+      filenamePattern: req.query.filename,
+      minSize: req.query.minSize ? parseInt(req.query.minSize) : undefined,
+      maxSize: req.query.maxSize ? parseInt(req.query.maxSize) : undefined,
+      limit: parseInt(req.query.limit) || 50,
+      offset: parseInt(req.query.offset) || 0,
+    };
+
+    // Parse dimension filters (ballpark matching with tolerance)
+    if (req.query.widthMin && req.query.widthMax) {
+      filters.widthRange = [
+        parseInt(req.query.widthMin),
+        parseInt(req.query.widthMax),
+      ];
+    }
+    if (req.query.heightMin && req.query.heightMax) {
+      filters.heightRange = [
+        parseInt(req.query.heightMin),
+        parseInt(req.query.heightMax),
+      ];
+    }
+
+    // Import MediaItemsDatabase
+    const { MediaItemsDatabase } = await import('./src/services/facebook/MediaItemsDatabase.js');
+    const mediaDb = new MediaItemsDatabase(archivePath);
+
+    // Get media items with filters
+    const items = mediaDb.getMediaItems(filters);
+    const total = mediaDb.getTotalMediaCount();
+    const countBySource = mediaDb.getMediaCountBySource();
+
+    mediaDb.close();
+
+    res.json({
+      items,
+      total,
+      countBySource,
+      filters,
+      hasMore: items.length === filters.limit,
+    });
+  } catch (error) {
+    console.error('Error getting media gallery:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /api/facebook/media-stats - Get media statistics
+app.get('/api/facebook/media-stats', async (req, res) => {
+  try {
+    const archivePath = req.query.archivePath || getArchiveRoot();
+
+    const { MediaItemsDatabase } = await import('./src/services/facebook/MediaItemsDatabase.js');
+    const mediaDb = new MediaItemsDatabase(archivePath);
+
+    const total = mediaDb.getTotalMediaCount();
+    const countBySource = mediaDb.getMediaCountBySource();
+
+    // Get count by media type
+    const allItems = mediaDb.getMediaItems({ limit: 100000 });
+    const imageCount = allItems.filter(m => m.media_type === 'image').length;
+    const videoCount = allItems.filter(m => m.media_type === 'video').length;
+
+    // Get size statistics
+    const sizes = allItems.map(m => m.file_size);
+    const totalSize = sizes.reduce((sum, s) => sum + s, 0);
+    const avgSize = totalSize / sizes.length;
+
+    mediaDb.close();
+
+    res.json({
+      total,
+      images: imageCount,
+      videos: videoCount,
+      bySource: countBySource,
+      totalSizeBytes: totalSize,
+      averageSizeBytes: Math.round(avgSize),
+    });
+  } catch (error) {
+    console.error('Error getting media stats:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /api/content/search - Semantic search across content items
+app.post('/api/content/search', async (req, res) => {
+  try {
+    const { query, limit = 20, type, source, archivePath: reqArchivePath } = req.body;
+
+    if (!query) {
+      return res.status(400).json({ error: 'query is required' });
+    }
+
+    const archivePath = reqArchivePath || getArchiveRoot();
+    const indexer = getIndexer(archivePath);
+    const db = indexer.getDatabase();
+
+    // Import embed function dynamically
+    const { embed } = await import('./src/services/embeddings/EmbeddingGenerator.js');
+
+    // Generate embedding for query
+    const queryEmbedding = await embed(query);
+
+    // Search content items
+    const results = db.searchContentItems(
+      Array.from(queryEmbedding),
+      limit,
+      type,
+      source
+    );
+
+    // Fetch full content items
+    const items = results.map(result => {
+      const item = db.getContentItem(result.content_item_id);
+      return {
+        ...item,
+        distance: result.distance,
+        similarity: 1 - result.distance,
+      };
+    });
+
+    res.json({ results: items, query });
+  } catch (error) {
+    console.error('Error searching content items:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
+// STUDIO TOOLS: QUANTUM READING
+// Deep semantic analysis using local Ollama
+// ============================================================
+
+app.post('/api/quantum/analyze', async (req, res) => {
+  try {
+    const {
+      text,
+      depth = 'deep',
+      focusTopics = [],
+      includeEmotional = true,
+      findConnections = true,
+    } = req.body;
+
+    if (!text || text.trim().length < 20) {
+      return res.status(400).json({ error: 'Text must be at least 20 characters' });
+    }
+
+    console.log(`\n🔮 Quantum Reading: Analyzing ${text.length} characters (${depth} depth)`);
+    const startTime = Date.now();
+
+    // Build the analysis prompt based on depth
+    let analysisPrompt;
+    const focusContext = focusTopics.length > 0
+      ? `\nFocus especially on these topics: ${focusTopics.join(', ')}`
+      : '';
+
+    if (depth === 'surface') {
+      analysisPrompt = `Analyze this text briefly. Identify 3-5 main themes and provide a one-sentence summary.
+${focusContext}
+
+TEXT:
+${text}
+
+Respond in JSON format:
+{
+  "themes": ["theme1", "theme2", ...],
+  "summary": "one sentence summary"
+}`;
+    } else if (depth === 'quantum') {
+      analysisPrompt = `Perform a deep phenomenological analysis of this text. Explore multiple layers of meaning, emotional undertones, implicit assumptions, and connections to broader concepts.
+${focusContext}
+${includeEmotional ? '\nInclude emotional resonance mapping with intensity scores (0-1).' : ''}
+
+TEXT:
+${text}
+
+Respond in JSON format:
+{
+  "themes": ["theme1", "theme2", ...],
+  "summary": "detailed interpretive summary",
+  "anchors": [
+    {"term": "key concept", "significance": 0.9, "context": "why this matters"}
+  ],
+  ${includeEmotional ? '"emotionalProfile": {"curiosity": 0.7, "tension": 0.3, ...},' : ''}
+  "phenomenologicalLayers": {
+    "surface": "what the text explicitly says",
+    "implicit": "what is implied but not stated",
+    "existential": "deeper meaning or significance"
+  }
+}`;
+    } else {
+      // deep (default)
+      analysisPrompt = `Analyze this text in depth. Identify themes, key concepts (anchors), and provide a comprehensive summary.
+${focusContext}
+${includeEmotional ? '\nInclude emotional resonance mapping with intensity scores (0-1).' : ''}
+
+TEXT:
+${text}
+
+Respond in JSON format:
+{
+  "themes": ["theme1", "theme2", ...],
+  "summary": "comprehensive summary",
+  "anchors": [
+    {"term": "key concept", "significance": 0.8, "context": "brief explanation"}
+  ]${includeEmotional ? ',\n  "emotionalProfile": {"curiosity": 0.5, "engagement": 0.7, ...}' : ''}
+}`;
+    }
+
+    // Call Ollama for analysis
+    let analysis;
+    try {
+      const ollamaResponse = await callOllama(analysisPrompt);
+      // Extract JSON from response (handle potential markdown wrapping)
+      const jsonMatch = ollamaResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        analysis = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in response');
+      }
+    } catch (parseError) {
+      console.error('Failed to parse Ollama response:', parseError);
+      // Fallback to basic analysis
+      analysis = {
+        themes: ['Unable to parse AI response'],
+        summary: 'Analysis completed but response format was invalid. Try again.',
+        anchors: [],
+      };
+    }
+
+    // Find connections in archive if requested
+    let connections = [];
+    if (findConnections && embeddingDatabase) {
+      try {
+        const searchResults = await embeddingDatabase.search(text.substring(0, 500), 5);
+        connections = searchResults.map(r => ({
+          messageId: r.message_id,
+          snippet: r.text?.substring(0, 200) || '',
+          similarity: r.similarity || 0,
+        }));
+      } catch (searchError) {
+        console.log('Archive search unavailable:', searchError.message);
+      }
+    }
+
+    const processingTime = Date.now() - startTime;
+    console.log(`✨ Quantum Reading complete in ${processingTime}ms\n`);
+
+    res.json({
+      themes: analysis.themes || [],
+      summary: analysis.summary || '',
+      anchors: analysis.anchors || [],
+      emotionalProfile: analysis.emotionalProfile || {},
+      phenomenologicalLayers: analysis.phenomenologicalLayers,
+      connections,
+      depth,
+      processingTime,
+    });
+  } catch (error) {
+    console.error('❌ Quantum Reading error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================================
+// STUDIO TOOLS: VOICE DISCOVERY
+// Extract persona/voice from text using local Ollama
+// ============================================================
+
+app.post('/api/voice/extract', async (req, res) => {
+  try {
+    const {
+      text,
+      personaName = 'Extracted Voice',
+      analysisScope = 'comprehensive',
+      includeExamples = true,
+      detectMultipleVoices = false,
+    } = req.body;
+
+    if (!text || text.trim().length < 100) {
+      return res.status(400).json({ error: 'Text must be at least 100 characters for voice analysis' });
+    }
+
+    console.log(`\n🎭 Voice Discovery: Analyzing ${text.length} characters (${analysisScope} scope)`);
+    const startTime = Date.now();
+
+    // Build the extraction prompt based on scope
+    let extractionPrompt;
+
+    if (analysisScope === 'quick') {
+      extractionPrompt = `Quickly analyze the writing voice in this text. Identify the main tone, style, and 3-5 key characteristics.
+
+TEXT:
+${text}
+
+Respond in JSON format:
+{
+  "name": "${personaName}",
+  "description": "brief description of the voice",
+  "traits": [
+    {"trait": "characteristic", "strength": 0.8, "examples": []}
+  ],
+  "tone": {
+    "primary": "main tone",
+    "secondary": ["other tones"]
+  }
+}`;
+    } else if (analysisScope === 'comparative') {
+      extractionPrompt = `Analyze the writing voice in this text comprehensively, as if preparing to compare it against other writing samples.
+
+TEXT:
+${text}
+
+${detectMultipleVoices ? 'Also check if there appear to be multiple distinct voices in the text.' : ''}
+
+Respond in JSON format:
+{
+  "name": "${personaName}",
+  "description": "detailed description",
+  "traits": [
+    {"trait": "characteristic", "strength": 0.9, "examples": ${includeExamples ? '["quote1", "quote2"]' : '[]'}}
+  ],
+  "vocabulary": {
+    "complexity": "simple|moderate|sophisticated",
+    "preferredTerms": ["words they use often"],
+    "avoidedTerms": ["words they never use"]
+  },
+  "sentencePatterns": {
+    "averageLength": 15,
+    "preferredStructures": ["short declarative", "complex compound"]
+  },
+  "tone": {
+    "primary": "main tone",
+    "secondary": ["other tones"],
+    "emotionalRange": {"curiosity": 0.7, "formality": 0.5}
+  },
+  "distinctiveMarkers": ["unique patterns or phrases"]
+  ${detectMultipleVoices ? ',"multipleVoices": [{"voiceId": 1, "percentage": 70, "characteristics": ["..."]}]' : ''}
+}`;
+    } else {
+      // comprehensive (default)
+      extractionPrompt = `Perform a comprehensive voice analysis of this text. Extract all characteristics needed to recreate this writing voice.
+
+TEXT:
+${text}
+
+${detectMultipleVoices ? 'Also check if there appear to be multiple distinct voices in the text.' : ''}
+
+Respond in JSON format:
+{
+  "name": "${personaName}",
+  "description": "comprehensive description of the voice and its character",
+  "traits": [
+    {"trait": "characteristic", "strength": 0.85, "examples": ${includeExamples ? '["quote from text"]' : '[]'}}
+  ],
+  "vocabulary": {
+    "complexity": "simple|moderate|sophisticated",
+    "preferredTerms": ["words/phrases they favor"],
+    "avoidedTerms": ["words/phrases they avoid"]
+  },
+  "sentencePatterns": {
+    "averageLength": 12,
+    "preferredStructures": ["pattern descriptions"]
+  },
+  "tone": {
+    "primary": "dominant tone",
+    "secondary": ["supporting tones"],
+    "emotionalRange": {"dimension": 0.5}
+  },
+  "systemPrompt": "A brief instruction that could be used to prompt an AI to write in this voice"
+  ${detectMultipleVoices ? ',"multipleVoices": [{"voiceId": 1, "percentage": 80, "characteristics": ["..."]}]' : ''}
+}`;
+    }
+
+    // Call Ollama for voice extraction
+    let voiceProfile;
+    try {
+      const ollamaResponse = await callOllama(extractionPrompt);
+      // Extract JSON from response
+      const jsonMatch = ollamaResponse.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        voiceProfile = JSON.parse(jsonMatch[0]);
+      } else {
+        throw new Error('No JSON found in response');
+      }
+    } catch (parseError) {
+      console.error('Failed to parse Ollama response:', parseError);
+      voiceProfile = {
+        name: personaName,
+        description: 'Voice extraction completed but response format was invalid. Try again.',
+        traits: [],
+        tone: { primary: 'unknown', secondary: [] },
+      };
+    }
+
+    const processingTime = Date.now() - startTime;
+    console.log(`✨ Voice Discovery complete in ${processingTime}ms\n`);
+
+    res.json({
+      persona: {
+        name: voiceProfile.name || personaName,
+        description: voiceProfile.description || '',
+        traits: voiceProfile.traits || [],
+        vocabulary: voiceProfile.vocabulary || {},
+        sentencePatterns: voiceProfile.sentencePatterns || {},
+        tone: voiceProfile.tone || {},
+        systemPrompt: voiceProfile.systemPrompt,
+      },
+      multipleVoices: voiceProfile.multipleVoices,
+      confidence: 0.85,
+      processingTime,
+      analysisScope,
+    });
+  } catch (error) {
+    console.error('❌ Voice Discovery error:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -19,12 +19,15 @@ export interface ModelInfo {
 /**
  * GET /config/personas - List available personas
  *
- * Returns all available narrator personas (neutral, advocate, critic, philosopher, storyteller)
+ * Returns active personas only. Draft/disabled profiles require admin access via /admin/profiles.
+ * Note: status column added in migration 0027. NULL status treated as 'active' for backwards compat.
  */
 configRoutes.get('/personas', async (c) => {
   try {
     const result = await c.env.DB.prepare(
-      'SELECT * FROM npe_personas ORDER BY id'
+      `SELECT * FROM npe_personas
+       WHERE status IS NULL OR status = 'active'
+       ORDER BY name`
     ).all();
 
     const personas: NPEPersona[] = result.results.map((row: any) => ({
@@ -44,12 +47,14 @@ configRoutes.get('/personas', async (c) => {
 /**
  * GET /config/namespaces - List available namespaces
  *
- * Returns all available fictional universes (mythology, quantum, nature, corporate, medieval, science)
+ * Returns active namespaces only.
  */
 configRoutes.get('/namespaces', async (c) => {
   try {
     const result = await c.env.DB.prepare(
-      'SELECT * FROM npe_namespaces ORDER BY id'
+      `SELECT * FROM npe_namespaces
+       WHERE status IS NULL OR status = 'active'
+       ORDER BY name`
     ).all();
 
     const namespaces: NPENamespace[] = result.results.map((row: any) => ({
@@ -69,12 +74,14 @@ configRoutes.get('/namespaces', async (c) => {
 /**
  * GET /config/styles - List available styles
  *
- * Returns all available language styles (standard, academic, poetic, technical, casual)
+ * Returns active styles only.
  */
 configRoutes.get('/styles', async (c) => {
   try {
     const result = await c.env.DB.prepare(
-      'SELECT * FROM npe_styles ORDER BY id'
+      `SELECT * FROM npe_styles
+       WHERE status IS NULL OR status = 'active'
+       ORDER BY name`
     ).all();
 
     const styles: NPEStyle[] = result.results.map((row: any) => ({

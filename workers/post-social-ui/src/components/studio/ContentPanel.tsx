@@ -17,6 +17,9 @@ import { nodesService } from '@/services/nodes';
 import { MarkdownRenderer } from '@/components/content/MarkdownRenderer';
 import { AdminPanel } from './AdminPanel';
 import { SynthesisDashboard } from './SynthesisDashboard';
+import { ApexSummary } from './ApexSummary';
+import { WorkingTextsList } from './WorkingTextsList';
+import { CuratorChat } from './CuratorChat';
 import type { CenterMode } from './NavigationPanel';
 import type { Node, Narrative, NarrativeVersion, VersionComparison } from '@/types/models';
 
@@ -202,12 +205,16 @@ const NodeListView: Component<{ onNodeSelect: (node: Node) => void }> = (props) 
   );
 };
 
-// Node Detail View - Single node with narratives
+// Node Detail View - Single node with rich content (Apex, Chapters, Curator Chat)
 const NodeDetailView: Component<{
   nodeSlug: string;
   onNarrativeSelect: (narrative: Narrative) => void;
   onBack: () => void;
 }> = (props) => {
+  const [activeTab, setActiveTab] = createSignal<'overview' | 'read' | 'chat' | 'narratives'>('overview');
+  const [subscribed, setSubscribed] = createSignal(false);
+  const [subscribing, setSubscribing] = createSignal(false);
+
   const [node] = createResource(
     () => props.nodeSlug,
     async (slug) => {
@@ -219,44 +226,180 @@ const NodeDetailView: Component<{
       }
     }
   );
-  
+
+  // Check subscription status
+  createEffect(async () => {
+    const nodeData = node();
+    const token = authStore.token();
+    if (!nodeData || !token) return;
+
+    try {
+      const result = await nodesService.checkSubscription(nodeData.id, token);
+      setSubscribed(result.subscribed);
+    } catch (err) {
+      console.error('Failed to check subscription:', err);
+    }
+  });
+
+  // Toggle subscription
+  const toggleSubscription = async () => {
+    const nodeData = node();
+    const token = authStore.token();
+    if (!nodeData || !token) return;
+
+    setSubscribing(true);
+    try {
+      if (subscribed()) {
+        await nodesService.unsubscribe(nodeData.id, token);
+        setSubscribed(false);
+      } else {
+        await nodesService.subscribe(nodeData.id, {}, token);
+        setSubscribed(true);
+      }
+    } catch (err) {
+      console.error('Failed to toggle subscription:', err);
+    } finally {
+      setSubscribing(false);
+    }
+  };
+
   return (
-    <div class="content-node-detail">
+    <div class="content-node-detail rich">
       <button class="back-link" onClick={props.onBack}>← Back to Nodes</button>
-      
+
       <Show when={!node.loading && node()}>
-        <div class="node-header">
-          <h2>{node()!.name}</h2>
-          <p class="node-description">{node()!.description}</p>
+        {/* Node Header with Subscribe */}
+        <div class="node-header-rich">
+          <div class="node-header-main">
+            <h1 class="node-title">{node()!.name}</h1>
+            <Show when={node()!.description}>
+              <p class="node-description">{node()!.description}</p>
+            </Show>
+          </div>
+          <Show when={authStore.isAuthenticated()}>
+            <button
+              class={`subscribe-btn ${subscribed() ? 'subscribed' : ''}`}
+              onClick={toggleSubscription}
+              disabled={subscribing()}
+            >
+              {subscribing()
+                ? '...'
+                : subscribed()
+                  ? '✓ Subscribed'
+                  : '🔔 Subscribe'
+              }
+            </button>
+          </Show>
         </div>
-        
-        <div class="narratives-section">
-          <h3>Narratives</h3>
-          <Show
-            when={node()!.narratives?.length}
-            fallback={<p class="empty-state">No narratives published yet.</p>}
+
+        {/* Tab Navigation */}
+        <div class="node-tabs">
+          <button
+            class={`node-tab ${activeTab() === 'overview' ? 'active' : ''}`}
+            onClick={() => setActiveTab('overview')}
           >
-            <div class="narratives-list">
-              <For each={node()!.narratives}>
-                {(narrative) => (
-                  <div 
-                    class="narrative-card"
-                    onClick={() => props.onNarrativeSelect(narrative)}
-                  >
-                    <div class="narrative-card-header">
-                      <h4>{narrative.title}</h4>
-                      <span class="version-indicator">v{narrative.currentVersion}</span>
-                    </div>
-                    <Show when={narrative.metadata?.tags?.length}>
-                      <div class="narrative-tags">
-                        <For each={narrative.metadata.tags?.slice(0, 3)}>
-                          {(tag) => <span class="tag">{tag}</span>}
-                        </For>
-                      </div>
-                    </Show>
+            Overview
+          </button>
+          <button
+            class={`node-tab ${activeTab() === 'read' ? 'active' : ''}`}
+            onClick={() => setActiveTab('read')}
+          >
+            Read
+          </button>
+          <button
+            class={`node-tab ${activeTab() === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chat')}
+          >
+            Chat
+          </button>
+          <button
+            class={`node-tab ${activeTab() === 'narratives' ? 'active' : ''}`}
+            onClick={() => setActiveTab('narratives')}
+          >
+            Narratives
+            <Show when={node()!.narratives?.length}>
+              <span class="tab-count">{node()!.narratives.length}</span>
+            </Show>
+          </button>
+        </div>
+
+        {/* Tab Content */}
+        <div class="node-tab-content">
+          {/* Overview Tab - Apex Summary */}
+          <Show when={activeTab() === 'overview'}>
+            <div class="tab-pane overview-pane">
+              <div class="section-intro">
+                <h2>What This Text Is About</h2>
+                <p class="section-description">
+                  The curator's phenomenological understanding of the work.
+                </p>
+              </div>
+              <ApexSummary nodeId={node()!.id} />
+            </div>
+          </Show>
+
+          {/* Read Tab - Working Texts / Chapters */}
+          <Show when={activeTab() === 'read'}>
+            <div class="tab-pane read-pane">
+              <div class="section-intro">
+                <h2>Read the Book</h2>
+                <p class="section-description">
+                  Beautifully reformatted chapters from the original text.
+                </p>
+              </div>
+              <WorkingTextsList nodeId={node()!.id} />
+            </div>
+          </Show>
+
+          {/* Chat Tab - Curator Conversation */}
+          <Show when={activeTab() === 'chat'}>
+            <div class="tab-pane chat-pane">
+              <CuratorChat nodeId={node()!.id} />
+            </div>
+          </Show>
+
+          {/* Narratives Tab - User-published content */}
+          <Show when={activeTab() === 'narratives'}>
+            <div class="tab-pane narratives-pane">
+              <div class="section-intro">
+                <h2>Community Narratives</h2>
+                <p class="section-description">
+                  Essays, analyses, and interpretations from the community.
+                </p>
+              </div>
+              <Show
+                when={node()!.narratives?.length}
+                fallback={
+                  <div class="empty-narratives">
+                    <div class="empty-icon">📝</div>
+                    <p>No narratives published yet.</p>
+                    <p class="hint">Be the first to share your interpretation.</p>
                   </div>
-                )}
-              </For>
+                }
+              >
+                <div class="narratives-list">
+                  <For each={node()!.narratives}>
+                    {(narrative) => (
+                      <div
+                        class="narrative-card"
+                        onClick={() => props.onNarrativeSelect(narrative)}
+                      >
+                        <div class="narrative-card-header">
+                          <h4>{narrative.title}</h4>
+                          <span class="version-indicator">v{narrative.currentVersion}</span>
+                        </div>
+                        <Show when={narrative.metadata?.tags?.length}>
+                          <div class="narrative-tags">
+                            <For each={narrative.metadata.tags?.slice(0, 3)}>
+                              {(tag) => <span class="tag">{tag}</span>}
+                            </For>
+                          </div>
+                        </Show>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
             </div>
           </Show>
         </div>
@@ -594,8 +737,7 @@ const SynthesisView: Component<{ onModeChange: (mode: CenterMode) => void }> = (
     <div class="content-synthesis">
       <SynthesisDashboard
         onSynthesisApplied={(narrativeId, newVersion) => {
-          console.log(`Synthesis applied: ${narrativeId} v${newVersion}`);
-          // Could navigate to the narrative here
+          // Synthesis applied - could navigate to the narrative here
         }}
         onNavigateToNarrative={(nodeSlug, narrativeSlug) => {
           props.onModeChange({

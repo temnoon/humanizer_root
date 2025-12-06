@@ -5,9 +5,9 @@
 // Ported from Python: openai_export_parser/comprehensive_media_matcher.py
 
 import * as path from 'path';
-import { MediaIndex, FileMetadata } from './ComprehensiveMediaIndexer';
-import { MediaReferenceExtractor, MediaReferences } from './MediaReferenceExtractor';
-import { Conversation } from './types';
+import type { MediaIndex, FileMetadata } from './ComprehensiveMediaIndexer';
+import { MediaReferenceExtractor, type MediaReferences } from './MediaReferenceExtractor';
+import type { Conversation } from './types';
 
 export interface MatcherStats {
   conversationsProcessed: number;

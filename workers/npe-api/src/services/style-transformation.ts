@@ -7,6 +7,7 @@ import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
 import { hasCloudflareAI, detectEnvironment, getModelForUseCase } from '../config/llm-models';
 import { extractStructure, restoreStructure, stripInlineMarkdown } from './markdown-preserver';
+import { stripPreambles } from '../lib/strip-preambles';
 
 export interface StyleTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
@@ -242,8 +243,11 @@ Transformed Text:`;
       temperature: 0.7
     });
 
+    // Strip any preambles
+    const strippedResult = stripPreambles(result.trim());
+
     // Restore markdown structure (paragraph breaks, lists)
-    const withStructure = restoreStructure(result.trim(), structure);
+    const withStructure = restoreStructure(strippedResult, structure);
 
     return withStructure;
   }

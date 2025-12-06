@@ -1081,9 +1081,6 @@ Ask: Does this help the narrative of this node know itself better?
 Does it bring clarity to the themes this space serves?`;
   }
   
-  // Log what we're evaluating for debugging
-  console.log(`[CURATOR-AGENT] Evaluating: isOpenNode=${isOpenNode}, threshold=${qualityThreshold}, wordCount=${wordCount}`);
-
   try {
     const response = await ai.run('@cf/meta/llama-3.1-8b-instruct' as Parameters<Ai['run']>[0], {
       messages: [
@@ -1117,8 +1114,6 @@ Respond with JSON only:
     const responseText = typeof response === 'object' && 'response' in response
       ? (response as { response: string }).response
       : String(response);
-
-    console.log(`[CURATOR-AGENT] AI response: ${responseText.substring(0, 200)}...`);
 
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
@@ -1169,8 +1164,6 @@ Respond with JSON only:
         }
       }
 
-      console.log(`[CURATOR-AGENT] Decision: ${status}, avg=${avgScore.toFixed(2)}, threshold=${qualityThreshold}`);
-
       return {
         status,
         message,
@@ -1180,15 +1173,14 @@ Respond with JSON only:
       };
     }
 
-    // JSON parsing failed - log the response
-    console.error('[CURATOR-AGENT] Failed to parse AI response as JSON:', responseText);
+    // JSON parsing failed
+    console.error('[CURATOR-AGENT] Failed to parse AI response as JSON');
 
   } catch (error) {
     console.error('[CURATOR-AGENT] AI evaluation error:', error);
   }
 
   // Fallback - approve if basic checks passed (safety already passed)
-  console.log('[CURATOR-AGENT] Using fallback approval (AI evaluation failed)');
   return {
     status: 'approved',
     message: 'Content approved (AI evaluation unavailable - defaulting to approve)',

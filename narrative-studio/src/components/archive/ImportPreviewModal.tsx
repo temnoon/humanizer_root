@@ -110,7 +110,7 @@ export function ImportPreviewModal({
             {/* Import Mode */}
             <div
               style={{
-                color: createNewArchive ? 'var(--accent-purple)' : 'var(--accent-primary)',
+                color: createNewArchive ? 'var(--accent-primary)' : 'var(--accent-secondary)',
                 fontWeight: 600,
                 paddingBottom: '0.5rem',
                 borderBottom: '1px solid var(--border-color)',
