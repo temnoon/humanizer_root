@@ -97,14 +97,7 @@ export interface ComputerHumanizerOptions {
   intensity: 'light' | 'moderate' | 'aggressive';
   useLLM?: boolean;
   voiceProfile?: string;
-  model?: string;                    // LLM choice for polish pass
-  useGPTZeroTargeting?: boolean;     // Premium: use GPTZero for sentence-level targeting
-}
-
-export interface GPTZeroSentence {
-  sentence: string;
-  generated_prob: number;
-  highlight_sentence_for_ai: boolean;
+  model?: string;                    // LLM choice for polish pass (default: gpt-oss-20b)
 }
 
 export interface ComputerHumanizerResult extends TransformResult {
@@ -122,14 +115,7 @@ export interface ComputerHumanizerResult extends TransformResult {
       burstinessEnhanced: string;
       llmPolished?: string;
     };
-    // New fields for model selection and GPTZero targeting
     modelUsed?: string;
-    gptzeroAnalysis?: {
-      sentences: GPTZeroSentence[];
-      flaggedCount: number;
-      totalCount: number;
-      overallConfidence: number;
-    };
   };
 }
 
@@ -165,7 +151,6 @@ export async function computerHumanizer(
         enableLLMPolish: options.useLLM ?? true,
         voiceSamples: options.voiceProfile ? [options.voiceProfile] : undefined,
         model: cloudModel,
-        useGPTZeroTargeting: options.useGPTZeroTargeting ?? false,
       }),
       signal: controller.signal,
     });
@@ -803,7 +788,6 @@ export async function runTransform(config: TransformConfig, text: string): Promi
         useLLM: config.parameters.useLLM ?? true,
         voiceProfile: config.parameters.voiceProfile,
         model: config.parameters.model,
-        useGPTZeroTargeting: config.parameters.useGPTZeroTargeting ?? false,
       });
 
     case 'ai-detection':

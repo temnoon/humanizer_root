@@ -4,7 +4,8 @@
 
 import type { Env } from '../../shared/types';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
-import { detectAIWithGPTZero, type GPTZeroDetectionResult } from './ai-detection/gptzero-client';
+// GPTZero targeting removed from humanizer - testing showed it added latency without improving results
+// GPTZero is still used in AI Analyzer (ai-detection route) for detection purposes
 import {
   enhanceBurstiness,
   replaceTellWords,
@@ -27,15 +28,6 @@ import { createLLMProvider } from './llm-providers';
 export type HumanizationIntensity = 'light' | 'moderate' | 'aggressive';
 
 /**
- * GPTZero sentence analysis for targeted transformation
- */
-export interface GPTZeroSentence {
-  sentence: string;
-  generated_prob: number;
-  highlight_sentence_for_ai: boolean;
-}
-
-/**
  * Humanization request options
  */
 export interface HumanizationOptions {
@@ -44,8 +36,7 @@ export interface HumanizationOptions {
   enableLLMPolish?: boolean;         // Default: true
   targetBurstiness?: number;         // Default: 60
   targetLexicalDiversity?: number;   // Default: 60
-  model?: string;                    // LLM choice for polish pass (default: llama-3.1-70b)
-  useGPTZeroTargeting?: boolean;     // Premium: use GPTZero for sentence-level targeting
+  model?: string;                    // LLM choice for polish pass (default: gpt-oss-20b)
 }
 
 /**
@@ -82,14 +73,6 @@ export interface HumanizationResult {
   // Voice profile (if samples provided)
   voiceProfile?: VoiceProfile;
 
-  // GPTZero targeting data (if enabled)
-  gptzeroAnalysis?: {
-    sentences: GPTZeroSentence[];
-    flaggedCount: number;
-    totalCount: number;
-    overallConfidence: number;
-  };
-
   // Model used for LLM polish
   modelUsed?: string;
 
@@ -110,16 +93,14 @@ export interface HumanizationResult {
  *
  * @param env - Cloudflare environment bindings
  * @param text - Text to humanize
- * @param options - Humanization options including model choice and GPTZero targeting
- * @param userId - User ID (needed for LLM provider and tier-based features)
- * @param gptzeroApiKey - Optional GPTZero API key (for targeting feature)
+ * @param options - Humanization options including model choice
+ * @param userId - User ID (needed for LLM provider)
  */
 export async function humanizeText(
   env: Env,
   text: string,
   options: HumanizationOptions,
-  userId: string,
-  gptzeroApiKey?: string
+  userId: string
 ): Promise<HumanizationResult> {
   const totalStartTime = Date.now();
 
@@ -143,50 +124,11 @@ export async function humanizeText(
   // Initialize timing trackers
   let stage1Time = 0, stage2Time = 0, stage3Time = 0, stage4Time = 0, stage5Time = 0;
 
-  // GPTZero analysis data (if enabled)
-  let gptzeroAnalysis: HumanizationResult['gptzeroAnalysis'] | undefined;
-  let flaggedSentences: Set<string> = new Set();
-
   // ========================================
   // STAGE 1: Statistical Analysis (200ms)
   // ========================================
   const stage1Start = Date.now();
   const baselineDetection = await detectAILocal(trimmedText);
-
-  // Optional: GPTZero targeting for sentence-level analysis
-  if (options.useGPTZeroTargeting && gptzeroApiKey) {
-    try {
-      console.log('[Humanizer] Running GPTZero targeting analysis...');
-      const gptzeroResult = await detectAIWithGPTZero(trimmedText, gptzeroApiKey);
-
-      // Extract flagged sentences for targeted transformation
-      const sentences = gptzeroResult.details.sentences.map(s => ({
-        sentence: s.sentence,
-        generated_prob: s.generated_prob,
-        highlight_sentence_for_ai: s.highlight_sentence_for_ai
-      }));
-
-      // Build set of flagged sentences for targeted naturalization
-      for (const s of sentences) {
-        if (s.highlight_sentence_for_ai) {
-          flaggedSentences.add(s.sentence);
-        }
-      }
-
-      gptzeroAnalysis = {
-        sentences,
-        flaggedCount: flaggedSentences.size,
-        totalCount: sentences.length,
-        overallConfidence: gptzeroResult.confidence
-      };
-
-      console.log(`[Humanizer] GPTZero flagged ${flaggedSentences.size}/${sentences.length} sentences`);
-    } catch (error) {
-      console.error('[Humanizer] GPTZero analysis failed, falling back to local:', error);
-      // Continue without GPTZero targeting
-    }
-  }
-
   stage1Time = Date.now() - stage1Start;
 
   // ========================================
@@ -252,7 +194,7 @@ export async function humanizeText(
 
   if (options.enableLLMPolish !== false) {
     try {
-      polished = await llmPolishPass(env, voiceMatched, modelId, userId, options.intensity, flaggedSentences);
+      polished = await llmPolishPass(env, voiceMatched, modelId, userId, options.intensity);
 
     } catch (error) {
       console.error('[Humanizer] LLM polish failed:', error);
@@ -302,7 +244,6 @@ export async function humanizeText(
       afterLLMPolish: polished !== voiceMatched ? polished : undefined
     },
     voiceProfile,
-    gptzeroAnalysis,
     modelUsed: options.enableLLMPolish !== false ? modelId : undefined,
     processing: {
       totalDurationMs: totalTime,
@@ -408,8 +349,7 @@ async function twoPassLLMPolish(
   text: string,
   modelId: string,
   userId: string,
-  intensity: HumanizationIntensity,
-  flaggedSentences?: Set<string>
+  intensity: HumanizationIntensity
 ): Promise<{ result: string; tellWordsReintroduced: number }> {
   const wordCount = text.split(/\s+/).length;
   const hasMarkers = hasBlockMarkers(text);
@@ -421,14 +361,6 @@ async function twoPassLLMPolish(
 
   // Include block marker instructions if text has markers
   const markerInstructions = hasMarkers ? `\n\nFORMAT PRESERVATION:\n${getBlockMarkerInstructions()}\n` : '';
-
-  // Build GPTZero targeting instructions if flagged sentences provided
-  let targetingInstructions = '';
-  if (flaggedSentences && flaggedSentences.size > 0) {
-    const flaggedList = Array.from(flaggedSentences).slice(0, 5);
-    targetingInstructions = `\n\nPRIORITY SENTENCES (flagged as AI-generated - focus extra attention here):
-${flaggedList.map((s, i) => `${i + 1}. "${s.substring(0, 80)}${s.length > 80 ? '...' : ''}"`).join('\n')}`;
-  }
 
   const provider = await createLLMProvider(modelId, env, userId);
 
@@ -506,7 +438,6 @@ CRITICAL RULES:
 2. Keep the sentence structure mostly as-is (it's already been optimized)
 3. Preserve all facts, names, numbers exactly
 4. Stay within ${wordCount} words (${intensityConfig.wordTolerance})
-${targetingInstructions}
 
 TEXT TO STYLE:
 ${structuredText}
@@ -618,20 +549,18 @@ function postProcessTellWords(text: string, detectedTellWords: string[]): string
  * @param modelId - Model to use for polish
  * @param userId - User ID for LLM provider
  * @param intensity - Humanization intensity level
- * @param flaggedSentences - Optional set of GPTZero-flagged sentences for targeted transformation
  */
 async function llmPolishPass(
   env: Env,
   text: string,
   modelId: string,
   userId: string,
-  intensity: HumanizationIntensity,
-  flaggedSentences?: Set<string>
+  intensity: HumanizationIntensity
 ): Promise<string> {
   try {
     // Use two-pass approach for better results
     const { result, tellWordsReintroduced } = await twoPassLLMPolish(
-      env, text, modelId, userId, intensity, flaggedSentences
+      env, text, modelId, userId, intensity
     );
 
     if (tellWordsReintroduced > 0) {

@@ -89,10 +89,7 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
   const [providerUsed, setProviderUsed] = useState<string | null>(null);
   const [transformationId, setTransformationId] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [useGPTZeroTargeting, setUseGPTZeroTargeting] = useState(false);
-
-  // Check if user is PRO+ tier
-  const isProPlus = user?.role === 'pro' || user?.role === 'premium' || user?.role === 'admin';
+  // GPTZero targeting removed - testing showed it added latency without improving results
 
   const handleRun = async () => {
     if (!content.trim()) {
@@ -125,7 +122,6 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
         parameters: {
           intensity: state.intensity,
           useLLM: state.useLLM,
-          useGPTZeroTargeting: isProPlus && useGPTZeroTargeting,
         },
       }, content);
 
@@ -139,7 +135,7 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
       // Record to buffer for chaining and history
       recordTransformation(
         'humanizer',
-        { intensity: state.intensity, useLLM: state.useLLM, useGPTZeroTargeting },
+        { intensity: state.intensity, useLLM: state.useLLM },
         result.transformed,
         result.metadata
       );
@@ -188,36 +184,6 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
         </label>
       </div>
 
-      {/* GPTZero Targeting - PRO+ only */}
-      <div style={{ marginBottom: '12px' }}>
-        <label
-          className="flex items-center gap-2 cursor-pointer"
-          style={{
-            color: isProPlus ? 'var(--text-primary)' : 'var(--text-tertiary)',
-            fontSize: '0.8125rem',
-            opacity: isProPlus ? 1 : 0.6,
-          }}
-          title={isProPlus ? 'Use GPTZero to identify and focus on AI-generated sentences' : 'Upgrade to PRO+ to use GPTZero targeting'}
-        >
-          <input
-            type="checkbox"
-            checked={useGPTZeroTargeting}
-            onChange={(e) => setUseGPTZeroTargeting(e.target.checked)}
-            disabled={!isProPlus}
-            style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
-          />
-          <span>GPTZero Targeting</span>
-          {!isProPlus && (
-            <span style={{ fontSize: '0.625rem', color: 'var(--accent-primary)', fontWeight: 600 }}>PRO+</span>
-          )}
-        </label>
-        {isProPlus && useGPTZeroTargeting && (
-          <div style={{ fontSize: '0.625rem', color: 'var(--text-tertiary)', marginTop: '2px', marginLeft: '24px' }}>
-            Focus transformation on AI-flagged sentences
-          </div>
-        )}
-      </div>
-
       {/* Run Button */}
       <button
         onClick={handleRun}
@@ -262,11 +228,6 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
           {state.lastResult?.metadata?.modelUsed && (
             <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-primary)' }}>
               Model: {getModelDisplayName(state.lastResult.metadata.modelUsed)}
-            </span>
-          )}
-          {state.lastResult?.metadata?.gptzeroAnalysis && (
-            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-secondary, var(--text-secondary))' }}>
-              GPTZero: {state.lastResult.metadata.gptzeroAnalysis.flaggedCount}/{state.lastResult.metadata.gptzeroAnalysis.totalCount} sentences targeted
             </span>
           )}
         </div>

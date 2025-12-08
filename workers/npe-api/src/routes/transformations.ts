@@ -498,11 +498,11 @@ transformationRoutes.get('/personalizer/history', optionalLocalAuth(), requirePr
  * POST /transformations/computer-humanizer - Humanize AI-generated text
  *
  * Transforms AI text to reduce detection while preserving meaning
- * Uses hybrid approach: statistical + rule-based + optional LLM
+ * Uses hybrid approach: statistical + rule-based + 2-pass LLM polish
  *
- * New options:
- * - model: LLM choice for polish pass (default: llama-3.1-70b)
- * - useGPTZeroTargeting: Premium feature - use GPTZero for sentence-level targeting
+ * Options:
+ * - model: LLM choice for polish pass (default: gpt-oss-20b)
+ * - intensity: light, moderate, or aggressive
  */
 transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) => {
   try {
@@ -515,8 +515,7 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
       enableLLMPolish = true,
       targetBurstiness = 60,
       targetLexicalDiversity = 60,
-      model,
-      useGPTZeroTargeting = false
+      model
     } = body;
 
     // Validate input
@@ -541,23 +540,6 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
       return c.json({ error: 'Maximum 10 voice samples allowed' }, 400);
     }
 
-    // GPTZero targeting requires PRO+ tier
-    let gptzeroApiKey: string | undefined;
-    if (useGPTZeroTargeting) {
-      const isProPlus = auth.role === 'pro' || auth.role === 'premium' || auth.role === 'admin';
-      if (!isProPlus) {
-        return c.json({
-          error: 'GPTZero targeting requires PRO+ subscription. Upgrade to access advanced features.'
-        }, 403);
-      }
-
-      // Get GPTZero API key from environment
-      gptzeroApiKey = c.env.GPTZERO_API_KEY;
-      if (!gptzeroApiKey) {
-        console.warn('[Humanizer] GPTZero API key not configured, falling back to local detection');
-      }
-    }
-
     // Generate transformation ID
     const transformationId = crypto.randomUUID();
 
@@ -574,8 +556,7 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
           enableLLMPolish,
           targetBurstiness,
           targetLexicalDiversity,
-          model: model || '@cf/meta/llama-3.1-70b-instruct',
-          useGPTZeroTargeting
+          model: model || '@cf/openai/gpt-oss-20b'
         }
       });
     } catch (err) {
@@ -590,13 +571,12 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
       enableLLMPolish,
       targetBurstiness,
       targetLexicalDiversity,
-      model,
-      useGPTZeroTargeting
+      model
     };
 
-    // Run humanization with userId and optional GPTZero key
+    // Run humanization
     try {
-      const result = await humanizeText(c.env, text, options, auth.userId, gptzeroApiKey);
+      const result = await humanizeText(c.env, text, options, auth.userId);
 
       const response = {
         transformation_id: transformationId,
@@ -606,7 +586,6 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
         improvement: result.improvement,
         stages: result.stages,
         voiceProfile: result.voiceProfile,
-        gptzeroAnalysis: result.gptzeroAnalysis,
         model_used: result.modelUsed,
         processing: result.processing
       };

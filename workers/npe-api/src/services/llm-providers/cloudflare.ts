@@ -42,7 +42,68 @@ export class CloudflareProvider implements LLMProvider {
     return 'chat';
   }
 
+  /**
+   * Maximum retry attempts for transient errors (502, 504, timeouts)
+   */
+  private static readonly MAX_RETRIES = 2;
+  private static readonly RETRY_DELAY_MS = 1000;
+
+  /**
+   * Check if error is retryable (gateway errors, timeouts)
+   */
+  private isRetryableError(error: unknown): boolean {
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      return (
+        message.includes('504') ||
+        message.includes('502') ||
+        message.includes('gateway') ||
+        message.includes('timeout') ||
+        message.includes('econnreset') ||
+        message.includes('network')
+      );
+    }
+    return false;
+  }
+
+  /**
+   * Sleep helper for retry delay
+   */
+  private async sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
   async call(request: LLMRequest): Promise<LLMResponse> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= CloudflareProvider.MAX_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          console.log(`[Cloudflare AI] Retry attempt ${attempt}/${CloudflareProvider.MAX_RETRIES} after error`);
+          await this.sleep(CloudflareProvider.RETRY_DELAY_MS * attempt); // Exponential backoff
+        }
+
+        return await this.callOnce(request);
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        if (this.isRetryableError(error) && attempt < CloudflareProvider.MAX_RETRIES) {
+          console.warn(`[Cloudflare AI] Retryable error: ${lastError.message}`);
+          continue;
+        }
+
+        // Non-retryable error or max retries exceeded
+        break;
+      }
+    }
+
+    throw lastError || new Error('Cloudflare AI call failed');
+  }
+
+  /**
+   * Single call attempt (extracted from original call method)
+   */
+  private async callOnce(request: LLMRequest): Promise<LLMResponse> {
     try {
       // Format request body based on API format
       const requestBody = this.formatRequest(request);
