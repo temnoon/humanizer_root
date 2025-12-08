@@ -9,6 +9,7 @@ import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-d
 import {
   enhanceBurstiness,
   replaceTellWords,
+  replaceEmDashes,
   normalizeLexicalDiversity,
   addConversationalElements
 } from '../lib/text-naturalizer';
@@ -205,10 +206,38 @@ export async function humanizeText(
   stage4Time = Date.now() - stage4Start;
 
   // ========================================
+  // STAGE 4.5: FINAL TELL-WORD SWEEP
+  // ========================================
+  // Run tell-word replacement one more time to catch any
+  // that the LLM reintroduced or didn't fully eliminate
+  const finalSweepStart = Date.now();
+  let finalPolished = polished;
+
+  // Check for remaining tell-words
+  const preSweepDetection = await detectAILocal(finalPolished);
+  if (preSweepDetection.detectedTellWords.length > 0) {
+    console.log(`[Humanizer] Final sweep: ${preSweepDetection.detectedTellWords.length} tell-words remaining`);
+
+    // Run aggressive replacement (95% rate)
+    finalPolished = replaceTellWords(finalPolished, 'aggressive');
+
+    // Also run em-dash replacement
+    finalPolished = replaceEmDashes(finalPolished);
+
+    console.log(`[Humanizer] Final sweep complete`);
+  }
+
+  // Always run em-dash replacement as final safety check
+  finalPolished = replaceEmDashes(finalPolished);
+
+  const finalSweepTime = Date.now() - finalSweepStart;
+  console.log(`[Humanizer] Final sweep took ${finalSweepTime}ms`);
+
+  // ========================================
   // STAGE 5: AI Detection Validation (1-2s)
   // ========================================
   const stage5Start = Date.now();
-  const finalDetection = await detectAILocal(polished);
+  const finalDetection = await detectAILocal(finalPolished);
   stage5Time = Date.now() - stage5Start;
 
   // Calculate improvement metrics
@@ -224,9 +253,9 @@ export async function humanizeText(
   // ========================================
   // FORMAT PRESERVATION: Strip block markers
   // ========================================
-  const finalText = hasMarkdownStructure && hasBlockMarkers(polished)
-    ? stripBlockMarkers(polished)
-    : polished;
+  const finalText = hasMarkdownStructure && hasBlockMarkers(finalPolished)
+    ? stripBlockMarkers(finalPolished)
+    : finalPolished;
 
   return {
     humanizedText: finalText,
@@ -241,7 +270,7 @@ export async function humanizeText(
       original: trimmedText,
       afterNaturalizer: naturalized,
       afterVoiceMatch: voiceMatched !== naturalized ? voiceMatched : undefined,
-      afterLLMPolish: polished !== voiceMatched ? polished : undefined
+      afterLLMPolish: finalPolished !== voiceMatched ? finalPolished : undefined
     },
     voiceProfile,
     modelUsed: options.enableLLMPolish !== false ? modelId : undefined,
@@ -262,16 +291,23 @@ export async function humanizeText(
  */
 const INTENSITY_PROMPTS: Record<HumanizationIntensity, { instructions: string; wordTolerance: string; temperature: number }> = {
   light: {
-    instructions: `Gently improve this text to sound slightly more natural while keeping the original structure mostly intact.
+    instructions: `Improve this text to sound more natural while keeping the original structure.
 
 GUIDELINES:
-- Add a few contractions where natural (don't, it's, we're, they'll)
-- Soften overly formal phrases but keep the professional tone
-- Keep technical terms, proper nouns, and specific facts exactly as written
-- Make minimal structural changes - keep sentence order and paragraph breaks
-- Only fix obviously robotic phrasing`,
-    wordTolerance: '±5%',
-    temperature: 0.5
+- Add contractions where natural (don't, it's, we're, they'll)
+- Soften overly formal phrases
+- Replace obvious AI tell-words with natural alternatives
+- Keep technical terms and specific facts exactly as written
+- Minor sentence restructuring is OK if it improves flow
+- Add occasional paragraph breaks where natural pauses occur
+
+FORBIDDEN PUNCTUATION:
+- NEVER use em-dashes (—) or en-dashes (–)
+- Use commas, periods, or parentheses instead
+- If you need a pause, use a comma
+- If it's a new thought, start a new sentence`,
+    wordTolerance: '±8%',
+    temperature: 0.6
   },
 
   moderate: {
@@ -316,7 +352,9 @@ const FORBIDDEN_TELL_WORDS = [
   'navigate', 'navigating', 'realm', 'holistic', 'paradigm', 'multifaceted',
   'nuanced', 'pivotal', 'crucial', 'vital', 'comprehensive', 'intricate',
   "it's worth noting", "it is worth noting", "it's important to",
-  "it is important to", "in today's", "in the modern", "needless to say"
+  "it is important to", "in today's", "in the modern", "needless to say",
+  '—',  // em-dash - NEVER use (known AI tell)
+  '–'   // en-dash - NEVER use (known AI tell)
 ];
 
 /**
@@ -431,7 +469,11 @@ STYLE GUIDELINES:
 - Make it sound like a real person wrote this
 
 FORBIDDEN WORDS - NEVER use these AI tell-words:
-${FORBIDDEN_TELL_WORDS.join(', ')}
+${FORBIDDEN_TELL_WORDS.filter(w => w !== '—' && w !== '–').join(', ')}
+
+FORBIDDEN PUNCTUATION:
+- NEVER use em-dashes (—) or en-dashes (–)
+- Use commas, periods, or parentheses instead
 
 CRITICAL RULES:
 1. Return ONLY the styled text - no explanations, no preambles
@@ -476,11 +518,11 @@ STYLED TEXT:`;
     console.log(`[LLM Polish] WARNING: Tell-words reintroduced: ${tellWordsReintroduced}`);
     console.log(`[LLM Polish]   Original: ${originalTellWords}, Final: ${finalTellWords}`);
     console.log(`[LLM Polish]   Reintroduced words: ${finalDetection.detectedTellWords.filter(w =>
-      !originalDetection.detectedTellWords.includes(w)
-    ).join(', ')}`);
+      !originalDetection.detectedTellWords.some(o => o.word === w.word)
+    ).map(w => w.word).join(', ')}`);
 
     // Apply post-processing to strip reintroduced tell-words
-    styledText = postProcessTellWords(styledText, finalDetection.detectedTellWords);
+    styledText = postProcessTellWords(styledText, finalDetection.detectedTellWords.map(w => w.word));
   }
 
   return { result: styledText, tellWordsReintroduced };

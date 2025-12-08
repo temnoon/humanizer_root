@@ -397,16 +397,20 @@ def main():
     parser.add_argument("--limit", type=int, help="Limit number of tests")
     parser.add_argument("--parallel", type=int, default=1, help="Number of parallel workers")
     parser.add_argument("--output", help="Output file path")
+    parser.add_argument("--samples", help="Path to samples JSON file (default: samples.json)")
     args = parser.parse_args()
 
+    # Determine samples file
+    samples_file = Path(args.samples) if args.samples else SAMPLES_FILE
+
     # Load samples
-    samples = load_samples(SAMPLES_FILE, args.category, args.limit)
+    samples = load_samples(samples_file, args.category, args.limit)
 
     if not samples:
         print("No samples found!")
         sys.exit(1)
 
-    print(f"Loaded {len(samples)} samples from {SAMPLES_FILE}")
+    print(f"Loaded {len(samples)} samples from {samples_file}")
     print()
 
     # Run tests
@@ -425,7 +429,7 @@ def main():
     output_data = {
         "metadata": {
             "generated": summary["timestamp"],
-            "samples_file": str(SAMPLES_FILE),
+            "samples_file": str(samples_file),
             "total_samples": len(samples),
             "category_filter": args.category,
             "parallel_workers": args.parallel

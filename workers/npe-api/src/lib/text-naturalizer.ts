@@ -5,6 +5,45 @@ import { AI_TELL_WORDS, getAllTellWords } from '../services/ai-detection/tell-wo
 import { calculateBurstiness, calculateLexicalDiversity } from '../services/ai-detection/utils';
 
 /**
+ * Replace em-dashes and en-dashes with more natural alternatives
+ * Em-dashes are a known AI tell - humans typically use commas,
+ * parentheses, or separate sentences
+ */
+export function replaceEmDashes(text: string): string {
+  let result = text;
+
+  // Pattern 1: Em-dash between words with spaces: usually can be comma
+  // "word — word" → "word, word"
+  result = result.replace(/\s—\s/g, ', ');
+  result = result.replace(/\s–\s/g, ', ');
+
+  // Pattern 2: Em-dash without spaces (tight): convert to spaced hyphen or comma
+  // "word—word" → "word - word"
+  result = result.replace(/(\w)—(\w)/g, '$1 - $2');
+  result = result.replace(/(\w)–(\w)/g, '$1 - $2');
+
+  // Pattern 3: Em-dash at sentence boundaries: convert to period
+  // "...word—And" → "...word. And"
+  result = result.replace(/—([A-Z])/g, '. $1');
+  result = result.replace(/–([A-Z])/g, '. $1');
+
+  // Pattern 4: Em-dash at end of clause before lowercase: use comma
+  // "...word—and" → "...word, and"
+  result = result.replace(/—([a-z])/g, ', $1');
+  result = result.replace(/–([a-z])/g, ', $1');
+
+  // Clean up any double spaces
+  result = result.replace(/\s{2,}/g, ' ');
+
+  // Clean up double punctuation
+  result = result.replace(/,\s*,/g, ',');
+  result = result.replace(/\.\s*,/g, '.');
+  result = result.replace(/,\s*\./g, '.');
+
+  return result;
+}
+
+/**
  * Tell-word replacement dictionary
  * Maps AI tell-words to more natural alternatives
  */
@@ -219,7 +258,9 @@ function createEmphaticSentence(sentence: string): string | null {
  */
 export function replaceTellWords(text: string, intensity: 'light' | 'moderate' | 'aggressive' = 'moderate'): string {
   let result = text;
-  const intensityMap = { light: 0.3, moderate: 0.6, aggressive: 0.9 };
+  // Boosted rates for better tell-word elimination (Dec 2025)
+  // Previous: { light: 0.3, moderate: 0.6, aggressive: 0.9 }
+  const intensityMap = { light: 0.5, moderate: 0.7, aggressive: 0.95 };
   const replacementRate = intensityMap[intensity];
 
   // Get all tell-words from the replacement dictionary (these have natural alternatives)

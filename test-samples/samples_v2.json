@@ -1,0 +1,431 @@
+{
+  "metadata": {
+    "version": "2.0",
+    "created": "2025-12-08",
+    "description": "NEW 60-sample test suite for humanizer validation - diverse content types",
+    "total_samples": 60,
+    "categories": ["social-media", "professional", "consumer", "informal", "structured", "edge-cases"]
+  },
+  "samples": [
+    {
+      "id": "social-01",
+      "category": "social-media",
+      "name": "Twitter Thread",
+      "intensity": "aggressive",
+      "text": "Thread: Let me delve into why AI regulation is pivotal for our future. Furthermore, the comprehensive approach being discussed will have far-reaching implications. It's worth noting that experts have emphasized the crucial importance of balanced policies. Subsequently, we need to navigate these complex waters carefully."
+    },
+    {
+      "id": "social-02",
+      "category": "social-media",
+      "name": "Instagram Caption",
+      "intensity": "aggressive",
+      "text": "Just experienced the most comprehensive sunset view from the mountaintop! Moreover, the journey was equally pivotal in making this moment special. It's crucial to understand that nature's beauty is truly unparalleled. Furthermore, these adventures are what life is all about."
+    },
+    {
+      "id": "social-03",
+      "category": "social-media",
+      "name": "Reddit Post",
+      "intensity": "moderate",
+      "text": "I've been delving into the realm of mechanical keyboards for months. The comprehensive research I've done reveals that there's a pivotal decision to make between tactile and linear switches. Furthermore, the build quality is crucial for long-term satisfaction. Subsequently, I'm leaning towards a custom build."
+    },
+    {
+      "id": "social-04",
+      "category": "social-media",
+      "name": "LinkedIn Article",
+      "intensity": "moderate",
+      "text": "In today's rapidly evolving digital landscape, leadership requires navigating complex challenges with a comprehensive approach. Furthermore, leveraging the right technologies is pivotal for organizational success. It's crucial to understand that innovation demands both vision and meticulous execution."
+    },
+    {
+      "id": "social-05",
+      "category": "social-media",
+      "name": "Facebook Update",
+      "intensity": "aggressive",
+      "text": "Just finished a comprehensive home renovation project! Furthermore, the pivotal decision to go with sustainable materials has been incredibly rewarding. It's worth noting that the process required meticulous planning. Subsequently, our energy bills have dropped significantly."
+    },
+    {
+      "id": "social-06",
+      "category": "social-media",
+      "name": "TikTok Script",
+      "intensity": "aggressive",
+      "text": "Okay so let me delve into this viral skincare trend. Furthermore, understanding the comprehensive science behind it is crucial. It's pivotal that you know the ingredients work synergistically. Subsequently, your skin will thank you for this meticulous approach."
+    },
+    {
+      "id": "social-07",
+      "category": "social-media",
+      "name": "YouTube Description",
+      "intensity": "moderate",
+      "text": "In this comprehensive tutorial, we'll delve into advanced video editing techniques. Furthermore, leveraging professional tools is pivotal for achieving cinematic results. It's crucial to understand the fundamentals before navigating more complex features. Subsequently, your content will reach new heights."
+    },
+    {
+      "id": "social-08",
+      "category": "social-media",
+      "name": "Substack Newsletter",
+      "intensity": "light",
+      "text": "This week's analysis delves into the comprehensive market trends shaping technology investments. Moreover, understanding these pivotal shifts is crucial for informed decision-making. Subsequently, we'll examine the multifaceted implications for your portfolio strategy."
+    },
+    {
+      "id": "social-09",
+      "category": "social-media",
+      "name": "Discord Announcement",
+      "intensity": "moderate",
+      "text": "Exciting news! We're launching a comprehensive server restructure. Furthermore, these pivotal changes will enhance the community experience significantly. It's crucial that everyone understands the new navigation system. Subsequently, please review the updated guidelines meticulously."
+    },
+    {
+      "id": "social-10",
+      "category": "social-media",
+      "name": "Medium Blog",
+      "intensity": "moderate",
+      "text": "The art of writing requires a comprehensive understanding of your audience. Furthermore, delving into the nuances of language is pivotal for effective communication. It's worth noting that meticulous editing separates good writing from great writing. Subsequently, practice remains the most crucial factor."
+    },
+    {
+      "id": "prof-01",
+      "category": "professional",
+      "name": "Cover Letter",
+      "intensity": "moderate",
+      "text": "I am writing to express my comprehensive interest in the Senior Developer position. Furthermore, my background in software engineering has been pivotal in delivering robust solutions. It is crucial to note that my experience navigating complex technical challenges makes me an ideal candidate. Subsequently, I would welcome the opportunity to contribute to your team."
+    },
+    {
+      "id": "prof-02",
+      "category": "professional",
+      "name": "Recommendation Letter",
+      "intensity": "light",
+      "text": "I am delighted to provide a comprehensive recommendation for Sarah. Furthermore, her pivotal contributions to our research team demonstrated exceptional capabilities. It's worth noting that she navigated complex challenges with remarkable professionalism. Subsequently, I have no hesitation in endorsing her candidacy."
+    },
+    {
+      "id": "prof-03",
+      "category": "professional",
+      "name": "Meeting Summary",
+      "intensity": "moderate",
+      "text": "Today's comprehensive meeting addressed several pivotal agenda items. Furthermore, the team discussed leveraging new technologies for improved efficiency. It is crucial that all stakeholders understand the subsequent action items. Moreover, the timeline for implementation was thoroughly reviewed."
+    },
+    {
+      "id": "prof-04",
+      "category": "professional",
+      "name": "Project Update",
+      "intensity": "light",
+      "text": "This comprehensive project update summarizes our progress through Q3. Furthermore, we've achieved pivotal milestones in product development. It's crucial to understand that the remaining challenges are manageable. Subsequently, we remain on track for the December launch date."
+    },
+    {
+      "id": "prof-05",
+      "category": "professional",
+      "name": "Stakeholder Report",
+      "intensity": "moderate",
+      "text": "This comprehensive report provides stakeholders with a pivotal analysis of our market position. Furthermore, the data demonstrates robust growth across all segments. It is worth noting that strategic initiatives are yielding measurable results. Subsequently, we recommend continued investment in our core competencies."
+    },
+    {
+      "id": "prof-06",
+      "category": "professional",
+      "name": "Performance Review",
+      "intensity": "light",
+      "text": "This comprehensive performance evaluation highlights John's pivotal contributions to the team. Furthermore, his ability to navigate complex situations has been exemplary. It's crucial to note that he consistently demonstrates strong leadership qualities. Subsequently, I recommend him for promotion consideration."
+    },
+    {
+      "id": "prof-07",
+      "category": "professional",
+      "name": "Training Manual Intro",
+      "intensity": "moderate",
+      "text": "Welcome to this comprehensive training program. Furthermore, understanding these pivotal concepts is crucial for your success in this role. It's worth noting that the materials have been meticulously designed for optimal learning. Subsequently, please complete all modules in the designated order."
+    },
+    {
+      "id": "prof-08",
+      "category": "professional",
+      "name": "Email Proposal",
+      "intensity": "moderate",
+      "text": "I'm reaching out with a comprehensive proposal for our collaboration. Furthermore, this partnership could be pivotal for both organizations. It's crucial that we align on key objectives before proceeding. Subsequently, I'd welcome an opportunity to discuss these ideas in detail."
+    },
+    {
+      "id": "prof-09",
+      "category": "professional",
+      "name": "Consulting Report",
+      "intensity": "light",
+      "text": "Our comprehensive analysis reveals several pivotal opportunities for improvement. Furthermore, leveraging existing resources more effectively is crucial for success. It is worth noting that implementation requires meticulous planning. Subsequently, we recommend a phased approach to minimize disruption."
+    },
+    {
+      "id": "prof-10",
+      "category": "professional",
+      "name": "Board Presentation",
+      "intensity": "moderate",
+      "text": "This comprehensive presentation outlines our strategic vision for the coming year. Furthermore, the pivotal investments we're proposing will position us for growth. It's crucial that the board understands the competitive landscape. Subsequently, we seek approval for the proposed budget allocation."
+    },
+    {
+      "id": "cons-01",
+      "category": "consumer",
+      "name": "Amazon Review",
+      "intensity": "aggressive",
+      "text": "This vacuum cleaner is absolutely comprehensive in its cleaning capabilities. Furthermore, the pivotal design improvements make it far superior to competitors. It's crucial to understand that the suction power is truly remarkable. Subsequently, I would highly recommend this product to anyone seeking quality."
+    },
+    {
+      "id": "cons-02",
+      "category": "consumer",
+      "name": "Yelp Restaurant Review",
+      "intensity": "aggressive",
+      "text": "The dining experience at this restaurant was truly comprehensive. Furthermore, the pivotal attention to detail in every dish was evident. It's worth noting that the service was exceptional throughout our visit. Subsequently, this has become our new favorite spot in the city."
+    },
+    {
+      "id": "cons-03",
+      "category": "consumer",
+      "name": "App Store Review",
+      "intensity": "moderate",
+      "text": "This app provides a comprehensive solution for productivity needs. Furthermore, the recent updates have been pivotal in improving user experience. It's crucial to note that the interface is intuitive and well-designed. Subsequently, I've upgraded to the premium version without hesitation."
+    },
+    {
+      "id": "cons-04",
+      "category": "consumer",
+      "name": "Product Comparison",
+      "intensity": "moderate",
+      "text": "In this comprehensive comparison, we'll examine the pivotal differences between these laptops. Furthermore, understanding the specifications is crucial for making an informed decision. It's worth noting that price isn't the only factor to consider. Subsequently, we'll recommend the best option for different use cases."
+    },
+    {
+      "id": "cons-05",
+      "category": "consumer",
+      "name": "Buying Guide",
+      "intensity": "light",
+      "text": "This comprehensive buying guide will help you navigate the complex world of home audio systems. Furthermore, understanding the pivotal specifications is crucial for optimal sound quality. It's worth noting that room acoustics play a significant role. Subsequently, we'll cover setup tips for best results."
+    },
+    {
+      "id": "cons-06",
+      "category": "consumer",
+      "name": "Unboxing Script",
+      "intensity": "aggressive",
+      "text": "Let's delve into this comprehensive unboxing of the new smartphone. Furthermore, the packaging itself demonstrates the brand's pivotal attention to detail. It's crucial that you see everything included in the box. Subsequently, we'll test each feature thoroughly in upcoming videos."
+    },
+    {
+      "id": "cons-07",
+      "category": "consumer",
+      "name": "Travel Review",
+      "intensity": "moderate",
+      "text": "Our comprehensive review of this resort covers all the pivotal amenities and services. Furthermore, the location provides easy access to local attractions. It's worth noting that the staff was exceptionally helpful throughout our stay. Subsequently, we would highly recommend this destination for families."
+    },
+    {
+      "id": "cons-08",
+      "category": "consumer",
+      "name": "Recipe Review",
+      "intensity": "aggressive",
+      "text": "I tried this comprehensive recipe for homemade pasta and it was pivotal in changing my cooking approach. Furthermore, the detailed instructions made the process manageable. It's crucial to follow the timing precisely for best results. Subsequently, my family now requests this dish weekly."
+    },
+    {
+      "id": "cons-09",
+      "category": "consumer",
+      "name": "Service Testimonial",
+      "intensity": "moderate",
+      "text": "The comprehensive customer service provided by this company was truly pivotal in resolving my issue. Furthermore, the representative navigated the complex situation with expertise. It's worth noting that they followed up to ensure satisfaction. Subsequently, I've become a loyal customer for life."
+    },
+    {
+      "id": "cons-10",
+      "category": "consumer",
+      "name": "Game Review",
+      "intensity": "aggressive",
+      "text": "This comprehensive RPG delivers a pivotal gaming experience that sets new standards. Furthermore, the storytelling is masterfully crafted with meticulous attention to detail. It's crucial to understand that the gameplay mechanics are incredibly polished. Subsequently, this has become my favorite game of the year."
+    },
+    {
+      "id": "inf-01",
+      "category": "informal",
+      "name": "Personal Blog",
+      "intensity": "aggressive",
+      "text": "So I've been delving into minimalism lately and it's been a comprehensive life change. Furthermore, the pivotal moment was when I realized how much stuff I didn't need. It's crucial that you understand this journey isn't easy. Subsequently, my mental clarity has improved dramatically."
+    },
+    {
+      "id": "inf-02",
+      "category": "informal",
+      "name": "Friend Email",
+      "intensity": "aggressive",
+      "text": "Hey! I wanted to give you a comprehensive update on my job search. Furthermore, the pivotal interview last week went really well. It's worth noting that they asked some tough questions. Subsequently, I'm cautiously optimistic about getting an offer soon."
+    },
+    {
+      "id": "inf-03",
+      "category": "informal",
+      "name": "Forum Reply",
+      "intensity": "moderate",
+      "text": "Great question! Let me provide a comprehensive explanation of how this works. Furthermore, understanding the pivotal concepts is crucial before diving in. It's worth noting that many beginners make common mistakes here. Subsequently, take your time learning the fundamentals."
+    },
+    {
+      "id": "inf-04",
+      "category": "informal",
+      "name": "Journal Entry",
+      "intensity": "moderate",
+      "text": "Today was a comprehensive day of self-reflection. Furthermore, I realized some pivotal truths about my priorities. It's crucial that I make changes in my routine. Subsequently, I'm committing to a more balanced approach to work and life."
+    },
+    {
+      "id": "inf-05",
+      "category": "informal",
+      "name": "Chat Message",
+      "intensity": "aggressive",
+      "text": "OMG you need to hear about this comprehensive meal prep strategy I found! Furthermore, it's been pivotal in saving me so much time. It's crucial that you try this yourself. Subsequently, I've been eating so much healthier without even trying."
+    },
+    {
+      "id": "inf-06",
+      "category": "informal",
+      "name": "Hobby Discussion",
+      "intensity": "moderate",
+      "text": "I've been delving into photography for the past few months. Furthermore, understanding composition is pivotal for capturing great shots. It's worth noting that equipment matters less than technique. Subsequently, I've seen comprehensive improvement in my work."
+    },
+    {
+      "id": "inf-07",
+      "category": "informal",
+      "name": "Advice Column",
+      "intensity": "moderate",
+      "text": "First, let me provide a comprehensive perspective on your situation. Furthermore, understanding the pivotal factors at play is crucial. It's worth noting that relationships require constant work from both sides. Subsequently, I recommend having an honest conversation with your partner."
+    },
+    {
+      "id": "inf-08",
+      "category": "informal",
+      "name": "Podcast Script",
+      "intensity": "aggressive",
+      "text": "Welcome back everyone! Today we're delving into a comprehensive discussion about productivity hacks. Furthermore, our guest has some pivotal insights to share. It's crucial that you take notes because this is going to be good. Subsequently, let's jump right into the conversation."
+    },
+    {
+      "id": "inf-09",
+      "category": "informal",
+      "name": "Casual Tutorial",
+      "intensity": "moderate",
+      "text": "Alright, so let me walk you through this comprehensive guide to setting up your home office. Furthermore, the pivotal considerations are lighting and ergonomics. It's worth noting that investing in a good chair is crucial. Subsequently, your productivity will thank you."
+    },
+    {
+      "id": "inf-10",
+      "category": "informal",
+      "name": "Personal Update",
+      "intensity": "aggressive",
+      "text": "Just wanted to share a comprehensive update on my fitness journey! Furthermore, the pivotal change was switching to a new workout routine. It's crucial to understand that consistency beats intensity. Subsequently, I'm down 20 pounds and feeling amazing."
+    },
+    {
+      "id": "struct-01",
+      "category": "structured",
+      "name": "FAQ Response",
+      "intensity": "light",
+      "text": "Question: How do I reset my password? Answer: The comprehensive process involves navigating to our settings page. Furthermore, the pivotal step is verifying your email address. It's crucial that you complete this within 24 hours. Subsequently, you'll receive a confirmation link."
+    },
+    {
+      "id": "struct-02",
+      "category": "structured",
+      "name": "Bullet List Content",
+      "intensity": "moderate",
+      "text": "Key Features of Our Service: We provide comprehensive support 24/7. Furthermore, our pivotal differentiator is personalized attention. It's crucial to understand our pricing structure. Subsequently, you'll find we offer excellent value. Moreover, our team navigates complex issues efficiently."
+    },
+    {
+      "id": "struct-03",
+      "category": "structured",
+      "name": "Step-by-Step Guide",
+      "intensity": "light",
+      "text": "Step 1: Complete the comprehensive registration form. Step 2: Verify your email address, which is pivotal for security. Step 3: It's crucial that you set up two-factor authentication. Step 4: Subsequently, you can access all platform features."
+    },
+    {
+      "id": "struct-04",
+      "category": "structured",
+      "name": "Policy Document",
+      "intensity": "light",
+      "text": "This comprehensive policy outlines the pivotal guidelines for workplace conduct. Furthermore, employees must adhere to these rules at all times. It's crucial to understand that violations may result in disciplinary action. Subsequently, questions should be directed to Human Resources."
+    },
+    {
+      "id": "struct-05",
+      "category": "structured",
+      "name": "Numbered Instructions",
+      "intensity": "moderate",
+      "text": "Installation Instructions: 1. Download the comprehensive software package. 2. The pivotal extraction step requires administrator access. 3. It's crucial that you follow the prompts exactly. 4. Subsequently, restart your system to complete installation."
+    },
+    {
+      "id": "struct-06",
+      "category": "structured",
+      "name": "Specification Sheet",
+      "intensity": "light",
+      "text": "Product Specifications: This comprehensive device features pivotal improvements in processing power. Furthermore, the display technology represents a significant upgrade. It's crucial to note the extended battery life specifications. Subsequently, please review warranty terms before purchase."
+    },
+    {
+      "id": "struct-07",
+      "category": "structured",
+      "name": "Checklist Content",
+      "intensity": "moderate",
+      "text": "Pre-launch Checklist: Ensure comprehensive testing is complete. Furthermore, verify all pivotal integrations are functioning. It's crucial that documentation is updated. Subsequently, obtain final approval from stakeholders. Moreover, prepare the announcement materials."
+    },
+    {
+      "id": "struct-08",
+      "category": "structured",
+      "name": "Table of Contents",
+      "intensity": "light",
+      "text": "This comprehensive guide contains the following sections. Chapter 1 provides pivotal background information. Chapter 2 delves into core concepts that are crucial for understanding. Subsequently, Chapter 3 offers practical applications. Furthermore, the appendix contains reference materials."
+    },
+    {
+      "id": "struct-09",
+      "category": "structured",
+      "name": "Comparison Table",
+      "intensity": "moderate",
+      "text": "Feature Comparison: Plan A offers comprehensive basic features. Plan B includes pivotal premium additions. It's crucial to understand the pricing differences. Subsequently, Plan C provides enterprise-level capabilities. Furthermore, custom solutions are available for larger organizations."
+    },
+    {
+      "id": "struct-10",
+      "category": "structured",
+      "name": "Release Notes",
+      "intensity": "light",
+      "text": "Version 2.0 Release Notes: This comprehensive update includes pivotal performance improvements. Furthermore, several bugs have been addressed. It's crucial that users update immediately for security patches. Subsequently, new features will be documented separately."
+    },
+    {
+      "id": "edge-01",
+      "category": "edge-cases",
+      "name": "Very Short",
+      "intensity": "moderate",
+      "text": "This comprehensive approach is pivotal. Furthermore, it's crucial for success."
+    },
+    {
+      "id": "edge-02",
+      "category": "edge-cases",
+      "name": "Long Form",
+      "intensity": "moderate",
+      "text": "In this comprehensive analysis, we will delve into the multifaceted aspects of modern technology adoption in enterprise environments. Furthermore, understanding the pivotal role of digital transformation is crucial for organizational success in today's competitive landscape. It's worth noting that companies navigating these changes effectively tend to outperform their peers significantly. Moreover, the robust frameworks being developed offer comprehensive solutions to complex challenges. Subsequently, implementation strategies require meticulous planning and execution. The intricate relationships between different technological components must be carefully considered. Additionally, stakeholder alignment is crucial throughout the transformation journey. Furthermore, measuring success requires comprehensive metrics that capture both quantitative and qualitative improvements. It's pivotal to establish clear baselines before embarking on transformation initiatives. Subsequently, regular assessment ensures the organization stays on track toward its goals."
+    },
+    {
+      "id": "edge-03",
+      "category": "edge-cases",
+      "name": "Heavy Jargon",
+      "intensity": "aggressive",
+      "text": "The microservices architecture leverages comprehensive containerization strategies. Furthermore, the CI/CD pipeline is pivotal for DevOps efficiency. It's crucial that the kubernetes orchestration navigates complex deployments. Subsequently, the API gateway provides robust traffic management."
+    },
+    {
+      "id": "edge-04",
+      "category": "edge-cases",
+      "name": "Question Heavy",
+      "intensity": "moderate",
+      "text": "What makes a comprehensive strategy? Why is leadership pivotal? How do we navigate uncertainty? It's crucial to ask these questions. Furthermore, the answers require deep reflection. Subsequently, we can develop robust frameworks for decision-making."
+    },
+    {
+      "id": "edge-05",
+      "category": "edge-cases",
+      "name": "Em-dash Heavy",
+      "intensity": "aggressive",
+      "text": "The solution—which was comprehensive in scope—addressed all concerns. Furthermore, the team's approach—pivotal to success—was widely praised. It's worth noting that the timeline—though ambitious—was achievable. Subsequently, the results—robust and measurable—exceeded expectations."
+    },
+    {
+      "id": "edge-06",
+      "category": "edge-cases",
+      "name": "Formal Legal",
+      "intensity": "light",
+      "text": "Pursuant to the comprehensive agreement, all parties acknowledge the pivotal obligations herein. Furthermore, it is crucial that signatories adhere to the stipulated terms. Subsequently, any breach thereof shall result in appropriate remedial action. Moreover, the jurisdiction navigates disputes through binding arbitration."
+    },
+    {
+      "id": "edge-07",
+      "category": "edge-cases",
+      "name": "Mixed Tone",
+      "intensity": "moderate",
+      "text": "Look, here's the deal—we need a comprehensive strategy. Furthermore, getting buy-in is pivotal, you know? It's crucial that everyone's on the same page. Subsequently, let's schedule a meeting to hash this out. Moreover, I think we can navigate these challenges together."
+    },
+    {
+      "id": "edge-08",
+      "category": "edge-cases",
+      "name": "Repetitive Tell-words",
+      "intensity": "aggressive",
+      "text": "This comprehensive analysis is truly comprehensive in its scope. Furthermore, the pivotal findings are pivotal for our understanding. It's crucial to note how crucial these results are. Subsequently, the robust conclusions are robustly supported. Moreover, we delved deep into delving."
+    },
+    {
+      "id": "edge-09",
+      "category": "edge-cases",
+      "name": "All Caps Sections",
+      "intensity": "moderate",
+      "text": "IMPORTANT: This comprehensive guide is pivotal for all team members. Furthermore, please review it carefully. IT'S CRUCIAL that you understand these guidelines. Subsequently, QUESTIONS should be directed to management. Moreover, navigating this transition requires everyone's cooperation."
+    },
+    {
+      "id": "edge-10",
+      "category": "edge-cases",
+      "name": "Numbers Heavy",
+      "intensity": "light",
+      "text": "The comprehensive Q4 2025 report shows pivotal growth of 47.3%. Furthermore, revenue increased by $12.5M to reach $89.2M total. It's crucial to note that 92% of customers reported satisfaction. Subsequently, our 156 team members delivered 2,340 projects this year."
+    }
+  ]
+}

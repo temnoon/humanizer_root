@@ -18,6 +18,7 @@ import { AddToBookSection } from '../panels/AddToBookSection';
 import { FeedbackWidget } from './FeedbackWidget';
 import { getCustomProfiles, type CustomProfile } from './ProfileFactoryPane';
 import { STORAGE_PATHS } from '../../config/storage-paths';
+import { IntensityHelp } from '../ui/IntensityHelp';
 
 // Helper to get friendly model name from model ID
 function getModelDisplayName(modelId: string | undefined): string | null {
@@ -156,15 +157,18 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
     <div style={{ padding: '12px' }}>
       {/* Intensity */}
       <div style={{ marginBottom: '12px' }}>
-        <label style={labelStyle}>Intensity</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
+          <label style={{ ...labelStyle, marginBottom: 0 }}>Intensity</label>
+          <IntensityHelp />
+        </div>
         <select
           value={state.intensity}
           onChange={(e) => setState({ intensity: e.target.value as any })}
           style={selectStyle}
         >
-          <option value="light">Light (30%)</option>
-          <option value="moderate">Moderate (60%)</option>
-          <option value="aggressive">Aggressive (90%)</option>
+          <option value="light">Light (50%)</option>
+          <option value="moderate">Moderate (70%) - Recommended</option>
+          <option value="aggressive">Aggressive (95%)</option>
         </select>
       </div>
 

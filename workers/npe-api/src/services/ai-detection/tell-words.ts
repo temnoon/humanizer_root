@@ -140,6 +140,14 @@ export const AI_TELL_WORDS: TellWordCategory[] = [
       'having said that',
       'all things considered'
     ]
+  },
+  {
+    category: 'Punctuation Patterns',
+    weight: 0.7,
+    words: [
+      '—',  // em-dash (U+2014) - known AI tell
+      '–'   // en-dash (U+2013) - known AI tell
+    ]
   }
 ];
 
