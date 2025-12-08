@@ -97,6 +97,14 @@ export interface ComputerHumanizerOptions {
   intensity: 'light' | 'moderate' | 'aggressive';
   useLLM?: boolean;
   voiceProfile?: string;
+  model?: string;                    // LLM choice for polish pass
+  useGPTZeroTargeting?: boolean;     // Premium: use GPTZero for sentence-level targeting
+}
+
+export interface GPTZeroSentence {
+  sentence: string;
+  generated_prob: number;
+  highlight_sentence_for_ai: boolean;
 }
 
 export interface ComputerHumanizerResult extends TransformResult {
@@ -113,6 +121,14 @@ export interface ComputerHumanizerResult extends TransformResult {
       tellWordsRemoved: string;
       burstinessEnhanced: string;
       llmPolished?: string;
+    };
+    // New fields for model selection and GPTZero targeting
+    modelUsed?: string;
+    gptzeroAnalysis?: {
+      sentences: GPTZeroSentence[];
+      flaggedCount: number;
+      totalCount: number;
+      overallConfidence: number;
     };
   };
 }
@@ -135,11 +151,22 @@ export async function computerHumanizer(
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout (can be slow with LLM)
 
+  // Get user's model preference for cloud transformations
+  const cloudModel = options.model || getCloudModelPreference();
+  console.log(`[TransformationService] Humanizer using model: ${cloudModel}`);
+
   try {
     const response = await fetch(`${getApiBase()}/transformations/computer-humanizer`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ text, ...options }),
+      body: JSON.stringify({
+        text,
+        intensity: options.intensity,
+        enableLLMPolish: options.useLLM ?? true,
+        voiceSamples: options.voiceProfile ? [options.voiceProfile] : undefined,
+        model: cloudModel,
+        useGPTZeroTargeting: options.useGPTZeroTargeting ?? false,
+      }),
       signal: controller.signal,
     });
 
@@ -147,7 +174,7 @@ export async function computerHumanizer(
 
     if (!response.ok) {
       const error = await response.json();
-      throw new Error(error.message || 'Computer Humanizer failed');
+      throw new Error(error.message || error.error || 'Computer Humanizer failed');
     }
 
     const data = await response.json();
@@ -168,7 +195,7 @@ function mapComputerHumanizerResponse(data: any, text: string): ComputerHumanize
 
   // Map backend response to TransformResult format
   return {
-    transformation_id: crypto.randomUUID(),
+    transformation_id: data.transformation_id || crypto.randomUUID(),
     original: text,
     transformed: data.humanizedText,  // Backend returns humanizedText
     metadata: {
@@ -185,6 +212,9 @@ function mapComputerHumanizerResponse(data: any, text: string): ComputerHumanize
         burstinessEnhanced: data.stages?.burstinessEnhanced || '',
         llmPolished: data.stages?.llmPolished,
       },
+      // New fields for model selection and GPTZero targeting
+      modelUsed: data.model_used,
+      gptzeroAnalysis: data.gptzeroAnalysis,
     },
   };
 }
@@ -772,6 +802,8 @@ export async function runTransform(config: TransformConfig, text: string): Promi
         intensity: config.parameters.intensity || 'moderate',
         useLLM: config.parameters.useLLM ?? true,
         voiceProfile: config.parameters.voiceProfile,
+        model: config.parameters.model,
+        useGPTZeroTargeting: config.parameters.useGPTZeroTargeting ?? false,
       });
 
     case 'ai-detection':

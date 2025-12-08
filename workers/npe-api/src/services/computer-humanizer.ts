@@ -4,6 +4,7 @@
 
 import type { Env } from '../../shared/types';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
+import { detectAIWithGPTZero, type GPTZeroDetectionResult } from './ai-detection/gptzero-client';
 import {
   enhanceBurstiness,
   replaceTellWords,
@@ -18,11 +19,21 @@ import {
   getBlockMarkerInstructions
 } from '../lib/block-markers';
 import { filterModelOutput, UnvettedModelError } from './model-vetting';
+import { createLLMProvider } from './llm-providers';
 
 /**
  * Humanization intensity levels
  */
 export type HumanizationIntensity = 'light' | 'moderate' | 'aggressive';
+
+/**
+ * GPTZero sentence analysis for targeted transformation
+ */
+export interface GPTZeroSentence {
+  sentence: string;
+  generated_prob: number;
+  highlight_sentence_for_ai: boolean;
+}
 
 /**
  * Humanization request options
@@ -33,6 +44,8 @@ export interface HumanizationOptions {
   enableLLMPolish?: boolean;         // Default: true
   targetBurstiness?: number;         // Default: 60
   targetLexicalDiversity?: number;   // Default: 60
+  model?: string;                    // LLM choice for polish pass (default: llama-3.1-70b)
+  useGPTZeroTargeting?: boolean;     // Premium: use GPTZero for sentence-level targeting
 }
 
 /**
@@ -69,6 +82,17 @@ export interface HumanizationResult {
   // Voice profile (if samples provided)
   voiceProfile?: VoiceProfile;
 
+  // GPTZero targeting data (if enabled)
+  gptzeroAnalysis?: {
+    sentences: GPTZeroSentence[];
+    flaggedCount: number;
+    totalCount: number;
+    overallConfidence: number;
+  };
+
+  // Model used for LLM polish
+  modelUsed?: string;
+
   // Processing metadata
   processing: {
     totalDurationMs: number;
@@ -83,11 +107,19 @@ export interface HumanizationResult {
 /**
  * Main humanization pipeline
  * Transforms AI-generated text to reduce AI detection while preserving meaning
+ *
+ * @param env - Cloudflare environment bindings
+ * @param text - Text to humanize
+ * @param options - Humanization options including model choice and GPTZero targeting
+ * @param userId - User ID (needed for LLM provider and tier-based features)
+ * @param gptzeroApiKey - Optional GPTZero API key (for targeting feature)
  */
 export async function humanizeText(
   env: Env,
   text: string,
-  options: HumanizationOptions
+  options: HumanizationOptions,
+  userId: string,
+  gptzeroApiKey?: string
 ): Promise<HumanizationResult> {
   const totalStartTime = Date.now();
 
@@ -103,14 +135,57 @@ export async function humanizeText(
     throw new Error('Text must be at least 20 words for humanization');
   }
 
+  // Default model for LLM polish pass
+  const modelId = options.model || '@cf/meta/llama-3.1-70b-instruct';
+  console.log(`[Humanizer] Model: ${modelId}${options.model ? ' (user selected)' : ' (default)'}`);
+
   // Initialize timing trackers
   let stage1Time = 0, stage2Time = 0, stage3Time = 0, stage4Time = 0, stage5Time = 0;
+
+  // GPTZero analysis data (if enabled)
+  let gptzeroAnalysis: HumanizationResult['gptzeroAnalysis'] | undefined;
+  let flaggedSentences: Set<string> = new Set();
 
   // ========================================
   // STAGE 1: Statistical Analysis (200ms)
   // ========================================
   const stage1Start = Date.now();
   const baselineDetection = await detectAILocal(trimmedText);
+
+  // Optional: GPTZero targeting for sentence-level analysis
+  if (options.useGPTZeroTargeting && gptzeroApiKey) {
+    try {
+      console.log('[Humanizer] Running GPTZero targeting analysis...');
+      const gptzeroResult = await detectAIWithGPTZero(trimmedText, gptzeroApiKey);
+
+      // Extract flagged sentences for targeted transformation
+      const sentences = gptzeroResult.details.sentences.map(s => ({
+        sentence: s.sentence,
+        generated_prob: s.generated_prob,
+        highlight_sentence_for_ai: s.highlight_sentence_for_ai
+      }));
+
+      // Build set of flagged sentences for targeted naturalization
+      for (const s of sentences) {
+        if (s.highlight_sentence_for_ai) {
+          flaggedSentences.add(s.sentence);
+        }
+      }
+
+      gptzeroAnalysis = {
+        sentences,
+        flaggedCount: flaggedSentences.size,
+        totalCount: sentences.length,
+        overallConfidence: gptzeroResult.confidence
+      };
+
+      console.log(`[Humanizer] GPTZero flagged ${flaggedSentences.size}/${sentences.length} sentences`);
+    } catch (error) {
+      console.error('[Humanizer] GPTZero analysis failed, falling back to local:', error);
+      // Continue without GPTZero targeting
+    }
+  }
+
   stage1Time = Date.now() - stage1Start;
 
   // ========================================
@@ -176,9 +251,10 @@ export async function humanizeText(
 
   if (options.enableLLMPolish !== false) {
     try {
-      polished = await llmPolishPass(env, voiceMatched);
+      polished = await llmPolishPass(env, voiceMatched, modelId, userId, flaggedSentences);
 
     } catch (error) {
+      console.error('[Humanizer] LLM polish failed:', error);
       // Continue with naturalizer output
     }
   }
@@ -225,6 +301,8 @@ export async function humanizeText(
       afterLLMPolish: polished !== voiceMatched ? polished : undefined
     },
     voiceProfile,
+    gptzeroAnalysis,
+    modelUsed: options.enableLLMPolish !== false ? modelId : undefined,
     processing: {
       totalDurationMs: totalTime,
       stage1DurationMs: stage1Time,
@@ -237,18 +315,39 @@ export async function humanizeText(
 }
 
 /**
- * LLM polish pass using Llama 70b
+ * LLM polish pass - now with model choice and GPTZero targeting
  * Ensures natural flow while preserving humanization improvements
+ *
+ * @param env - Cloudflare environment bindings
+ * @param text - Text to polish
+ * @param modelId - Model to use for polish
+ * @param userId - User ID for LLM provider
+ * @param flaggedSentences - Optional set of GPTZero-flagged sentences for targeted transformation
  */
-async function llmPolishPass(env: Env, text: string): Promise<string> {
-  // Use Workers AI Llama 70b (Claude not available on Cloudflare Workers AI)
+async function llmPolishPass(
+  env: Env,
+  text: string,
+  modelId: string,
+  userId: string,
+  flaggedSentences?: Set<string>
+): Promise<string> {
   const wordCount = text.split(/\s+/).length;
   const hasMarkers = hasBlockMarkers(text);
 
   // Include block marker instructions if text has markers
   const markerInstructions = hasMarkers ? `\n\n${getBlockMarkerInstructions()}\n` : '';
 
-  const prompt = `Make this text sound natural and conversational, like a real person wrote it. Use simpler words. Remove any remaining formal or robotic language. Keep it around ${wordCount} words (±10%). Don't add new facts or explanations.${markerInstructions}
+  // Build GPTZero targeting instructions if flagged sentences provided
+  let targetingInstructions = '';
+  if (flaggedSentences && flaggedSentences.size > 0) {
+    const flaggedList = Array.from(flaggedSentences).slice(0, 10); // Limit to 10 for prompt size
+    targetingInstructions = `\n\nPRIORITY: The following sentences were flagged as AI-generated and need extra attention:
+${flaggedList.map((s, i) => `${i + 1}. "${s.substring(0, 100)}${s.length > 100 ? '...' : ''}"`).join('\n')}
+
+Focus on making these sentences sound more natural and human-like. Vary their structure, use more casual language, and break up any overly formal patterns.`;
+  }
+
+  const prompt = `Make this text sound natural and conversational, like a real person wrote it. Use simpler words. Remove any remaining formal or robotic language. Keep it around ${wordCount} words (±10%). Don't add new facts or explanations.${markerInstructions}${targetingInstructions}
 Return ONLY the polished text.
 
 Text:
@@ -257,17 +356,17 @@ ${text}
 Polished:`;
 
   try {
-    const response = await env.AI.run('@cf/meta/llama-3-70b-instruct', {
-      prompt,
+    // Use createLLMProvider for model selection
+    const provider = await createLLMProvider(modelId, env, userId);
+    const result = await provider.generateText(prompt, {
       max_tokens: 4096,
       temperature: 0.7
     });
 
-    const rawResponse = (response as any).response?.trim() || text;
+    const rawResponse = result.trim() || text;
 
     // Filter output using model-specific vetting profile
-    const HUMANIZER_MODEL = '@cf/meta/llama-3-70b-instruct';
-    const filterResult = filterModelOutput(rawResponse, HUMANIZER_MODEL);
+    const filterResult = filterModelOutput(rawResponse, modelId);
     const polished = filterResult.content;
 
     // Safety check: If LLM reintroduced tell-words, return unpolished version
@@ -275,6 +374,7 @@ Polished:`;
     const originalDetection = await detectAILocal(text);
 
     if (reintroducedDetection.detectedTellWords.length > originalDetection.detectedTellWords.length) {
+      console.log('[LLM Polish] Reverted: LLM reintroduced tell-words');
       return text;
     }
 

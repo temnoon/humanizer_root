@@ -499,6 +499,10 @@ transformationRoutes.get('/personalizer/history', optionalLocalAuth(), requirePr
  *
  * Transforms AI text to reduce detection while preserving meaning
  * Uses hybrid approach: statistical + rule-based + optional LLM
+ *
+ * New options:
+ * - model: LLM choice for polish pass (default: llama-3.1-70b)
+ * - useGPTZeroTargeting: Premium feature - use GPTZero for sentence-level targeting
  */
 transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) => {
   try {
@@ -510,7 +514,9 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
       voiceSamples = [],
       enableLLMPolish = true,
       targetBurstiness = 60,
-      targetLexicalDiversity = 60
+      targetLexicalDiversity = 60,
+      model,
+      useGPTZeroTargeting = false
     } = body;
 
     // Validate input
@@ -535,6 +541,23 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
       return c.json({ error: 'Maximum 10 voice samples allowed' }, 400);
     }
 
+    // GPTZero targeting requires PRO+ tier
+    let gptzeroApiKey: string | undefined;
+    if (useGPTZeroTargeting) {
+      const isProPlus = auth.role === 'pro' || auth.role === 'premium' || auth.role === 'admin';
+      if (!isProPlus) {
+        return c.json({
+          error: 'GPTZero targeting requires PRO+ subscription. Upgrade to access advanced features.'
+        }, 403);
+      }
+
+      // Get GPTZero API key from environment
+      gptzeroApiKey = c.env.GPTZERO_API_KEY;
+      if (!gptzeroApiKey) {
+        console.warn('[Humanizer] GPTZero API key not configured, falling back to local detection');
+      }
+    }
+
     // Generate transformation ID
     const transformationId = crypto.randomUUID();
 
@@ -550,7 +573,9 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
           voiceSamplesCount: voiceSamples?.length || 0,
           enableLLMPolish,
           targetBurstiness,
-          targetLexicalDiversity
+          targetLexicalDiversity,
+          model: model || '@cf/meta/llama-3.1-70b-instruct',
+          useGPTZeroTargeting
         }
       });
     } catch (err) {
@@ -564,12 +589,14 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
       voiceSamples: voiceSamples || undefined,
       enableLLMPolish,
       targetBurstiness,
-      targetLexicalDiversity
+      targetLexicalDiversity,
+      model,
+      useGPTZeroTargeting
     };
 
-    // Run humanization
+    // Run humanization with userId and optional GPTZero key
     try {
-      const result = await humanizeText(c.env, text, options);
+      const result = await humanizeText(c.env, text, options, auth.userId, gptzeroApiKey);
 
       const response = {
         transformation_id: transformationId,
@@ -579,6 +606,8 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
         improvement: result.improvement,
         stages: result.stages,
         voiceProfile: result.voiceProfile,
+        gptzeroAnalysis: result.gptzeroAnalysis,
+        model_used: result.modelUsed,
         processing: result.processing
       };
 

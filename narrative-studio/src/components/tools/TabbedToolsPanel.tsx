@@ -31,7 +31,7 @@ function TabbedToolsPanelInner({
   content: propContent,
   onApplyTransform,
 }: TabbedToolsPanelProps) {
-  const { activeToolId, transformSource, setTransformSource } = useToolTabs();
+  const { activeToolId, transformSource, setTransformSource, toolStates } = useToolTabs();
   const { workingBuffer, getTextContent, clearWorkingBuffer } = useUnifiedBuffer();
 
   if (!isOpen) return null;
@@ -39,10 +39,35 @@ function TabbedToolsPanelInner({
   // Get the active tool metadata
   const activeTool = TOOL_REGISTRY.find(t => t.id === activeToolId);
 
-  // Use unified buffer content if available, otherwise fall back to prop content
+  // Get the original content (from buffer or prop)
   const bufferText = workingBuffer ? getTextContent() : '';
-  const effectiveContent = bufferText || propContent;
+  const originalContent = bufferText || propContent;
   const hasBufferContent = !!workingBuffer;
+
+  // Get the active (transformed) content from last transformation result
+  // Check all tool states for a lastResult with transformed text
+  const getLastTransformedText = (): string | null => {
+    const toolsWithResults: Array<keyof typeof toolStates> = ['humanizer', 'persona', 'style', 'round-trip'];
+    for (const toolId of toolsWithResults) {
+      const state = toolStates[toolId];
+      if (state && 'lastResult' in state && state.lastResult?.transformed) {
+        return state.lastResult.transformed;
+      }
+    }
+    return null;
+  };
+
+  const lastTransformed = getLastTransformedText();
+
+  // Determine effective content based on transformSource
+  let effectiveContent: string;
+  if (transformSource === 'active' && lastTransformed) {
+    effectiveContent = lastTransformed;
+  } else if (transformSource === 'buffer' && hasBufferContent) {
+    effectiveContent = bufferText;
+  } else {
+    effectiveContent = originalContent;
+  }
 
   return (
     <>
@@ -190,9 +215,14 @@ function TabbedToolsPanelInner({
               }}
             >
               <option value="original">Original text</option>
-              <option value="active">Active buffer (chain)</option>
-              {hasBufferContent && <option value="buffer">From archive buffer</option>}
+              <option value="active" disabled={!lastTransformed}>
+                {lastTransformed ? 'Last transformed (chain)' : 'Last transformed (none yet)'}
+              </option>
             </select>
+          </div>
+          {/* Show current content source and word count */}
+          <div style={{ fontSize: '0.625rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+            Using: {transformSource === 'active' && lastTransformed ? 'transformed' : 'original'} · {effectiveContent.split(/\s+/).filter(Boolean).length} words
           </div>
         </div>
 
