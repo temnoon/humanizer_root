@@ -244,6 +244,21 @@ export interface AIDetectionResult extends TransformResult {
         reason: string;
         score?: number;
       }>;
+      // Sentence-level analysis
+      sentenceAnalysis?: Array<{
+        sentence: string;
+        index: number;
+        aiScore: number;
+        tellPhrases: Array<{ phrase: string; category: string; weight: number }>;
+        patterns: string[];
+      }>;
+      suspectSentences?: Array<{
+        sentence: string;
+        index: number;
+        aiScore: number;
+        tellPhrases: Array<{ phrase: string; category: string; weight: number }>;
+        patterns: string[];
+      }>;
       // GPTZero specific fields
       highlightedSentences?: string[]; // AI-flagged sentences (GPTZero)
       paraphrasedProbability?: number; // GPTZero paraphrased detection probability
@@ -373,6 +388,9 @@ function mapLiteDetectionResponse(data: any, text: string): AIDetectionResult {
         llmScore: data.llmScore,
         confidence_level: data.confidence, // 'low' | 'medium' | 'high'
         highlights: data.highlights || [],
+        // Pass through sentence-level analysis
+        sentenceAnalysis: data.sentenceAnalysis || [],
+        suspectSentences: data.suspectSentences || [],
         reasoning: data.llmScore !== undefined
           ? `Lite detector (with LLM meta-judge): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`
           : `Lite detector (heuristic only): ${tellWords.length} AI phrases detected. Processing time: ${data.processingTimeMs}ms.`,

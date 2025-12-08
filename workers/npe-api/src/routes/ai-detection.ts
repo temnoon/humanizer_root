@@ -384,7 +384,10 @@ function getCategoryDescription(category: string): string {
     'Transitional Phrases': 'Connecting phrases common in AI-generated text (e.g., "it\'s worth noting")',
     'Hedging/Qualifiers': 'Cautious qualifiers that AI uses to avoid definitive statements',
     'Metadiscourse': 'Self-referential phrases pointing to the text itself',
-    'Sentence Starters': 'Common AI sentence openers (e.g., "in recent years", "looking ahead")'
+    'Sentence Starters': 'Common AI sentence openers (e.g., "in recent years", "looking ahead")',
+    'Punctuation Patterns': 'AI-characteristic punctuation (e.g., em-dashes)',
+    'Chatbot Phrases': 'Conversational AI patterns (e.g., "happy to help", "let me explain", "hope this helps")',
+    'Structural Patterns': 'List and enumeration patterns common in AI (e.g., "firstly", "secondly", "in conclusion")'
   };
   return descriptions[category] || 'AI-characteristic phrases';
 }

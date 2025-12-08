@@ -1,7 +1,7 @@
 // Local AI Detection Service (Statistical Analysis)
 // No external API calls - privacy-friendly, instant results
 
-import { calculateTellWordScore } from './tell-words';
+import { calculateTellWordScore, analyzeSentences, type SentenceAnalysis } from './tell-words';
 import {
   calculateBurstiness,
   calculateFleschReadingEase,
@@ -27,6 +27,8 @@ export interface LocalDetectionResult {
     avgSentenceLength: number;
   };
   detectedTellWords: Array<{ word: string; category: string; count: number }>;
+  sentenceAnalysis: SentenceAnalysis[]; // Per-sentence AI scoring
+  suspectSentences: SentenceAnalysis[]; // Sentences with aiScore >= 30
   processingTimeMs: number;
   method: 'local';
 }
@@ -65,23 +67,34 @@ export async function detectAILocal(text: string): Promise<LocalDetectionResult>
   const gunningFog = calculateGunningFog(trimmedText);
   const avgSentenceLength = words.length / sentences.length;
 
+  // Perform sentence-level analysis
+  const sentenceAnalysis = analyzeSentences(trimmedText);
+  const suspectSentences = sentenceAnalysis.filter(s => s.aiScore >= 30);
+
   // Calculate weighted confidence score
   // Lower burstiness = more AI-like
   // Higher tell-word score = more AI-like
   // Readability pattern in AI range = more AI-like
   // Lower lexical diversity = more AI-like
+  // More suspect sentences = more AI-like
 
   const burstinessAIScore = 100 - burstiness; // Invert: low burstiness = high AI score
   const tellWordAIScore = tellWordAnalysis.score;
   const readabilityAIScore = readabilityPattern;
   const diversityAIScore = 100 - lexicalDiversity; // Invert: low diversity = high AI score
 
+  // Suspect sentence ratio contributes to AI score
+  const suspectRatio = sentenceAnalysis.length > 0
+    ? (suspectSentences.length / sentenceAnalysis.length) * 100
+    : 0;
+
   // Weighted combination (weights based on research accuracy)
   const confidence = Math.round(
-    burstinessAIScore * 0.35 +         // Burstiness: 35% (strongest signal)
-    tellWordAIScore * 0.30 +           // Tell words: 30%
-    readabilityAIScore * 0.20 +        // Readability: 20%
-    diversityAIScore * 0.15            // Diversity: 15%
+    burstinessAIScore * 0.30 +         // Burstiness: 30%
+    tellWordAIScore * 0.25 +           // Tell words: 25%
+    readabilityAIScore * 0.15 +        // Readability: 15%
+    diversityAIScore * 0.15 +          // Diversity: 15%
+    suspectRatio * 0.15                // Suspect sentences: 15%
   );
 
   // Determine verdict based on confidence thresholds
@@ -113,6 +126,8 @@ export async function detectAILocal(text: string): Promise<LocalDetectionResult>
       avgSentenceLength: Math.round(avgSentenceLength * 10) / 10
     },
     detectedTellWords: tellWordAnalysis.detectedWords.slice(0, 10), // Top 10 most frequent
+    sentenceAnalysis,
+    suspectSentences: suspectSentences.slice(0, 10), // Top 10 most suspect
     processingTimeMs,
     method: 'local'
   };

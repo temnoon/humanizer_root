@@ -14,6 +14,7 @@ import {
   applyHighlightsToMarkdown,
   type HighlightRange
 } from './markdown-preserver';
+import { analyzeSentences, type SentenceAnalysis } from './ai-detection/tell-words';
 
 // Types
 export interface LiteDetectionResult {
@@ -42,6 +43,9 @@ export interface LiteDetectionResult {
   }>;
   heuristicScore: number;
   llmScore?: number;
+  // New: sentence-level analysis
+  sentenceAnalysis?: SentenceAnalysis[];
+  suspectSentences?: SentenceAnalysis[];
 }
 
 export interface TextSlice {
@@ -89,6 +93,10 @@ export async function detectWithLite(
   // 8. Create highlights
   const highlights = createHighlights(text, sentences, phraseHits, finalScore);
 
+  // 9. Run sentence-level analysis (using new tell-words module)
+  const sentenceAnalysis = analyzeSentences(text);
+  const suspectSentences = sentenceAnalysis.filter(s => s.aiScore >= 30).slice(0, 10);
+
   return {
     detector_type: 'lite',
     ai_likelihood: finalScore,
@@ -99,6 +107,8 @@ export async function detectWithLite(
     highlights,
     heuristicScore,
     llmScore,
+    sentenceAnalysis,
+    suspectSentences,
   };
 }
 
