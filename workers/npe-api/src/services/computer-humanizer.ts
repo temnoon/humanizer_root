@@ -379,7 +379,239 @@ const FORBIDDEN_TELL_WORDS = [
 ];
 
 /**
+ * Two-pass LLM configuration
+ * Pass 1: Structure (sentence length variation, flow, paragraph breaks)
+ * Pass 2: Style (word choice, tell-word elimination, natural voice)
+ */
+const TWO_PASS_CONFIG = {
+  structure: {
+    temperature: 0.6,
+    focus: 'sentence structure and flow'
+  },
+  style: {
+    temperature: 0.7,
+    focus: 'word choice and natural voice'
+  }
+};
+
+/**
+ * Two-pass LLM polish - separates structure from style for better results
+ *
+ * Pass 1 (Structure): Focus on sentence length variation, flow, paragraph breaks
+ * Pass 2 (Style): Focus on word choice, tell-word elimination, natural voice
+ *
+ * This approach prevents the LLM from trying to do too much at once, which
+ * often results in mediocre improvements across all dimensions.
+ */
+async function twoPassLLMPolish(
+  env: Env,
+  text: string,
+  modelId: string,
+  userId: string,
+  intensity: HumanizationIntensity,
+  flaggedSentences?: Set<string>
+): Promise<{ result: string; tellWordsReintroduced: number }> {
+  const wordCount = text.split(/\s+/).length;
+  const hasMarkers = hasBlockMarkers(text);
+  const intensityConfig = INTENSITY_PROMPTS[intensity];
+
+  // Track original tell-words for monitoring
+  const originalDetection = await detectAILocal(text);
+  const originalTellWords = originalDetection.detectedTellWords.length;
+
+  // Include block marker instructions if text has markers
+  const markerInstructions = hasMarkers ? `\n\nFORMAT PRESERVATION:\n${getBlockMarkerInstructions()}\n` : '';
+
+  // Build GPTZero targeting instructions if flagged sentences provided
+  let targetingInstructions = '';
+  if (flaggedSentences && flaggedSentences.size > 0) {
+    const flaggedList = Array.from(flaggedSentences).slice(0, 5);
+    targetingInstructions = `\n\nPRIORITY SENTENCES (flagged as AI-generated - focus extra attention here):
+${flaggedList.map((s, i) => `${i + 1}. "${s.substring(0, 80)}${s.length > 80 ? '...' : ''}"`).join('\n')}`;
+  }
+
+  const provider = await createLLMProvider(modelId, env, userId);
+
+  // ========================================
+  // PASS 1: STRUCTURE
+  // ========================================
+  const structurePrompt = `You are an editor improving text STRUCTURE only. Do NOT change word choices yet.
+
+TASK: Restructure this text for better sentence variety and flow.
+
+STRUCTURE GUIDELINES (${intensity} intensity):
+${intensity === 'light' ? `- Make minimal changes to sentence structure
+- Only split sentences that are obviously too long (40+ words)
+- Keep paragraph structure intact` :
+intensity === 'moderate' ? `- Vary sentence lengths: mix short (5-10 words) with medium (15-25 words)
+- Break up any sentence over 30 words
+- Add paragraph breaks where natural pauses occur
+- Occasionally combine very short sentences` :
+`- Aggressively vary sentence lengths: some very short (3-7 words), some medium (12-20 words)
+- Never have two sentences of similar length in a row
+- Break up walls of text with frequent paragraph breaks
+- Start some sentences with "But", "And", "So" for variety`}
+
+CRITICAL RULES:
+1. Return ONLY the restructured text - no explanations
+2. Keep the SAME words - only change punctuation and sentence breaks
+3. Preserve all facts exactly
+4. Stay within ${wordCount} words (±5%)
+${markerInstructions}
+
+ORIGINAL TEXT:
+${text}
+
+RESTRUCTURED TEXT:`;
+
+  let structuredText = text;
+  try {
+    const structureResult = await provider.generateText(structurePrompt, {
+      max_tokens: 4096,
+      temperature: TWO_PASS_CONFIG.structure.temperature
+    });
+
+    structuredText = structureResult.trim() || text;
+    structuredText = filterModelOutput(structuredText, modelId).content;
+
+    // Clean up preambles
+    structuredText = structuredText
+      .replace(/^(Here's|Here is|Below is|The restructured|Restructured)[^:]*:\s*/i, '')
+      .replace(/^(Sure|Certainly|Of course)[^.]*\.\s*/i, '')
+      .trim();
+
+    console.log(`[LLM Polish] Pass 1 (Structure) complete`);
+  } catch (error) {
+    console.error('[LLM Polish] Pass 1 failed, continuing with original:', error);
+  }
+
+  // ========================================
+  // PASS 2: STYLE
+  // ========================================
+  const stylePrompt = `You are an editor improving text STYLE. The structure is already good.
+
+TASK: ${intensityConfig.instructions}
+
+STYLE GUIDELINES:
+- Use contractions naturally (don't, can't, it's, they're)
+- Replace formal words with simpler alternatives
+- Add conversational touches where appropriate
+- Make it sound like a real person wrote this
+
+FORBIDDEN WORDS - NEVER use these AI tell-words:
+${FORBIDDEN_TELL_WORDS.join(', ')}
+
+CRITICAL RULES:
+1. Return ONLY the styled text - no explanations, no preambles
+2. Keep the sentence structure mostly as-is (it's already been optimized)
+3. Preserve all facts, names, numbers exactly
+4. Stay within ${wordCount} words (${intensityConfig.wordTolerance})
+${targetingInstructions}
+
+TEXT TO STYLE:
+${structuredText}
+
+STYLED TEXT:`;
+
+  let styledText = structuredText;
+  try {
+    const styleResult = await provider.generateText(stylePrompt, {
+      max_tokens: 4096,
+      temperature: TWO_PASS_CONFIG.style.temperature
+    });
+
+    styledText = styleResult.trim() || structuredText;
+    styledText = filterModelOutput(styledText, modelId).content;
+
+    // Clean up preambles
+    styledText = styledText
+      .replace(/^(Here's|Here is|Below is|The styled|Styled)[^:]*:\s*/i, '')
+      .replace(/^(Sure|Certainly|Of course)[^.]*\.\s*/i, '')
+      .trim();
+
+    console.log(`[LLM Polish] Pass 2 (Style) complete`);
+  } catch (error) {
+    console.error('[LLM Polish] Pass 2 failed, using structure pass result:', error);
+  }
+
+  // ========================================
+  // MONITORING: Check for tell-word reintroduction
+  // ========================================
+  const finalDetection = await detectAILocal(styledText);
+  const finalTellWords = finalDetection.detectedTellWords.length;
+  const tellWordsReintroduced = Math.max(0, finalTellWords - originalTellWords);
+
+  if (tellWordsReintroduced > 0) {
+    console.log(`[LLM Polish] WARNING: Tell-words reintroduced: ${tellWordsReintroduced}`);
+    console.log(`[LLM Polish]   Original: ${originalTellWords}, Final: ${finalTellWords}`);
+    console.log(`[LLM Polish]   Reintroduced words: ${finalDetection.detectedTellWords.filter(w =>
+      !originalDetection.detectedTellWords.includes(w)
+    ).join(', ')}`);
+
+    // Apply post-processing to strip reintroduced tell-words
+    styledText = postProcessTellWords(styledText, finalDetection.detectedTellWords);
+  }
+
+  return { result: styledText, tellWordsReintroduced };
+}
+
+/**
+ * Post-process to strip tell-words the LLM reintroduced
+ * This is a safety net - we'd prefer the LLM not use them in the first place
+ */
+function postProcessTellWords(text: string, detectedTellWords: string[]): string {
+  let result = text;
+
+  // Import the replacement dictionary from text-naturalizer
+  const simpleReplacements: Record<string, string> = {
+    'furthermore': 'also',
+    'moreover': 'also',
+    'consequently': 'so',
+    'additionally': 'also',
+    'subsequently': 'then',
+    'nevertheless': 'still',
+    'nonetheless': 'still',
+    'comprehensive': 'complete',
+    'crucial': 'important',
+    'vital': 'important',
+    'pivotal': 'key',
+    'intricate': 'complex',
+    'nuanced': 'subtle',
+    'multifaceted': 'complex',
+    'holistic': 'complete',
+    'paradigm': 'model',
+    'robust': 'strong',
+    'leverage': 'use',
+    'leveraging': 'using',
+    'navigate': 'handle',
+    'navigating': 'handling',
+    'realm': 'area',
+    'landscape': 'field',
+    'tapestry': 'mix',
+    'delve': 'explore'
+  };
+
+  for (const word of detectedTellWords) {
+    const lowerWord = word.toLowerCase();
+    const replacement = simpleReplacements[lowerWord];
+
+    if (replacement) {
+      const regex = new RegExp(`\\b${word}\\b`, 'gi');
+      result = result.replace(regex, (match) => {
+        if (match.charAt(0) === match.charAt(0).toUpperCase()) {
+          return replacement.charAt(0).toUpperCase() + replacement.slice(1);
+        }
+        return replacement;
+      });
+    }
+  }
+
+  return result;
+}
+
+/**
  * LLM polish pass - with intensity-aware prompts and improved instructions
+ * Now uses two-pass approach for better results
  *
  * @param env - Cloudflare environment bindings
  * @param text - Text to polish
@@ -396,73 +628,20 @@ async function llmPolishPass(
   intensity: HumanizationIntensity,
   flaggedSentences?: Set<string>
 ): Promise<string> {
-  const wordCount = text.split(/\s+/).length;
-  const hasMarkers = hasBlockMarkers(text);
-  const intensityConfig = INTENSITY_PROMPTS[intensity];
-
-  // Include block marker instructions if text has markers
-  const markerInstructions = hasMarkers ? `\n\nFORMAT PRESERVATION:\n${getBlockMarkerInstructions()}\n` : '';
-
-  // Build GPTZero targeting instructions if flagged sentences provided
-  let targetingInstructions = '';
-  if (flaggedSentences && flaggedSentences.size > 0) {
-    const flaggedList = Array.from(flaggedSentences).slice(0, 5); // Limit to 5 for prompt size
-    targetingInstructions = `\n\nPRIORITY SENTENCES (flagged as AI-generated - focus extra attention here):
-${flaggedList.map((s, i) => `${i + 1}. "${s.substring(0, 80)}${s.length > 80 ? '...' : ''}"`).join('\n')}`;
-  }
-
-  const prompt = `You are a skilled editor helping make AI-generated text sound human-written.
-
-TASK: ${intensityConfig.instructions}
-
-CRITICAL RULES:
-1. Return ONLY the rewritten text - no explanations, no "Here's the rewritten version:", no meta-commentary
-2. Preserve all facts, names, numbers, and technical accuracy
-3. Never add information that wasn't in the original
-4. Keep the text approximately ${wordCount} words (${intensityConfig.wordTolerance})
-5. NEVER use these AI tell-words: ${FORBIDDEN_TELL_WORDS.slice(0, 15).join(', ')}
-${markerInstructions}${targetingInstructions}
-
-ORIGINAL TEXT:
-${text}
-
-REWRITTEN TEXT:`;
-
   try {
-    // Use createLLMProvider for model selection
-    const provider = await createLLMProvider(modelId, env, userId);
-    const result = await provider.generateText(prompt, {
-      max_tokens: 4096,
-      temperature: intensityConfig.temperature
-    });
+    // Use two-pass approach for better results
+    const { result, tellWordsReintroduced } = await twoPassLLMPolish(
+      env, text, modelId, userId, intensity, flaggedSentences
+    );
 
-    const rawResponse = result.trim() || text;
-
-    // Filter output using model-specific vetting profile
-    const filterResult = filterModelOutput(rawResponse, modelId);
-    let polished = filterResult.content;
-
-    // Safety check: If LLM reintroduced tell-words, try to strip them
-    const reintroducedDetection = await detectAILocal(polished);
-    const originalDetection = await detectAILocal(text);
-
-    if (reintroducedDetection.detectedTellWords.length > originalDetection.detectedTellWords.length) {
-      console.log(`[LLM Polish] Warning: LLM reintroduced ${reintroducedDetection.detectedTellWords.length - originalDetection.detectedTellWords.length} tell-words`);
-      // Don't revert entirely - the LLM output is usually still better
-      // Just log it for monitoring
+    if (tellWordsReintroduced > 0) {
+      console.log(`[LLM Polish] Note: ${tellWordsReintroduced} tell-words were reintroduced and stripped`);
     }
 
-    // Additional cleanup: remove any preamble the LLM might have added
-    polished = polished
-      .replace(/^(Here's|Here is|Below is|The rewritten|Rewritten)[^:]*:\s*/i, '')
-      .replace(/^(Sure|Certainly|Of course)[^.]*\.\s*/i, '')
-      .trim();
-
-    return polished;
-
+    return result;
   } catch (error) {
-    console.error('[LLM Polish] Failed:', error);
-    return text; // Return original if polish fails
+    console.error('[LLM Polish] Two-pass failed, falling back to original:', error);
+    return text;
   }
 }
 
