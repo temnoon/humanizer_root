@@ -121,68 +121,22 @@ const TELL_WORD_REPLACEMENTS: Record<string, string[]> = {
 
 /**
  * Enhance burstiness by varying sentence lengths
- * Target: 50-70/100 (human-like variation)
- * Strategy: Mix short (8-12 word) and long (20-30 word) sentences
- * PRESERVES: Paragraph breaks, markdown formatting
- * NOTE: This is a PLACEHOLDER - should be replaced with LLM-based approach for production
+ *
+ * NOTE: This function previously attempted rule-based sentence splitting, which created
+ * awkward breaks and unnatural text. Burstiness is now handled by the LLM polish pass
+ * with intensity-aware prompts that specifically request varied sentence lengths.
+ *
+ * This function is kept for API compatibility but now acts as a pass-through.
+ * The LLM prompt in computer-humanizer.ts handles sentence variation much better.
  */
-export function enhanceBurstiness(text: string, targetScore: number = 60): string {
-  const currentScore = calculateBurstiness(text);
-
-  // If already good, return as-is
-  if (currentScore >= targetScore - 5) {
-    return text;
-  }
-
-  // SIMPLIFIED: Just vary sentence lengths using rule-based splitting
-  // For production, this should use LLM to rewrite with varied sentence lengths
-  // (local working version uses Ollama with prompt to mix short and long sentences)
-
-  // Split into paragraphs first (preserve paragraph breaks)
-  const paragraphs = text.split(/\n\n+/);
-  const transformedParagraphs: string[] = [];
-
-  for (const paragraph of paragraphs) {
-    if (paragraph.trim().length === 0) continue;
-
-    // Split paragraph into sentences
-    const sentences = paragraph.match(/[^.!?]+[.!?]+/g) || [paragraph];
-    const transformed: string[] = [];
-
-    for (let i = 0; i < sentences.length; i++) {
-      const sentence = sentences[i].trim();
-      const words = sentence.split(/\s+/).filter(w => w.length > 0);
-      const wordCount = words.length;
-
-      // Split very long sentences (>30 words)
-      if (wordCount > 30) {
-        const splitResult = splitLongSentence(sentence);
-        transformed.push(...splitResult);
-      }
-      // Split moderately long sentences (>25 words) occasionally
-      else if (wordCount > 25 && Math.random() > 0.6) {
-        const splitResult = splitLongSentence(sentence);
-        transformed.push(...splitResult);
-      }
-      // Add short emphatic sentence after some sentences (5% probability)
-      else if (wordCount > 15 && Math.random() > 0.95) {
-        transformed.push(sentence);
-        const emphatic = createEmphaticSentence(sentence);
-        if (emphatic) {
-          transformed.push(emphatic);
-        }
-      }
-      // Keep as-is
-      else {
-        transformed.push(sentence);
-      }
-    }
-
-    transformedParagraphs.push(transformed.join(' '));
-  }
-
-  // Rejoin paragraphs with double newlines
-  return transformedParagraphs.join('\n\n');
+export function enhanceBurstiness(text: string, _targetScore: number = 60): string {
+  // Burstiness enhancement is now delegated to the LLM polish pass
+  // The intensity-aware prompts in computer-humanizer.ts specifically request:
+  // - "Mix short punchy sentences with longer ones" (moderate)
+  // - "Use short sentences. Then longer ones. Mix it up." (aggressive)
+  //
+  // This produces much more natural results than rule-based splitting.
+  return text;
 }
 
 /**
@@ -257,44 +211,92 @@ function createEmphaticSentence(sentence: string): string | null {
 }
 
 /**
- * Remove tell-words from text (SIMPLIFIED - matches local working version)
- * Intensity: 'light' (30% removal), 'moderate' (60% removal), 'aggressive' (90% removal)
+ * Replace tell-words with natural alternatives
+ * Intensity: 'light' (30% replacement), 'moderate' (60% replacement), 'aggressive' (90% replacement)
+ *
+ * IMPORTANT: This function REPLACES tell-words with natural alternatives from TELL_WORD_REPLACEMENTS.
+ * It does NOT just remove them, which would create awkward gaps in the text.
  */
 export function replaceTellWords(text: string, intensity: 'light' | 'moderate' | 'aggressive' = 'moderate'): string {
   let result = text;
   const intensityMap = { light: 0.3, moderate: 0.6, aggressive: 0.9 };
-  const removalRate = intensityMap[intensity];
+  const replacementRate = intensityMap[intensity];
 
-  // Get all tell-words
-  const allTellWords = getAllTellWords();
+  // Get all tell-words from the replacement dictionary (these have natural alternatives)
+  const tellWordsWithReplacements = Object.keys(TELL_WORD_REPLACEMENTS);
 
   // Sort by length (longest first) to handle phrases before individual words
-  const sortedTellWords = allTellWords.sort((a, b) => b.length - a.length);
+  // e.g., "it's worth noting" before "worth"
+  const sortedTellWords = tellWordsWithReplacements.sort((a, b) => b.length - a.length);
 
-  // Detect which tell-words are present
-  const found: string[] = [];
+  // Track which tell-words are found and need replacement
+  const found: Array<{ phrase: string; index: number }> = [];
+
   for (const tellWord of sortedTellWords) {
     const regex = new RegExp(`\\b${escapeRegex(tellWord)}\\b`, 'gi');
-    if (regex.test(result)) {
-      found.push(tellWord);
+    let match;
+    while ((match = regex.exec(result)) !== null) {
+      found.push({ phrase: tellWord, index: match.index });
     }
   }
 
-  // Remove tell-words based on intensity
-  const toRemove = found.slice(0, Math.ceil(found.length * removalRate));
+  // Sort by position (reverse order so we can replace from end to start without affecting indices)
+  found.sort((a, b) => b.index - a.index);
 
-  toRemove.forEach(phrase => {
-    // Remove the phrase and clean up extra spaces/punctuation
-    const regex = new RegExp(`\\b${escapeRegex(phrase)}[,.]?\\s*`, 'gi');
-    result = result.replace(regex, ' ');
-  });
+  // Determine how many to replace based on intensity
+  const numToReplace = Math.ceil(found.length * replacementRate);
+  const toReplace = found.slice(0, numToReplace);
+
+  // Replace each tell-word with a natural alternative
+  for (const { phrase } of toReplace) {
+    const replacements = TELL_WORD_REPLACEMENTS[phrase.toLowerCase()];
+
+    if (replacements && replacements.length > 0) {
+      // Filter out empty strings unless that's all we have (intentional removal)
+      const validReplacements = replacements.filter(r => r.length > 0);
+
+      if (validReplacements.length > 0) {
+        // Pick a random non-empty replacement
+        const replacement = validReplacements[Math.floor(Math.random() * validReplacements.length)];
+
+        // Replace with case preservation
+        const regex = new RegExp(`\\b${escapeRegex(phrase)}\\b`, 'i');
+        result = result.replace(regex, (match) => {
+          // Preserve capitalization
+          if (match.charAt(0) === match.charAt(0).toUpperCase()) {
+            return replacement.charAt(0).toUpperCase() + replacement.slice(1);
+          }
+          return replacement;
+        });
+      } else {
+        // All replacements are empty strings - this means intentional removal
+        // (e.g., filler phrases like "it goes without saying")
+        // Remove carefully, handling surrounding punctuation
+        const regex = new RegExp(`\\b${escapeRegex(phrase)}[,]?\\s*`, 'gi');
+        result = result.replace(regex, (match, offset) => {
+          // If at start of sentence, just remove
+          if (offset === 0 || result[offset - 1] === '.' || result[offset - 1] === '\n') {
+            return '';
+          }
+          // Otherwise leave a space
+          return ' ';
+        });
+      }
+    }
+  }
 
   // Clean up multiple spaces
   result = result.replace(/\s{2,}/g, ' ').trim();
 
-  // Clean up awkward punctuation
+  // Clean up awkward punctuation (but be careful not to break things)
   result = result.replace(/\s+([.,;:!?])/g, '$1');
   result = result.replace(/([.!?])\s*([.!?])/g, '$1');
+
+  // Fix sentences that now start with lowercase (from removal at sentence start)
+  result = result.replace(/([.!?]\s+)([a-z])/g, (_, punct, letter) => punct + letter.toUpperCase());
+
+  // Fix start of text if it's now lowercase
+  result = result.charAt(0).toUpperCase() + result.slice(1);
 
   return result;
 }

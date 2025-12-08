@@ -1,36 +1,37 @@
 import { useState, useEffect } from 'react';
 
 // Available cloud models - these are vetted and known to work well
+// Order matters: recommended model first
 const CLOUD_MODELS = [
   {
-    id: '@cf/meta/llama-3.1-70b-instruct',
-    name: 'Llama 3.1 70B',
-    provider: 'Meta (via Cloudflare)',
-    description: 'Balanced quality and speed. Default for most transformations.',
+    id: '@cf/openai/gpt-oss-20b',
+    name: 'GPT-OSS 20B',
+    provider: 'OpenAI (via Cloudflare)',
+    description: 'Best for humanization. Clean output with natural sentence variation.',
     recommended: true,
-    cost: 'Included',
+    cost: 'Standard',
   },
   {
     id: '@cf/openai/gpt-oss-120b',
     name: 'GPT-OSS 120B',
     provider: 'OpenAI (via Cloudflare)',
-    description: 'Highest quality. Best for complex transformations. Structured reasoning.',
+    description: 'Highest quality for complex transformations. Slower but more nuanced.',
     recommended: false,
     cost: 'Premium',
   },
   {
-    id: '@cf/openai/gpt-oss-20b',
-    name: 'GPT-OSS 20B',
-    provider: 'OpenAI (via Cloudflare)',
-    description: 'Good quality, faster and cheaper than 120B. Clean structured output.',
+    id: '@cf/meta/llama-3.1-70b-instruct',
+    name: 'Llama 3.1 70B',
+    provider: 'Meta (via Cloudflare)',
+    description: 'Fast general-purpose model. Good for quick tasks.',
     recommended: false,
-    cost: 'Standard',
+    cost: 'Included',
   },
   {
     id: '@cf/meta/llama-3.1-8b-instruct',
     name: 'Llama 3.1 8B',
     provider: 'Meta (via Cloudflare)',
-    description: 'Fastest option. Good for quick transformations and detection.',
+    description: 'Fastest option. Best for AI detection only.',
     recommended: false,
     cost: 'Included',
   },
@@ -39,7 +40,7 @@ const CLOUD_MODELS = [
 const STORAGE_KEY = 'narrative-studio-cloud-model';
 
 export function CloudAISettings() {
-  const [selectedModel, setSelectedModel] = useState<string>('@cf/meta/llama-3.1-70b-instruct');
+  const [selectedModel, setSelectedModel] = useState<string>('@cf/openai/gpt-oss-20b');
   const [saved, setSaved] = useState(false);
 
   // Load saved preference
@@ -216,5 +217,5 @@ export function CloudAISettings() {
 
 // Export helper to get current model preference
 export function getCloudModelPreference(): string {
-  return localStorage.getItem(STORAGE_KEY) || '@cf/meta/llama-3.1-70b-instruct';
+  return localStorage.getItem(STORAGE_KEY) || '@cf/openai/gpt-oss-20b';
 }

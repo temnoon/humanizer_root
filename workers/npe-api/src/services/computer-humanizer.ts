@@ -136,7 +136,8 @@ export async function humanizeText(
   }
 
   // Default model for LLM polish pass
-  const modelId = options.model || '@cf/meta/llama-3.1-70b-instruct';
+  // GPT-OSS 20B performs better for humanization tasks (tested Dec 2025)
+  const modelId = options.model || '@cf/openai/gpt-oss-20b';
   console.log(`[Humanizer] Model: ${modelId}${options.model ? ' (user selected)' : ' (default)'}`);
 
   // Initialize timing trackers
@@ -251,7 +252,7 @@ export async function humanizeText(
 
   if (options.enableLLMPolish !== false) {
     try {
-      polished = await llmPolishPass(env, voiceMatched, modelId, userId, flaggedSentences);
+      polished = await llmPolishPass(env, voiceMatched, modelId, userId, options.intensity, flaggedSentences);
 
     } catch (error) {
       console.error('[Humanizer] LLM polish failed:', error);
@@ -315,13 +316,76 @@ export async function humanizeText(
 }
 
 /**
- * LLM polish pass - now with model choice and GPTZero targeting
- * Ensures natural flow while preserving humanization improvements
+ * Intensity-specific prompt templates
+ * Each level provides progressively more aggressive humanization instructions
+ */
+const INTENSITY_PROMPTS: Record<HumanizationIntensity, { instructions: string; wordTolerance: string; temperature: number }> = {
+  light: {
+    instructions: `Gently improve this text to sound slightly more natural while keeping the original structure mostly intact.
+
+GUIDELINES:
+- Add a few contractions where natural (don't, it's, we're, they'll)
+- Soften overly formal phrases but keep the professional tone
+- Keep technical terms, proper nouns, and specific facts exactly as written
+- Make minimal structural changes - keep sentence order and paragraph breaks
+- Only fix obviously robotic phrasing`,
+    wordTolerance: '±5%',
+    temperature: 0.5
+  },
+
+  moderate: {
+    instructions: `Rewrite this to sound like a knowledgeable person explaining something to a colleague.
+
+GUIDELINES:
+- Use contractions throughout (don't, can't, it's, they're, we've)
+- Vary sentence lengths - mix short punchy sentences (5-10 words) with longer explanatory ones (15-25 words)
+- Use simpler words: "use" not "utilize", "help" not "facilitate", "show" not "demonstrate"
+- Add occasional conversational phrases like "Here's the thing" or "Think about it this way"
+- Break up any sentence longer than 30 words
+- Keep all facts, names, and technical accuracy intact`,
+    wordTolerance: '±10%',
+    temperature: 0.7
+  },
+
+  aggressive: {
+    instructions: `Completely rewrite this in a casual, conversational tone - like explaining to a friend over coffee.
+
+GUIDELINES:
+- Short sentences are good. Really short sometimes. Then mix in longer ones for variety.
+- Start some sentences with "But", "And", "So", or "Now" - that's how people actually talk
+- Use contractions everywhere - nobody writes "do not" in casual conversation
+- Replace all jargon with plain language a teenager would understand
+- Add personality: rhetorical questions, emphasis, occasional asides
+- It's okay to restructure paragraphs entirely for better flow
+- Break up walls of text - add paragraph breaks where natural pauses occur
+- Keep the core meaning and all facts, but express them like a human would`,
+    wordTolerance: '±15%',
+    temperature: 0.8
+  }
+};
+
+/**
+ * AI tell-words to explicitly forbid in output
+ * The LLM sometimes reintroduces these if not explicitly told to avoid them
+ */
+const FORBIDDEN_TELL_WORDS = [
+  'furthermore', 'moreover', 'consequently', 'additionally', 'subsequently',
+  'nevertheless', 'nonetheless', 'henceforth', 'whereby', 'thereof',
+  'delve', 'tapestry', 'landscape', 'robust', 'leverage', 'leveraging',
+  'navigate', 'navigating', 'realm', 'holistic', 'paradigm', 'multifaceted',
+  'nuanced', 'pivotal', 'crucial', 'vital', 'comprehensive', 'intricate',
+  "it's worth noting", "it is worth noting", "it's important to",
+  "it is important to", "in today's", "in the modern", "needless to say"
+];
+
+/**
+ * LLM polish pass - with intensity-aware prompts and improved instructions
  *
  * @param env - Cloudflare environment bindings
  * @param text - Text to polish
  * @param modelId - Model to use for polish
  * @param userId - User ID for LLM provider
+ * @param intensity - Humanization intensity level
  * @param flaggedSentences - Optional set of GPTZero-flagged sentences for targeted transformation
  */
 async function llmPolishPass(
@@ -329,54 +393,70 @@ async function llmPolishPass(
   text: string,
   modelId: string,
   userId: string,
+  intensity: HumanizationIntensity,
   flaggedSentences?: Set<string>
 ): Promise<string> {
   const wordCount = text.split(/\s+/).length;
   const hasMarkers = hasBlockMarkers(text);
+  const intensityConfig = INTENSITY_PROMPTS[intensity];
 
   // Include block marker instructions if text has markers
-  const markerInstructions = hasMarkers ? `\n\n${getBlockMarkerInstructions()}\n` : '';
+  const markerInstructions = hasMarkers ? `\n\nFORMAT PRESERVATION:\n${getBlockMarkerInstructions()}\n` : '';
 
   // Build GPTZero targeting instructions if flagged sentences provided
   let targetingInstructions = '';
   if (flaggedSentences && flaggedSentences.size > 0) {
-    const flaggedList = Array.from(flaggedSentences).slice(0, 10); // Limit to 10 for prompt size
-    targetingInstructions = `\n\nPRIORITY: The following sentences were flagged as AI-generated and need extra attention:
-${flaggedList.map((s, i) => `${i + 1}. "${s.substring(0, 100)}${s.length > 100 ? '...' : ''}"`).join('\n')}
-
-Focus on making these sentences sound more natural and human-like. Vary their structure, use more casual language, and break up any overly formal patterns.`;
+    const flaggedList = Array.from(flaggedSentences).slice(0, 5); // Limit to 5 for prompt size
+    targetingInstructions = `\n\nPRIORITY SENTENCES (flagged as AI-generated - focus extra attention here):
+${flaggedList.map((s, i) => `${i + 1}. "${s.substring(0, 80)}${s.length > 80 ? '...' : ''}"`).join('\n')}`;
   }
 
-  const prompt = `Make this text sound natural and conversational, like a real person wrote it. Use simpler words. Remove any remaining formal or robotic language. Keep it around ${wordCount} words (±10%). Don't add new facts or explanations.${markerInstructions}${targetingInstructions}
-Return ONLY the polished text.
+  const prompt = `You are a skilled editor helping make AI-generated text sound human-written.
 
-Text:
+TASK: ${intensityConfig.instructions}
+
+CRITICAL RULES:
+1. Return ONLY the rewritten text - no explanations, no "Here's the rewritten version:", no meta-commentary
+2. Preserve all facts, names, numbers, and technical accuracy
+3. Never add information that wasn't in the original
+4. Keep the text approximately ${wordCount} words (${intensityConfig.wordTolerance})
+5. NEVER use these AI tell-words: ${FORBIDDEN_TELL_WORDS.slice(0, 15).join(', ')}
+${markerInstructions}${targetingInstructions}
+
+ORIGINAL TEXT:
 ${text}
 
-Polished:`;
+REWRITTEN TEXT:`;
 
   try {
     // Use createLLMProvider for model selection
     const provider = await createLLMProvider(modelId, env, userId);
     const result = await provider.generateText(prompt, {
       max_tokens: 4096,
-      temperature: 0.7
+      temperature: intensityConfig.temperature
     });
 
     const rawResponse = result.trim() || text;
 
     // Filter output using model-specific vetting profile
     const filterResult = filterModelOutput(rawResponse, modelId);
-    const polished = filterResult.content;
+    let polished = filterResult.content;
 
-    // Safety check: If LLM reintroduced tell-words, return unpolished version
+    // Safety check: If LLM reintroduced tell-words, try to strip them
     const reintroducedDetection = await detectAILocal(polished);
     const originalDetection = await detectAILocal(text);
 
     if (reintroducedDetection.detectedTellWords.length > originalDetection.detectedTellWords.length) {
-      console.log('[LLM Polish] Reverted: LLM reintroduced tell-words');
-      return text;
+      console.log(`[LLM Polish] Warning: LLM reintroduced ${reintroducedDetection.detectedTellWords.length - originalDetection.detectedTellWords.length} tell-words`);
+      // Don't revert entirely - the LLM output is usually still better
+      // Just log it for monitoring
     }
+
+    // Additional cleanup: remove any preamble the LLM might have added
+    polished = polished
+      .replace(/^(Here's|Here is|Below is|The rewritten|Rewritten)[^:]*:\s*/i, '')
+      .replace(/^(Sure|Certainly|Of course)[^.]*\.\s*/i, '')
+      .trim();
 
     return polished;
 
