@@ -816,6 +816,52 @@ samp,
 }
 
 /* ============================================================
+   AI ANALYSIS PANE HIGHLIGHTS (from Tools Panel)
+   ============================================================ */
+
+.ai-analysis-highlighted-text {
+  color: var(--text-primary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.ai-analysis-highlight {
+  background-color: transparent;
+  padding: 2px 4px;
+  padding-left: 8px;
+  border-radius: 3px;
+  border-left: 3px solid var(--error);
+  background: linear-gradient(90deg,
+    rgba(220, 38, 38, 0.15) 0%,
+    rgba(220, 38, 38, 0.05) 100%
+  );
+  color: var(--text-primary);
+  cursor: help;
+  transition: background 0.2s ease;
+}
+
+.ai-analysis-highlight:hover {
+  background: linear-gradient(90deg,
+    rgba(220, 38, 38, 0.25) 0%,
+    rgba(220, 38, 38, 0.10) 100%
+  );
+}
+
+[data-theme='dark'] .ai-analysis-highlight {
+  background: linear-gradient(90deg,
+    rgba(239, 68, 68, 0.20) 0%,
+    rgba(239, 68, 68, 0.08) 100%
+  );
+}
+
+[data-theme='dark'] .ai-analysis-highlight:hover {
+  background: linear-gradient(90deg,
+    rgba(239, 68, 68, 0.30) 0%,
+    rgba(239, 68, 68, 0.15) 100%
+  );
+}
+
+/* ============================================================
    RESIZABLE PANELS
    ============================================================ */
 

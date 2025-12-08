@@ -72,6 +72,11 @@ function AppContent() {
     end: number;
   } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [aiAnalysisHighlights, setAiAnalysisHighlights] = useState<Array<{
+    start: number;
+    end: number;
+    reason: string;
+  }>>([]);
   const [useStudioTools, setUseStudioTools] = useState<boolean>(() => {
     const saved = localStorage.getItem('narrative-studio-use-studio-tools');
     return saved === 'true';
@@ -474,6 +479,7 @@ function AppContent() {
             onUpdateNarrative={handleUpdateNarrative}
             selectedText={selectedText}
             onTextSelection={setSelectedText}
+            aiAnalysisHighlights={aiAnalysisHighlights}
           />
         </div>
 
@@ -528,6 +534,7 @@ function AppContent() {
                   handleUpdateNarrative(transformedText);
                 }
               }}
+              onHighlightText={setAiAnalysisHighlights}
             />
           )}
           </div>

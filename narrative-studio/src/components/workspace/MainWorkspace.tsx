@@ -11,6 +11,12 @@ import { BUFFER_IDS } from '../../config/buffer-constants';
 import { VIEW_MODES, DEFAULT_VIEW_MODE } from '../../config/view-modes';
 import { STORAGE_PATHS } from '../../config/storage-paths';
 
+interface HighlightRange {
+  start: number;
+  end: number;
+  reason: string;
+}
+
 interface MainWorkspaceProps {
   narrative: Narrative | null;
   transformResult: TransformResult | null;
@@ -19,6 +25,7 @@ interface MainWorkspaceProps {
   onUpdateNarrative: (content: string) => void;
   selectedText: { text: string; start: number; end: number } | null;
   onTextSelection: (selection: { text: string; start: number; end: number } | null) => void;
+  aiAnalysisHighlights?: HighlightRange[];
 }
 
 export function MainWorkspace({
@@ -29,6 +36,7 @@ export function MainWorkspace({
   onUpdateNarrative,
   selectedText,
   onTextSelection,
+  aiAnalysisHighlights = [],
 }: MainWorkspaceProps) {
   // Session context for buffer-based workflow
   const {
@@ -83,6 +91,27 @@ export function MainWorkspace({
 
   // Determine if we should use session-based rendering
   const useSessionRendering = hasSession && buffers.length > 0;
+
+  // Apply AI analysis highlights to text content
+  const applyAiHighlights = (content: string): string => {
+    if (!aiAnalysisHighlights || aiAnalysisHighlights.length === 0) {
+      return content;
+    }
+
+    // Sort highlights by start position in reverse order to avoid index shifting
+    const sorted = [...aiAnalysisHighlights].sort((a, b) => b.start - a.start);
+
+    let result = content;
+    for (const highlight of sorted) {
+      if (highlight.start >= 0 && highlight.end <= content.length && highlight.start < highlight.end) {
+        const before = result.slice(0, highlight.start);
+        const highlighted = result.slice(highlight.start, highlight.end);
+        const after = result.slice(highlight.end);
+        result = `${before}<mark class="ai-analysis-highlight" title="${highlight.reason}">${highlighted}</mark>${after}`;
+      }
+    }
+    return result;
+  };
 
   // Get current view mode (session or legacy)
   const currentViewMode = useSessionRendering && currentSession
@@ -598,7 +627,14 @@ export function MainWorkspace({
               {/* Content - Normal view without AI detection */}
               <div onMouseUp={handleTextSelection}>
                 {originalViewMode === 'rendered' ? (
-                  <MarkdownRenderer content={narrative.content} {...mediaProps} />
+                  aiAnalysisHighlights.length > 0 ? (
+                    // AI Analysis highlights are active - show with highlights
+                    <div className="ai-analysis-highlighted-text prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                      <div dangerouslySetInnerHTML={{ __html: applyAiHighlights(narrative.content) }} />
+                    </div>
+                  ) : (
+                    <MarkdownRenderer content={narrative.content} {...mediaProps} />
+                  )
                 ) : (
                   <MarkdownEditor
                     content={editedContent}

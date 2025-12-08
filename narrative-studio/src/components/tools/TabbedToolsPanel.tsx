@@ -17,11 +17,18 @@ import { ProfileFactoryPane } from './ProfileFactoryPane';
 import { AdminProfilesPane } from './AdminProfilesPane';
 import { getContentTypeIcon, getContentTypeLabel } from '../../utils/buffer-text-extraction';
 
+interface HighlightRange {
+  start: number;
+  end: number;
+  reason: string;
+}
+
 interface TabbedToolsPanelProps {
   isOpen: boolean;
   onClose: () => void;
   content: string;
   onApplyTransform?: (transformedText: string) => void;
+  onHighlightText?: (highlights: HighlightRange[]) => void;
 }
 
 // Inner panel that uses the context
@@ -30,6 +37,7 @@ function TabbedToolsPanelInner({
   onClose,
   content: propContent,
   onApplyTransform,
+  onHighlightText,
 }: TabbedToolsPanelProps) {
   const { activeToolId, transformSource, setTransformSource, toolStates } = useToolTabs();
   const { workingBuffer, getTextContent, clearWorkingBuffer } = useUnifiedBuffer();
@@ -234,7 +242,7 @@ function TabbedToolsPanelInner({
           }}
         >
           {activeToolId === 'ai-analysis' && (
-            <AIAnalysisPane content={effectiveContent} />
+            <AIAnalysisPane content={effectiveContent} onHighlightText={onHighlightText} />
           )}
           {activeToolId === 'humanizer' && (
             <HumanizerPane content={effectiveContent} onApplyTransform={onApplyTransform} />
