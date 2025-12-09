@@ -17,6 +17,7 @@ import { AIAnalysisPane } from './AIAnalysisPane';
 import { HumanizerPane, PersonaPane, StylePane, RoundTripPane, AddToBookPane } from './ToolPanes';
 import { ProfileFactoryPane } from './ProfileFactoryPane';
 import { AdminProfilesPane } from './AdminProfilesPane';
+import { BufferTreeView } from './BufferTreeView';
 import { getContentTypeIcon, getContentTypeLabel } from '../../utils/buffer-text-extraction';
 
 interface HighlightRange {
@@ -265,43 +266,50 @@ function TabbedToolsPanelInner({
           </div>
         )}
 
-        {/* Transform Source Selector (compact) */}
-        <div
-          style={{
-            padding: 'var(--space-sm) var(--space-md)',
-            borderBottom: '1px solid var(--border-color)',
-            backgroundColor: 'var(--bg-secondary)',
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-            <span style={{ fontSize: '0.625rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
-              Source:
-            </span>
-            <select
-              value={transformSource}
-              onChange={(e) => setTransformSource(e.target.value as 'original' | 'active')}
-              style={{
-                flex: 1,
-                padding: '4px 8px',
-                backgroundColor: 'var(--bg-tertiary)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-sm)',
-                color: 'var(--text-primary)',
-                fontSize: '0.75rem',
-              }}
-            >
-              <option value="original">Original text</option>
-              <option value="active" disabled={!lastTransformed}>
-                {lastTransformed ? 'Last transformed (chain)' : 'Last transformed (none yet)'}
-              </option>
-            </select>
+        {/* Buffer Tree - shown when workspace is active */}
+        {hasWorkspaceContent && (
+          <BufferTreeView collapsible={true} defaultCollapsed={false} />
+        )}
+
+        {/* Transform Source Selector - shown when no workspace (legacy mode) */}
+        {!hasWorkspaceContent && (
+          <div
+            style={{
+              padding: 'var(--space-sm) var(--space-md)',
+              borderBottom: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-secondary)',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
+              <span style={{ fontSize: '0.625rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                Source:
+              </span>
+              <select
+                value={transformSource}
+                onChange={(e) => setTransformSource(e.target.value as 'original' | 'active')}
+                style={{
+                  flex: 1,
+                  padding: '4px 8px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.75rem',
+                }}
+              >
+                <option value="original">Original text</option>
+                <option value="active" disabled={!lastTransformed}>
+                  {lastTransformed ? 'Last transformed (chain)' : 'Last transformed (none yet)'}
+                </option>
+              </select>
+            </div>
+            {/* Show current content source and word count */}
+            <div style={{ fontSize: '0.625rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+              Using: {transformSource === 'active' && lastTransformed ? 'transformed' : 'original'} · {effectiveContent.split(/\s+/).filter(Boolean).length} words
+            </div>
           </div>
-          {/* Show current content source and word count */}
-          <div style={{ fontSize: '0.625rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-            Using: {transformSource === 'active' && lastTransformed ? 'transformed' : 'original'} · {effectiveContent.split(/\s+/).filter(Boolean).length} words
-          </div>
-        </div>
+        )}
 
         {/* Active Tool Pane */}
         <div
