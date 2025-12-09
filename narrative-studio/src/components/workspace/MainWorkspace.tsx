@@ -1,11 +1,13 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import type { Narrative, TransformResult, ViewMode, WorkspaceMode } from '../../types';
 import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
 import { MarkdownEditor } from '../markdown/MarkdownEditor';
 import { Icons } from '../layout/Icons';
 import { stripMarkdown } from '../../services/transformationService';
 import { useSession } from '../../contexts/SessionContext';
+import { useWorkspaceOptional } from '../../contexts/WorkspaceContext';
 import { BufferTabs } from './BufferTabs';
+import { BufferSelector } from './BufferSelector';
 import { ViewModeToggle } from './ViewModeToggle';
 import { BUFFER_IDS } from '../../config/buffer-constants';
 import { VIEW_MODES, DEFAULT_VIEW_MODE } from '../../config/view-modes';
@@ -51,6 +53,17 @@ export function MainWorkspace({
     updateBufferText,
     loadSession
   } = useSession();
+
+  // Workspace context for new buffer tree system
+  const workspaceContext = useWorkspaceOptional();
+  const hasWorkspace = !!(workspaceContext?.activeWorkspaceId);
+  const activeWorkspace = workspaceContext?.getActiveWorkspace();
+  const workspaceActiveBuffer = workspaceContext?.getActiveBuffer();
+  const workspaceCompareBuffer = workspaceContext?.getCompareBuffer();
+  const bufferTree = workspaceContext?.getBufferTree();
+
+  // Workspace comparison mode state
+  const [workspaceCompareMode, setWorkspaceCompareMode] = useState(true);
 
   // Local state (legacy for non-session workflow)
   const [originalViewMode, setOriginalViewMode] = useState<ViewMode>('rendered');
@@ -211,6 +224,48 @@ export function MainWorkspace({
 
   const displayContent = getDisplayContent();
 
+  // Workspace buffer content for comparison view
+  const workspaceContent = useMemo(() => {
+    if (!hasWorkspace) {
+      return { left: null, right: null, leftWordCount: 0, rightWordCount: 0, aiScoreDelta: null };
+    }
+
+    const leftContent = workspaceCompareBuffer?.content || '';
+    const rightContent = workspaceActiveBuffer?.content || '';
+
+    const countWords = (text: string) => text.split(/\s+/).filter(Boolean).length;
+    const leftWordCount = countWords(leftContent);
+    const rightWordCount = countWords(rightContent);
+
+    // Calculate AI score delta if both buffers have analysis
+    let aiScoreDelta: number | null = null;
+    const leftScore = workspaceCompareBuffer?.analysis?.aiScore;
+    const rightScore = workspaceActiveBuffer?.analysis?.aiScore;
+    if (leftScore !== undefined && rightScore !== undefined) {
+      aiScoreDelta = rightScore - leftScore;
+    }
+
+    return {
+      left: leftContent,
+      right: rightContent,
+      leftWordCount,
+      rightWordCount,
+      aiScoreDelta,
+    };
+  }, [hasWorkspace, workspaceCompareBuffer, workspaceActiveBuffer]);
+
+  // Handle workspace buffer selection
+  const handleWorkspaceBufferSelect = (bufferId: string, isCompare: boolean) => {
+    if (!workspaceContext) return;
+    if (isCompare) {
+      workspaceContext.setCompareBuffer(bufferId || undefined);
+    } else {
+      if (bufferId) {
+        workspaceContext.setActiveBuffer(bufferId);
+      }
+    }
+  };
+
   // Handle text editing with session-aware edit tracking
   const handleContentChange = (newContent: string) => {
     if (useSessionRendering && activeBufferId) {
@@ -267,6 +322,263 @@ export function MainWorkspace({
     }
   }, [narrative?.id, narrative?.metadata.scrollToImageUrl]); // Run when narrative ID or scroll hint changes
 
+  // Workspace buffer view - show when workspace is active even without a narrative
+  if (hasWorkspace && workspaceActiveBuffer && !narrative) {
+    return (
+      <main
+        className="flex-1 flex flex-col"
+        style={{
+          backgroundColor: 'var(--bg-primary)',
+          minHeight: 0,
+        }}
+      >
+        {/* Workspace Buffer Comparison Toolbar */}
+        <div className="workspace-buffer-toolbar">
+          <div className="workspace-buffer-toolbar__left">
+            <BufferSelector
+              label="Compare"
+              selectedBuffer={workspaceCompareBuffer || null}
+              bufferTree={bufferTree || null}
+              onSelect={(id) => handleWorkspaceBufferSelect(id, true)}
+              excludeId={workspaceActiveBuffer.id}
+              allowClear={true}
+              placeholder="Select to compare..."
+            />
+            {workspaceCompareBuffer && (
+              <span className="workspace-buffer-toolbar__stats">
+                {workspaceContent.leftWordCount.toLocaleString()} words
+                {workspaceCompareBuffer.analysis?.aiScore !== undefined && (
+                  <span className={`workspace-buffer-toolbar__score ${
+                    workspaceCompareBuffer.analysis.aiScore <= 30 ? 'workspace-buffer-toolbar__score--good' :
+                    workspaceCompareBuffer.analysis.aiScore <= 60 ? 'workspace-buffer-toolbar__score--warning' :
+                    'workspace-buffer-toolbar__score--high'
+                  }`}>
+                    {Math.round(workspaceCompareBuffer.analysis.aiScore)}% AI
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+
+          <div className="workspace-buffer-toolbar__center">
+            {workspaceContent.aiScoreDelta !== null && (
+              <span className={`workspace-buffer-toolbar__delta ${
+                workspaceContent.aiScoreDelta < 0 ? 'workspace-buffer-toolbar__delta--good' :
+                workspaceContent.aiScoreDelta > 0 ? 'workspace-buffer-toolbar__delta--bad' : ''
+              }`}>
+                {workspaceContent.aiScoreDelta > 0 ? '+' : ''}{workspaceContent.aiScoreDelta.toFixed(1)}% AI
+              </span>
+            )}
+            <button
+              className={`workspace-buffer-toolbar__toggle ${!workspaceCompareMode ? 'workspace-buffer-toolbar__toggle--active' : ''}`}
+              onClick={() => setWorkspaceCompareMode(!workspaceCompareMode)}
+              title={workspaceCompareMode ? 'Show single pane' : 'Show comparison'}
+            >
+              {workspaceCompareMode ? '◧' : '▣'}
+            </button>
+          </div>
+
+          <div className="workspace-buffer-toolbar__right">
+            <BufferSelector
+              label="Active"
+              selectedBuffer={workspaceActiveBuffer}
+              bufferTree={bufferTree || null}
+              onSelect={(id) => handleWorkspaceBufferSelect(id, false)}
+              excludeId={workspaceCompareBuffer?.id}
+            />
+            <span className="workspace-buffer-toolbar__stats">
+              {workspaceContent.rightWordCount.toLocaleString()} words
+              {workspaceActiveBuffer.analysis?.aiScore !== undefined && (
+                <span className={`workspace-buffer-toolbar__score ${
+                  workspaceActiveBuffer.analysis.aiScore <= 30 ? 'workspace-buffer-toolbar__score--good' :
+                  workspaceActiveBuffer.analysis.aiScore <= 60 ? 'workspace-buffer-toolbar__score--warning' :
+                  'workspace-buffer-toolbar__score--high'
+                }`}>
+                  {Math.round(workspaceActiveBuffer.analysis.aiScore)}% AI
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+
+        {/* Workspace name header */}
+        <div className="flex justify-center w-full">
+          <div
+            className="mx-6 mt-6 mb-4 p-4 rounded-lg w-full max-w-5xl"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <h1 className="heading-lg mb-2" style={{ color: 'var(--text-primary)' }}>
+              {activeWorkspace?.name || 'Workspace'}
+            </h1>
+            <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
+              <span>{Object.keys(activeWorkspace?.buffers || {}).length} versions</span>
+              <span>•</span>
+              <span>Active: {workspaceActiveBuffer.displayName}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Workspace Buffer Content */}
+        {workspaceCompareMode && workspaceCompareBuffer ? (
+          /* Side-by-side workspace comparison */
+          <div className="hidden md:flex flex-1 flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
+            {/* Left pane: Compare buffer */}
+            <div
+              ref={leftPaneRef}
+              className="flex-1 md-border-switch flex flex-col"
+              style={{
+                borderRight: '1px solid var(--border-color)',
+                minHeight: 0,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  width: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                      {workspaceCompareBuffer.displayName || 'Compare'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.left || '', 'plain')}
+                        title="Copy as plain text"
+                      >
+                        <Icons.Copy /> Text
+                      </button>
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.left || '', 'markdown')}
+                        title="Copy as markdown"
+                      >
+                        <Icons.Code /> MD
+                      </button>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <MarkdownRenderer content={workspaceContent.left || ''} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right pane: Active buffer */}
+            <div
+              ref={rightPaneRef}
+              className="flex-1 flex flex-col"
+              style={{
+                backgroundColor: 'var(--bg-secondary)',
+                minHeight: 0,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  width: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                      {workspaceActiveBuffer.displayName || 'Active'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'plain')}
+                        title="Copy as plain text"
+                      >
+                        <Icons.Copy /> Text
+                      </button>
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'markdown')}
+                        title="Copy as markdown"
+                      >
+                        <Icons.Code /> MD
+                      </button>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <MarkdownRenderer content={workspaceContent.right || ''} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Single pane: Active buffer only */
+          <div className="flex-1 flex" style={{ minHeight: 0, overflow: 'hidden' }}>
+            <div
+              ref={singlePaneRef}
+              className="flex-1 flex flex-col"
+              style={{
+                minHeight: 0,
+                overflow: 'hidden',
+                backgroundColor: 'var(--bg-secondary)',
+              }}
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  width: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                      {workspaceActiveBuffer.displayName || 'Active Buffer'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'plain')}
+                        title="Copy as plain text"
+                      >
+                        <Icons.Copy /> Text
+                      </button>
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'markdown')}
+                        title="Copy as markdown"
+                      >
+                        <Icons.Code /> MD
+                      </button>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <MarkdownRenderer content={workspaceContent.right || ''} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Toast notification */}
+        {toastMessage && (
+          <div className="toast">
+            <Icons.Check />
+            {toastMessage}
+          </div>
+        )}
+      </main>
+    );
+  }
+
+  // No workspace and no narrative - show empty state
   if (!narrative) {
     return (
       <main
@@ -704,8 +1016,8 @@ export function MainWorkspace({
         minHeight: 0,
       }}
     >
-      {/* Buffer Tabs - Only show when session has buffers */}
-      {useSessionRendering && (
+      {/* Buffer Tabs - Only show when session has buffers (legacy) */}
+      {useSessionRendering && !hasWorkspace && (
         <BufferTabs
           buffers={buffers}
           activeBufferId={activeBufferId}
@@ -714,8 +1026,79 @@ export function MainWorkspace({
         />
       )}
 
-      {/* View Mode Toggle and Session Actions - Only show when session has buffers */}
-      {useSessionRendering && currentSession && (
+      {/* Workspace Buffer Comparison Toolbar - Show when workspace is active */}
+      {hasWorkspace && workspaceActiveBuffer && (
+        <div className="workspace-buffer-toolbar">
+          <div className="workspace-buffer-toolbar__left">
+            <BufferSelector
+              label="Compare"
+              selectedBuffer={workspaceCompareBuffer || null}
+              bufferTree={bufferTree || null}
+              onSelect={(id) => handleWorkspaceBufferSelect(id, true)}
+              excludeId={workspaceActiveBuffer.id}
+              allowClear={true}
+              placeholder="Select to compare..."
+            />
+            {workspaceCompareBuffer && (
+              <span className="workspace-buffer-toolbar__stats">
+                {workspaceContent.leftWordCount.toLocaleString()} words
+                {workspaceCompareBuffer.analysis?.aiScore !== undefined && (
+                  <span className={`workspace-buffer-toolbar__score ${
+                    workspaceCompareBuffer.analysis.aiScore <= 30 ? 'workspace-buffer-toolbar__score--good' :
+                    workspaceCompareBuffer.analysis.aiScore <= 60 ? 'workspace-buffer-toolbar__score--warning' :
+                    'workspace-buffer-toolbar__score--high'
+                  }`}>
+                    {Math.round(workspaceCompareBuffer.analysis.aiScore)}% AI
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+
+          <div className="workspace-buffer-toolbar__center">
+            {workspaceContent.aiScoreDelta !== null && (
+              <span className={`workspace-buffer-toolbar__delta ${
+                workspaceContent.aiScoreDelta < 0 ? 'workspace-buffer-toolbar__delta--good' :
+                workspaceContent.aiScoreDelta > 0 ? 'workspace-buffer-toolbar__delta--bad' : ''
+              }`}>
+                {workspaceContent.aiScoreDelta > 0 ? '+' : ''}{workspaceContent.aiScoreDelta.toFixed(1)}% AI
+              </span>
+            )}
+            <button
+              className={`workspace-buffer-toolbar__toggle ${!workspaceCompareMode ? 'workspace-buffer-toolbar__toggle--active' : ''}`}
+              onClick={() => setWorkspaceCompareMode(!workspaceCompareMode)}
+              title={workspaceCompareMode ? 'Show single pane' : 'Show comparison'}
+            >
+              {workspaceCompareMode ? '◧' : '▣'}
+            </button>
+          </div>
+
+          <div className="workspace-buffer-toolbar__right">
+            <BufferSelector
+              label="Active"
+              selectedBuffer={workspaceActiveBuffer}
+              bufferTree={bufferTree || null}
+              onSelect={(id) => handleWorkspaceBufferSelect(id, false)}
+              excludeId={workspaceCompareBuffer?.id}
+            />
+            <span className="workspace-buffer-toolbar__stats">
+              {workspaceContent.rightWordCount.toLocaleString()} words
+              {workspaceActiveBuffer.analysis?.aiScore !== undefined && (
+                <span className={`workspace-buffer-toolbar__score ${
+                  workspaceActiveBuffer.analysis.aiScore <= 30 ? 'workspace-buffer-toolbar__score--good' :
+                  workspaceActiveBuffer.analysis.aiScore <= 60 ? 'workspace-buffer-toolbar__score--warning' :
+                  'workspace-buffer-toolbar__score--high'
+                }`}>
+                  {Math.round(workspaceActiveBuffer.analysis.aiScore)}% AI
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* View Mode Toggle and Session Actions - Only show when session has buffers (legacy) */}
+      {useSessionRendering && !hasWorkspace && currentSession && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '0 24px' }}>
           <ViewModeToggle
             viewMode={currentSession.viewMode}
@@ -799,8 +1182,154 @@ export function MainWorkspace({
       </div>
 
       {/* Desktop: Render based on view mode */}
-      {/* Single-Original View Mode */}
-      {useSessionRendering && currentViewMode === VIEW_MODES.SINGLE_ORIGINAL ? (
+      {/* Workspace Buffer Comparison View - Takes priority when workspace is active */}
+      {hasWorkspace && workspaceActiveBuffer ? (
+        workspaceCompareMode && workspaceCompareBuffer ? (
+          /* Side-by-side workspace comparison */
+          <div className="hidden md:flex flex-1 flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
+            {/* Left pane: Compare buffer */}
+            <div
+              ref={leftPaneRef}
+              className="flex-1 md-border-switch flex flex-col"
+              style={{
+                borderRight: '1px solid var(--border-color)',
+                minHeight: 0,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  width: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                      {workspaceCompareBuffer.displayName || 'Compare'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.left || '', 'plain')}
+                        title="Copy as plain text"
+                      >
+                        <Icons.Copy /> Text
+                      </button>
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.left || '', 'markdown')}
+                        title="Copy as markdown"
+                      >
+                        <Icons.Code /> MD
+                      </button>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <MarkdownRenderer content={workspaceContent.left || ''} {...mediaProps} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right pane: Active buffer */}
+            <div
+              ref={rightPaneRef}
+              className="flex-1 flex flex-col"
+              style={{
+                backgroundColor: 'var(--bg-secondary)',
+                minHeight: 0,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  width: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                      {workspaceActiveBuffer.displayName || 'Active'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'plain')}
+                        title="Copy as plain text"
+                      >
+                        <Icons.Copy /> Text
+                      </button>
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'markdown')}
+                        title="Copy as markdown"
+                      >
+                        <Icons.Code /> MD
+                      </button>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <MarkdownRenderer content={workspaceContent.right || ''} {...mediaProps} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Single pane: Active buffer only */
+          <div className="hidden md:flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
+            <div
+              ref={singlePaneRef}
+              className="flex-1 flex flex-col"
+              style={{
+                minHeight: 0,
+                overflow: 'hidden',
+                backgroundColor: 'var(--bg-secondary)',
+              }}
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  width: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                      {workspaceActiveBuffer.displayName || 'Active Buffer'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'plain')}
+                        title="Copy as plain text"
+                      >
+                        <Icons.Copy /> Text
+                      </button>
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'markdown')}
+                        title="Copy as markdown"
+                      >
+                        <Icons.Code /> MD
+                      </button>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <MarkdownRenderer content={workspaceContent.right || ''} {...mediaProps} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      ) : useSessionRendering && currentViewMode === VIEW_MODES.SINGLE_ORIGINAL ? (
+      /* Single-Original View Mode */
         <div className="hidden md:flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
           <div
             ref={singlePaneRef}
