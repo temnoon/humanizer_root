@@ -7,6 +7,7 @@ import { ProviderProvider } from './contexts/ProviderContext';
 import { ExploreProvider } from './contexts/ExploreContext';
 import { ActiveBookProvider } from './contexts/ActiveBookContext';
 import { UnifiedBufferProvider } from './contexts/UnifiedBufferContext';
+import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
 import { PanelToggle } from './components/layout/PanelToggle';
@@ -596,11 +597,13 @@ function AppWithSession() {
   return (
     <SessionProvider userTier={userTier} archiveName="main">
       <UnifiedBufferProvider archiveName="main">
-        <ExploreProvider>
-          <ActiveBookProvider>
-            <AppContent />
-          </ActiveBookProvider>
-        </ExploreProvider>
+        <WorkspaceProvider>
+          <ExploreProvider>
+            <ActiveBookProvider>
+              <AppContent />
+            </ActiveBookProvider>
+          </ExploreProvider>
+        </WorkspaceProvider>
       </UnifiedBufferProvider>
     </SessionProvider>
   );

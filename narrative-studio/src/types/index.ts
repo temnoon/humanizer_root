@@ -2,6 +2,9 @@
 // CORE TYPES FOR NARRATIVE STUDIO
 // ============================================================
 
+// Workspace Buffer System
+export * from './workspace';
+
 export interface Narrative {
   id: string;
   title: string;
