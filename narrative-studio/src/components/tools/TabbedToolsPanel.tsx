@@ -11,6 +11,7 @@
 import { useEffect, useRef } from 'react';
 import { useToolTabs, ToolTabProvider, TOOL_REGISTRY } from '../../contexts/ToolTabContext';
 import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
+import { useWorkspaceOptional } from '../../contexts/WorkspaceContext';
 import { HorizontalToolTabs, ToolLabelBar } from './HorizontalToolTabs';
 import { AIAnalysisPane } from './AIAnalysisPane';
 import { HumanizerPane, PersonaPane, StylePane, RoundTripPane, AddToBookPane } from './ToolPanes';
@@ -43,13 +44,20 @@ function TabbedToolsPanelInner({
 }: TabbedToolsPanelProps) {
   const { activeToolId, transformSource, setTransformSource, toolStates, updateToolState } = useToolTabs();
   const { workingBuffer, getTextContent, clearWorkingBuffer } = useUnifiedBuffer();
+  const workspaceContext = useWorkspaceOptional();
 
   // Track previous content to detect changes
   const prevContentRef = useRef<string>('');
 
-  // Get the original content (from buffer or prop)
+  // Get workspace info if available
+  const hasActiveWorkspace = workspaceContext?.activeWorkspaceId != null;
+  const activeWorkspace = hasActiveWorkspace ? workspaceContext?.getActiveWorkspace() : null;
+  const activeBuffer = hasActiveWorkspace ? workspaceContext?.getActiveBuffer() : null;
+
+  // Get the original content (from workspace buffer, unified buffer, or prop)
+  const workspaceContent = activeBuffer?.content || '';
   const bufferText = workingBuffer ? getTextContent() : '';
-  const originalContent = bufferText || propContent;
+  const originalContent = workspaceContent || bufferText || propContent;
 
   // Reset to "original" when content changes
   useEffect(() => {
@@ -73,8 +81,9 @@ function TabbedToolsPanelInner({
   // Get the active tool metadata
   const activeTool = TOOL_REGISTRY.find(t => t.id === activeToolId);
 
-  // hasBufferContent is derived from workingBuffer (originalContent already computed above)
+  // Check for content sources
   const hasBufferContent = !!workingBuffer;
+  const hasWorkspaceContent = hasActiveWorkspace && !!activeBuffer;
 
   // Get the active (transformed) content from last transformation result
   // Check all tool states for a lastResult with transformed text
@@ -165,8 +174,44 @@ function TabbedToolsPanelInner({
         {/* Tool Label Bar */}
         <ToolLabelBar />
 
-        {/* Buffer Indicator - shows when content is loaded from Archive */}
-        {hasBufferContent && workingBuffer && (
+        {/* Workspace Indicator - shows when a workspace is active */}
+        {hasWorkspaceContent && activeWorkspace && activeBuffer && (
+          <div
+            style={{
+              padding: 'var(--space-sm) var(--space-md)',
+              borderBottom: '1px solid var(--border-color)',
+              backgroundColor: 'var(--success)',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-sm)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: '1rem' }}>📂</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: 'var(--text-inverse)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}>
+                    {activeWorkspace.name}
+                  </div>
+                  <div style={{
+                    fontSize: '0.625rem',
+                    color: 'rgba(255, 255, 255, 0.75)',
+                  }}>
+                    Buffer: {activeBuffer.displayName} · {Object.keys(activeWorkspace.buffers).length} versions
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Buffer Indicator - shows when content is loaded from Archive (but no workspace) */}
+        {!hasWorkspaceContent && hasBufferContent && workingBuffer && (
           <div
             style={{
               padding: 'var(--space-sm) var(--space-md)',

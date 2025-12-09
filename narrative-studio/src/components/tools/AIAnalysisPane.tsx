@@ -13,6 +13,7 @@
 import { useState, useEffect } from 'react';
 import { useToolState } from '../../contexts/ToolTabContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWorkspaceTools } from '../../hooks/useWorkspaceTools';
 import { aiDetection as runAIDetection } from '../../services/transformationService';
 
 interface SentenceAnalysis {
@@ -87,6 +88,7 @@ interface AIAnalysisPaneProps {
 export function AIAnalysisPane({ content, onHighlightText }: AIAnalysisPaneProps) {
   const [state, setState] = useToolState('ai-analysis');
   const { user } = useAuth();
+  const workspaceTools = useWorkspaceTools();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CombinedResult | null>(null);
@@ -259,6 +261,27 @@ export function AIAnalysisPane({ content, onHighlightText }: AIAnalysisPaneProps
 
       setResult(combinedResult);
       setState({ lastResult: combinedResult });
+
+      // Record analysis to workspace buffer system
+      workspaceTools.recordAnalysis({
+        aiScore: Math.round(nativeResult.ai_likelihood * 100),
+        aiVerdict: nativeResult.label === 'likely_human' ? 'human' :
+                   nativeResult.label === 'likely_ai' ? 'ai' : 'mixed',
+        confidence: nativeResult.confidence,
+        burstiness: nativeResult.metrics.burstiness,
+        tellWords: nativeResult.phraseHits.map(h => ({
+          word: h.phrase,
+          count: h.count,
+          category: h.category,
+        })),
+        highlights: nativeResult.highlights.map(h => ({
+          start: h.start,
+          end: h.end,
+          type: 'tellword' as const,
+          reason: h.reason,
+        })),
+        gptzeroScore: gptzeroResult ? gptzeroResult.confidence : undefined,
+      });
 
       if (nativeResult.suspectSentences && nativeResult.suspectSentences.length > 0) {
         setHighlightMode('suspects');

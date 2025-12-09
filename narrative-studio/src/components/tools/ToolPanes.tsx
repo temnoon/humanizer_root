@@ -12,6 +12,7 @@ import { useToolState, useToolTabs } from '../../contexts/ToolTabContext';
 import { useProvider } from '../../contexts/ProviderContext';
 import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useWorkspaceTools } from '../../hooks/useWorkspaceTools';
 import { runTransform, getProviderInfo } from '../../services/transformationService';
 import { api } from '../../utils/api';
 import { AddToBookSection } from '../panels/AddToBookSection';
@@ -84,13 +85,13 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
   const [state, setState] = useToolState('humanizer');
   const { isTransforming, setIsTransforming } = useToolTabs();
   const { provider, isLocalAvailable, isCloudAvailable, useOllamaForLocal } = useProvider();
-  const { recordTransformation, isChainMode } = useUnifiedBuffer();
+  const { recordTransformation: recordToUnifiedBuffer, isChainMode } = useUnifiedBuffer();
   const { user } = useAuth();
+  const workspaceTools = useWorkspaceTools();
   const [error, setError] = useState<string | null>(null);
   const [providerUsed, setProviderUsed] = useState<string | null>(null);
   const [transformationId, setTransformationId] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  // GPTZero targeting removed - testing showed it added latency without improving results
 
   const handleRun = async () => {
     if (!content.trim()) {
@@ -109,15 +110,19 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
       return;
     }
 
+    // Auto-create workspace if needed
+    if (workspaceTools.shouldAutoCreateWorkspace(content)) {
+      workspaceTools.ensureWorkspace(content);
+    }
+
     setIsTransforming(true);
     setError(null);
     setProviderUsed(providerInfo.label);
-    setShowFeedback(false);  // Reset feedback on new transform
+    setShowFeedback(false);
 
     try {
       console.log(`[HumanizerPane] Using ${providerInfo.provider} backend: ${providerInfo.label}`);
 
-      // Use transformationService which respects provider preference
       const result = await runTransform({
         type: 'computer-humanizer',
         parameters: {
@@ -128,18 +133,24 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
 
       setState({ lastResult: result });
 
-      // Generate transformation ID for feedback tracking
       const newTransformId = result.metadata?.transformation_id || crypto.randomUUID();
       setTransformationId(newTransformId);
       setShowFeedback(true);
 
-      // Record to buffer for chaining and history
-      recordTransformation(
-        'humanizer',
-        { intensity: state.intensity, useLLM: state.useLLM },
-        result.transformed,
-        result.metadata
-      );
+      // Record to workspace buffer system (creates new buffer)
+      workspaceTools.recordTransformation({
+        type: 'humanizer',
+        parameters: {
+          intensity: state.intensity,
+          useLLM: state.useLLM,
+        },
+        resultContent: result.transformed,
+        metrics: {
+          processingTimeMs: result.metadata?.processingTime as number | undefined,
+          modelUsed: result.metadata?.modelUsed as string | undefined,
+          provider: providerInfo.provider,
+        },
+      });
 
       if (onApplyTransform && result.transformed) {
         onApplyTransform(result.transformed);
@@ -266,7 +277,8 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
   const [state, setState] = useToolState('persona');
   const { isTransforming, setIsTransforming } = useToolTabs();
   const { provider, isLocalAvailable, isCloudAvailable, useOllamaForLocal } = useProvider();
-  const { recordTransformation, isChainMode } = useUnifiedBuffer();
+  const { recordTransformation: recordToUnifiedBuffer, isChainMode } = useUnifiedBuffer();
+  const workspaceTools = useWorkspaceTools();
   const [personas, setPersonas] = useState<Array<{ id: number | string; name: string; description: string; isCustom?: boolean }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -337,15 +349,19 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
       return;
     }
 
+    // Auto-create workspace if needed
+    if (workspaceTools.shouldAutoCreateWorkspace(content)) {
+      workspaceTools.ensureWorkspace(content);
+    }
+
     setIsTransforming(true);
     setError(null);
     setProviderUsed(providerInfo.label);
-    setShowFeedback(false);  // Reset feedback on new transform
+    setShowFeedback(false);
 
     try {
       console.log(`[PersonaPane] Using ${providerInfo.provider} backend: ${providerInfo.label}`);
 
-      // Use transformationService which respects provider preference
       const result = await runTransform({
         type: 'persona',
         parameters: {
@@ -355,18 +371,25 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
 
       setState({ lastResult: result });
 
-      // Generate transformation ID for feedback tracking
       const newTransformId = result.metadata?.transformation_id || crypto.randomUUID();
       setTransformationId(newTransformId);
       setShowFeedback(true);
 
-      // Record to buffer for chaining and history
-      recordTransformation(
-        'persona',
-        { persona: state.selectedPersona },
-        result.transformed,
-        result.metadata
-      );
+      // Record to workspace buffer system
+      const selectedPersonaData = personas.find(p => p.name === state.selectedPersona);
+      workspaceTools.recordTransformation({
+        type: 'persona',
+        parameters: {
+          personaId: state.selectedPersona,
+          personaName: selectedPersonaData?.name || state.selectedPersona,
+        },
+        resultContent: result.transformed,
+        metrics: {
+          processingTimeMs: result.metadata?.processingTime as number | undefined,
+          modelUsed: result.metadata?.modelUsed as string | undefined,
+          provider: providerInfo.provider,
+        },
+      });
 
       if (onApplyTransform && result.transformed) {
         onApplyTransform(result.transformed);
@@ -484,7 +507,8 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
   const [state, setState] = useToolState('style');
   const { isTransforming, setIsTransforming } = useToolTabs();
   const { provider, isLocalAvailable, isCloudAvailable, useOllamaForLocal } = useProvider();
-  const { recordTransformation, isChainMode } = useUnifiedBuffer();
+  const { recordTransformation: recordToUnifiedBuffer, isChainMode } = useUnifiedBuffer();
+  const workspaceTools = useWorkspaceTools();
   const [styles, setStyles] = useState<Array<{ id: number | string; name: string; style_prompt: string; isCustom?: boolean }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -555,15 +579,19 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
       return;
     }
 
+    // Auto-create workspace if needed
+    if (workspaceTools.shouldAutoCreateWorkspace(content)) {
+      workspaceTools.ensureWorkspace(content);
+    }
+
     setIsTransforming(true);
     setError(null);
     setProviderUsed(providerInfo.label);
-    setShowFeedback(false);  // Reset feedback on new transform
+    setShowFeedback(false);
 
     try {
       console.log(`[StylePane] Using ${providerInfo.provider} backend: ${providerInfo.label}`);
 
-      // Use transformationService which respects provider preference
       const result = await runTransform({
         type: 'style',
         parameters: {
@@ -573,18 +601,25 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
 
       setState({ lastResult: result });
 
-      // Generate transformation ID for feedback tracking
       const newTransformId = result.metadata?.transformation_id || crypto.randomUUID();
       setTransformationId(newTransformId);
       setShowFeedback(true);
 
-      // Record to buffer for chaining and history
-      recordTransformation(
-        'style',
-        { style: state.selectedStyle },
-        result.transformed,
-        result.metadata
-      );
+      // Record to workspace buffer system
+      const selectedStyleData = styles.find(s => s.name === state.selectedStyle);
+      workspaceTools.recordTransformation({
+        type: 'style',
+        parameters: {
+          styleId: state.selectedStyle,
+          styleName: selectedStyleData?.name || state.selectedStyle,
+        },
+        resultContent: result.transformed,
+        metrics: {
+          processingTimeMs: result.metadata?.processingTime as number | undefined,
+          modelUsed: result.metadata?.modelUsed as string | undefined,
+          provider: providerInfo.provider,
+        },
+      });
 
       if (onApplyTransform && result.transformed) {
         onApplyTransform(result.transformed);
@@ -723,7 +758,8 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
   const [state, setState] = useToolState('round-trip');
   const { isTransforming, setIsTransforming } = useToolTabs();
   const { provider, isLocalAvailable, isCloudAvailable, useOllamaForLocal } = useProvider();
-  const { recordTransformation, isChainMode } = useUnifiedBuffer();
+  const { recordTransformation: recordToUnifiedBuffer, isChainMode } = useUnifiedBuffer();
+  const workspaceTools = useWorkspaceTools();
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
   const [providerUsed, setProviderUsed] = useState<string | null>(null);
@@ -752,15 +788,19 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
       return;
     }
 
+    // Auto-create workspace if needed
+    if (workspaceTools.shouldAutoCreateWorkspace(content)) {
+      workspaceTools.ensureWorkspace(content);
+    }
+
     setIsTransforming(true);
     setError(null);
     setProviderUsed(providerInfo.label);
-    setShowFeedback(false);  // Reset feedback on new transform
+    setShowFeedback(false);
 
     try {
       console.log(`[RoundTripPane] Using ${providerInfo.provider} backend: ${providerInfo.label}`);
 
-      // Use transformationService which respects provider preference
       const response = await runTransform({
         type: 'round-trip',
         parameters: {
@@ -771,18 +811,22 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
       setResult(response.metadata);
       setState({ lastResult: response });
 
-      // Generate transformation ID for feedback tracking
       const newTransformId = response.metadata?.transformation_id || crypto.randomUUID();
       setTransformationId(newTransformId);
       setShowFeedback(true);
 
-      // Record to buffer for chaining and history
-      recordTransformation(
-        'round-trip',
-        { intermediateLanguage: state.intermediateLanguage },
-        response.transformed,
-        response.metadata
-      );
+      // Record to workspace buffer system
+      workspaceTools.recordTransformation({
+        type: 'round-trip',
+        parameters: {
+          intermediateLanguage: state.intermediateLanguage,
+        },
+        resultContent: response.transformed,
+        metrics: {
+          processingTimeMs: response.metadata?.processingTime as number | undefined,
+          provider: providerInfo.provider,
+        },
+      });
 
       if (onApplyTransform && response.transformed) {
         onApplyTransform(response.transformed);
