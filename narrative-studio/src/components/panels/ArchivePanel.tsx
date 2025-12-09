@@ -12,6 +12,7 @@ import { BooksView } from '../archive/BooksView';
 import { BookStructureTree } from '../archive/BookStructureTree';
 import { ThisBookView } from '../archive/ThisBookView';
 import { PageEditorView } from '../archive/PageEditorView';
+import { WorkspacesView } from '../archive/WorkspacesView';
 import { useActiveBook } from '../../contexts/ActiveBookContext';
 import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
 import { STORAGE_PATHS } from '../../config/storage-paths';
@@ -25,7 +26,7 @@ interface ArchivePanelProps {
   onClose: () => void;
 }
 
-type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions' | 'imports' | 'explore' | 'facebook' | 'books' | 'thisbook';
+type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions' | 'imports' | 'explore' | 'facebook' | 'books' | 'thisbook' | 'workspaces';
 type FilterCategory = 'date' | 'size' | 'media';
 
 interface ActiveFilters {
@@ -834,6 +835,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     { id: 'conversations', icon: '📄', title: 'Archive' },
     ...(activeBook ? [{ id: 'thisbook', icon: '📖', title: `This Book - "${activeBook.title}"` }] : []),
     { id: 'sessions', icon: '📋', title: 'Sessions' },
+    { id: 'workspaces', icon: '📂', title: 'Workspaces' },
     { id: 'gallery', icon: '🖼️', title: 'Gallery' },
     { id: 'imports', icon: '📥', title: 'Imports' },
     { id: 'explore', icon: '🧭', title: 'Explore' },
@@ -1641,6 +1643,19 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             }}
           >
             <ImportsView />
+          </div>
+        )}
+
+        {/* Workspaces View - transformation history */}
+        {viewMode === 'workspaces' && (
+          <div
+            className="overflow-y-auto"
+            style={{
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            <WorkspacesView />
           </div>
         )}
 
