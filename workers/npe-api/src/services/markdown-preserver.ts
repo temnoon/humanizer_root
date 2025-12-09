@@ -268,11 +268,138 @@ function restoreList(transformedText: string, listInfo: ListInfo): string {
 }
 
 /**
+ * Protected region marker for content that should not be analyzed
+ * These will be replaced with placeholders during analysis
+ */
+interface ProtectedRegion {
+  start: number;
+  end: number;
+  type: 'code-block' | 'inline-code' | 'latex-block' | 'latex-inline';
+  content: string;
+}
+
+/**
+ * Extract protected regions (code blocks and LaTeX) that should NOT be analyzed
+ * Returns the regions sorted by start position
+ */
+export function extractProtectedRegions(text: string): ProtectedRegion[] {
+  const regions: ProtectedRegion[] = [];
+
+  // 1. Fenced code blocks (```...``` or ~~~...~~~)
+  const fencedCodeRegex = /```[\s\S]*?```|~~~[\s\S]*?~~~/g;
+  let match;
+  while ((match = fencedCodeRegex.exec(text)) !== null) {
+    regions.push({
+      start: match.index,
+      end: match.index + match[0].length,
+      type: 'code-block',
+      content: match[0]
+    });
+  }
+
+  // 2. LaTeX display blocks: \[...\] and $$...$$
+  const latexBlockRegex = /\\\[[\s\S]*?\\\]|\$\$[\s\S]*?\$\$/g;
+  while ((match = latexBlockRegex.exec(text)) !== null) {
+    // Check if this region overlaps with an existing one
+    const overlaps = regions.some(r =>
+      (match!.index >= r.start && match!.index < r.end) ||
+      (match!.index + match![0].length > r.start && match!.index + match![0].length <= r.end)
+    );
+    if (!overlaps) {
+      regions.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        type: 'latex-block',
+        content: match[0]
+      });
+    }
+  }
+
+  // 3. LaTeX inline: \(...\) and $...$  (but NOT $$ which is block)
+  // Match $...$ but not $$...$$
+  const latexInlineRegex = /\\\([\s\S]*?\\\)|\$(?!\$)([^$\n]+?)\$(?!\$)/g;
+  while ((match = latexInlineRegex.exec(text)) !== null) {
+    const overlaps = regions.some(r =>
+      (match!.index >= r.start && match!.index < r.end) ||
+      (match!.index + match![0].length > r.start && match!.index + match![0].length <= r.end)
+    );
+    if (!overlaps) {
+      regions.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        type: 'latex-inline',
+        content: match[0]
+      });
+    }
+  }
+
+  // 4. Inline code (`...`) - but not fenced blocks
+  const inlineCodeRegex = /`([^`\n]+?)`/g;
+  while ((match = inlineCodeRegex.exec(text)) !== null) {
+    const overlaps = regions.some(r =>
+      (match!.index >= r.start && match!.index < r.end) ||
+      (match!.index + match![0].length > r.start && match!.index + match![0].length <= r.end)
+    );
+    if (!overlaps) {
+      regions.push({
+        start: match.index,
+        end: match.index + match[0].length,
+        type: 'inline-code',
+        content: match[0]
+      });
+    }
+  }
+
+  // Sort by start position
+  return regions.sort((a, b) => a.start - b.start);
+}
+
+/**
+ * Remove protected regions from text, replacing with placeholder markers
+ * Returns the cleaned text and the regions for restoration
+ */
+export function stripProtectedRegions(text: string): {
+  strippedText: string;
+  regions: ProtectedRegion[];
+  placeholderMap: Map<string, ProtectedRegion>;
+} {
+  const regions = extractProtectedRegions(text);
+  const placeholderMap = new Map<string, ProtectedRegion>();
+
+  if (regions.length === 0) {
+    return { strippedText: text, regions: [], placeholderMap };
+  }
+
+  let result = '';
+  let lastEnd = 0;
+
+  for (let i = 0; i < regions.length; i++) {
+    const region = regions[i];
+    // Add text before this region
+    result += text.slice(lastEnd, region.start);
+    // Add placeholder (empty space to maintain some structure)
+    const placeholder = ` `;  // Single space placeholder
+    placeholderMap.set(`__PROTECTED_${i}__`, region);
+    result += placeholder;
+    lastEnd = region.end;
+  }
+
+  // Add remaining text
+  result += text.slice(lastEnd);
+
+  return { strippedText: result, regions, placeholderMap };
+}
+
+/**
  * Strip markdown formatting (bold, italic, etc.) but preserve structure
  * Keeps paragraph breaks and list markers
+ * NOW: Also preserves code blocks and LaTeX - they are NOT stripped
  */
 export function stripInlineMarkdown(text: string): string {
-  let stripped = text;
+  // First, protect code blocks and LaTeX from being modified
+  const { strippedText: textWithoutProtected, regions } = stripProtectedRegions(text);
+
+  let stripped = textWithoutProtected;
 
   // Remove bold (**text** or __text__)
   stripped = stripped.replace(/\*\*(.+?)\*\*/g, '$1');
@@ -283,8 +410,8 @@ export function stripInlineMarkdown(text: string): string {
   stripped = stripped.replace(/(?<!\w)\*([^*]+?)\*(?!\w)/g, '$1');
   stripped = stripped.replace(/(?<!\w)_([^_]+?)_(?!\w)/g, '$1');
 
-  // Remove inline code (`code`)
-  stripped = stripped.replace(/`([^`]+?)`/g, '$1');
+  // Note: Inline code is now protected, but we keep this for any that slipped through
+  // stripped = stripped.replace(/`([^`]+?)`/g, '$1');
 
   // Remove links ([text](url)) - keep just the text
   stripped = stripped.replace(/\[([^\]]+?)\]\([^)]+?\)/g, '$1');

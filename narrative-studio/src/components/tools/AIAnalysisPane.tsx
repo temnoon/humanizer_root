@@ -10,7 +10,7 @@
  * - Sentence highlighting toggle for main pane
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useToolState } from '../../contexts/ToolTabContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { aiDetection as runAIDetection } from '../../services/transformationService';
@@ -72,21 +72,25 @@ interface CombinedResult {
   agreement?: number;
 }
 
-interface AIAnalysisPaneProps {
-  content: string;
-  onHighlightText?: (highlights: Array<{ start: number; end: number; reason: string }>) => void;
-  onSuspectSentences?: (sentences: string[]) => void;
+interface HighlightRange {
+  start: number;
+  end: number;
+  reason: string;
+  type?: 'tellword' | 'suspect' | 'gptzero';
 }
 
-export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }: AIAnalysisPaneProps) {
+interface AIAnalysisPaneProps {
+  content: string;
+  onHighlightText?: (highlights: HighlightRange[]) => void;
+}
+
+export function AIAnalysisPane({ content, onHighlightText }: AIAnalysisPaneProps) {
   const [state, setState] = useToolState('ai-analysis');
   const { user } = useAuth();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CombinedResult | null>(null);
-  const [showSentences, setShowSentences] = useState(false);
-  const [showSuspectSentences, setShowSuspectSentences] = useState(false);
-  const [highlightMode, setHighlightMode] = useState<'off' | 'tellwords' | 'suspects' | 'gptzero'>('off');
+  const [highlightMode, setHighlightMode] = useState<'off' | 'tellwords' | 'suspects' | 'gptzero' | 'all'>('off');
 
   const canUseGPTZero = user?.role === 'admin' || user?.role === 'pro';
 
@@ -95,29 +99,80 @@ export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }:
     if (!result || !onHighlightText) return;
 
     if (highlightMode === 'tellwords' && result.native.highlights) {
-      onHighlightText(result.native.highlights);
+      const highlights = result.native.highlights.map(h => ({
+        ...h,
+        type: 'tellword' as const,
+        reason: h.reason || 'Tell-word'
+      }));
+      onHighlightText(highlights);
     } else if (highlightMode === 'suspects' && result.native.suspectSentences) {
-      // Convert suspect sentences to highlight ranges
       const highlights = result.native.suspectSentences.map(s => {
         const start = content.indexOf(s.sentence);
         return {
           start,
           end: start + s.sentence.length,
+          type: 'suspect' as const,
           reason: `AI Score: ${s.aiScore}% - ${s.patterns.join(', ')}`
         };
       }).filter(h => h.start >= 0);
       onHighlightText(highlights);
     } else if (highlightMode === 'gptzero' && result.gptzero?.details.sentences) {
-      const flaggedSentences = result.gptzero.details.sentences
+      const highlights = result.gptzero.details.sentences
         .filter(s => s.highlight_sentence_for_ai)
-        .map(s => s.sentence);
-      if (onSuspectSentences) {
-        onSuspectSentences(flaggedSentences);
+        .map(s => {
+          const start = content.indexOf(s.sentence);
+          return {
+            start,
+            end: start + s.sentence.length,
+            type: 'gptzero' as const,
+            reason: `GPTZero: ${(s.generated_prob * 100).toFixed(0)}% AI`
+          };
+        }).filter(h => h.start >= 0);
+      onHighlightText(highlights);
+    } else if (highlightMode === 'all') {
+      const allHighlights: Array<{ start: number; end: number; type: string; reason: string }> = [];
+
+      if (result.native.highlights) {
+        result.native.highlights.forEach(h => {
+          allHighlights.push({ ...h, type: 'tellword', reason: h.reason || 'Tell-word' });
+        });
       }
+
+      if (result.native.suspectSentences) {
+        result.native.suspectSentences.forEach(s => {
+          const start = content.indexOf(s.sentence);
+          if (start >= 0) {
+            allHighlights.push({
+              start,
+              end: start + s.sentence.length,
+              type: 'suspect',
+              reason: `AI Score: ${s.aiScore}%`
+            });
+          }
+        });
+      }
+
+      if (result.gptzero?.details.sentences) {
+        result.gptzero.details.sentences
+          .filter(s => s.highlight_sentence_for_ai)
+          .forEach(s => {
+            const start = content.indexOf(s.sentence);
+            if (start >= 0) {
+              allHighlights.push({
+                start,
+                end: start + s.sentence.length,
+                type: 'gptzero',
+                reason: `GPTZero: ${(s.generated_prob * 100).toFixed(0)}% AI`
+              });
+            }
+          });
+      }
+
+      onHighlightText(allHighlights);
     } else {
       onHighlightText([]);
     }
-  }, [highlightMode, result, content, onHighlightText, onSuspectSentences]);
+  }, [highlightMode, result, content, onHighlightText]);
 
   const handleAnalyze = async () => {
     if (!content.trim()) {
@@ -205,7 +260,6 @@ export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }:
       setResult(combinedResult);
       setState({ lastResult: combinedResult });
 
-      // Auto-enable suspect highlighting if we found suspect sentences
       if (nativeResult.suspectSentences && nativeResult.suspectSentences.length > 0) {
         setHighlightMode('suspects');
       }
@@ -218,10 +272,10 @@ export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }:
     }
   };
 
-  const getScoreColor = (score: number): string => {
-    if (score < 0.35) return 'var(--success)';
-    if (score < 0.65) return 'var(--warning)';
-    return 'var(--error)';
+  const getScoreColorClass = (score: number): string => {
+    if (score < 0.35) return 'ai-analysis-pane__score-value--success';
+    if (score < 0.65) return 'ai-analysis-pane__score-value--warning';
+    return 'ai-analysis-pane__score-value--error';
   };
 
   const getBurstinessLabel = (burstiness: number): string => {
@@ -243,44 +297,30 @@ export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }:
   };
 
   return (
-    <div className="ai-analysis-pane" style={{ padding: '12px' }}>
+    <div className="ai-analysis-pane">
       {/* Options */}
-      <div style={{ marginBottom: '12px' }}>
-        <label
-          className="flex items-center gap-2 cursor-pointer"
-          style={{ color: 'var(--text-primary)', fontSize: '0.8125rem', marginBottom: '8px' }}
-        >
+      <div className="ai-analysis-pane__section">
+        <label className="ai-analysis-pane__label flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={state.useLLMJudge}
             onChange={(e) => setState({ useLLMJudge: e.target.checked })}
-            style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
+            className="ai-analysis-pane__checkbox"
           />
           <span>LLM Meta-Judge</span>
         </label>
 
-        <div
-          style={{
-            padding: '8px 10px',
-            backgroundColor: canUseGPTZero ? 'var(--bg-secondary)' : 'var(--bg-tertiary)',
-            borderRadius: 'var(--radius-sm)',
-            border: '1px solid var(--border-color)',
-            opacity: canUseGPTZero ? 1 : 0.6,
-          }}
-        >
-          <label
-            className="flex items-center gap-2 cursor-pointer"
-            style={{ color: canUseGPTZero ? 'var(--text-primary)' : 'var(--text-tertiary)', fontSize: '0.8125rem' }}
-          >
+        <div className={`ai-analysis-pane__checkbox-group ${!canUseGPTZero ? 'ai-analysis-pane__checkbox-group--disabled' : ''}`}>
+          <label className={`ai-analysis-pane__checkbox-label flex items-center gap-2 cursor-pointer ${!canUseGPTZero ? 'ai-analysis-pane__checkbox-label--disabled' : ''}`}>
             <input
               type="checkbox"
               checked={state.includeGPTZero && canUseGPTZero}
               onChange={(e) => setState({ includeGPTZero: e.target.checked })}
               disabled={!canUseGPTZero}
-              style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
+              className="ai-analysis-pane__checkbox"
             />
             <span>GPTZero</span>
-            {!canUseGPTZero && <span style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)' }}>Pro</span>}
+            {!canUseGPTZero && <span className="ai-analysis-pane__pro-badge">Pro</span>}
           </label>
         </div>
       </div>
@@ -289,76 +329,61 @@ export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }:
       <button
         onClick={handleAnalyze}
         disabled={isAnalyzing || !content.trim()}
-        style={{
-          width: '100%',
-          backgroundImage: 'var(--accent-primary-gradient)',
-          backgroundColor: 'transparent',
-          color: 'var(--text-inverse)',
-          padding: '10px 12px',
-          fontSize: '0.875rem',
-          minHeight: '40px',
-          border: 'none',
-          borderRadius: 'var(--radius-sm)',
-          fontWeight: 600,
-          cursor: isAnalyzing || !content.trim() ? 'not-allowed' : 'pointer',
-          opacity: isAnalyzing || !content.trim() ? 0.5 : 1,
-        }}
+        className="ai-analysis-pane__btn-primary"
       >
         {isAnalyzing ? 'Analyzing...' : 'Analyze Text'}
       </button>
 
       {/* Error */}
       {error && (
-        <div style={{ marginTop: '8px', padding: '6px 8px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', fontSize: '0.6875rem' }}>
+        <div className="ai-analysis-pane__error">
           {error}
         </div>
       )}
 
       {/* Results */}
       {result && (
-        <div style={{ marginTop: '12px' }}>
+        <div className="ai-analysis-pane__results">
           {/* AI Likelihood Score */}
-          <div
-            style={{
-              padding: '10px',
-              backgroundColor: 'var(--bg-secondary)',
-              borderRadius: 'var(--radius-sm)',
-              marginBottom: '8px',
-            }}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <span style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>AI Likelihood</span>
-              <span style={{ fontSize: '1.25rem', fontWeight: 700, color: getScoreColor(result.native.ai_likelihood) }}>
+          <div className="ai-analysis-pane__score-card">
+            <div className="ai-analysis-pane__score-header">
+              <span className="ai-analysis-pane__score-label">AI Likelihood</span>
+              <span className={`ai-analysis-pane__score-value ${getScoreColorClass(result.native.ai_likelihood)}`}>
                 {Math.round(result.native.ai_likelihood * 100)}%
               </span>
             </div>
 
-            <div style={{ height: '6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden', marginBottom: '8px' }}>
-              <div style={{ width: `${result.native.ai_likelihood * 100}%`, height: '100%', backgroundColor: getScoreColor(result.native.ai_likelihood) }} />
+            <div className="ai-analysis-pane__progress-bar">
+              <div
+                className={`ai-analysis-pane__progress-fill ${getScoreColorClass(result.native.ai_likelihood).replace('score-value', 'progress')}`}
+                style={{ width: `${result.native.ai_likelihood * 100}%` }}
+              />
             </div>
 
             {/* Metrics Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
-              <div style={{ padding: '6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.5625rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Burstiness</div>
-                <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: result.native.metrics.burstiness >= 40 ? 'var(--success)' : 'var(--error)' }}>
+            <div className="ai-analysis-pane__metrics-grid">
+              <div className="ai-analysis-pane__metric-card">
+                <div className="ai-analysis-pane__metric-label">Burstiness</div>
+                <div className={`ai-analysis-pane__metric-value ${result.native.metrics.burstiness >= 40 ? 'ai-analysis-pane__score-value--success' : 'ai-analysis-pane__score-value--error'}`}>
                   {Math.round(result.native.metrics.burstiness)}
                 </div>
-                <div style={{ fontSize: '0.5rem', color: 'var(--text-tertiary)' }}>{getBurstinessLabel(result.native.metrics.burstiness)}</div>
+                <div className="ai-analysis-pane__metric-sublabel">{getBurstinessLabel(result.native.metrics.burstiness)}</div>
               </div>
-              <div style={{ padding: '6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.5625rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Diversity</div>
-                <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: result.native.metrics.typeTokenRatio >= 0.4 ? 'var(--success)' : 'var(--error)' }}>
+              <div className="ai-analysis-pane__metric-card">
+                <div className="ai-analysis-pane__metric-label">Diversity</div>
+                <div className={`ai-analysis-pane__metric-value ${result.native.metrics.typeTokenRatio >= 0.4 ? 'ai-analysis-pane__score-value--success' : 'ai-analysis-pane__score-value--error'}`}>
                   {(result.native.metrics.typeTokenRatio * 100).toFixed(0)}%
                 </div>
               </div>
-              <div style={{ padding: '6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.5625rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Avg Sentence</div>
-                <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>{result.native.metrics.avgSentenceLength.toFixed(0)} words</div>
+              <div className="ai-analysis-pane__metric-card">
+                <div className="ai-analysis-pane__metric-label">Avg Sentence</div>
+                <div className="ai-analysis-pane__metric-value ai-analysis-pane__score-value--primary">
+                  {result.native.metrics.avgSentenceLength.toFixed(0)} words
+                </div>
               </div>
-              <div style={{ padding: '6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', textAlign: 'center' }}>
-                <div style={{ fontSize: '0.5625rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>Suspect Sentences</div>
-                <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: (result.native.suspectSentences?.length ?? 0) > 0 ? 'var(--error)' : 'var(--success)' }}>
+              <div className="ai-analysis-pane__metric-card">
+                <div className="ai-analysis-pane__metric-label">Suspect Sentences</div>
+                <div className={`ai-analysis-pane__metric-value ${(result.native.suspectSentences?.length ?? 0) > 0 ? 'ai-analysis-pane__score-value--error' : 'ai-analysis-pane__score-value--success'}`}>
                   {result.native.suspectSentences?.length ?? 0}
                 </div>
               </div>
@@ -366,165 +391,89 @@ export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }:
           </div>
 
           {/* Highlight Mode Toggle */}
-          <div style={{ marginBottom: '8px', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-            <button
-              onClick={() => setHighlightMode(highlightMode === 'off' ? 'suspects' : 'off')}
-              style={{
-                padding: '4px 8px',
-                fontSize: '0.625rem',
-                backgroundColor: highlightMode !== 'off' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                color: highlightMode !== 'off' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                border: 'none',
-                borderRadius: '3px',
-                cursor: 'pointer',
-              }}
-            >
-              Highlight: {highlightMode === 'off' ? 'Off' : highlightMode}
-            </button>
-            {highlightMode !== 'off' && (
-              <>
+          <div className="ai-analysis-pane__highlight-section">
+            <div className="ai-analysis-pane__highlight-label">
+              Highlight in text:
+            </div>
+            <div className="ai-analysis-pane__highlight-buttons">
+              <button
+                onClick={() => setHighlightMode('off')}
+                className={`ai-analysis-pane__highlight-btn ai-analysis-pane__highlight-btn--off ${highlightMode === 'off' ? 'active' : ''}`}
+              >
+                Off
+              </button>
+              <button
+                onClick={() => setHighlightMode('suspects')}
+                className={`ai-analysis-pane__highlight-btn ai-analysis-pane__highlight-btn--suspects ${highlightMode === 'suspects' ? 'active' : ''}`}
+                title="Highlight suspect sentences (red)"
+              >
+                Suspects ({result.native.suspectSentences?.length ?? 0})
+              </button>
+              <button
+                onClick={() => setHighlightMode('tellwords')}
+                className={`ai-analysis-pane__highlight-btn ai-analysis-pane__highlight-btn--tellwords ${highlightMode === 'tellwords' ? 'active' : ''}`}
+                title="Highlight tell-words (orange)"
+              >
+                Tell-words ({result.native.phraseHits?.length ?? 0})
+              </button>
+              {result.gptzero && (
                 <button
-                  onClick={() => setHighlightMode('suspects')}
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: '0.625rem',
-                    backgroundColor: highlightMode === 'suspects' ? 'var(--error)' : 'var(--bg-tertiary)',
-                    color: highlightMode === 'suspects' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                    border: 'none',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                  }}
+                  onClick={() => setHighlightMode('gptzero')}
+                  className={`ai-analysis-pane__highlight-btn ai-analysis-pane__highlight-btn--gptzero ${highlightMode === 'gptzero' ? 'active' : ''}`}
+                  title="Highlight GPTZero flagged sentences (purple)"
                 >
-                  Suspects
+                  GPTZero ({result.gptzero.details.sentences.filter(s => s.highlight_sentence_for_ai).length})
                 </button>
+              )}
+              {(result.native.suspectSentences?.length || result.native.phraseHits?.length || result.gptzero) && (
                 <button
-                  onClick={() => setHighlightMode('tellwords')}
-                  style={{
-                    padding: '4px 8px',
-                    fontSize: '0.625rem',
-                    backgroundColor: highlightMode === 'tellwords' ? 'var(--warning)' : 'var(--bg-tertiary)',
-                    color: highlightMode === 'tellwords' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                    border: 'none',
-                    borderRadius: '3px',
-                    cursor: 'pointer',
-                  }}
+                  onClick={() => setHighlightMode('all')}
+                  className={`ai-analysis-pane__highlight-btn ai-analysis-pane__highlight-btn--all ${highlightMode === 'all' ? 'active' : ''}`}
+                  title="Show all highlight types"
                 >
-                  Tell-words
+                  All
                 </button>
-                {result.gptzero && (
-                  <button
-                    onClick={() => setHighlightMode('gptzero')}
-                    style={{
-                      padding: '4px 8px',
-                      fontSize: '0.625rem',
-                      backgroundColor: highlightMode === 'gptzero' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                      color: highlightMode === 'gptzero' ? 'var(--text-inverse)' : 'var(--text-secondary)',
-                      border: 'none',
-                      borderRadius: '3px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    GPTZero
-                  </button>
-                )}
-              </>
-            )}
+              )}
+            </div>
           </div>
 
-          {/* Suspect Sentences */}
+          {/* Suspect Sentences Summary */}
           {result.native.suspectSentences && result.native.suspectSentences.length > 0 && (
-            <div style={{ marginBottom: '8px' }}>
-              <button
-                onClick={() => setShowSuspectSentences(!showSuspectSentences)}
-                style={{
-                  width: '100%',
-                  padding: '6px 8px',
-                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--error)' }}>
-                  {showSuspectSentences ? '▼' : '▶'} {result.native.suspectSentences.length} Suspect Sentences
-                </span>
-              </button>
-
-              {showSuspectSentences && (
-                <div style={{ marginTop: '4px', maxHeight: '150px', overflowY: 'auto', backgroundColor: 'var(--bg-tertiary)', borderRadius: '4px', padding: '4px' }}>
-                  {result.native.suspectSentences.map((sentence, i) => (
-                    <div key={i} style={{
-                      padding: '6px',
-                      marginBottom: '4px',
-                      backgroundColor: 'var(--bg-secondary)',
-                      borderRadius: '3px',
-                      borderLeft: `3px solid ${sentence.aiScore >= 50 ? 'var(--error)' : 'var(--warning)'}`,
-                    }}>
-                      <div style={{ fontSize: '0.625rem', color: 'var(--text-primary)', marginBottom: '4px' }}>
-                        {sentence.sentence.slice(0, 100)}{sentence.sentence.length > 100 ? '...' : ''}
-                      </div>
-                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{
-                          fontSize: '0.5625rem',
-                          fontWeight: 700,
-                          color: sentence.aiScore >= 50 ? 'var(--error)' : 'var(--warning)',
-                        }}>
-                          {sentence.aiScore}%
-                        </span>
-                        {sentence.patterns.map((pattern, j) => (
-                          <span key={j} style={{
-                            fontSize: '0.5rem',
-                            padding: '1px 4px',
-                            backgroundColor: 'rgba(239, 68, 68, 0.2)',
-                            borderRadius: '2px',
-                            color: 'var(--error)',
-                          }}>
-                            {getPatternLabel(pattern)}
-                          </span>
-                        ))}
-                        {sentence.tellPhrases.slice(0, 2).map((tp, j) => (
-                          <span key={`tp-${j}`} style={{
-                            fontSize: '0.5rem',
-                            padding: '1px 4px',
-                            backgroundColor: 'rgba(245, 158, 11, 0.2)',
-                            borderRadius: '2px',
-                            color: 'var(--warning)',
-                          }}>
-                            {tp.phrase}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div className="ai-analysis-pane__suspect-summary">
+              <div className="ai-analysis-pane__suspect-title">
+                {result.native.suspectSentences.length} Suspect Sentences
+              </div>
+              <div className="ai-analysis-pane__suspect-hint">
+                Click "Suspects" button above to highlight in text
+              </div>
+              <div className="ai-analysis-pane__pattern-tags">
+                {Array.from(new Set(result.native.suspectSentences.flatMap(s => s.patterns))).slice(0, 6).map((pattern, i) => (
+                  <span key={i} className="ai-analysis-pane__pattern-tag">
+                    {getPatternLabel(pattern)}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
           {/* Tell Phrases */}
           {result.native.phraseHits.length > 0 && (
-            <div style={{ padding: '8px', backgroundColor: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)', marginBottom: '8px' }}>
-              <div style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)', marginBottom: '6px', textTransform: 'uppercase' }}>
+            <div className="ai-analysis-pane__phrase-section">
+              <div className="ai-analysis-pane__phrase-title">
                 Tell-Phrases ({result.native.phraseHits.length})
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+              <div className="ai-analysis-pane__phrase-tags">
                 {result.native.phraseHits.slice(0, 12).map((hit, i) => (
-                  <span key={i} style={{
-                    padding: '2px 6px',
-                    backgroundColor: hit.category === 'Chatbot Phrases' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
-                    borderRadius: '3px',
-                    fontSize: '0.5625rem',
-                    color: hit.category === 'Chatbot Phrases' ? 'var(--error)' : 'var(--warning)',
-                  }}>
+                  <span
+                    key={i}
+                    className={`ai-analysis-pane__phrase-tag ${hit.category === 'Chatbot Phrases' ? 'ai-analysis-pane__phrase-tag--chatbot' : 'ai-analysis-pane__phrase-tag--other'}`}
+                  >
                     {hit.phrase}
-                    {hit.count > 1 && <sup style={{ marginLeft: '2px' }}>×{hit.count}</sup>}
+                    {hit.count > 1 && <sup className="ai-analysis-pane__phrase-count">×{hit.count}</sup>}
                   </span>
                 ))}
                 {result.native.phraseHits.length > 12 && (
-                  <span style={{ padding: '2px 6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '3px', fontSize: '0.5625rem', color: 'var(--text-tertiary)' }}>
+                  <span className="ai-analysis-pane__phrase-tag ai-analysis-pane__phrase-tag--more">
                     +{result.native.phraseHits.length - 12}
                   </span>
                 )}
@@ -534,45 +483,33 @@ export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }:
 
           {/* GPTZero Results */}
           {result.gptzero && (
-            <div
-              style={{
-                padding: '10px',
-                backgroundColor: 'var(--bg-secondary)',
-                borderRadius: 'var(--radius-sm)',
-                marginBottom: '8px',
-                borderLeft: '3px solid var(--accent-primary)',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <span style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  GPTZERO <span style={{ fontSize: '0.5rem', padding: '1px 4px', backgroundColor: 'var(--accent-primary)', color: 'var(--text-inverse)', borderRadius: '2px' }}>PRO</span>
+            <div className="ai-analysis-pane__gptzero-section">
+              <div className="ai-analysis-pane__gptzero-header">
+                <span className="ai-analysis-pane__gptzero-label">
+                  GPTZERO <span className="ai-analysis-pane__gptzero-badge">PRO</span>
                 </span>
-                <span style={{ fontSize: '1.125rem', fontWeight: 700, color: getScoreColor(result.gptzero.confidence / 100) }}>
+                <span className={`ai-analysis-pane__gptzero-score ${getScoreColorClass(result.gptzero.confidence / 100)}`}>
                   {result.gptzero.confidence.toFixed(0)}%
                 </span>
               </div>
 
-              <div style={{ height: '6px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden', marginBottom: '6px' }}>
-                <div style={{ width: `${result.gptzero.confidence}%`, height: '100%', backgroundColor: getScoreColor(result.gptzero.confidence / 100) }} />
+              <div className="ai-analysis-pane__progress-bar">
+                <div
+                  className={`ai-analysis-pane__progress-fill ${getScoreColorClass(result.gptzero.confidence / 100).replace('score-value', 'progress')}`}
+                  style={{ width: `${result.gptzero.confidence}%` }}
+                />
               </div>
 
-              {result.gptzero.details.sentences.length > 0 && (
-                <button
-                  onClick={() => setShowSentences(!showSentences)}
-                  style={{ background: 'none', border: '1px solid var(--border-color)', borderRadius: '3px', padding: '3px 8px', fontSize: '0.625rem', color: 'var(--text-secondary)', cursor: 'pointer', width: '100%' }}
-                >
-                  {showSentences ? '▼' : '▶'} {result.gptzero.details.sentences.filter(s => s.highlight_sentence_for_ai).length} AI-flagged sentences
-                </button>
+              {result.gptzero.details.sentences.filter(s => s.highlight_sentence_for_ai).length > 0 && (
+                <div className="ai-analysis-pane__gptzero-hint">
+                  {result.gptzero.details.sentences.filter(s => s.highlight_sentence_for_ai).length} sentences flagged as AI.
+                  Click "GPTZero" button above to highlight in text.
+                </div>
               )}
 
-              {showSentences && (
-                <div style={{ marginTop: '6px', maxHeight: '120px', overflowY: 'auto' }}>
-                  {result.gptzero.details.sentences.map((sentence, i) => (
-                    <div key={i} style={{ padding: '4px 6px', marginBottom: '3px', backgroundColor: sentence.highlight_sentence_for_ai ? 'rgba(239, 68, 68, 0.1)' : 'var(--bg-tertiary)', borderRadius: '3px', borderLeft: sentence.highlight_sentence_for_ai ? '2px solid var(--error)' : 'none' }}>
-                      <div style={{ fontSize: '0.625rem', color: 'var(--text-primary)' }}>{sentence.sentence.slice(0, 80)}{sentence.sentence.length > 80 ? '...' : ''}</div>
-                      <div style={{ fontSize: '0.5625rem', color: sentence.highlight_sentence_for_ai ? 'var(--error)' : 'var(--text-tertiary)' }}>{(sentence.generated_prob * 100).toFixed(0)}%</div>
-                    </div>
-                  ))}
+              {result.gptzero.result_message && (
+                <div className="ai-analysis-pane__gptzero-message">
+                  {result.gptzero.result_message.slice(0, 150)}{result.gptzero.result_message.length > 150 ? '...' : ''}
                 </div>
               )}
             </div>
@@ -580,9 +517,11 @@ export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }:
 
           {/* Agreement Score */}
           {result.agreement !== undefined && (
-            <div style={{ padding: '8px 10px', backgroundColor: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Detector Agreement</span>
-              <span style={{ fontSize: '1rem', fontWeight: 700, color: result.agreement >= 80 ? 'var(--success)' : result.agreement >= 60 ? 'var(--warning)' : 'var(--error)' }}>
+            <div className="ai-analysis-pane__agreement">
+              <span className="ai-analysis-pane__agreement-label">Detector Agreement</span>
+              <span
+                className={`ai-analysis-pane__agreement-value ${result.agreement >= 80 ? 'ai-analysis-pane__score-value--success' : result.agreement >= 60 ? 'ai-analysis-pane__score-value--warning' : 'ai-analysis-pane__score-value--error'}`}
+              >
                 {result.agreement}%
               </span>
             </div>
@@ -592,7 +531,7 @@ export function AIAnalysisPane({ content, onHighlightText, onSuspectSentences }:
 
       {/* No content */}
       {!content.trim() && !result && (
-        <div style={{ marginTop: '12px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
+        <div className="ai-analysis-pane__empty">
           Select text to analyze
         </div>
       )}

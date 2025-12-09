@@ -155,7 +155,128 @@ const TELL_WORD_REPLACEMENTS: Record<string, string[]> = {
   'as such': ['therefore', 'so', 'thus', ''],
   'that being said': ['however', 'but', 'still', ''],
   'having said that': ['however', 'but', 'still', ''],
-  'all things considered': ['overall', 'on balance', 'ultimately', '']
+  'all things considered': ['overall', 'on balance', 'ultimately', ''],
+
+  // ========================================
+  // CHATBOT PHRASES (weight 0.9 - highest!)
+  // These are the strongest AI tells - must handle them
+  // ========================================
+
+  // Direct acknowledgment patterns
+  'absolutely': ['yes', 'right', 'exactly', 'definitely'],
+  'great question': ['good point', 'fair question', ''],
+  "that's a great question": ['fair point', 'good question', ''],
+  'excellent question': ['good question', 'fair point', ''],
+  "i'd be happy to": ["I'll", "I can", 'sure,'],
+  "i would be happy to": ["I'll", "I can", 'sure,'],
+  'happy to help': ['glad to help', 'here to help', ''],
+  "i'm happy to help": ["I'll help", 'let me help', ''],
+  'glad you asked': ['good timing', ''],
+  'thanks for asking': ['', 'good question'],
+  'thank you for asking': ['', 'good question'],
+  'i appreciate your question': ['', 'good question'],
+
+  // Capability statements
+  'i can help you with': ["I'll handle", "let's work on"],
+  'i can assist you': ["I'll help you", "I can help"],
+  'let me help you': ["I'll help you", "here's how"],
+  'allow me to': ["I'll", "let me"],
+  "i'll walk you through": ["here's how", "let me show you"],
+  'let me walk you through': ["here's how", "let me show you"],
+  'let me explain': ["here's the deal", "so basically"],
+  'let me break this down': ["here's how it works", "basically"],
+  "here's what you need to know": ["the key thing is", "basically"],
+  "here's the thing": ["the thing is", "look,", "so,"],
+
+  // Hedging/safety patterns (often should be removed entirely)
+  "i'm not able to": ["I can't", "that's not possible"],
+  'i cannot': ["I can't"],
+  "i'm unable to": ["I can't", "that's not doable"],
+  'as an ai': ['', ''],  // Remove entirely
+  'as a language model': ['', ''],  // Remove entirely
+  "i don't have access to": ["I can't access", "that's not available"],
+  "i don't have the ability": ["I can't"],
+  "i'm designed to": ['', ''],  // Remove entirely
+  'my training': ['', ''],  // Remove entirely
+  'my knowledge cutoff': ['', ''],  // Remove entirely
+
+  // Closing patterns
+  'hope this helps': ['', ''],  // Remove entirely
+  'hope that helps': ['', ''],  // Remove entirely
+  'i hope this helps': ['', ''],  // Remove entirely
+  'let me know if you have any questions': [''],  // Remove entirely
+  'let me know if you need anything else': [''],  // Remove entirely
+  'let me know if you': [''],  // Remove - usually filler
+  'let me know if you have': [''],  // Remove - usually filler
+  'feel free to ask': ['just ask', ''],
+  'feel free to ask if you have any questions': [''],  // Remove entirely
+  'feel free to': ['you can', ''],
+  'if you have any questions': [''],  // Remove entirely
+  'if you need anything else': [''],  // Remove entirely
+  'is there anything else': [''],  // Remove entirely
+  'anything else i can help': [''],  // Remove entirely
+
+  // Structure patterns (chatbot style)
+  "here's a breakdown": ['here it is:', "let's see:"],
+  'here are some': ['some', 'a few'],
+  'here are a few': ['some', 'a few'],
+  'there are several': ['several', 'a few'],
+  'there are a few': ['a few', 'some'],
+  'first and foremost': ['first,', 'mainly,', 'most importantly,'],
+  'last but not least': ['finally,', 'also,', 'and'],
+  'in summary': ['so,', 'basically,', ''],
+  'to summarize': ['so,', 'basically,', ''],
+  'to recap': ['so,', 'again,', ''],
+  'key takeaways': ['main points', 'the gist'],
+  'the key is': ['what matters is', 'the point is'],
+  'the main thing': ['the point', 'what matters'],
+  'the bottom line': ['basically', 'the point is'],
+
+  // Emphatic agreement (too enthusiastic)
+  "you're absolutely right": ["that's right", 'exactly', 'yes'],
+  "that's correct": ['right', 'yes', 'exactly'],
+  'exactly right': ['right', 'exactly', 'yes'],
+  'precisely': ['right', 'exactly', 'yes'],
+  'spot on': ['right', 'yes', 'exactly'],
+  'you make a great point': ['good point', 'fair point', ''],
+  'excellent point': ['good point', 'fair point', ''],
+  'great point': ['good point', 'fair point', ''],
+
+  // Transition markers (chatbot style)
+  'with that being said': ['but', 'however', 'still'],
+  'that said': ['but', 'however', ''],
+  'on that note': ['also,', 'and,', ''],
+  'speaking of which': ['also,', 'and,', ''],
+  'along those lines': ['similarly,', 'also,', ''],
+  'in that regard': ['there,', 'for that,', ''],
+  'on a related note': ['also,', 'and,', ''],
+
+  // ========================================
+  // STRUCTURAL PATTERNS (weight 0.6)
+  // List introductions and enumeration
+  // ========================================
+
+  // List introductions
+  'the following': ['these', 'this'],
+  'as follows': [':'],
+  'listed below': ['below', 'here'],
+  'outlined below': ['below', 'here'],
+  'described below': ['below', 'here'],
+
+  // Enumeration
+  'firstly': ['first,', 'first'],
+  'secondly': ['second,', 'then,', 'also'],
+  'thirdly': ['third,', 'then,', 'also'],
+  'lastly': ['finally,', 'last,'],
+  'finally': ['last,', 'lastly', ''],
+  'additionally': ['also', 'plus', 'and'],
+  'in addition': ['also', 'plus', 'and'],
+
+  // Conclusion markers
+  'to conclude': ['so,', 'finally,', ''],
+  'in closing': ['finally,', 'so,', ''],
+  'overall': ['so,', 'basically,', ''],
+  'ultimately': ['in the end,', 'finally,', '']
 };
 
 /**

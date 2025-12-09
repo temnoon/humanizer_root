@@ -1,6 +1,6 @@
 # Humanizer - Development Guide
 
-**Updated**: Dec 5, 2025
+**Updated**: Dec 8, 2025
 **Status**: UI Stabilization | Pre-Launch Polish | Responsive Overhaul
 **Active Branch**: `main`
 **Signups**: 500+ waiting
@@ -14,14 +14,17 @@ Stabilize interfaces across all three platforms:
 2. **post-social.com** - Cloud nodes + AI curators
 3. **Electron Local Studio** - Desktop app
 
-### Active Work (Dec 5)
+### Active Work (Dec 8)
 - 🔄 Responsive design overhaul (bottom sheet pattern for mobile)
 - ✅ CSS color variables (all hardcoded colors now use var())
 - ✅ Console.log cleanup (deployed)
 - ✅ URL centralization (STORAGE_PATHS)
+- ✅ AIAnalysisPane.tsx CSS compliance remediation
+- ✅ CSS Compliance Guard added to CLAUDE.md
 
 ### Pending
 - [ ] CSS pixel migration (782 values in studio.css)
+- [ ] Inline style remediation (1,379 violations across 50+ files)
 - [ ] Bottom sheet component implementation
 - [ ] Mobile editor experience
 
@@ -159,6 +162,145 @@ On mobile (<768px), side panels become **bottom sheets**:
 - **Responsive Utils**: `workers/post-social-ui/src/styles/responsive.css`
 - **Full Plan**: `/Users/tem/.claude/plans/composed-percolating-cat.md`
 - **ChromaDB**: Query `responsive-design` or `mobile-first` tags
+
+---
+
+## 🚨 CSS COMPLIANCE GUARD (MANDATORY)
+
+**CRITICAL: Before writing ANY frontend code, read this section. Violations waste context and development time.**
+
+**APPLIES TO ALL PLATFORMS:**
+- `studio.humanizer.com` (Cloud Web Studio)
+- `post-social.com` (Cloud nodes + AI curators)
+- Electron Local Studio (Desktop app)
+- Any future humanizer frontend
+
+### Theme System Architecture
+
+The codebase uses a CSS variable-based theme system that MUST be respected:
+
+```css
+:root { /* Light theme - default */ }
+[data-theme='dark'] { /* Dark theme overrides */ }
+/* Future: [data-theme='sepia'], [data-theme='high-contrast'], etc. */
+```
+
+**WHY THIS MATTERS:** Hardcoded colors/values break theme switching. A single `color: #666` or `background: white` will render incorrectly in dark mode and any future themes.
+
+### Inline Styles Are FORBIDDEN
+
+**NEVER use `style={{}}` in React components with hardcoded values.** This is the single most common CSS violation.
+
+```jsx
+/* ❌ FORBIDDEN - hardcoded inline styles */
+<div style={{ padding: '12px', color: '#666', backgroundColor: 'white' }}>
+
+/* ✅ REQUIRED - use CSS classes */
+<div className="my-component__container">
+
+/* CSS file (index.css or component.css): */
+.my-component__container {
+  padding: var(--space-sm);
+  color: var(--text-secondary);
+  background-color: var(--bg-primary);
+}
+```
+
+### Only Allowed Inline Styles
+
+Inline styles are ONLY permitted for:
+1. **Dynamic calculated values** - `style={{ width: \`${percent}%\` }}`
+2. **Runtime transforms** - `style={{ transform: \`translateX(${x}px)\` }}`
+3. **Grid/flex spans** - `style={{ gridColumn: \`span ${cols}\` }}`
+
+**If it can be a CSS class, it MUST be a CSS class.**
+
+### Theme-Aware Color Rules
+
+**NEVER hardcode colors.** Always use CSS variables:
+
+```jsx
+/* ❌ BREAKS DARK MODE */
+color: '#666'
+color: 'white'
+backgroundColor: 'rgba(0, 0, 0, 0.5)'
+
+/* ✅ THEME-AWARE */
+color: var(--text-secondary)
+color: var(--text-inverse)
+backgroundColor: var(--bg-tertiary)
+```
+
+Available semantic color variables:
+| Purpose | Variable |
+|---------|----------|
+| Primary text | `--text-primary` |
+| Secondary text | `--text-secondary` |
+| Tertiary/muted | `--text-tertiary` |
+| Inverted text | `--text-inverse` |
+| Primary background | `--bg-primary` |
+| Secondary background | `--bg-secondary` |
+| Tertiary/hover | `--bg-tertiary` |
+| Elevated surfaces | `--bg-elevated` |
+| Panel backgrounds | `--bg-panel` |
+| Borders | `--border-color`, `--border-strong` |
+| Accent/brand | `--accent-primary`, `--accent-secondary` |
+| Status | `--success`, `--warning`, `--error` |
+
+### Pre-Development Checklist
+
+Before adding ANY styles to a component:
+
+| Step | Action |
+|------|--------|
+| 1 | Check if a class already exists in `index.css` |
+| 2 | If not, create a new class using BEM naming: `.component__element--modifier` |
+| 3 | Use ONLY CSS variables for values (spacing, colors, radii) |
+| 4 | Place the class in `src/index.css` under the appropriate section |
+| 5 | Never use hex colors, pixel values for spacing, or hardcoded font sizes |
+
+### Current Technical Debt
+
+As of Dec 8, 2025, there are **1,379 inline style violations** across 50+ files:
+
+| File | Violations | Priority |
+|------|------------|----------|
+| `MainWorkspace.tsx` | 119 | High |
+| `ArchivePanel.tsx` | 99 | High |
+| `BooksView.tsx` | 89 | Medium |
+| `ClusterBrowserView.tsx` | 69 | Medium |
+| `ImportsView.tsx` | 65 | Medium |
+| `FacebookFeedView.tsx` | 55 | Low |
+
+When touching these files for other work, opportunistically refactor inline styles to CSS classes.
+
+### How to Refactor Inline Styles
+
+1. **Identify the style pattern** - Is it static or dynamic?
+2. **Create a descriptive class** using BEM naming
+3. **Add the class to index.css** with CSS variables
+4. **Replace the inline style** with `className`
+5. **For dynamic values only**, keep a minimal inline style
+
+Example refactor:
+```jsx
+// Before
+<div style={{
+  padding: '16px',
+  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  color: '#fff'
+}}>
+
+// After - index.css
+.overlay-card {
+  padding: var(--space-md);
+  background-color: rgba(0, 0, 0, 0.5);
+  color: var(--text-inverse);
+}
+
+// After - component.tsx
+<div className="overlay-card">
+```
 
 ---
 

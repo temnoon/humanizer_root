@@ -344,15 +344,45 @@ GUIDELINES:
 /**
  * AI tell-words to explicitly forbid in output
  * The LLM sometimes reintroduces these if not explicitly told to avoid them
+ *
+ * SYNCHRONIZED with tell-words.ts detection dictionary (Dec 2025)
+ * Categories: Academic/Formal, Transitional, Chatbot, Structural
  */
 const FORBIDDEN_TELL_WORDS = [
-  'furthermore', 'moreover', 'consequently', 'additionally', 'subsequently',
-  'nevertheless', 'nonetheless', 'henceforth', 'whereby', 'thereof',
-  'delve', 'tapestry', 'landscape', 'robust', 'leverage', 'leveraging',
+  // Academic/Formal (weight 0.8)
+  'delve', 'delving', 'tapestry', 'landscape', 'robust', 'leverage', 'leveraging',
   'navigate', 'navigating', 'realm', 'holistic', 'paradigm', 'multifaceted',
   'nuanced', 'pivotal', 'crucial', 'vital', 'comprehensive', 'intricate',
+  'meticulously', 'underscores', 'quintessential', 'culminate', 'embark', 'endeavor',
+
+  // Transitional (weight 0.6)
+  'furthermore', 'moreover', 'consequently', 'additionally', 'subsequently',
+  'nevertheless', 'nonetheless', 'henceforth', 'whereby', 'thereof',
   "it's worth noting", "it is worth noting", "it's important to",
   "it is important to", "in today's", "in the modern", "needless to say",
+  "it goes without saying", "in light of", "with that said", "with this in mind",
+
+  // Chatbot Phrases (weight 0.9 - HIGHEST!)
+  'absolutely', 'great question', 'excellent question', "i'd be happy to",
+  'happy to help', "i'm happy to help", 'let me help you', 'allow me to',
+  "i'll walk you through", 'let me walk you through', 'let me explain',
+  'let me break this down', "here's what you need to know", "here's the thing",
+  'hope this helps', 'hope that helps', 'i hope this helps',
+  'let me know if you', 'feel free to ask', 'feel free to',
+  'if you have any questions', 'if you need anything else',
+  'is there anything else', 'anything else i can help',
+  "here's a breakdown", 'here are some', 'there are several',
+  'first and foremost', 'last but not least',
+  'in summary', 'to summarize', 'to recap', 'key takeaways',
+  "you're absolutely right", "that's correct", 'exactly right', 'precisely',
+  'spot on', 'excellent point', 'great point',
+
+  // Structural (weight 0.6)
+  'the following', 'as follows', 'listed below', 'outlined below',
+  'firstly', 'secondly', 'thirdly', 'lastly', 'in conclusion', 'to conclude',
+  'in closing', 'at the end of the day',
+
+  // Punctuation (weight 0.7)
   '—',  // em-dash - NEVER use (known AI tell)
   '–'   // en-dash - NEVER use (known AI tell)
 ];

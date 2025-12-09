@@ -8,6 +8,7 @@
  * - Unified buffer integration for content from Archive Panel
  */
 
+import { useEffect, useRef } from 'react';
 import { useToolTabs, ToolTabProvider, TOOL_REGISTRY } from '../../contexts/ToolTabContext';
 import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
 import { HorizontalToolTabs, ToolLabelBar } from './HorizontalToolTabs';
@@ -21,6 +22,7 @@ interface HighlightRange {
   start: number;
   end: number;
   reason: string;
+  type?: 'tellword' | 'suspect' | 'gptzero';
 }
 
 interface TabbedToolsPanelProps {
@@ -39,17 +41,39 @@ function TabbedToolsPanelInner({
   onApplyTransform,
   onHighlightText,
 }: TabbedToolsPanelProps) {
-  const { activeToolId, transformSource, setTransformSource, toolStates } = useToolTabs();
+  const { activeToolId, transformSource, setTransformSource, toolStates, updateToolState } = useToolTabs();
   const { workingBuffer, getTextContent, clearWorkingBuffer } = useUnifiedBuffer();
+
+  // Track previous content to detect changes
+  const prevContentRef = useRef<string>('');
+
+  // Get the original content (from buffer or prop)
+  const bufferText = workingBuffer ? getTextContent() : '';
+  const originalContent = bufferText || propContent;
+
+  // Reset to "original" when content changes
+  useEffect(() => {
+    // Only trigger on actual content changes, not initial mount
+    if (prevContentRef.current && prevContentRef.current !== originalContent) {
+      // Content has changed - reset transform source to 'original'
+      setTransformSource('original');
+
+      // Clear any cached analysis results so they refresh
+      updateToolState('ai-analysis', { lastResult: undefined });
+      updateToolState('humanizer', { lastResult: undefined });
+      updateToolState('persona', { lastResult: undefined });
+      updateToolState('style', { lastResult: undefined });
+      updateToolState('round-trip', { lastResult: undefined });
+    }
+    prevContentRef.current = originalContent;
+  }, [originalContent, setTransformSource, updateToolState]);
 
   if (!isOpen) return null;
 
   // Get the active tool metadata
   const activeTool = TOOL_REGISTRY.find(t => t.id === activeToolId);
 
-  // Get the original content (from buffer or prop)
-  const bufferText = workingBuffer ? getTextContent() : '';
-  const originalContent = bufferText || propContent;
+  // hasBufferContent is derived from workingBuffer (originalContent already computed above)
   const hasBufferContent = !!workingBuffer;
 
   // Get the active (transformed) content from last transformation result
