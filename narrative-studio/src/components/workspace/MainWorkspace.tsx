@@ -15,6 +15,7 @@ interface HighlightRange {
   start: number;
   end: number;
   reason: string;
+  type?: 'tellword' | 'suspect' | 'gptzero';
 }
 
 interface MainWorkspaceProps {
@@ -92,25 +93,61 @@ export function MainWorkspace({
   // Determine if we should use session-based rendering
   const useSessionRendering = hasSession && buffers.length > 0;
 
-  // Apply AI analysis highlights to text content
+  // HTML-escape a string to safely inject into innerHTML
+  const escapeHtml = (text: string): string => {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  };
+
+  // Apply AI analysis highlights to text content with type-based colors
+  // This function escapes HTML and wraps highlighted ranges in <mark> tags
   const applyAiHighlights = (content: string): string => {
     if (!aiAnalysisHighlights || aiAnalysisHighlights.length === 0) {
-      return content;
+      return escapeHtml(content);
     }
 
-    // Sort highlights by start position in reverse order to avoid index shifting
-    const sorted = [...aiAnalysisHighlights].sort((a, b) => b.start - a.start);
+    // Sort highlights by start position (ascending) to process left-to-right
+    const sorted = [...aiAnalysisHighlights]
+      .filter(h => h.start >= 0 && h.end <= content.length && h.start < h.end)
+      .sort((a, b) => a.start - b.start);
 
-    let result = content;
+    if (sorted.length === 0) {
+      return escapeHtml(content);
+    }
+
+    // Build result by processing content segments
+    const parts: string[] = [];
+    let lastEnd = 0;
+
     for (const highlight of sorted) {
-      if (highlight.start >= 0 && highlight.end <= content.length && highlight.start < highlight.end) {
-        const before = result.slice(0, highlight.start);
-        const highlighted = result.slice(highlight.start, highlight.end);
-        const after = result.slice(highlight.end);
-        result = `${before}<mark class="ai-analysis-highlight" title="${highlight.reason}">${highlighted}</mark>${after}`;
+      // Skip overlapping highlights (only process if start >= lastEnd)
+      if (highlight.start < lastEnd) continue;
+
+      // Add non-highlighted segment before this highlight (escaped)
+      if (highlight.start > lastEnd) {
+        parts.push(escapeHtml(content.slice(lastEnd, highlight.start)));
       }
+
+      // Add the highlighted segment with <mark> tag
+      const highlighted = content.slice(highlight.start, highlight.end);
+      const typeClass = highlight.type ? `ai-highlight-${highlight.type}` : 'ai-analysis-highlight';
+      const escapedHighlighted = escapeHtml(highlighted);
+      const escapedReason = escapeHtml(highlight.reason);
+      parts.push(`<mark class="${typeClass}" title="${escapedReason}">${escapedHighlighted}</mark>`);
+
+      lastEnd = highlight.end;
     }
-    return result;
+
+    // Add any remaining content after the last highlight (escaped)
+    if (lastEnd < content.length) {
+      parts.push(escapeHtml(content.slice(lastEnd)));
+    }
+
+    return parts.join('');
   };
 
   // Get current view mode (session or legacy)

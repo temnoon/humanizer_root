@@ -76,6 +76,7 @@ function AppContent() {
     start: number;
     end: number;
     reason: string;
+    type?: 'tellword' | 'suspect' | 'gptzero';
   }>>([]);
   const [useStudioTools, setUseStudioTools] = useState<boolean>(() => {
     const saved = localStorage.getItem('narrative-studio-use-studio-tools');
@@ -235,6 +236,8 @@ function AppContent() {
 
     setWorkspaceMode('single');
     setError(null);
+    // Clear AI analysis highlights when switching narratives - they're not valid for new content
+    setAiAnalysisHighlights([]);
   };
 
   const handleUpdateNarrative = async (content: string) => {

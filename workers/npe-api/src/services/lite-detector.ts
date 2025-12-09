@@ -470,8 +470,18 @@ export async function detectWithLiteMarkdown(
   // 5. Apply highlights to original markdown
   const highlightedMarkdown = applyHighlightsToMarkdown(markdownText, adjustedHighlights);
 
+  // 6. Convert adjusted highlights back to the full format with scores
+  // IMPORTANT: Return adjusted highlights (mapped to markdown positions) not original highlights
+  const adjustedHighlightsWithScores = adjustedHighlights.map((h, i) => ({
+    start: h.start,
+    end: h.end,
+    reason: h.reason,
+    score: result.highlights[i]?.score || 0
+  }));
+
   return {
     ...result,
+    highlights: adjustedHighlightsWithScores, // Override with markdown-adjusted positions
     highlightedMarkdown
   };
 }
