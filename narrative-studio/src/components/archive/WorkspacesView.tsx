@@ -15,6 +15,8 @@ import './WorkspacesView.css';
 const SOURCE_ICONS: Record<WorkspaceSource['type'], string> = {
   'archive-message': '💬',
   'book-passage': '📖',
+  'facebook-post': '📘',
+  'facebook-comment': '💬',
   'paste': '📋',
   'import': '📥',
   'blank': '📝',
@@ -164,6 +166,10 @@ export function WorkspacesView({ onSelectWorkspace }: WorkspacesViewProps) {
         return source.conversationTitle || 'Archive Message';
       case 'book-passage':
         return source.bookTitle || 'Book Passage';
+      case 'facebook-post':
+        return source.facebookTitle || source.facebookAuthor || 'Facebook Post';
+      case 'facebook-comment':
+        return source.facebookAuthor || 'Facebook Comment';
       case 'import':
         return source.fileName || 'Imported File';
       case 'paste':

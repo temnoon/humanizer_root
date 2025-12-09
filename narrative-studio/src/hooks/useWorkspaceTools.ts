@@ -265,6 +265,23 @@ function inferSourceFromUnifiedBuffer(
         conversationTitle: workingBuffer.displayName,
       };
 
+    case 'facebook-post':
+      return {
+        type: 'facebook-post',
+        facebookPostId: (metadata?.source as Record<string, unknown>)?.postId as string | undefined,
+        facebookAuthor: workingBuffer.displayName?.split(' - ')?.[0],
+        facebookTitle: workingBuffer.displayName,
+        facebookTimestamp: (metadata?.source as Record<string, unknown>)?.timestamp as number | undefined,
+      };
+
+    case 'facebook-comment':
+      return {
+        type: 'facebook-comment',
+        facebookPostId: (metadata?.source as Record<string, unknown>)?.parentPostId as string | undefined,
+        facebookAuthor: workingBuffer.displayName?.split(' - ')?.[0],
+        facebookTimestamp: (metadata?.source as Record<string, unknown>)?.timestamp as number | undefined,
+      };
+
     case 'text':
       if ((metadata?.source as Record<string, unknown>)?.fileName) {
         return {

@@ -8,9 +8,9 @@
  * - Click to select, Shift+click for compare
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useWorkspaceOptional } from '../../contexts/WorkspaceContext';
-import type { BufferNode } from '../../types/workspace';
+import type { BufferNode, Buffer } from '../../types/workspace';
 import './BufferTreeView.css';
 
 // Transform type icons
@@ -48,6 +48,25 @@ export function BufferTreeView({
   const bufferTree = workspaceContext?.getBufferTree();
   const activeWorkspace = workspaceContext?.getActiveWorkspace();
 
+  // Track workspace ID to detect when a new workspace is created
+  const previousWorkspaceIdRef = useRef<string | null>(null);
+  const [isNewWorkspace, setIsNewWorkspace] = useState(false);
+
+  // Detect new workspace creation and flash the tree
+  useEffect(() => {
+    const currentId = activeWorkspace?.id ?? null;
+    const previousId = previousWorkspaceIdRef.current;
+
+    if (currentId && currentId !== previousId) {
+      // New workspace detected
+      setIsNewWorkspace(true);
+      const timer = setTimeout(() => setIsNewWorkspace(false), 1500);
+      return () => clearTimeout(timer);
+    }
+
+    previousWorkspaceIdRef.current = currentId;
+  }, [activeWorkspace?.id]);
+
   // Toggle node expansion
   const toggleExpanded = useCallback((bufferId: string) => {
     setExpandedNodes(prev => {
@@ -81,6 +100,55 @@ export function BufferTreeView({
     event.stopPropagation();
     workspaceContext?.toggleBufferStar(bufferId);
   }, [workspaceContext]);
+
+  // Navigation: get active buffer's parent and most recent child
+  const navigationState = useMemo(() => {
+    if (!workspaceContext || !activeWorkspace) {
+      return { canGoBack: false, canGoForward: false, parentId: null, childId: null };
+    }
+
+    const activeBuffer = workspaceContext.getActiveBuffer();
+    if (!activeBuffer) {
+      return { canGoBack: false, canGoForward: false, parentId: null, childId: null };
+    }
+
+    const canGoBack = activeBuffer.parentId !== null;
+    const parentId = activeBuffer.parentId;
+
+    // Find the most recent child (by creation date)
+    let mostRecentChild: Buffer | null = null;
+    if (activeBuffer.childIds.length > 0) {
+      for (const childId of activeBuffer.childIds) {
+        const child = activeWorkspace.buffers[childId];
+        if (child && (!mostRecentChild || child.createdAt > mostRecentChild.createdAt)) {
+          mostRecentChild = child;
+        }
+      }
+    }
+
+    return {
+      canGoBack,
+      canGoForward: mostRecentChild !== null,
+      parentId,
+      childId: mostRecentChild?.id ?? null,
+    };
+  }, [workspaceContext, activeWorkspace]);
+
+  // Handle back navigation (go to parent)
+  const handleBack = useCallback(() => {
+    if (navigationState.parentId && workspaceContext) {
+      workspaceContext.setActiveBuffer(navigationState.parentId);
+      onBufferSelect?.(navigationState.parentId);
+    }
+  }, [navigationState.parentId, workspaceContext, onBufferSelect]);
+
+  // Handle forward navigation (go to most recent child)
+  const handleForward = useCallback(() => {
+    if (navigationState.childId && workspaceContext) {
+      workspaceContext.setActiveBuffer(navigationState.childId);
+      onBufferSelect?.(navigationState.childId);
+    }
+  }, [navigationState.childId, workspaceContext, onBufferSelect]);
 
   // No workspace context or no tree
   if (!workspaceContext || !bufferTree || !activeWorkspace) {
@@ -216,8 +284,13 @@ export function BufferTreeView({
     );
   };
 
+  const treeClasses = [
+    'buffer-tree',
+    isNewWorkspace && 'buffer-tree--new',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className="buffer-tree" role="tree" aria-label="Buffer tree">
+    <div className={treeClasses} role="tree" aria-label="Buffer tree">
       {/* Header */}
       {collapsible && (
         <button
@@ -237,6 +310,33 @@ export function BufferTreeView({
         </button>
       )}
 
+      {/* Navigation bar */}
+      {!isCollapsed && (
+        <div className="buffer-tree__nav">
+          <button
+            className="buffer-tree__nav-btn"
+            onClick={handleBack}
+            disabled={!navigationState.canGoBack}
+            title="Go to parent version"
+            aria-label="Back to parent"
+          >
+            ←
+          </button>
+          <button
+            className="buffer-tree__nav-btn"
+            onClick={handleForward}
+            disabled={!navigationState.canGoForward}
+            title="Go to latest child version"
+            aria-label="Forward to child"
+          >
+            →
+          </button>
+          <span className="buffer-tree__nav-label">
+            {workspaceContext?.getActiveBuffer()?.displayName || 'Buffer'}
+          </span>
+        </div>
+      )}
+
       {/* Tree content */}
       {!isCollapsed && (
         <div className="buffer-tree__content">
@@ -244,7 +344,7 @@ export function BufferTreeView({
 
           {/* Help text */}
           <div className="buffer-tree__help">
-            Click to select · Shift+click to compare
+            Click to select · Shift+click to compare · ←/→ to navigate
           </div>
         </div>
       )}

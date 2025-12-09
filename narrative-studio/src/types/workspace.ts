@@ -34,7 +34,7 @@ export interface Workspace {
  * Used for navigation back to source and for display context.
  */
 export interface WorkspaceSource {
-  type: 'archive-message' | 'book-passage' | 'paste' | 'import' | 'blank';
+  type: 'archive-message' | 'book-passage' | 'facebook-post' | 'facebook-comment' | 'paste' | 'import' | 'blank';
 
   // Archive message source
   archiveName?: string;
@@ -47,6 +47,12 @@ export interface WorkspaceSource {
   bookTitle?: string;
   chapterId?: string;
   passageId?: string;
+
+  // Facebook source
+  facebookPostId?: string;
+  facebookAuthor?: string;
+  facebookTimestamp?: number;
+  facebookTitle?: string;       // Post preview text
 
   // Import source
   fileName?: string;
