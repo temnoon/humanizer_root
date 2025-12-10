@@ -846,7 +846,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     ...(activeBook ? [{ id: 'thisbook', icon: '📖', title: `This Book - "${activeBook.title}"` }] : []),
     { id: 'workspaces', icon: '📂', title: 'Workspaces' },
     { id: 'gallery', icon: '🖼️', title: 'Gallery' },
-    { id: 'imports', icon: '📥', title: 'Imports' },
+    { id: 'imports', icon: '⬇️', title: 'Imports' },
     { id: 'explore', icon: '🧭', title: 'Explore' },
     { id: 'facebook', icon: '📘', title: 'Facebook' },
     { id: 'books', icon: '📚', title: 'Books' },

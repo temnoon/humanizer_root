@@ -67,7 +67,7 @@ export const TOOL_REGISTRY: ToolMeta[] = [
   },
   {
     id: 'export',
-    icon: '📤',
+    icon: '⬆️',
     label: 'Export',
     shortLabel: 'Export',
     description: 'Export buffers as text, markdown, or JSON',
