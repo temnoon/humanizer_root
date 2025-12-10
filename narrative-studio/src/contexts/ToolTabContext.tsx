@@ -15,6 +15,7 @@ export type ToolId =
   | 'persona'          // Persona Transformation
   | 'style'            // Style Transformation
   | 'round-trip'       // Round-Trip Translation
+  | 'export'           // Export workspace buffers
   | 'profile-factory'  // Create custom profiles from sample text
   | 'add-to-book'      // Add to Book
   | 'admin-profiles';  // Admin: Manage global profiles (admin only)
@@ -63,6 +64,13 @@ export const TOOL_REGISTRY: ToolMeta[] = [
     label: 'Round-Trip',
     shortLabel: 'Trip',
     description: 'Translate through intermediate language',
+  },
+  {
+    id: 'export',
+    icon: '📤',
+    label: 'Export',
+    shortLabel: 'Export',
+    description: 'Export buffers as text, markdown, or JSON',
   },
   {
     id: 'profile-factory',
@@ -119,6 +127,14 @@ export interface RoundTripState {
   lastResult?: any;
 }
 
+// State for Export tool
+export interface ExportState {
+  format: 'plain' | 'markdown' | 'json' | 'diff';
+  scope: 'active' | 'compare' | 'chain' | 'starred';
+  includeMetadata: boolean;
+  includeTimestamps: boolean;
+}
+
 // State for Add to Book tool
 export interface AddToBookState {
   selectedChapterId: string | null;
@@ -142,6 +158,7 @@ export interface ToolStates {
   'persona': PersonaState;
   'style': StyleState;
   'round-trip': RoundTripState;
+  'export': ExportState;
   'profile-factory': ProfileFactoryState;
   'add-to-book': AddToBookState;
   'admin-profiles': AdminProfilesState;
@@ -165,6 +182,12 @@ const defaultToolStates: ToolStates = {
   },
   'round-trip': {
     intermediateLanguage: 'spanish',
+  },
+  'export': {
+    format: 'markdown',
+    scope: 'active',
+    includeMetadata: true,
+    includeTimestamps: false,
   },
   'profile-factory': {
     step: 'input',

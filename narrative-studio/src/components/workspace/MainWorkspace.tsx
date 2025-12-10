@@ -5,7 +5,6 @@ import { MarkdownEditor } from '../markdown/MarkdownEditor';
 import { Icons } from '../layout/Icons';
 import { stripMarkdown } from '../../services/transformationService';
 import { useSession } from '../../contexts/SessionContext';
-import { useWorkspaceOptional } from '../../contexts/WorkspaceContext';
 import { BufferTabs } from './BufferTabs';
 import { BufferSelector } from './BufferSelector';
 import { ViewModeToggle } from './ViewModeToggle';
@@ -13,12 +12,10 @@ import { BUFFER_IDS } from '../../config/buffer-constants';
 import { VIEW_MODES, DEFAULT_VIEW_MODE } from '../../config/view-modes';
 import { STORAGE_PATHS } from '../../config/storage-paths';
 
-interface HighlightRange {
-  start: number;
-  end: number;
-  reason: string;
-  type?: 'tellword' | 'suspect' | 'gptzero';
-}
+// New extracted components and hooks
+import { useWorkspaceState } from './hooks/useWorkspaceState';
+import { WorkspaceCompareView } from './WorkspaceCompareView';
+import type { HighlightRange } from './WorkspaceContentPane';
 
 interface MainWorkspaceProps {
   narrative: Narrative | null;
@@ -41,7 +38,7 @@ export function MainWorkspace({
   onTextSelection,
   aiAnalysisHighlights = [],
 }: MainWorkspaceProps) {
-  // Session context for buffer-based workflow
+  // Session context for buffer-based workflow (legacy)
   const {
     buffers,
     activeBufferId,
@@ -54,16 +51,19 @@ export function MainWorkspace({
     loadSession
   } = useSession();
 
-  // Workspace context for new buffer tree system
-  const workspaceContext = useWorkspaceOptional();
-  const hasWorkspace = !!(workspaceContext?.activeWorkspaceId);
-  const activeWorkspace = workspaceContext?.getActiveWorkspace();
-  const workspaceActiveBuffer = workspaceContext?.getActiveBuffer();
-  const workspaceCompareBuffer = workspaceContext?.getCompareBuffer();
-  const bufferTree = workspaceContext?.getBufferTree();
-
-  // Workspace comparison mode state
-  const [workspaceCompareMode, setWorkspaceCompareMode] = useState(true);
+  // NEW: Use extracted workspace state hook (with debugging enabled)
+  const {
+    hasWorkspace,
+    activeWorkspace,
+    workspaceActiveBuffer,
+    workspaceCompareBuffer,
+    bufferTree,
+    workspaceContent,
+    workspaceCompareMode,
+    handleToggleCompareMode,
+    handleWorkspaceBufferSelect,
+    workspaceContext,
+  } = useWorkspaceState({ debug: true });
 
   // Local state (legacy for non-session workflow)
   const [originalViewMode, setOriginalViewMode] = useState<ViewMode>('rendered');
@@ -105,63 +105,6 @@ export function MainWorkspace({
 
   // Determine if we should use session-based rendering
   const useSessionRendering = hasSession && buffers.length > 0;
-
-  // HTML-escape a string to safely inject into innerHTML
-  const escapeHtml = (text: string): string => {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  };
-
-  // Apply AI analysis highlights to text content with type-based colors
-  // This function escapes HTML and wraps highlighted ranges in <mark> tags
-  const applyAiHighlights = (content: string): string => {
-    if (!aiAnalysisHighlights || aiAnalysisHighlights.length === 0) {
-      return escapeHtml(content);
-    }
-
-    // Sort highlights by start position (ascending) to process left-to-right
-    const sorted = [...aiAnalysisHighlights]
-      .filter(h => h.start >= 0 && h.end <= content.length && h.start < h.end)
-      .sort((a, b) => a.start - b.start);
-
-    if (sorted.length === 0) {
-      return escapeHtml(content);
-    }
-
-    // Build result by processing content segments
-    const parts: string[] = [];
-    let lastEnd = 0;
-
-    for (const highlight of sorted) {
-      // Skip overlapping highlights (only process if start >= lastEnd)
-      if (highlight.start < lastEnd) continue;
-
-      // Add non-highlighted segment before this highlight (escaped)
-      if (highlight.start > lastEnd) {
-        parts.push(escapeHtml(content.slice(lastEnd, highlight.start)));
-      }
-
-      // Add the highlighted segment with <mark> tag
-      const highlighted = content.slice(highlight.start, highlight.end);
-      const typeClass = highlight.type ? `ai-highlight-${highlight.type}` : 'ai-analysis-highlight';
-      const escapedHighlighted = escapeHtml(highlighted);
-      const escapedReason = escapeHtml(highlight.reason);
-      parts.push(`<mark class="${typeClass}" title="${escapedReason}">${escapedHighlighted}</mark>`);
-
-      lastEnd = highlight.end;
-    }
-
-    // Add any remaining content after the last highlight (escaped)
-    if (lastEnd < content.length) {
-      parts.push(escapeHtml(content.slice(lastEnd)));
-    }
-
-    return parts.join('');
-  };
 
   // Get current view mode (session or legacy)
   const currentViewMode = useSessionRendering && currentSession
@@ -224,47 +167,7 @@ export function MainWorkspace({
 
   const displayContent = getDisplayContent();
 
-  // Workspace buffer content for comparison view
-  const workspaceContent = useMemo(() => {
-    if (!hasWorkspace) {
-      return { left: null, right: null, leftWordCount: 0, rightWordCount: 0, aiScoreDelta: null };
-    }
-
-    const leftContent = workspaceCompareBuffer?.content || '';
-    const rightContent = workspaceActiveBuffer?.content || '';
-
-    const countWords = (text: string) => text.split(/\s+/).filter(Boolean).length;
-    const leftWordCount = countWords(leftContent);
-    const rightWordCount = countWords(rightContent);
-
-    // Calculate AI score delta if both buffers have analysis
-    let aiScoreDelta: number | null = null;
-    const leftScore = workspaceCompareBuffer?.analysis?.aiScore;
-    const rightScore = workspaceActiveBuffer?.analysis?.aiScore;
-    if (leftScore !== undefined && rightScore !== undefined) {
-      aiScoreDelta = rightScore - leftScore;
-    }
-
-    return {
-      left: leftContent,
-      right: rightContent,
-      leftWordCount,
-      rightWordCount,
-      aiScoreDelta,
-    };
-  }, [hasWorkspace, workspaceCompareBuffer, workspaceActiveBuffer]);
-
-  // Handle workspace buffer selection
-  const handleWorkspaceBufferSelect = (bufferId: string, isCompare: boolean) => {
-    if (!workspaceContext) return;
-    if (isCompare) {
-      workspaceContext.setCompareBuffer(bufferId || undefined);
-    } else {
-      if (bufferId) {
-        workspaceContext.setActiveBuffer(bufferId);
-      }
-    }
-  };
+  // workspaceContent and handleWorkspaceBufferSelect are now provided by useWorkspaceState hook
 
   // Handle text editing with session-aware edit tracking
   const handleContentChange = (newContent: string) => {
@@ -371,7 +274,7 @@ export function MainWorkspace({
             )}
             <button
               className={`workspace-buffer-toolbar__toggle ${!workspaceCompareMode ? 'workspace-buffer-toolbar__toggle--active' : ''}`}
-              onClick={() => setWorkspaceCompareMode(!workspaceCompareMode)}
+              onClick={handleToggleCompareMode}
               title={workspaceCompareMode ? 'Show single pane' : 'Show comparison'}
             >
               {workspaceCompareMode ? '◧' : '▣'}
@@ -465,7 +368,10 @@ export function MainWorkspace({
                     </div>
                   </div>
                   <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
-                    <MarkdownRenderer content={workspaceContent.left || ''} />
+                    <MarkdownRenderer
+                      content={workspaceContent.left || ''}
+                      highlights={workspaceCompareBuffer?.analysis?.highlights}
+                    />
                   </div>
                 </div>
               </div>
@@ -511,7 +417,13 @@ export function MainWorkspace({
                     </div>
                   </div>
                   <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
-                    <MarkdownRenderer content={workspaceContent.right || ''} />
+                    {/* Use MarkdownRenderer with optional highlights prop for proper rendering */}
+                    <MarkdownRenderer
+                      content={workspaceContent.right || ''}
+                      highlights={aiAnalysisHighlights.length > 0
+                        ? aiAnalysisHighlights
+                        : workspaceActiveBuffer?.analysis?.highlights}
+                    />
                   </div>
                 </div>
               </div>
@@ -559,7 +471,13 @@ export function MainWorkspace({
                     </div>
                   </div>
                   <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
-                    <MarkdownRenderer content={workspaceContent.right || ''} />
+                    {/* Use MarkdownRenderer with optional highlights prop for proper rendering */}
+                    <MarkdownRenderer
+                      content={workspaceContent.right || ''}
+                      highlights={aiAnalysisHighlights.length > 0
+                        ? aiAnalysisHighlights
+                        : workspaceActiveBuffer?.analysis?.highlights}
+                    />
                   </div>
                 </div>
               </div>
@@ -660,7 +578,264 @@ export function MainWorkspace({
       `${STORAGE_PATHS.archiveServerUrl}${narrative.metadata.mediaBaseUrl}` : undefined,
   } : {};
 
-  // Single pane mode
+  // When workspace is active WITH a narrative, use workspace comparison view
+  // This takes priority over the legacy single/split mode
+  if (hasWorkspace && workspaceActiveBuffer && narrative) {
+    return (
+      <main
+        className="flex-1 flex flex-col"
+        style={{
+          backgroundColor: 'var(--bg-primary)',
+          minHeight: 0,
+        }}
+      >
+        {/* Workspace Buffer Comparison Toolbar */}
+        <div className="workspace-buffer-toolbar">
+          <div className="workspace-buffer-toolbar__left">
+            <BufferSelector
+              label="Compare"
+              selectedBuffer={workspaceCompareBuffer || null}
+              bufferTree={bufferTree || null}
+              onSelect={(id) => handleWorkspaceBufferSelect(id, true)}
+              excludeId={workspaceActiveBuffer.id}
+              allowClear={true}
+              placeholder="Select to compare..."
+            />
+            {workspaceCompareBuffer && (
+              <span className="workspace-buffer-toolbar__stats">
+                {workspaceContent.leftWordCount.toLocaleString()} words
+                {workspaceCompareBuffer.analysis?.aiScore !== undefined && (
+                  <span className={`workspace-buffer-toolbar__score ${
+                    workspaceCompareBuffer.analysis.aiScore <= 30 ? 'workspace-buffer-toolbar__score--good' :
+                    workspaceCompareBuffer.analysis.aiScore <= 60 ? 'workspace-buffer-toolbar__score--warning' :
+                    'workspace-buffer-toolbar__score--high'
+                  }`}>
+                    {Math.round(workspaceCompareBuffer.analysis.aiScore)}% AI
+                  </span>
+                )}
+              </span>
+            )}
+          </div>
+
+          <div className="workspace-buffer-toolbar__center">
+            {workspaceContent.aiScoreDelta !== null && (
+              <span className={`workspace-buffer-toolbar__delta ${
+                workspaceContent.aiScoreDelta < 0 ? 'workspace-buffer-toolbar__delta--good' :
+                workspaceContent.aiScoreDelta > 0 ? 'workspace-buffer-toolbar__delta--bad' : ''
+              }`}>
+                {workspaceContent.aiScoreDelta > 0 ? '+' : ''}{workspaceContent.aiScoreDelta.toFixed(1)}% AI
+              </span>
+            )}
+            <button
+              className={`workspace-buffer-toolbar__toggle ${!workspaceCompareMode ? 'workspace-buffer-toolbar__toggle--active' : ''}`}
+              onClick={handleToggleCompareMode}
+              title={workspaceCompareMode ? 'Show single pane' : 'Show comparison'}
+            >
+              {workspaceCompareMode ? '◧' : '▣'}
+            </button>
+          </div>
+
+          <div className="workspace-buffer-toolbar__right">
+            <BufferSelector
+              label="Active"
+              selectedBuffer={workspaceActiveBuffer}
+              bufferTree={bufferTree || null}
+              onSelect={(id) => handleWorkspaceBufferSelect(id, false)}
+              excludeId={workspaceCompareBuffer?.id}
+            />
+            <span className="workspace-buffer-toolbar__stats">
+              {workspaceContent.rightWordCount.toLocaleString()} words
+              {workspaceActiveBuffer.analysis?.aiScore !== undefined && (
+                <span className={`workspace-buffer-toolbar__score ${
+                  workspaceActiveBuffer.analysis.aiScore <= 30 ? 'workspace-buffer-toolbar__score--good' :
+                  workspaceActiveBuffer.analysis.aiScore <= 60 ? 'workspace-buffer-toolbar__score--warning' :
+                  'workspace-buffer-toolbar__score--high'
+                }`}>
+                  {Math.round(workspaceActiveBuffer.analysis.aiScore)}% AI
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+
+        {/* Workspace name header */}
+        <div className="flex justify-center w-full">
+          <div
+            className="mx-6 mt-4 mb-2 p-3 rounded-lg w-full max-w-5xl"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+            }}
+          >
+            <h1 className="heading-lg" style={{ color: 'var(--text-primary)' }}>
+              {narrative.title}
+            </h1>
+            <div className="flex items-center gap-4 text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+              <span>{Object.keys(activeWorkspace?.buffers || {}).length} versions</span>
+              <span>•</span>
+              <span>{workspaceActiveBuffer.displayName}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Workspace Buffer Content */}
+        {workspaceCompareMode && workspaceCompareBuffer ? (
+          /* Side-by-side workspace comparison */
+          <div className="flex-1 flex flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
+            {/* Left pane: Compare buffer */}
+            <div
+              ref={leftPaneRef}
+              className="flex-1 md:border-r flex flex-col"
+              style={{
+                borderColor: 'var(--border-color)',
+                minHeight: 0,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  width: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <div className="w-full max-w-4xl" style={{ padding: 'var(--space-lg)', margin: '0 auto' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                      {workspaceCompareBuffer.displayName || 'Compare'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.left || '', 'plain')}
+                        title="Copy as plain text"
+                      >
+                        <Icons.Copy /> Text
+                      </button>
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.left || '', 'markdown')}
+                        title="Copy as markdown"
+                      >
+                        <Icons.Code /> MD
+                      </button>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <MarkdownRenderer content={workspaceContent.left || ''} {...mediaProps} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right pane: Active buffer */}
+            <div
+              ref={rightPaneRef}
+              className="flex-1 flex flex-col"
+              style={{
+                backgroundColor: 'var(--bg-secondary)',
+                minHeight: 0,
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  width: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <div className="w-full max-w-4xl" style={{ padding: 'var(--space-lg)', margin: '0 auto' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                      {workspaceActiveBuffer.displayName || 'Active'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'plain')}
+                        title="Copy as plain text"
+                      >
+                        <Icons.Copy /> Text
+                      </button>
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'markdown')}
+                        title="Copy as markdown"
+                      >
+                        <Icons.Code /> MD
+                      </button>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <MarkdownRenderer content={workspaceContent.right || ''} {...mediaProps} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Single pane: Active buffer only */
+          <div className="flex-1 flex" style={{ minHeight: 0, overflow: 'hidden' }}>
+            <div
+              ref={singlePaneRef}
+              className="flex-1 flex flex-col"
+              style={{
+                minHeight: 0,
+                overflow: 'hidden',
+                backgroundColor: 'var(--bg-secondary)',
+              }}
+            >
+              <div
+                className="flex-1 overflow-y-auto"
+                style={{
+                  width: '100%',
+                  minHeight: 0,
+                }}
+              >
+                <div className="w-full max-w-4xl" style={{ padding: 'var(--space-lg)', margin: '0 auto' }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                      {workspaceActiveBuffer.displayName || 'Active Buffer'}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'plain')}
+                        title="Copy as plain text"
+                      >
+                        <Icons.Copy /> Text
+                      </button>
+                      <button
+                        className="copy-button"
+                        onClick={() => copyToClipboard(workspaceContent.right || '', 'markdown')}
+                        title="Copy as markdown"
+                      >
+                        <Icons.Code /> MD
+                      </button>
+                    </div>
+                  </div>
+                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                    <MarkdownRenderer content={workspaceContent.right || ''} {...mediaProps} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Toast notification */}
+        {toastMessage && (
+          <div className="toast">
+            <Icons.Check />
+            {toastMessage}
+          </div>
+        )}
+      </main>
+    );
+  }
+
+  // Single pane mode (legacy - no workspace)
   if (mode === 'single' || !transformResult) {
     return (
       <main
@@ -973,17 +1148,14 @@ export function MainWorkspace({
                 </div>
               )}
 
-              {/* Content - Normal view without AI detection */}
+              {/* Content - Normal view with optional AI highlights */}
               <div onMouseUp={handleTextSelection}>
                 {originalViewMode === 'rendered' ? (
-                  aiAnalysisHighlights.length > 0 ? (
-                    // AI Analysis highlights are active - show with highlights
-                    <div className="ai-analysis-highlighted-text prose max-w-none" style={{ color: 'var(--text-primary)' }}>
-                      <div dangerouslySetInnerHTML={{ __html: applyAiHighlights(narrative.content) }} />
-                    </div>
-                  ) : (
-                    <MarkdownRenderer content={narrative.content} {...mediaProps} />
-                  )
+                  <MarkdownRenderer
+                    content={narrative.content}
+                    {...mediaProps}
+                    highlights={aiAnalysisHighlights.length > 0 ? aiAnalysisHighlights : undefined}
+                  />
                 ) : (
                   <MarkdownEditor
                     content={editedContent}
@@ -1066,7 +1238,7 @@ export function MainWorkspace({
             )}
             <button
               className={`workspace-buffer-toolbar__toggle ${!workspaceCompareMode ? 'workspace-buffer-toolbar__toggle--active' : ''}`}
-              onClick={() => setWorkspaceCompareMode(!workspaceCompareMode)}
+              onClick={handleToggleCompareMode}
               title={workspaceCompareMode ? 'Show single pane' : 'Show comparison'}
             >
               {workspaceCompareMode ? '◧' : '▣'}

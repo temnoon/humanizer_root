@@ -1778,3 +1778,78 @@ samp,
   color: var(--text-on-primary);
   border-color: var(--accent-primary);
 }
+
+/* ============================================================
+   TOOLS PANEL - Streamlined Buffer Controls
+   ============================================================ */
+
+.tools-panel__buffer-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-md);
+  background: var(--accent-primary);
+  background-image: var(--accent-primary-gradient);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tools-panel__buffer-icon {
+  font-size: 0.875rem;
+}
+
+.tools-panel__buffer-name {
+  flex: 1;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-inverse);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tools-panel__buffer-stats {
+  font-size: 0.625rem;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.tools-panel__buffer-clear {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-inverse);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tools-panel__buffer-clear:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.tools-panel__source-selector {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.tools-panel__source-select {
+  width: 100%;
+  padding: 4px 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+
+.tools-panel__source-select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}

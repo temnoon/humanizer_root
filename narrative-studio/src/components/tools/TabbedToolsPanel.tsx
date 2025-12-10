@@ -15,6 +15,7 @@ import { useWorkspaceOptional } from '../../contexts/WorkspaceContext';
 import { HorizontalToolTabs, ToolLabelBar } from './HorizontalToolTabs';
 import { AIAnalysisPane } from './AIAnalysisPane';
 import { HumanizerPane, PersonaPane, StylePane, RoundTripPane, AddToBookPane } from './ToolPanes';
+import { ExportPane } from './ExportPane';
 import { ProfileFactoryPane } from './ProfileFactoryPane';
 import { AdminProfilesPane } from './AdminProfilesPane';
 import { BufferTreeView } from './BufferTreeView';
@@ -175,139 +176,44 @@ function TabbedToolsPanelInner({
         {/* Tool Label Bar */}
         <ToolLabelBar />
 
-        {/* Workspace Indicator - shows when a workspace is active */}
-        {hasWorkspaceContent && activeWorkspace && activeBuffer && (
-          <div
-            style={{
-              padding: 'var(--space-sm) var(--space-md)',
-              borderBottom: '1px solid var(--border-color)',
-              backgroundColor: 'var(--success)',
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-sm)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: '1rem' }}>📂</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    color: 'var(--text-inverse)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}>
-                    {activeWorkspace.name}
-                  </div>
-                  <div style={{
-                    fontSize: '0.625rem',
-                    color: 'rgba(255, 255, 255, 0.75)',
-                  }}>
-                    Buffer: {activeBuffer.displayName} · {Object.keys(activeWorkspace.buffers).length} versions
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Buffer Indicator - shows when content is loaded from Archive (but no workspace) */}
-        {!hasWorkspaceContent && hasBufferContent && workingBuffer && (
-          <div
-            style={{
-              padding: 'var(--space-sm) var(--space-md)',
-              borderBottom: '1px solid var(--border-color)',
-              backgroundColor: 'var(--accent-primary)',
-              backgroundImage: 'var(--accent-primary-gradient)',
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--space-sm)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-xs)', flex: 1, minWidth: 0 }}>
-                <span style={{ fontSize: '1rem' }}>
-                  {getContentTypeIcon(workingBuffer.contentType)}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    color: 'var(--text-inverse)',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}>
-                    {workingBuffer.displayName}
-                  </div>
-                  <div style={{
-                    fontSize: '0.625rem',
-                    color: 'rgba(255, 255, 255, 0.75)',
-                  }}>
-                    {getContentTypeLabel(workingBuffer.contentType)} · {effectiveContent.split(/\s+/).filter(Boolean).length} words
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={clearWorkingBuffer}
-                title="Clear buffer"
-                style={{
-                  padding: '4px 8px',
-                  fontSize: '0.625rem',
-                  fontWeight: 600,
-                  borderRadius: '4px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  color: 'var(--text-inverse)',
-                }}
-              >
-                Clear
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Buffer Tree - shown when workspace is active */}
+        {/* Buffer Tree - shown when workspace is active (streamlined) */}
         {hasWorkspaceContent && (
-          <BufferTreeView collapsible={true} defaultCollapsed={false} />
+          <BufferTreeView collapsible={true} defaultCollapsed={true} />
         )}
 
-        {/* Transform Source Selector - shown when no workspace (legacy mode) */}
-        {!hasWorkspaceContent && (
-          <div
-            style={{
-              padding: 'var(--space-sm) var(--space-md)',
-              borderBottom: '1px solid var(--border-color)',
-              backgroundColor: 'var(--bg-secondary)',
-              flexShrink: 0,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
-              <span style={{ fontSize: '0.625rem', color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
-                Source:
-              </span>
-              <select
-                value={transformSource}
-                onChange={(e) => setTransformSource(e.target.value as 'original' | 'active')}
-                style={{
-                  flex: 1,
-                  padding: '4px 8px',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  color: 'var(--text-primary)',
-                  fontSize: '0.75rem',
-                }}
-              >
-                <option value="original">Original text</option>
-                <option value="active" disabled={!lastTransformed}>
-                  {lastTransformed ? 'Last transformed (chain)' : 'Last transformed (none yet)'}
-                </option>
-              </select>
-            </div>
-            {/* Show current content source and word count */}
-            <div style={{ fontSize: '0.625rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-              Using: {transformSource === 'active' && lastTransformed ? 'transformed' : 'original'} · {effectiveContent.split(/\s+/).filter(Boolean).length} words
-            </div>
+        {/* Buffer Indicator - shows when content is loaded but no workspace */}
+        {!hasWorkspaceContent && hasBufferContent && workingBuffer && (
+          <div className="tools-panel__buffer-indicator">
+            <span className="tools-panel__buffer-icon">
+              {getContentTypeIcon(workingBuffer.contentType)}
+            </span>
+            <span className="tools-panel__buffer-name">
+              {workingBuffer.displayName}
+            </span>
+            <span className="tools-panel__buffer-stats">
+              {effectiveContent.split(/\s+/).filter(Boolean).length} words
+            </span>
+            <button
+              onClick={clearWorkingBuffer}
+              className="tools-panel__buffer-clear"
+              title="Clear buffer"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* Source selector - only when no workspace and chaining is relevant */}
+        {!hasWorkspaceContent && lastTransformed && (
+          <div className="tools-panel__source-selector">
+            <select
+              value={transformSource}
+              onChange={(e) => setTransformSource(e.target.value as 'original' | 'active')}
+              className="tools-panel__source-select"
+            >
+              <option value="original">From: Original</option>
+              <option value="active">From: Last transform</option>
+            </select>
           </div>
         )}
 
@@ -332,6 +238,9 @@ function TabbedToolsPanelInner({
           )}
           {activeToolId === 'round-trip' && (
             <RoundTripPane content={effectiveContent} onApplyTransform={onApplyTransform} />
+          )}
+          {activeToolId === 'export' && (
+            <ExportPane content={effectiveContent} />
           )}
           {activeToolId === 'profile-factory' && (
             <ProfileFactoryPane content={effectiveContent} />

@@ -34,6 +34,9 @@ interface TransformationRecord {
   };
 }
 
+// Import the Workspace type for the return type of ensureWorkspace
+import type { Workspace } from '../types/workspace';
+
 interface AnalysisRecord {
   aiScore?: number;
   aiVerdict?: 'human' | 'mixed' | 'ai';
@@ -91,27 +94,55 @@ export function useWorkspaceTools(options: UseWorkspaceToolsOptions = {}) {
   /**
    * Ensure a workspace exists for the current content.
    * Creates one if needed using the unified buffer as source.
+   * Returns the full workspace object (new or existing) so it can be used immediately
+   * without waiting for state updates.
    */
-  const ensureWorkspace = useCallback((content: string): void => {
-    if (!workspaceContext) return;
+  const ensureWorkspace = useCallback((content: string): Workspace | null => {
+    if (!workspaceContext) {
+      console.log('[useWorkspaceTools.ensureWorkspace] No workspace context');
+      return null;
+    }
 
-    // Already have an active workspace
-    if (hasActiveWorkspace) return;
+    // Check activeWorkspaceId DIRECTLY from context to avoid stale closure
+    const currentActiveId = workspaceContext.activeWorkspaceId;
+    console.log('[useWorkspaceTools.ensureWorkspace] currentActiveId:', currentActiveId);
+
+    // Already have an active workspace - return it directly
+    if (currentActiveId) {
+      const existing = workspaceContext.getActiveWorkspace();
+      console.log('[useWorkspaceTools.ensureWorkspace] Returning existing workspace:', existing?.id);
+      return existing;
+    }
 
     // Create a new workspace from the current content
     const source: WorkspaceSource = unifiedBuffer.workingBuffer
       ? inferSourceFromUnifiedBuffer(unifiedBuffer)
       : { type: 'paste' };
 
-    workspaceContext.createWorkspace(source, content);
-  }, [workspaceContext, hasActiveWorkspace, unifiedBuffer]);
+    console.log('[useWorkspaceTools.ensureWorkspace] Creating new workspace with source:', source.type);
+    // createWorkspace returns the workspace object directly - use it!
+    const newWorkspace = workspaceContext.createWorkspace(source, content);
+    console.log('[useWorkspaceTools.ensureWorkspace] Created workspace:', newWorkspace?.id);
+    return newWorkspace;
+  }, [workspaceContext, unifiedBuffer]);
 
   /**
    * Record a transformation result, creating a new buffer in the workspace.
    * Also records to UnifiedBuffer for backward compatibility.
+   *
+   * If workspace is provided, uses that workspace directly (for when workspace was just created
+   * and may not be in state yet due to React's async state updates).
    */
-  const recordTransformation = useCallback((record: TransformationRecord): void => {
+  const recordTransformation = useCallback((record: TransformationRecord, workspace?: Workspace | null): void => {
     const { type, parameters, resultContent, metrics } = record;
+
+    console.log('[useWorkspaceTools.recordTransformation] Called with:', {
+      type,
+      workspaceProvided: !!workspace,
+      workspaceId: workspace?.id,
+      contextActiveId: workspaceContext?.activeWorkspaceId,
+      resultLength: resultContent?.length,
+    });
 
     // Create BufferTransform object
     const transform: BufferTransform = {
@@ -122,15 +153,45 @@ export function useWorkspaceTools(options: UseWorkspaceToolsOptions = {}) {
     };
 
     // Create buffer in workspace if available
-    if (workspaceContext && hasActiveWorkspace) {
-      const activeBufferId = getActiveBufferId();
+    // Use provided workspace directly (handles just-created workspaces), or fall back to active workspace from state
+    // NOTE: Check activeWorkspaceId directly instead of hasActiveWorkspace to avoid stale closure values
+    const targetWorkspace = workspace || (workspaceContext?.activeWorkspaceId ? workspaceContext.getActiveWorkspace() : null);
+
+    console.log('[useWorkspaceTools.recordTransformation] targetWorkspace:', {
+      found: !!targetWorkspace,
+      id: targetWorkspace?.id,
+      activeBufferId: targetWorkspace?.activeBufferId,
+    });
+
+    if (workspaceContext && targetWorkspace) {
+      const activeBufferId = targetWorkspace.activeBufferId;
+
       if (activeBufferId) {
         try {
-          workspaceContext.createBuffer(activeBufferId, transform, resultContent);
+          // Also auto-set compare buffer to parent (Original) on first transform
+          const currentBuffer = targetWorkspace.buffers[activeBufferId];
+          const isFirstTransform = currentBuffer?.parentId === null;
+
+          console.log('[useWorkspaceTools.recordTransformation] Creating buffer from parent:', activeBufferId, 'isFirstTransform:', isFirstTransform);
+
+          // Pass the workspace directly to handle cases where state hasn't propagated yet
+          const newBuffer = workspaceContext.createBuffer(activeBufferId, transform, resultContent, targetWorkspace);
+
+          console.log('[useWorkspaceTools.recordTransformation] Created buffer:', newBuffer?.id);
+
+          // Auto-set compare to Original when first transform completes
+          if (isFirstTransform && newBuffer) {
+            console.log('[useWorkspaceTools.recordTransformation] Setting compare buffer to Original:', activeBufferId, 'workspace:', targetWorkspace.id);
+            workspaceContext.setCompareBuffer(activeBufferId, targetWorkspace.id);
+          }
         } catch (err) {
           console.error('[useWorkspaceTools] Failed to create buffer:', err);
         }
+      } else {
+        console.warn('[useWorkspaceTools.recordTransformation] No activeBufferId in workspace');
       }
+    } else {
+      console.warn('[useWorkspaceTools] No workspace available for recording transformation - result recorded to unified buffer only');
     }
 
     // Also record to unified buffer for backward compatibility
@@ -141,7 +202,7 @@ export function useWorkspaceTools(options: UseWorkspaceToolsOptions = {}) {
       resultContent,
       metrics
     );
-  }, [workspaceContext, hasActiveWorkspace, getActiveBufferId, unifiedBuffer]);
+  }, [workspaceContext, unifiedBuffer]);
 
   /**
    * Record an analysis result on the active buffer.
@@ -179,10 +240,51 @@ export function useWorkspaceTools(options: UseWorkspaceToolsOptions = {}) {
    */
   const shouldAutoCreateWorkspace = useCallback((content: string): boolean => {
     if (!workspaceContext) return false;
-    if (hasActiveWorkspace) return false;
+    // Check activeWorkspaceId DIRECTLY from context to avoid stale closure
+    if (workspaceContext.activeWorkspaceId) return false;
     if (!content.trim()) return false;
     return true;
-  }, [workspaceContext, hasActiveWorkspace]);
+  }, [workspaceContext]);
+
+  /**
+   * Create a workspace from the current unified buffer content.
+   * Call this when content is loaded into the main pane (e.g., from archive).
+   * This ensures a workspace exists BEFORE any transformation is attempted.
+   * Returns the created workspace or null if creation failed/not needed.
+   */
+  const createWorkspaceFromUnifiedBuffer = useCallback((): Workspace | null => {
+    if (!workspaceContext) {
+      console.log('[useWorkspaceTools] No workspace context, cannot create workspace');
+      return null;
+    }
+
+    // Check activeWorkspaceId DIRECTLY from context to avoid stale closure
+    if (workspaceContext.activeWorkspaceId) {
+      console.log('[useWorkspaceTools] Already have active workspace, skipping creation:', workspaceContext.activeWorkspaceId);
+      return workspaceContext.getActiveWorkspace();
+    }
+
+    // Need unified buffer content
+    if (!unifiedBuffer.workingBuffer) {
+      console.log('[useWorkspaceTools] No working buffer, cannot create workspace');
+      return null;
+    }
+
+    const content = unifiedBuffer.getTextContent();
+    if (!content.trim()) {
+      console.log('[useWorkspaceTools] Empty content, cannot create workspace');
+      return null;
+    }
+
+    // Infer source from unified buffer
+    const source = inferSourceFromUnifiedBuffer(unifiedBuffer);
+
+    // Create the workspace with the content
+    const newWorkspace = workspaceContext.createWorkspace(source, content);
+    console.log('[useWorkspaceTools] Created workspace from unified buffer:', newWorkspace.id, newWorkspace.name);
+
+    return newWorkspace;
+  }, [workspaceContext, unifiedBuffer]);
 
   /**
    * Get workspace info for display in UI.
@@ -223,6 +325,7 @@ export function useWorkspaceTools(options: UseWorkspaceToolsOptions = {}) {
     // Workspace operations
     ensureWorkspace,
     shouldAutoCreateWorkspace,
+    createWorkspaceFromUnifiedBuffer,
 
     // Recording
     recordTransformation,

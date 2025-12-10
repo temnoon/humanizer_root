@@ -248,6 +248,22 @@ export function BufferTreeView({
               </span>
             )}
 
+            {/* Compare button - visible for non-active buffers on mobile/desktop */}
+            {!node.isActive && !node.isCompare && (
+              <button
+                className="buffer-tree__compare-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  workspaceContext?.setCompareBuffer(node.id);
+                  onCompareSelect?.(node.id);
+                }}
+                title="Set as compare buffer"
+                aria-label="Set as compare buffer"
+              >
+                C
+              </button>
+            )}
+
             {/* Star button */}
             <button
               className={`buffer-tree__star-btn ${node.starred ? 'buffer-tree__star-btn--active' : ''}`}
@@ -265,11 +281,18 @@ export function BufferTreeView({
               </span>
             )}
 
-            {/* Compare indicator */}
+            {/* Compare indicator - clickable to clear */}
             {node.isCompare && (
-              <span className="buffer-tree__badge buffer-tree__badge--compare" title="Compare buffer">
+              <button
+                className="buffer-tree__badge buffer-tree__badge--compare"
+                title="Compare buffer (click to clear)"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  workspaceContext?.setCompareBuffer(undefined);
+                }}
+              >
                 C
-              </span>
+              </button>
             )}
           </span>
         </div>
@@ -344,7 +367,7 @@ export function BufferTreeView({
 
           {/* Help text */}
           <div className="buffer-tree__help">
-            Click to select · Shift+click to compare · ←/→ to navigate
+            Click to select · [C] to compare · ←/→ to navigate
           </div>
         </div>
       )}

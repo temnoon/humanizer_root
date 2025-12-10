@@ -301,6 +301,14 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }));
   }, []);
 
+  /**
+   * Clear the active workspace (deselect without deleting).
+   * Used when loading new archive content to reset for fresh workspace creation.
+   */
+  const clearActiveWorkspace = useCallback(() => {
+    setActiveWorkspaceId(null);
+  }, []);
+
   // ============================================================
   // BUFFER OPERATIONS
   // ============================================================
@@ -308,19 +316,34 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const createBuffer = useCallback((
     parentId: string,
     transform: BufferTransform,
-    content: string
+    content: string,
+    providedWorkspace?: Workspace
   ): Buffer => {
-    if (!activeWorkspaceId) {
+    // Use provided workspace or fall back to finding by activeWorkspaceId
+    // This handles the case where workspace was just created and state hasn't propagated yet
+    const workspaceId = providedWorkspace?.id || activeWorkspaceId;
+
+    console.log('[WorkspaceContext.createBuffer] Called with:', {
+      parentId,
+      activeWorkspaceId,
+      providedWorkspaceId: providedWorkspace?.id,
+      workspacesCount: workspaces.length,
+      transformType: transform.type,
+    });
+
+    if (!workspaceId) {
       throw new Error('No active workspace');
     }
 
-    const workspace = workspaces.find(w => w.id === activeWorkspaceId);
+    // Use provided workspace directly, or find from state
+    const workspace = providedWorkspace || workspaces.find(w => w.id === workspaceId);
     if (!workspace) {
       throw new Error('Active workspace not found');
     }
 
     const parentBuffer = workspace.buffers[parentId];
     if (!parentBuffer) {
+      console.error('[WorkspaceContext.createBuffer] Parent buffer not found. Available buffers:', Object.keys(workspace.buffers));
       throw new Error(`Parent buffer ${parentId} not found`);
     }
 
@@ -358,10 +381,21 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       updatedAt: now,
     };
 
-    // Update state
-    setWorkspaces(prev => prev.map(w =>
-      w.id === activeWorkspaceId ? updatedWorkspace : w
-    ));
+    // Update state - need to handle both new workspace (not in state) and existing
+    setWorkspaces(prev => {
+      const exists = prev.some(w => w.id === workspaceId);
+      if (exists) {
+        return prev.map(w => w.id === workspaceId ? updatedWorkspace : w);
+      } else {
+        // Workspace was just created and not in state yet - add it
+        return [...prev, updatedWorkspace];
+      }
+    });
+
+    // Also ensure activeWorkspaceId is set if it wasn't
+    if (!activeWorkspaceId && workspaceId) {
+      setActiveWorkspaceId(workspaceId);
+    }
 
     // Persist asynchronously
     workspaceStorage.saveWorkspace(updatedWorkspace).catch(err => {
@@ -392,12 +426,28 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     }));
   }, [activeWorkspaceId]);
 
-  const setCompareBuffer = useCallback((bufferId: string | undefined) => {
-    if (!activeWorkspaceId) return;
+  const setCompareBuffer = useCallback((bufferId: string | undefined, workspaceId?: string) => {
+    // Use provided workspaceId or fall back to activeWorkspaceId from state
+    const targetWorkspaceId = workspaceId || activeWorkspaceId;
+
+    console.log('[WorkspaceContext.setCompareBuffer] Called with:', {
+      bufferId,
+      providedWorkspaceId: workspaceId,
+      activeWorkspaceId,
+      targetWorkspaceId,
+    });
+
+    if (!targetWorkspaceId) {
+      console.warn('[WorkspaceContext.setCompareBuffer] No workspace ID available');
+      return;
+    }
 
     setWorkspaces(prev => prev.map(w => {
-      if (w.id !== activeWorkspaceId) return w;
-      if (bufferId && !w.buffers[bufferId]) return w;
+      if (w.id !== targetWorkspaceId) return w;
+      if (bufferId && !w.buffers[bufferId]) {
+        console.warn('[WorkspaceContext.setCompareBuffer] Buffer not found:', bufferId);
+        return w;
+      }
 
       const updated = {
         ...w,
@@ -734,6 +784,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     renameWorkspace,
     archiveWorkspace,
     unarchiveWorkspace,
+    clearActiveWorkspace,
 
     // Buffer operations
     createBuffer,

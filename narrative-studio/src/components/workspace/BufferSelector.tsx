@@ -154,17 +154,20 @@ export function BufferSelector({
           <span className="buffer-selector__placeholder">{placeholder}</span>
         )}
         <span className="buffer-selector__chevron">{isOpen ? '▲' : '▼'}</span>
-
-        {allowClear && selectedBuffer && (
-          <button
-            className="buffer-selector__clear"
-            onClick={handleClear}
-            title="Clear selection"
-          >
-            ✕
-          </button>
-        )}
       </button>
+
+      {allowClear && selectedBuffer && (
+        <span
+          className="buffer-selector__clear"
+          onClick={handleClear}
+          title="Clear selection"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => e.key === 'Enter' && handleClear(e as unknown as React.MouseEvent)}
+        >
+          ✕
+        </span>
+      )}
 
       {isOpen && (
         <div className="buffer-selector__dropdown">

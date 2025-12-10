@@ -1,0 +1,177 @@
+/**
+ * ExportPane Styles - Streamlined compact design
+ *
+ * Minimal footprint: ~150px height max
+ * Uses CSS variables for theme support.
+ */
+
+.export-pane {
+  padding: var(--space-sm) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Row layout */
+.export-pane__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.export-pane__label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 50px;
+}
+
+/* Format chips - compact inline buttons */
+.export-pane__format-row {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+}
+
+.export-pane__chip {
+  padding: 4px 8px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.export-pane__chip:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.export-pane__chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.export-pane__chip--active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: var(--text-inverse);
+}
+
+.export-pane__chip--active:hover {
+  background: var(--accent-primary-hover, var(--accent-primary));
+}
+
+/* Select */
+.export-pane__select {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-size: 0.6875rem;
+  cursor: pointer;
+}
+
+.export-pane__select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+/* Toggle buttons */
+.export-pane__toggles {
+  display: flex;
+  gap: 4px;
+}
+
+.export-pane__toggle {
+  padding: 4px 8px;
+  font-size: 0.625rem;
+  font-weight: 500;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.export-pane__toggle:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.export-pane__toggle--active {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
+/* Stats line */
+.export-pane__stats {
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: var(--space-xs) 0;
+}
+
+/* Action Buttons - side by side */
+.export-pane__actions {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.export-pane__btn {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.export-pane__btn--primary {
+  background-image: var(--accent-primary-gradient);
+  background-color: var(--accent-primary);
+  color: var(--text-inverse);
+}
+
+.export-pane__btn--primary:hover {
+  opacity: 0.9;
+}
+
+.export-pane__btn--secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.export-pane__btn--secondary:hover {
+  background: var(--bg-secondary);
+  border-color: var(--border-strong);
+}
+
+.export-pane__btn--success {
+  background: var(--success) !important;
+  background-image: none !important;
+  color: var(--text-inverse);
+}
+
+/* Hint */
+.export-pane__hint {
+  font-size: 0.625rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: var(--space-xs);
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+}

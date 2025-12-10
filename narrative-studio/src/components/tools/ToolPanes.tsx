@@ -110,10 +110,11 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
       return;
     }
 
-    // Auto-create workspace if needed
-    if (workspaceTools.shouldAutoCreateWorkspace(content)) {
-      workspaceTools.ensureWorkspace(content);
-    }
+    // Auto-create workspace if needed - capture workspace object for recording
+    // (Workspace object is returned directly to avoid React state timing issues)
+    let workspace = workspaceTools.shouldAutoCreateWorkspace(content)
+      ? workspaceTools.ensureWorkspace(content)
+      : null;
 
     setIsTransforming(true);
     setError(null);
@@ -137,7 +138,7 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
       setTransformationId(newTransformId);
       setShowFeedback(true);
 
-      // Record to workspace buffer system (creates new buffer)
+      // Record to workspace buffer system (pass workspace object if we just created it)
       workspaceTools.recordTransformation({
         type: 'humanizer',
         parameters: {
@@ -150,7 +151,7 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
           modelUsed: result.metadata?.modelUsed as string | undefined,
           provider: providerInfo.provider,
         },
-      });
+      }, workspace);
 
       if (onApplyTransform && result.transformed) {
         onApplyTransform(result.transformed);
@@ -349,10 +350,11 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
       return;
     }
 
-    // Auto-create workspace if needed
-    if (workspaceTools.shouldAutoCreateWorkspace(content)) {
-      workspaceTools.ensureWorkspace(content);
-    }
+    // Auto-create workspace if needed - capture workspace object for recording
+    // (Workspace object is returned directly to avoid React state timing issues)
+    let workspace = workspaceTools.shouldAutoCreateWorkspace(content)
+      ? workspaceTools.ensureWorkspace(content)
+      : null;
 
     setIsTransforming(true);
     setError(null);
@@ -375,7 +377,7 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
       setTransformationId(newTransformId);
       setShowFeedback(true);
 
-      // Record to workspace buffer system
+      // Record to workspace buffer system (pass workspace object if we just created it)
       const selectedPersonaData = personas.find(p => p.name === state.selectedPersona);
       workspaceTools.recordTransformation({
         type: 'persona',
@@ -389,7 +391,7 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
           modelUsed: result.metadata?.modelUsed as string | undefined,
           provider: providerInfo.provider,
         },
-      });
+      }, workspace);
 
       if (onApplyTransform && result.transformed) {
         onApplyTransform(result.transformed);
@@ -579,10 +581,11 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
       return;
     }
 
-    // Auto-create workspace if needed
-    if (workspaceTools.shouldAutoCreateWorkspace(content)) {
-      workspaceTools.ensureWorkspace(content);
-    }
+    // Auto-create workspace if needed - capture workspace object for recording
+    // (Workspace object is returned directly to avoid React state timing issues)
+    let workspace = workspaceTools.shouldAutoCreateWorkspace(content)
+      ? workspaceTools.ensureWorkspace(content)
+      : null;
 
     setIsTransforming(true);
     setError(null);
@@ -605,7 +608,7 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
       setTransformationId(newTransformId);
       setShowFeedback(true);
 
-      // Record to workspace buffer system
+      // Record to workspace buffer system (pass workspace object if we just created it)
       const selectedStyleData = styles.find(s => s.name === state.selectedStyle);
       workspaceTools.recordTransformation({
         type: 'style',
@@ -619,7 +622,7 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
           modelUsed: result.metadata?.modelUsed as string | undefined,
           provider: providerInfo.provider,
         },
-      });
+      }, workspace);
 
       if (onApplyTransform && result.transformed) {
         onApplyTransform(result.transformed);
@@ -788,10 +791,11 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
       return;
     }
 
-    // Auto-create workspace if needed
-    if (workspaceTools.shouldAutoCreateWorkspace(content)) {
-      workspaceTools.ensureWorkspace(content);
-    }
+    // Auto-create workspace if needed - capture workspace object for recording
+    // (Workspace object is returned directly to avoid React state timing issues)
+    let workspace = workspaceTools.shouldAutoCreateWorkspace(content)
+      ? workspaceTools.ensureWorkspace(content)
+      : null;
 
     setIsTransforming(true);
     setError(null);
@@ -815,7 +819,7 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
       setTransformationId(newTransformId);
       setShowFeedback(true);
 
-      // Record to workspace buffer system
+      // Record to workspace buffer system (pass workspace object if we just created it)
       workspaceTools.recordTransformation({
         type: 'round-trip',
         parameters: {
@@ -826,7 +830,7 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
           processingTimeMs: response.metadata?.processingTime as number | undefined,
           provider: providerInfo.provider,
         },
-      });
+      }, workspace);
 
       if (onApplyTransform && response.transformed) {
         onApplyTransform(response.transformed);

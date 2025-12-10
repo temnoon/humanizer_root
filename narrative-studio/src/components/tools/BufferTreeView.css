@@ -280,6 +280,35 @@
   color: #f87171;
 }
 
+/* Compare button - for setting compare buffer */
+.buffer-tree__compare-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.5rem;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  opacity: 0;
+  transition: opacity 0.1s ease, background-color 0.1s ease;
+}
+
+.buffer-tree__node:hover .buffer-tree__compare-btn {
+  opacity: 1;
+}
+
+.buffer-tree__compare-btn:hover {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--text-inverse);
+}
+
 /* Star button */
 .buffer-tree__star-btn {
   display: flex;
@@ -332,6 +361,12 @@
 .buffer-tree__badge--compare {
   background: var(--success);
   color: var(--text-inverse);
+  cursor: pointer;
+  border: none;
+}
+
+.buffer-tree__badge--compare:hover {
+  background: var(--warning);
 }
 
 .buffer-tree__node--compare .buffer-tree__badge--compare {

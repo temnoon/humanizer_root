@@ -46,6 +46,9 @@ export async function generate(
 ): Promise<string> {
   const model = options.model || await getSelectedModel();
 
+  console.log(`[ollamaService.generate] Starting with model=${model}, prompt length=${prompt.length} chars`);
+  const startTime = Date.now();
+
   const response = await fetch(`${OLLAMA_BASE}/api/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -65,6 +68,8 @@ export async function generate(
   }
 
   const data = await response.json();
+  const elapsed = Date.now() - startTime;
+  console.log(`[ollamaService.generate] Completed in ${elapsed}ms, response length=${data.response?.length || 0} chars`);
   return data.response;
 }
 
@@ -503,7 +508,7 @@ export async function localPersonaTransform(
     // Use the pipeline for better filtering
     const result = await runTransformationPipeline(
       text,
-      `Transform this text using the ${options.persona.replace(/_/g, ' ')} voice. ${PRESERVATION_INSTRUCTION}`,
+      `Transform this text using the ${options.persona.replace(/_/g, ' ')} voice. ${STRICT_PRESERVATION}`,
       systemPrompt,
       {
         provider: 'local',

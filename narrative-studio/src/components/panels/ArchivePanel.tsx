@@ -190,7 +190,12 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         const narrative = archiveService.conversationToNarrative(conv, 0);
         onSelectNarrative(narrative);
         setSelectedMessageIndex(0);
-        console.log('Auto-loaded first message to canvas');
+
+        // Also set unified buffer so workspace can be auto-created
+        const firstMessage = conv.messages[0];
+        const bufferContent = createFromMessage(firstMessage, conv, 0);
+        setWorkingBuffer(bufferContent);
+        console.log('[ArchivePanel] Auto-loaded first message to canvas + unified buffer:', bufferContent.id);
       }
     } catch (err: any) {
       console.error('Failed to load conversation:', err);
@@ -470,7 +475,14 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
         index
       );
       onSelectNarrative(narrative);
-      console.log('Loaded message to canvas');
+
+      // Also set the unified buffer so workspace can be auto-created
+      const message = selectedConversation.messages[index];
+      if (message) {
+        const bufferContent = createFromMessage(message, selectedConversation, index);
+        setWorkingBuffer(bufferContent);
+        console.log('[ArchivePanel] Loaded message to canvas + unified buffer:', bufferContent.id);
+      }
     }
   };
 

@@ -78,6 +78,7 @@ interface HighlightRange {
   end: number;
   reason: string;
   type?: 'tellword' | 'suspect' | 'gptzero';
+  text?: string; // Optional: the actual sentence text for word-token matching
 }
 
 interface AIAnalysisPaneProps {
@@ -108,31 +109,30 @@ export function AIAnalysisPane({ content, onHighlightText }: AIAnalysisPaneProps
       }));
       onHighlightText(highlights);
     } else if (highlightMode === 'suspects' && result.native.suspectSentences) {
-      const highlights = result.native.suspectSentences.map(s => {
-        const start = content.indexOf(s.sentence);
-        return {
-          start,
-          end: start + s.sentence.length,
-          type: 'suspect' as const,
-          reason: `AI Score: ${s.aiScore}% - ${s.patterns.join(', ')}`
-        };
-      }).filter(h => h.start >= 0);
+      // For suspect sentences, pass the sentence text for word-token matching
+      const highlights = result.native.suspectSentences.map(s => ({
+        start: 0, // Position will be found by word-token matching
+        end: 0,
+        type: 'suspect' as const,
+        reason: `AI Score: ${s.aiScore}% - ${s.patterns.join(', ')}`,
+        text: s.sentence // Pass the actual sentence text for matching
+      }));
       onHighlightText(highlights);
     } else if (highlightMode === 'gptzero' && result.gptzero?.details.sentences) {
+      // For GPTZero, pass the sentence text directly for word-token matching
+      // This handles cases where markdown formatting differs from analyzed text
       const highlights = result.gptzero.details.sentences
         .filter(s => s.highlight_sentence_for_ai)
-        .map(s => {
-          const start = content.indexOf(s.sentence);
-          return {
-            start,
-            end: start + s.sentence.length,
-            type: 'gptzero' as const,
-            reason: `GPTZero: ${(s.generated_prob * 100).toFixed(0)}% AI`
-          };
-        }).filter(h => h.start >= 0);
+        .map(s => ({
+          start: 0, // Position will be found by word-token matching
+          end: 0,
+          type: 'gptzero' as const,
+          reason: `GPTZero: ${(s.generated_prob * 100).toFixed(0)}% AI`,
+          text: s.sentence // Pass the actual sentence text for matching
+        }));
       onHighlightText(highlights);
     } else if (highlightMode === 'all') {
-      const allHighlights: Array<{ start: number; end: number; type: string; reason: string }> = [];
+      const allHighlights: HighlightRange[] = [];
 
       if (result.native.highlights) {
         result.native.highlights.forEach(h => {
@@ -141,32 +141,30 @@ export function AIAnalysisPane({ content, onHighlightText }: AIAnalysisPaneProps
       }
 
       if (result.native.suspectSentences) {
+        // For suspect sentences, pass the sentence text for word-token matching
         result.native.suspectSentences.forEach(s => {
-          const start = content.indexOf(s.sentence);
-          if (start >= 0) {
-            allHighlights.push({
-              start,
-              end: start + s.sentence.length,
-              type: 'suspect',
-              reason: `AI Score: ${s.aiScore}%`
-            });
-          }
+          allHighlights.push({
+            start: 0,
+            end: 0,
+            type: 'suspect',
+            reason: `AI Score: ${s.aiScore}%`,
+            text: s.sentence
+          });
         });
       }
 
       if (result.gptzero?.details.sentences) {
+        // For GPTZero, pass the sentence text directly for word-token matching
         result.gptzero.details.sentences
           .filter(s => s.highlight_sentence_for_ai)
           .forEach(s => {
-            const start = content.indexOf(s.sentence);
-            if (start >= 0) {
-              allHighlights.push({
-                start,
-                end: start + s.sentence.length,
-                type: 'gptzero',
-                reason: `GPTZero: ${(s.generated_prob * 100).toFixed(0)}% AI`
-              });
-            }
+            allHighlights.push({
+              start: 0, // Position will be found by word-token matching
+              end: 0,
+              type: 'gptzero',
+              reason: `GPTZero: ${(s.generated_prob * 100).toFixed(0)}% AI`,
+              text: s.sentence // Pass the actual sentence text for matching
+            });
           });
       }
 

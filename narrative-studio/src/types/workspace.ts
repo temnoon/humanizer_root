@@ -231,11 +231,12 @@ export interface WorkspaceActions {
   renameWorkspace: (id: string, name: string) => void;
   archiveWorkspace: (id: string) => void;
   unarchiveWorkspace: (id: string) => void;
+  clearActiveWorkspace: () => void;
 
   // Buffer operations
-  createBuffer: (parentId: string, transform: BufferTransform, content: string) => Buffer;
+  createBuffer: (parentId: string, transform: BufferTransform, content: string, workspace?: Workspace) => Buffer;
   setActiveBuffer: (bufferId: string) => void;
-  setCompareBuffer: (bufferId: string | undefined) => void;
+  setCompareBuffer: (bufferId: string | undefined, workspaceId?: string) => void;
   updateBufferAnalysis: (bufferId: string, analysis: BufferAnalysis) => void;
   updateBufferContent: (bufferId: string, content: string) => void;
   toggleBufferStar: (bufferId: string) => void;
