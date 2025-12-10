@@ -4,7 +4,6 @@ import { Icons } from '../layout/Icons';
 import { archiveService } from '../../services/archiveService';
 import { galleryService } from '../../services/galleryService';
 import { ImageLightbox } from './ImageLightbox';
-import { SessionsView } from '../archive/SessionsView';
 import { ImportsView } from '../archive/ImportsView';
 import { ExploreView } from '../archive/ExploreView';
 import { FacebookFeedView } from '../archive/FacebookFeedView';
@@ -16,7 +15,6 @@ import { WorkspacesView } from '../archive/WorkspacesView';
 import { useActiveBook } from '../../contexts/ActiveBookContext';
 import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
 import { STORAGE_PATHS } from '../../config/storage-paths';
-import type { Session } from '../../services/sessionStorage';
 
 const API_BASE = STORAGE_PATHS.archiveServerUrl;
 
@@ -26,7 +24,7 @@ interface ArchivePanelProps {
   onClose: () => void;
 }
 
-type ViewMode = 'conversations' | 'messages' | 'gallery' | 'sessions' | 'imports' | 'explore' | 'facebook' | 'books' | 'thisbook' | 'workspaces';
+type ViewMode = 'conversations' | 'messages' | 'gallery' | 'imports' | 'explore' | 'facebook' | 'books' | 'thisbook' | 'workspaces';
 type FilterCategory = 'date' | 'size' | 'media';
 
 interface ActiveFilters {
@@ -846,7 +844,6 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const tabList = [
     { id: 'conversations', icon: '📄', title: 'Archive' },
     ...(activeBook ? [{ id: 'thisbook', icon: '📖', title: `This Book - "${activeBook.title}"` }] : []),
-    { id: 'sessions', icon: '📋', title: 'Sessions' },
     { id: 'workspaces', icon: '📂', title: 'Workspaces' },
     { id: 'gallery', icon: '🖼️', title: 'Gallery' },
     { id: 'imports', icon: '📥', title: 'Imports' },
@@ -1626,24 +1623,6 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
       )}
 
         </div>
-
-        {/* Sessions View - outside header for proper scrolling */}
-        {viewMode === 'sessions' && (
-          <div
-            className="overflow-y-auto"
-            style={{
-              flex: 1,
-              minHeight: 0,
-            }}
-          >
-            <SessionsView
-              onSelectSession={(session: Session) => {
-                console.log('Selected session:', session);
-                // TODO: Load session buffers into workspace
-              }}
-            />
-          </div>
-        )}
 
         {/* Imports View - outside header for proper scrolling */}
         {viewMode === 'imports' && (
