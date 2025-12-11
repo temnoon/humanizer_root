@@ -12,9 +12,11 @@ import { BookStructureTree } from '../archive/BookStructureTree';
 import { ThisBookView } from '../archive/ThisBookView';
 import { PageEditorView } from '../archive/PageEditorView';
 import { WorkspacesView } from '../archive/WorkspacesView';
+import { GutenbergView } from '../archive/GutenbergView';
 import { useActiveBook } from '../../contexts/ActiveBookContext';
 import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
 import { STORAGE_PATHS } from '../../config/storage-paths';
+import { features } from '../../config/feature-flags';
 
 const API_BASE = STORAGE_PATHS.archiveServerUrl;
 
@@ -24,7 +26,7 @@ interface ArchivePanelProps {
   onClose: () => void;
 }
 
-type ViewMode = 'conversations' | 'messages' | 'gallery' | 'imports' | 'explore' | 'facebook' | 'books' | 'thisbook' | 'workspaces';
+type ViewMode = 'conversations' | 'messages' | 'gallery' | 'imports' | 'explore' | 'facebook' | 'books' | 'thisbook' | 'workspaces' | 'gutenberg';
 type FilterCategory = 'date' | 'size' | 'media';
 
 interface ActiveFilters {
@@ -50,7 +52,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   const [selectedMessageIndex, setSelectedMessageIndex] = useState<number | null>(null);
   const [selectedFacebookItem, setSelectedFacebookItem] = useState<any | null>(null);
   const [relatedFacebookItems, setRelatedFacebookItems] = useState<any[]>([]);
-  const [viewMode, setViewMode] = useState<ViewMode>('conversations');
+  // Default view: 'conversations' for Electron (local archives), 'gutenberg' for web
+  const [viewMode, setViewMode] = useState<ViewMode>(features.localArchives ? 'conversations' : 'gutenberg');
   const [conversationSearch, setConversationSearch] = useState('');
   const [messageSearch, setMessageSearch] = useState('');
   const [activeFilters, setActiveFilters] = useState<ActiveFilters>({});
@@ -840,16 +843,24 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     prevViewModeRef.current = viewMode;
   }, [viewMode, selectedConversation, filteredConversations]);
 
-  // Tab list for navigation
+  // Tab list for navigation - conditional based on environment
   const tabList = [
-    { id: 'conversations', icon: '📄', title: 'Archive' },
+    // Electron-only: Local archive browsing
+    ...(features.localArchives ? [{ id: 'conversations', icon: '📄', title: 'Archive' }] : []),
+    // Web-only: Project Gutenberg
+    ...(features.gutenberg ? [{ id: 'gutenberg', icon: '📜', title: 'Gutenberg' }] : []),
+    // Both: Active book view
     ...(activeBook ? [{ id: 'thisbook', icon: '📖', title: `This Book - "${activeBook.title}"` }] : []),
+    // Both: Workspaces and Books
     { id: 'workspaces', icon: '📂', title: 'Workspaces' },
-    { id: 'gallery', icon: '🖼️', title: 'Gallery' },
-    { id: 'imports', icon: '⬇️', title: 'Imports' },
-    { id: 'explore', icon: '🧭', title: 'Explore' },
-    { id: 'facebook', icon: 'ⓕ', title: 'Facebook' },
     { id: 'books', icon: '📚', title: 'Books' },
+    // Electron-only: Gallery, Imports, Explore, Facebook
+    ...(features.localArchives ? [
+      { id: 'gallery', icon: '🖼️', title: 'Gallery' },
+      { id: 'imports', icon: '⬇️', title: 'Imports' },
+      { id: 'explore', icon: '🧭', title: 'Explore' },
+      { id: 'facebook', icon: 'ⓕ', title: 'Facebook' },
+    ] : []),
   ];
 
   // Scroll selected tab into view
@@ -1647,6 +1658,28 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             }}
           >
             <WorkspacesView />
+          </div>
+        )}
+
+        {/* Gutenberg View - public domain book browser (Web only) */}
+        {viewMode === 'gutenberg' && (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <GutenbergView
+              onSelectText={(text, title) => {
+                // Load selected book text into the workspace
+                onSelectNarrative({
+                  content: text,
+                  title: title,
+                  source: 'gutenberg',
+                });
+              }}
+            />
           </div>
         )}
 
