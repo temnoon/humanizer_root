@@ -204,6 +204,13 @@ export class PersonaTransformationService {
 
   /**
    * Apply persona voice while preserving content and structure
+   *
+   * Persona transformation follows a 5-layer model:
+   * 1. INVARIANTS - What must be preserved (content, style mechanics, setting)
+   * 2. PERSONA DIMENSIONS - What the persona controls (epistemics, attention, values)
+   * 3. PROHIBITIONS - What must NOT happen (style changes, new facts, narrator identity)
+   *
+   * Key insight: Persona = WHO is perceiving/knowing, not HOW they write
    */
   private async applyPersona(text: string, preserveLength: boolean): Promise<string> {
     if (!this.llmProvider) {
@@ -220,29 +227,92 @@ export class PersonaTransformationService {
     const maxTokens = this.getMaxTokensForRole(wordCount);
 
     const lengthGuidance = preserveLength
-      ? `IMPORTANT: Keep the output approximately the same length as the input (around ${wordCount} words).`
+      ? `Keep the output approximately the same length as the input (around ${wordCount} words).`
       : '';
 
-    const prompt = `You are a narrative voice transformation specialist.
+    const prompt = `You are a narrative perspective transformation specialist. Your task is to rewrite the following text through the lens of "${this.persona.name}".
 
-Your task is to rewrite the following text in the voice and perspective of "${this.persona.name}":
-
+PERSONA DEFINITION:
 ${this.persona.system_prompt}
 
-CRITICAL RULES:
-1. PRESERVE ALL CONTENT - Don't add new ideas or remove existing ones
-2. PRESERVE THE SETTING - Don't change locations, names, or universe
-3. PRESERVE CORE STRUCTURE - Keep similar sentence patterns and paragraph breaks
-4. CHANGE ONLY THE VOICE - Adjust narrative perspective, tone, and rhetorical stance
-5. OUTPUT ONLY THE TRANSFORMED TEXT - No explanations, no thinking process
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 1: INVARIANTS (MUST PRESERVE)
+═══════════════════════════════════════════════════════════════════════════════
+These elements define WHAT happens and HOW it's written. Do not change them.
+
+• PLOT & EVENTS: Every event must happen in the same sequence with same outcomes
+• FACTS & ENTITIES: All names, locations, objects, dates, and specific details stay the same
+• SETTING & UNIVERSE: The world remains the same (don't shift genres or eras)
+• DIALOGUE CONTENT: Keep dialogue meaning intact
+• WRITING STYLE: Preserve sentence patterns, vocabulary register, figurative language density
+  (Persona changes WHO perceives, not HOW they write)
+
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 2: PERSONA DIMENSIONS (WHAT YOU MAY CHANGE)
+═══════════════════════════════════════════════════════════════════════════════
+Persona is a stable epistemic operator - it determines WHO perceives, WHAT counts
+as salient, WHAT is taken for granted, and HOW uncertainty is handled.
+
+ONTOLOGICAL FRAMING:
+• How the narrator understands the world (orderly vs chaotic, improvable vs fixed)
+• What forces the narrator sees as primary (systems vs individuals, fate vs agency)
+
+EPISTEMIC STANCE:
+• How the narrator knows things (observation, inference, intuition, authority)
+• Certainty level (confident assertions vs hedged observations vs open questions)
+• Judgment timing (immediate evaluation vs suspended judgment vs retrospective insight)
+
+ATTENTION & SALIENCE:
+• What the narrator notices first and lingers on
+• What the narrator treats as background or unremarkable
+• Which details deserve emphasis vs which are merely noted
+
+NORMATIVE FRAMING:
+• What the narrator implicitly approves or finds admirable (shown, not stated)
+• What provokes the narrator's skepticism or concern
+• What the narrator normalizes vs what they find remarkable
+
+READER RELATIONSHIP:
+• Why the narrator is telling this (instructing, witnessing, confessing, persuading)
+• What the narrator assumes the reader knows or values
+• Degree of intimacy or formal distance
+
 ${lengthGuidance}
 
-Source Text:
-"""
-${plainText}
-"""
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 3: PROHIBITIONS (HARD NO - NEVER DO THESE)
+═══════════════════════════════════════════════════════════════════════════════
 
-Rewrite this text in the voice of "${this.persona.name}" while following the rules above.
+❌ NO STYLE CHANGES: Don't alter sentence length patterns, vocabulary register,
+   or figurative language density. The persona perceives differently but the
+   text's mechanical style should remain similar.
+
+❌ NO NEW FACTS: Don't invent new objects, characters, locations, motivations,
+   or worldbuilding details not in the original.
+
+❌ NO NARRATOR BIOGRAPHY: Don't add "As a scientist, I..." or "In my years of..."
+   framing. The persona shapes perception, not explicit identity claims.
+
+❌ NO MORAL SERMONS: Values should be implicit in what's noticed and emphasized,
+   not stated as lessons or judgments.
+
+❌ NO PLATFORM ARTIFACTS: Never add "EDIT:", "Thanks for reading", meta-commentary
+   about the writing process, or direct reader address unless the original has it.
+
+❌ NO GENRE SHIFTS: Don't turn narrative into essay, or essay into dialogue.
+   The text type remains the same.
+
+═══════════════════════════════════════════════════════════════════════════════
+SOURCE TEXT:
+═══════════════════════════════════════════════════════════════════════════════
+${plainText}
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT REQUIREMENTS:
+═══════════════════════════════════════════════════════════════════════════════
+• Output ONLY the transformed text - no explanations, no thinking process
+• Begin directly with the transformed content
+• Maintain paragraph structure from the original
 
 Transformed Text:`;
 
@@ -253,12 +323,55 @@ Transformed Text:`;
 
     // Filter output using model-specific vetting profile
     const filterResult = filterModelOutput(result.trim(), this.modelId);
-    const strippedResult = filterResult.content;
+    let strippedResult = filterResult.content;
+
+    // Apply sanity pass to catch any remaining artifacts
+    strippedResult = this.sanitizePersonaOutput(strippedResult);
 
     // Restore markdown structure (paragraph breaks, lists)
     const withStructure = restoreStructure(strippedResult, structure);
 
     return withStructure;
+  }
+
+  /**
+   * Sanity pass: Remove artifacts that shouldn't appear in persona transformations
+   */
+  private sanitizePersonaOutput(text: string): string {
+    let result = text;
+
+    // Platform artifact patterns
+    const platformPatterns = [
+      /^(So,?\s*)?(Here goes\.?\.?\.?|Let me (tell you|explain|rewrite)\.?\.?\.?)\s*/i,
+      /^(Now,?\s*)?I know what you('re| are) thinking\.?\.?\.?\s*/i,
+      /\bEDIT:?\s*.*$/gim,
+      /\bUpdate:?\s*.*$/gim,
+      /\bTL;?DR:?\s*.*$/gim,
+      /\bThanks for (reading|the gold|coming to my TED talk).*$/gim,
+      /^(Okay,?\s*so,?\s*)/i,
+    ];
+
+    // Meta-framing patterns (persona shouldn't add these)
+    const framingPatterns = [
+      /^(What follows is|The following is|Below is).*?:\s*/i,
+      /^(Let me paint you a picture|Picture this|Imagine)[:,.]?\s*/i,
+      /^(As a \w+,?\s*I\s)/i, // "As a scientist, I..."
+      /^(In my (years|experience|time) (of|as))/i, // "In my years of..."
+      /^Here('s| is) (the|my) (rewrite|transformation|version).*?:\s*/i,
+    ];
+
+    // Apply pattern removals
+    for (const pattern of platformPatterns) {
+      result = result.replace(pattern, '');
+    }
+    for (const pattern of framingPatterns) {
+      result = result.replace(pattern, '');
+    }
+
+    // Clean up any resulting leading whitespace or newlines
+    result = result.replace(/^\s*\n+/, '').trim();
+
+    return result;
   }
 }
 

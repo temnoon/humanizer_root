@@ -122,31 +122,155 @@ export interface CustomProfile {
   createdAt: string;
 }
 
-// Voice analysis prompt
-const VOICE_ANALYSIS_PROMPT = `Analyze the following text excerpt and create a transformation prompt that captures its distinctive voice.
+// Style extraction prompt - focuses on HOW the narrator tells events
+const STYLE_EXTRACTION_PROMPT = `You are a literary style analyst. Your task is to extract the distinctive WRITING STYLE from this text sample—not the narrator's identity, worldview, or values, but the mechanical and aesthetic patterns of how language is deployed.
 
-Focus on:
-1. Sentence structure (length, complexity, rhythm)
-2. Vocabulary register (formal/informal, specialized terms)
-3. Rhetorical devices (repetition, parallelism, irony)
-4. Perspective and tone (authoritative, reflective, conversational)
-5. Distinctive phrases or patterns
+═══════════════════════════════════════════════════════════════════════════════
+WHAT STYLE IS (analyze these)
+═══════════════════════════════════════════════════════════════════════════════
 
-Output Format:
-First, write 2-3 sentences describing the voice characteristics (ANALYSIS:).
-Then, write a concise transformation prompt that an AI could use to rewrite text in this style (PROMPT:).
+SENTENCE ARCHITECTURE:
+• Average sentence length (short <15 words / medium 15-25 / long 25+)
+• Sentence variety (uniform vs high variation)
+• Clause complexity (simple / compound / complex / periodic)
+• Fragment usage (none / occasional / frequent)
+• Punctuation patterns (semicolon chains, em-dashes, parentheticals)
 
-The prompt should:
-- Be actionable (starts with "Rewrite..." or "Transform...")
-- Focus on ADDING voice markers, not removing content
-- Emphasize preserving all factual content and terminology
+LEXICAL REGISTER:
+• Formality level (colloquial / neutral / formal / archaic)
+• Vocabulary density (common words vs specialized/rare)
+• Latinate vs Anglo-Saxon word preference
+• Contractions (frequent / occasional / avoided)
 
+FIGURATIVE LANGUAGE:
+• Metaphor/simile density (sparse / moderate / dense)
+• Preferred image domains (nature, domestic, industrial, abstract, etc.)
+• Personification tendency
+• Sound devices (alliteration, assonance—light use or heavy)
+
+RHETORICAL PATTERNS:
+• Direct address rate (does the prose address "you"?)
+• Rhetorical questions (none / occasional / frequent)
+• Parallelism and anaphora
+• Repetition for emphasis
+
+PACING & RHYTHM:
+• Scene vs summary ratio
+• Dialogue integration style (tagged, untagged, embedded)
+• Paragraph length tendency
+• Transitional phrase patterns ("however" / "and so" / minimal)
+
+═══════════════════════════════════════════════════════════════════════════════
+WHAT STYLE IS NOT (do not analyze these—they belong to PERSONA)
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ The narrator's beliefs about the world
+❌ What the narrator notices or finds important
+❌ The narrator's moral stance or values
+❌ Why the narrator is telling the story
+❌ The narrator's relationship to the reader
+❌ The narrator's expertise or knowledge domain
+
+═══════════════════════════════════════════════════════════════════════════════
 TEXT TO ANALYZE:
----
+═══════════════════════════════════════════════════════════════════════════════
 {TEXT}
----
 
-ANALYSIS:`;
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT FORMAT:
+═══════════════════════════════════════════════════════════════════════════════
+
+STYLE ANALYSIS:
+[2-3 sentences summarizing the dominant style characteristics]
+
+STYLE PROFILE:
+- Sentence pattern: [describe]
+- Register: [colloquial/neutral/formal/archaic]
+- Figurative density: [sparse/moderate/dense]
+- Rhetorical signature: [key devices used]
+- Pacing: [describe rhythm and flow]
+
+TRANSFORMATION PROMPT:
+[Write a concise prompt that captures ONLY the style mechanics. Start with "Apply this writing style:" and focus on sentence patterns, register, and rhythm. Do NOT include persona elements like worldview, values, or narrator identity.]`;
+
+// Persona extraction prompt - focuses on WHO is speaking
+const PERSONA_EXTRACTION_PROMPT = `You are a narrative voice analyst specializing in narrator characterization. Your task is to extract the distinctive PERSONA from this text—not the writing style (sentence patterns, vocabulary choices), but the narrator's identity as a perceiving, knowing, valuing entity.
+
+A persona is a stable epistemic operator: it determines WHO perceives, WHAT counts as salient, WHAT is taken for granted, and HOW uncertainty is handled.
+
+═══════════════════════════════════════════════════════════════════════════════
+THE 5-LAYER PERSONA STACK (analyze each)
+═══════════════════════════════════════════════════════════════════════════════
+
+LAYER 1: ONTOLOGICAL POSITION
+What kind of world does this narrator believe they inhabit?
+• Is the world orderly, chaotic, tragic, improvable, absurd?
+• Are systems primary, or individuals?
+• Is meaning discovered, constructed, or illusory?
+• Is change possible, or are things fixed?
+
+LAYER 2: EPISTEMIC STANCE (most important)
+How does this narrator come to know things?
+• Observer vs participant vs analyst?
+• High certainty vs comfortable with doubt?
+• Explains causes or describes phenomena?
+• Judges quickly, delays judgment, or suspends it entirely?
+• Trusts evidence, intuition, authority, or experience?
+
+LAYER 3: ATTENTION & SALIENCE MODEL
+What does this narrator naturally notice? What do they ignore?
+• Objects vs people vs systems vs symbols?
+• Sensory details vs abstract concepts vs procedures?
+• What is "background noise" to them?
+• What do they linger on? What do they skip past?
+
+LAYER 4: NORMATIVE BIAS
+What does this narrator implicitly approve, disapprove, or normalize?
+(This should be IMPLICIT, not preachy)
+• What is admirable to them?
+• What is regrettable but inevitable?
+• What is invisible because it's "normal"?
+• What provokes their skepticism?
+
+LAYER 5: RELATIONSHIP TO READER
+Why is this narrator telling the story at all?
+• Instructing, witnessing, confessing, recording, persuading, entertaining?
+• Do they assume the reader shares their values?
+• Do they explain, or let events stand?
+• Intimate or formal distance?
+
+═══════════════════════════════════════════════════════════════════════════════
+WHAT PERSONA IS NOT (do not analyze these—they belong to STYLE)
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ Sentence length and structure
+❌ Vocabulary register (formal/informal word choices)
+❌ Figurative language density
+❌ Punctuation patterns
+❌ Paragraph rhythm
+❌ Rhetorical devices (parallelism, anaphora)
+
+═══════════════════════════════════════════════════════════════════════════════
+TEXT TO ANALYZE:
+═══════════════════════════════════════════════════════════════════════════════
+{TEXT}
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT FORMAT:
+═══════════════════════════════════════════════════════════════════════════════
+
+PERSONA ANALYSIS:
+[2-3 sentences capturing WHO this narrator is as a mind]
+
+THE 5 LAYERS:
+1. Ontology: [what world do they inhabit?]
+2. Epistemics: [how do they know? certainty level? judgment speed?]
+3. Attention: [what do they notice first? what's invisible to them?]
+4. Values: [implicit approvals/disapprovals—not stated, shown]
+5. Reader contract: [why tell this? what's the reader's role?]
+
+TRANSFORMATION PROMPT:
+[Write a persona prompt that captures the narrator's MIND, not their style. Start with "Adopt the perspective of a narrator who..." and describe their worldview, how they know things, what they notice, and their relationship to the reader. Do NOT include style elements like sentence patterns or vocabulary choices.]`;
 
 interface ProfileFactoryPaneProps {
   content: string;  // Content from buffer (optional use for testing)
@@ -187,7 +311,7 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
     }
   });
 
-  // Analyze voice from sample text
+  // Analyze text to extract style or persona
   const handleAnalyze = useCallback(async () => {
     if (!sampleText.trim()) {
       setError('Please paste sample text to analyze');
@@ -200,7 +324,7 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
     }
 
     if (!isLocalAvailable && !useOllamaForLocal) {
-      setError('Ollama is required for voice analysis. Please start Ollama.');
+      setError('Ollama is required for profile extraction. Please start Ollama.');
       return;
     }
 
@@ -209,46 +333,82 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
     setStep('analyze');
 
     try {
-      const prompt = VOICE_ANALYSIS_PROMPT.replace('{TEXT}', sampleText.substring(0, 3000));
+      // Select the appropriate extraction prompt based on profile type
+      const extractionPrompt = profileType === 'style'
+        ? STYLE_EXTRACTION_PROMPT
+        : PERSONA_EXTRACTION_PROMPT;
+
+      const prompt = extractionPrompt.replace('{TEXT}', sampleText.substring(0, 3000));
+
+      const systemPrompt = profileType === 'style'
+        ? 'You are an expert literary style analyst. Extract writing mechanics precisely—sentence patterns, register, figurative language, pacing. Do NOT analyze the narrator\'s worldview or values.'
+        : 'You are an expert narrative voice analyst. Extract the narrator\'s epistemic stance and worldview—how they know, what they notice, what they value. Do NOT analyze sentence patterns or vocabulary choices.';
 
       const response = await generate(prompt, {
         temperature: 0.7,
-        system: 'You are an expert literary analyst. Analyze writing styles precisely and create actionable transformation prompts.',
+        system: systemPrompt,
       });
 
-      // Parse response for ANALYSIS and PROMPT sections
-      const analysisMatch = response.match(/ANALYSIS:\s*([\s\S]*?)(?=PROMPT:|$)/i);
-      const promptMatch = response.match(/PROMPT:\s*([\s\S]*?)$/i);
+      // Parse response based on profile type
+      if (profileType === 'style') {
+        // Parse STYLE ANALYSIS and TRANSFORMATION PROMPT
+        const analysisMatch = response.match(/STYLE ANALYSIS:\s*([\s\S]*?)(?=STYLE PROFILE:|TRANSFORMATION PROMPT:|$)/i);
+        const profileMatch = response.match(/STYLE PROFILE:\s*([\s\S]*?)(?=TRANSFORMATION PROMPT:|$)/i);
+        const promptMatch = response.match(/TRANSFORMATION PROMPT:\s*([\s\S]*?)$/i);
 
-      if (analysisMatch) {
-        setAnalysisNotes(analysisMatch[1].trim());
-      } else {
-        // Fallback: use first paragraph as analysis
-        const firstPara = response.split('\n\n')[0];
-        setAnalysisNotes(firstPara);
-      }
+        // Combine analysis and profile for notes
+        let notes = '';
+        if (analysisMatch) notes += analysisMatch[1].trim();
+        if (profileMatch) notes += '\n\n' + profileMatch[1].trim();
+        setAnalysisNotes(notes || 'Style analysis not available');
 
-      if (promptMatch) {
-        let extracted = promptMatch[1].trim();
-        // Add preservation instruction if not present
-        if (!extracted.toLowerCase().includes('preserve')) {
-          extracted += '\n\nCRITICAL: Preserve ALL factual content, names, dates, technical terms, and specific details. Transform ONLY the voice and style, not the information.';
+        if (promptMatch) {
+          let extracted = promptMatch[1].trim();
+          // Ensure it starts correctly
+          if (!extracted.toLowerCase().startsWith('apply')) {
+            extracted = 'Apply this writing style: ' + extracted;
+          }
+          // Add preservation instruction
+          extracted += '\n\nCRITICAL: Preserve ALL factual content, names, dates, and specific details. Transform ONLY the writing style mechanics, not the information or narrator identity.';
+          setGeneratedPrompt(extracted);
+        } else {
+          setGeneratedPrompt('Apply this writing style: Use the sentence patterns, register, and rhythm identified in the analysis. Preserve all factual content.');
         }
-        setGeneratedPrompt(extracted);
       } else {
-        // Fallback: create a basic prompt from the analysis
-        setGeneratedPrompt(`Rewrite in the style analyzed above, maintaining the characteristic voice patterns. Preserve all factual content and technical terminology.`);
+        // Parse PERSONA ANALYSIS, THE 5 LAYERS, and TRANSFORMATION PROMPT
+        const analysisMatch = response.match(/PERSONA ANALYSIS:\s*([\s\S]*?)(?=THE 5 LAYERS:|TRANSFORMATION PROMPT:|$)/i);
+        const layersMatch = response.match(/THE 5 LAYERS:\s*([\s\S]*?)(?=TRANSFORMATION PROMPT:|$)/i);
+        const promptMatch = response.match(/TRANSFORMATION PROMPT:\s*([\s\S]*?)$/i);
+
+        // Combine analysis and layers for notes
+        let notes = '';
+        if (analysisMatch) notes += analysisMatch[1].trim();
+        if (layersMatch) notes += '\n\n' + layersMatch[1].trim();
+        setAnalysisNotes(notes || 'Persona analysis not available');
+
+        if (promptMatch) {
+          let extracted = promptMatch[1].trim();
+          // Ensure it starts correctly
+          if (!extracted.toLowerCase().startsWith('adopt')) {
+            extracted = 'Adopt the perspective of a narrator who ' + extracted;
+          }
+          // Add preservation instruction
+          extracted += '\n\nCRITICAL: Preserve ALL factual content, plot events, and setting. Transform ONLY the narrative perspective and epistemic stance, not the events or writing style mechanics.';
+          setGeneratedPrompt(extracted);
+        } else {
+          setGeneratedPrompt('Adopt the perspective of a narrator with the worldview and attention patterns identified in the analysis. Preserve all factual content and events.');
+        }
       }
 
       setStep('edit');
     } catch (err) {
-      console.error('Voice analysis failed:', err);
-      setError(err instanceof Error ? err.message : 'Analysis failed');
+      console.error('Profile extraction failed:', err);
+      setError(err instanceof Error ? err.message : 'Extraction failed');
       setStep('input');
     } finally {
       setIsAnalyzing(false);
     }
-  }, [sampleText, isLocalAvailable, useOllamaForLocal]);
+  }, [sampleText, profileType, isLocalAvailable, useOllamaForLocal]);
 
   // Test the profile with sample text
   const handleTest = useCallback(async () => {
@@ -508,7 +668,7 @@ Transformed text:`;
 
           <div style={{ marginBottom: '12px' }}>
             <label style={labelStyle}>Profile Type</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '6px' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8125rem', cursor: 'pointer' }}>
                 <input
                   type="radio"
@@ -526,6 +686,11 @@ Transformed text:`;
                 Style
               </label>
             </div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-tertiary)', lineHeight: 1.4 }}>
+              {profileType === 'persona'
+                ? 'Persona = WHO is speaking. Extracts worldview, epistemic stance, attention patterns, values, and reader relationship.'
+                : 'Style = HOW they speak. Extracts sentence patterns, vocabulary register, figurative language, and pacing.'}
+            </div>
           </div>
 
           <button
@@ -538,9 +703,9 @@ Transformed text:`;
             }}
           >
             {isAnalyzing ? (
-              <>⏳ Analyzing Voice...</>
+              <>⏳ Extracting {profileType === 'style' ? 'Style' : 'Persona'}...</>
             ) : (
-              <><Wand size={16} /> Analyze Voice</>
+              <><Wand size={16} /> Extract {profileType === 'style' ? 'Style' : 'Persona'}</>
             )}
           </button>
         </>
@@ -551,7 +716,7 @@ Transformed text:`;
         <>
           {/* Analysis Notes (read-only) */}
           <div style={{ marginBottom: '12px' }}>
-            <label style={labelStyle}>Voice Analysis</label>
+            <label style={labelStyle}>{profileType === 'style' ? 'Style Analysis' : 'Persona Analysis (5 Layers)'}</label>
             <div style={{
               padding: '8px',
               backgroundColor: 'var(--bg-tertiary)',
@@ -566,7 +731,7 @@ Transformed text:`;
 
           {/* Editable Prompt */}
           <div style={{ marginBottom: '12px' }}>
-            <label style={labelStyle}>Transformation Prompt (editable)</label>
+            <label style={labelStyle}>{profileType === 'style' ? 'Style Prompt' : 'Persona Prompt'} (editable)</label>
             <textarea
               value={generatedPrompt}
               onChange={(e) => setGeneratedPrompt(e.target.value)}
