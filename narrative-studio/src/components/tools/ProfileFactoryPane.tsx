@@ -2,32 +2,43 @@
  * ProfileFactoryPane - Create custom transformation profiles from sample text
  *
  * Flow:
- * 1. User pastes sample text (e.g., from Project Gutenberg)
+ * 1. User loads text into workspace buffer (uses standard buffer system)
  * 2. LLM analyzes voice markers (sentence structure, vocabulary, tone)
  * 3. User previews and optionally edits the generated prompt
  * 4. User tests the profile with sample transformation
  * 5. User saves the profile for future use
+ *
+ * Access:
+ * - Local (Ollama): Available to all users
+ * - Cloud (Cloudflare): Available to pro/premium/admin tiers
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useProvider } from '../../contexts/ProviderContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { generate } from '../../services/ollamaService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://npe-api.tem-527.workers.dev';
 
-// Cloud extraction API call (for when Ollama isn't available)
+// Cloud extraction API call
+// Available to paid tiers (pro, premium, admin)
 async function extractViaCloud(
   text: string,
   type: 'style' | 'persona',
-  token: string
+  token: string,
+  isAdmin: boolean
 ): Promise<{
   analysis: string;
   profile: string;
   transformationPrompt: string;
   model: string;
 }> {
-  const response = await fetch(`${API_BASE_URL}/admin/profiles/extract`, {
+  // Use admin endpoint for admins (can publish globally), user endpoint for paid users
+  const endpoint = isAdmin
+    ? `${API_BASE_URL}/admin/profiles/extract`
+    : `${API_BASE_URL}/profiles/extract`;
+
+  const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -42,6 +53,90 @@ async function extractViaCloud(
   }
 
   return response.json();
+}
+
+// Text adequacy assessment criteria
+interface TextAdequacyResult {
+  isAdequate: boolean;
+  errors: string[];
+  warnings: string[];
+  stats: {
+    charCount: number;
+    wordCount: number;
+    sentenceCount: number;
+    avgSentenceLength: number;
+    uniqueWordRatio: number;
+  };
+}
+
+function assessTextAdequacy(text: string, profileType: 'style' | 'persona'): TextAdequacyResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Basic stats
+  const charCount = text.length;
+  const words = text.split(/\s+/).filter(w => w.length > 0);
+  const wordCount = words.length;
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const sentenceCount = sentences.length;
+  const avgSentenceLength = sentenceCount > 0 ? wordCount / sentenceCount : 0;
+
+  // Unique word ratio (vocabulary diversity)
+  const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^a-z]/g, '')));
+  const uniqueWordRatio = wordCount > 0 ? uniqueWords.size / wordCount : 0;
+
+  const stats = { charCount, wordCount, sentenceCount, avgSentenceLength, uniqueWordRatio };
+
+  // Minimum requirements
+  if (charCount < 500) {
+    errors.push(`Text too short (${charCount} chars). Need at least 500 characters for reliable extraction.`);
+  }
+  if (wordCount < 100) {
+    errors.push(`Too few words (${wordCount}). Need at least 100 words.`);
+  }
+  if (sentenceCount < 5) {
+    errors.push(`Too few sentences (${sentenceCount}). Need at least 5 complete sentences.`);
+  }
+
+  // Profile-type specific requirements
+  if (profileType === 'style') {
+    // Style extraction needs varied sentence patterns
+    if (avgSentenceLength < 8) {
+      warnings.push('Sentences are very short. Style extraction works better with varied sentence lengths.');
+    }
+    if (uniqueWordRatio < 0.3) {
+      warnings.push('Low vocabulary diversity. Consider a sample with richer vocabulary.');
+    }
+  } else {
+    // Persona extraction needs enough context to infer worldview
+    if (wordCount < 200) {
+      warnings.push('For persona extraction, 200+ words helps capture epistemic stance better.');
+    }
+    // Check for first/third person consistency
+    const firstPerson = (text.match(/\b(I|me|my|mine|myself)\b/gi) || []).length;
+    const thirdPerson = (text.match(/\b(he|she|they|him|her|them|his|hers|their)\b/gi) || []).length;
+    if (firstPerson === 0 && thirdPerson === 0) {
+      warnings.push('No clear narrative voice detected. Ensure the text has a consistent perspective.');
+    }
+  }
+
+  // Quality warnings
+  if (charCount > 10000) {
+    warnings.push('Text is quite long. First 3000 characters will be used for extraction.');
+  }
+
+  // Check for dialogue-heavy text
+  const dialogueMarkers = (text.match(/["'"]/g) || []).length;
+  if (dialogueMarkers > wordCount * 0.05) {
+    warnings.push('Text appears dialogue-heavy. Narrative prose works better for extraction.');
+  }
+
+  return {
+    isAdequate: errors.length === 0,
+    errors,
+    warnings,
+    stats,
+  };
 }
 
 // Inline icons
@@ -307,22 +402,33 @@ IMPORTANT: End the prompt with this vocabulary rule:
 "VOCABULARY RULE: Keep all specific nouns, verbs, names, and key terms from the original. Only change the FRAMING and PERSPECTIVE, not the vocabulary."`;
 
 interface ProfileFactoryPaneProps {
-  content: string;  // Content from buffer (optional use for testing)
+  content: string;  // Content from workspace buffer - PRIMARY source
+}
+
+// Helper to check if user has paid tier access
+function canUseCloudExtraction(role: string | undefined): boolean {
+  return ['pro', 'premium', 'admin'].includes(role || 'free');
 }
 
 export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
-  const { isLocalAvailable, useOllamaForLocal } = useProvider();
+  const { isLocalAvailable } = useProvider();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
+  const canUseCloud = canUseCloudExtraction(user?.role);
 
   // Step tracking
   const [step, setStep] = useState<'input' | 'analyze' | 'edit' | 'test' | 'save'>('input');
   const [isPublishing, setIsPublishing] = useState(false);
 
-  // Input state
-  const [sampleText, setSampleText] = useState('');
+  // Input state - now uses content from buffer, not paste
   const [profileName, setProfileName] = useState('');
   const [profileType, setProfileType] = useState<'persona' | 'style'>('persona');
+
+  // Text adequacy assessment (computed from buffer content)
+  const textAdequacy = useMemo(
+    () => assessTextAdequacy(content, profileType),
+    [content, profileType]
+  );
 
   // Analysis state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -347,23 +453,28 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
 
   // Analyze text to extract style or persona
   const handleAnalyze = useCallback(async () => {
-    if (!sampleText.trim()) {
-      setError('Please paste sample text to analyze');
+    if (!content.trim()) {
+      setError('Load sample text into the workspace buffer first');
       return;
     }
 
-    if (sampleText.length < 200) {
-      setError('Sample text should be at least 200 characters for reliable analysis');
+    // Run text adequacy assessment
+    if (!textAdequacy.isAdequate) {
+      setError(textAdequacy.errors.join(' '));
       return;
     }
 
-    // Check if we can use local Ollama OR cloud (admin only)
-    const canUseLocal = isLocalAvailable || useOllamaForLocal;
+    // Determine which provider to use
+    // BUG FIX: Only check isLocalAvailable (actual connectivity), not useOllamaForLocal (user setting)
+    const canUseLocal = isLocalAvailable;
     const token = localStorage.getItem('narrative-studio-auth-token') || localStorage.getItem('post-social:token');
-    const canUseCloud = isAdmin && token;
+    const hasCloudAccess = canUseCloud && token;
 
-    if (!canUseLocal && !canUseCloud) {
-      setError('Ollama is required for profile extraction. Admins can use cloud extraction.');
+    if (!canUseLocal && !hasCloudAccess) {
+      const tierMsg = canUseCloud
+        ? 'Please sign in to use cloud extraction.'
+        : 'Upgrade to Pro tier for cloud extraction, or run local Ollama.';
+      setError(`No extraction provider available. ${tierMsg}`);
       return;
     }
 
@@ -380,7 +491,7 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
           ? STYLE_EXTRACTION_PROMPT
           : PERSONA_EXTRACTION_PROMPT;
 
-        const prompt = extractionPrompt.replace('{TEXT}', sampleText.substring(0, 3000));
+        const prompt = extractionPrompt.replace('{TEXT}', content.substring(0, 3000));
 
         const systemPrompt = profileType === 'style'
           ? 'You are an expert literary style analyst. Extract writing mechanics precisely—sentence patterns, register, figurative language, pacing. Do NOT analyze the narrator\'s worldview or values.'
@@ -391,8 +502,8 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
           system: systemPrompt,
         });
       } else {
-        // Use cloud extraction (admin only)
-        const cloudResult = await extractViaCloud(sampleText, profileType, token!);
+        // Use cloud extraction (paid tier)
+        const cloudResult = await extractViaCloud(content, profileType, token!, isAdmin);
         // Combine analysis and profile for display
         const combinedNotes = cloudResult.analysis + '\n\n' + cloudResult.profile;
         setAnalysisNotes(combinedNotes || `${profileType === 'style' ? 'Style' : 'Persona'} analysis complete (via ${cloudResult.model})`);
@@ -462,7 +573,7 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [sampleText, profileType, isLocalAvailable, useOllamaForLocal, isAdmin]);
+  }, [content, profileType, isLocalAvailable, canUseCloud, isAdmin, textAdequacy]);
 
   // Test the profile with sample text
   const handleTest = useCallback(async () => {
@@ -540,7 +651,7 @@ Transformed text:`;
       name: profileName.trim(),
       type: profileType,
       prompt: generatedPrompt,
-      sourceExcerpt: sampleText.substring(0, 200),
+      sourceExcerpt: content.substring(0, 200),
       analysisNotes,
       createdAt: new Date().toISOString(),
     };
@@ -552,9 +663,8 @@ Transformed text:`;
     setStep('save');
     setError(null);
 
-    // Reset form after a delay
+    // Reset form after a delay (buffer content managed externally)
     setTimeout(() => {
-      setSampleText('');
       setProfileName('');
       setAnalysisNotes('');
       setGeneratedPrompt('');
@@ -562,7 +672,7 @@ Transformed text:`;
       setTestOutput('');
       setStep('input');
     }, 2000);
-  }, [profileName, profileType, generatedPrompt, sampleText, analysisNotes, savedProfiles]);
+  }, [profileName, profileType, generatedPrompt, content, analysisNotes, savedProfiles]);
 
   // Delete a saved profile
   const handleDelete = useCallback((id: string) => {
@@ -636,9 +746,8 @@ Transformed text:`;
 
       setStep('save');
 
-      // Reset form after a delay
+      // Reset form after a delay (buffer content managed externally)
       setTimeout(() => {
-        setSampleText('');
         setProfileName('');
         setAnalysisNotes('');
         setGeneratedPrompt('');
@@ -656,7 +765,6 @@ Transformed text:`;
 
   // Reset to start
   const handleReset = useCallback(() => {
-    setSampleText('');
     setProfileName('');
     setAnalysisNotes('');
     setGeneratedPrompt('');
@@ -692,22 +800,107 @@ Transformed text:`;
         ))}
       </div>
 
-      {/* Step: Input sample text */}
+      {/* Step: Input - shows buffer status and adequacy assessment */}
       {(step === 'input' || step === 'analyze') && (
         <>
+          {/* Buffer Content Status */}
           <div style={{ marginBottom: '12px' }}>
-            <label style={labelStyle}>Sample Text</label>
-            <textarea
-              value={sampleText}
-              onChange={(e) => setSampleText(e.target.value)}
-              placeholder="Paste 500-2000 words of text in the style you want to capture..."
-              style={textareaStyle}
-              rows={8}
-            />
-            <div style={{ fontSize: '0.625rem', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-              {sampleText.length} characters • {sampleText.split(/\s+/).filter(Boolean).length} words
+            <label style={labelStyle}>Source Text (from Workspace Buffer)</label>
+            <div style={{
+              padding: '8px',
+              backgroundColor: content.trim() ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+              borderRadius: 'var(--radius-sm)',
+              border: content.trim() ? '1px solid var(--border-color)' : '1px dashed var(--border-color)',
+              minHeight: '60px',
+            }}>
+              {content.trim() ? (
+                <>
+                  <div style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.5,
+                    maxHeight: '80px',
+                    overflow: 'hidden',
+                    marginBottom: '6px',
+                  }}>
+                    {content.substring(0, 300)}
+                    {content.length > 300 && '...'}
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    gap: '12px',
+                    fontSize: '0.625rem',
+                    color: 'var(--text-tertiary)',
+                  }}>
+                    <span>{textAdequacy.stats.charCount.toLocaleString()} chars</span>
+                    <span>{textAdequacy.stats.wordCount.toLocaleString()} words</span>
+                    <span>{textAdequacy.stats.sentenceCount} sentences</span>
+                  </div>
+                </>
+              ) : (
+                <div style={{
+                  color: 'var(--text-tertiary)',
+                  fontSize: '0.75rem',
+                  textAlign: 'center',
+                  padding: '12px 0',
+                }}>
+                  Load sample text into the workspace to extract a profile.
+                  <br />
+                  <span style={{ fontSize: '0.625rem' }}>
+                    Use archive, import, or paste text in the editor.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Text Adequacy Assessment */}
+          {content.trim() && (
+            <div style={{ marginBottom: '12px' }}>
+              {/* Errors */}
+              {textAdequacy.errors.length > 0 && (
+                <div style={{
+                  padding: '6px 8px',
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.6875rem',
+                  color: 'var(--error)',
+                  marginBottom: '6px',
+                }}>
+                  {textAdequacy.errors.map((err, i) => (
+                    <div key={i}>⚠️ {err}</div>
+                  ))}
+                </div>
+              )}
+              {/* Warnings */}
+              {textAdequacy.warnings.length > 0 && (
+                <div style={{
+                  padding: '6px 8px',
+                  backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.6875rem',
+                  color: 'var(--warning)',
+                  marginBottom: '6px',
+                }}>
+                  {textAdequacy.warnings.map((warn, i) => (
+                    <div key={i}>💡 {warn}</div>
+                  ))}
+                </div>
+              )}
+              {/* Success indicator */}
+              {textAdequacy.isAdequate && textAdequacy.warnings.length === 0 && (
+                <div style={{
+                  padding: '6px 8px',
+                  backgroundColor: 'rgba(34, 197, 94, 0.1)',
+                  borderRadius: 'var(--radius-sm)',
+                  fontSize: '0.6875rem',
+                  color: 'var(--success)',
+                }}>
+                  ✓ Text is adequate for {profileType} extraction
+                </div>
+              )}
+            </div>
+          )}
 
           <div style={{ marginBottom: '12px' }}>
             <label style={labelStyle}>Profile Name</label>
@@ -747,19 +940,29 @@ Transformed text:`;
             </div>
           </div>
 
+          {/* Provider indicator */}
+          <div style={{
+            fontSize: '0.625rem',
+            color: 'var(--text-tertiary)',
+            marginBottom: '6px',
+            textAlign: 'center',
+          }}>
+            {isLocalAvailable ? '🖥️ Local (Ollama)' : canUseCloud ? '☁️ Cloud (Cloudflare)' : '⚠️ No provider'}
+          </div>
+
           <button
             onClick={handleAnalyze}
-            disabled={isAnalyzing || !sampleText.trim()}
+            disabled={isAnalyzing || !content.trim() || !textAdequacy.isAdequate}
             style={{
               ...runButtonStyle,
-              opacity: isAnalyzing || !sampleText.trim() ? 0.5 : 1,
-              cursor: isAnalyzing || !sampleText.trim() ? 'not-allowed' : 'pointer',
+              opacity: isAnalyzing || !content.trim() || !textAdequacy.isAdequate ? 0.5 : 1,
+              cursor: isAnalyzing || !content.trim() || !textAdequacy.isAdequate ? 'not-allowed' : 'pointer',
             }}
           >
             {isAnalyzing ? (
               <>⏳ Extracting {profileType === 'style' ? 'Style' : 'Persona'}...</>
             ) : (
-              <><Wand size={16} /> Extract {profileType === 'style' ? 'Style' : 'Persona'} {!isLocalAvailable && !useOllamaForLocal && isAdmin ? '(Cloud)' : ''}</>
+              <><Wand size={16} /> Extract {profileType === 'style' ? 'Style' : 'Persona'}</>
             )}
           </button>
         </>

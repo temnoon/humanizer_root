@@ -25,6 +25,7 @@ import stripeRoutes from './routes/stripe';
 import booksRoutes from './routes/books';
 import feedbackRoutes from './routes/feedback';
 import adminProfileRoutes from './routes/admin-profiles';
+import profileFactoryRoutes from './routes/profile-factory';
 import { sessionsRoutes } from './routes/sessions';
 import modelVettingTestRoutes from './routes/model-vetting-test';
 import { requireAuth } from './middleware/auth';
@@ -137,6 +138,9 @@ app.route('/feedback', feedbackRoutes);
 
 // Admin Profile Management routes (CRUD for global profiles)
 app.route('/admin/profiles', adminProfileRoutes);
+
+// Profile Factory routes (user profile extraction - paid tiers)
+app.route('/profiles', profileFactoryRoutes);
 
 // Studio Sessions routes (workspace state persistence)
 app.route('/api/sessions', sessionsRoutes);
