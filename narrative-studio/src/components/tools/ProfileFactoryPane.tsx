@@ -411,10 +411,14 @@ function canUseCloudExtraction(role: string | undefined): boolean {
 }
 
 export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
-  const { isLocalAvailable } = useProvider();
+  const { isOllamaAvailable } = useProvider();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const canUseCloud = canUseCloudExtraction(user?.role);
+
+  // On HTTPS pages, we can't use local Ollama due to mixed content blocking
+  const isSecurePage = typeof window !== 'undefined' && window.location.protocol === 'https:';
+  const canUseLocalOllama = isOllamaAvailable && !isSecurePage;
 
   // Step tracking
   const [step, setStep] = useState<'input' | 'analyze' | 'edit' | 'test' | 'save'>('input');
@@ -465,12 +469,11 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
     }
 
     // Determine which provider to use
-    // BUG FIX: Only check isLocalAvailable (actual connectivity), not useOllamaForLocal (user setting)
-    const canUseLocal = isLocalAvailable;
+    // Use Ollama only if available AND not on HTTPS (mixed content blocks HTTP requests)
     const token = localStorage.getItem('narrative-studio-auth-token') || localStorage.getItem('post-social:token');
     const hasCloudAccess = canUseCloud && token;
 
-    if (!canUseLocal && !hasCloudAccess) {
+    if (!canUseLocalOllama && !hasCloudAccess) {
       const tierMsg = canUseCloud
         ? 'Please sign in to use cloud extraction.'
         : 'Upgrade to Pro tier for cloud extraction, or run local Ollama.';
@@ -485,7 +488,7 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
     try {
       let response: string;
 
-      if (canUseLocal) {
+      if (canUseLocalOllama) {
         // Use local Ollama
         const extractionPrompt = profileType === 'style'
           ? STYLE_EXTRACTION_PROMPT
@@ -573,7 +576,7 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [content, profileType, isLocalAvailable, canUseCloud, isAdmin, textAdequacy]);
+  }, [content, profileType, canUseLocalOllama, canUseCloud, isAdmin, textAdequacy]);
 
   // Test the profile with sample text
   const handleTest = useCallback(async () => {
@@ -947,7 +950,7 @@ Transformed text:`;
             marginBottom: '6px',
             textAlign: 'center',
           }}>
-            {isLocalAvailable ? '🖥️ Local (Ollama)' : canUseCloud ? '☁️ Cloud (Cloudflare)' : '⚠️ No provider'}
+            {canUseLocalOllama ? '🖥️ Local (Ollama)' : canUseCloud ? '☁️ Cloud (Cloudflare)' : '⚠️ No provider'}
           </div>
 
           <button
