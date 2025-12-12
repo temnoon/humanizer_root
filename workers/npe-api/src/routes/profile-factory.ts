@@ -198,6 +198,75 @@ profileFactoryRoutes.post('/extract', requirePaidTier, async (c) => {
 });
 
 /**
+ * POST /profiles/test - Test a profile prompt with sample text
+ * Available to paid tier users (pro, premium, admin)
+ */
+profileFactoryRoutes.post('/test', requirePaidTier, async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const body = await c.req.json();
+
+    const { prompt, text } = body;
+
+    if (!prompt || prompt.length < 20) {
+      return c.json({ error: 'Prompt must be at least 20 characters' }, 400);
+    }
+
+    if (!text || text.length < 50) {
+      return c.json({ error: 'Text must be at least 50 characters' }, 400);
+    }
+
+    // Get appropriate model
+    const hasAI = hasCloudflareAI(c.env);
+    const environment = detectEnvironment(hasAI);
+    const modelId = getModelForUseCase('style', environment); // Use style model for transformations
+
+    console.log(`[ProfileFactory/Test] User: ${auth.userId}, Model: ${modelId}`);
+
+    // Create LLM provider
+    const llmProvider = await createLLMProvider(modelId, c.env, auth.userId);
+
+    // Build the transformation prompt
+    const fullPrompt = `${prompt}
+
+Original text to transform:
+---
+${text.substring(0, 2000)}
+---
+
+Transformed text:`;
+
+    // Run transformation
+    const startTime = Date.now();
+    const response = await llmProvider.generateText(fullPrompt, {
+      max_tokens: 2000,
+      temperature: 0.7,
+    });
+
+    const duration = Date.now() - startTime;
+
+    // Strip any preamble
+    let result = response.trim();
+    if (result.toLowerCase().startsWith('here')) {
+      const firstNewline = result.indexOf('\n');
+      if (firstNewline > 0 && firstNewline < 100) {
+        result = result.substring(firstNewline + 1).trim();
+      }
+    }
+
+    return c.json({
+      success: true,
+      result,
+      model: modelId,
+      durationMs: duration,
+    }, 200);
+  } catch (error) {
+    console.error('Error testing profile:', error);
+    return c.json({ error: 'Failed to test profile' }, 500);
+  }
+});
+
+/**
  * GET /profiles/capabilities - Check what the user can do
  */
 profileFactoryRoutes.get('/capabilities', async (c) => {

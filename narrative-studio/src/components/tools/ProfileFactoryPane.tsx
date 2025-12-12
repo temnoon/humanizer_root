@@ -591,12 +591,25 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
       return;
     }
 
+    // Check if we can test locally or need cloud
+    const token = localStorage.getItem('narrative-studio-auth-token') || localStorage.getItem('post-social:token');
+    const hasCloudAccess = canUseCloud && token;
+
+    if (!canUseLocalOllama && !hasCloudAccess) {
+      setError('No test provider available. Sign in with Pro tier for cloud testing.');
+      return;
+    }
+
     setIsTesting(true);
     setError(null);
     setStep('test');
 
     try {
-      const prompt = `${generatedPrompt}
+      let cleaned: string;
+
+      if (canUseLocalOllama) {
+        // Use local Ollama
+        const prompt = `${generatedPrompt}
 
 Original text to transform:
 ---
@@ -605,18 +618,40 @@ ${textToTest}
 
 Transformed text:`;
 
-      const response = await generate(prompt, {
-        temperature: 0.7,
-        system: 'You are a text transformation tool. Output ONLY the transformed text, no explanations.',
-      });
+        const response = await generate(prompt, {
+          temperature: 0.7,
+          system: 'You are a text transformation tool. Output ONLY the transformed text, no explanations.',
+        });
 
-      // Strip any preamble
-      let cleaned = response.trim();
-      if (cleaned.toLowerCase().startsWith('here')) {
-        const firstNewline = cleaned.indexOf('\n');
-        if (firstNewline > 0 && firstNewline < 100) {
-          cleaned = cleaned.substring(firstNewline + 1).trim();
+        // Strip any preamble
+        cleaned = response.trim();
+        if (cleaned.toLowerCase().startsWith('here')) {
+          const firstNewline = cleaned.indexOf('\n');
+          if (firstNewline > 0 && firstNewline < 100) {
+            cleaned = cleaned.substring(firstNewline + 1).trim();
+          }
         }
+      } else {
+        // Use cloud test endpoint
+        const response = await fetch(`${API_BASE_URL}/profiles/test`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            prompt: generatedPrompt,
+            text: textToTest,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Cloud test failed');
+        }
+
+        const result = await response.json();
+        cleaned = result.result;
       }
 
       setTestOutput(cleaned);
@@ -626,7 +661,7 @@ Transformed text:`;
     } finally {
       setIsTesting(false);
     }
-  }, [testInput, content, generatedPrompt]);
+  }, [testInput, content, generatedPrompt, canUseLocalOllama, canUseCloud]);
 
   // Save the profile
   const handleSave = useCallback(() => {
