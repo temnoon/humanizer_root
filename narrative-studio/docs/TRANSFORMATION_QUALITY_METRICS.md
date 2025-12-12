@@ -151,6 +151,43 @@ Use these for benchmarking:
 
 ---
 
+## Test Results (Dec 12, 2025)
+
+### Extraction Quality Tests
+
+Tested dual extraction prompts on Gutenberg texts via Ollama qwen3:14b.
+
+| Author | Text | Style Extraction | Persona Extraction |
+|--------|------|------------------|-------------------|
+| Darwin | Origin of Species | A (4/4) | A (4/4) |
+| Austen | Pride and Prejudice | A (4/4) | A (4/4) |
+| Thoreau | Walden | A (4/4) | A (4/4) |
+
+**Criteria tested**:
+- Style: focusesMechanics, avoidsPersona, hasStyleProfile, hasTransformationPrompt
+- Persona: focusesLayers, avoidsStyle, hasFiveLayers, hasTransformationPrompt
+
+### Transformation Quality Comparison
+
+Tested OLD conflated profile vs NEW separated style/persona prompts on casual text.
+
+| Profile Type | Score | Grade | Notes |
+|--------------|-------|-------|-------|
+| OLD Darwin (conflated) | 75/100 | B | Mixed style+persona, long run-on sentences |
+| NEW Darwin Style | 70/100 | C | Overdid mechanics, purple prose |
+| NEW Darwin Persona | 90/100 | A | Clean epistemic shift, preserved structure |
+
+**Key Finding**: Persona transformations score highest because they change HOW the narrator PERCEIVES without fighting natural prose flow. Style transformations tend to overdo mechanics and produce overwrought text.
+
+### Recommendations
+
+1. **Prefer persona transformations** for voice changes - they produce more natural results
+2. **Use style transformations sparingly** - only when specific mechanical changes are needed
+3. **Never conflate** - the old approach of mixing style+persona produces medium-quality results
+4. **5-layer persona stack works** - epistemic/attention/values/reader contract is the right model
+
+---
+
 ## Future: Embedding-Based Metrics
 
 For automated scoring at scale:
