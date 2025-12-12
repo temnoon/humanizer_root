@@ -15,6 +15,23 @@ import { useToolState } from '../../contexts/ToolTabContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useWorkspaceTools } from '../../hooks/useWorkspaceTools';
 import { aiDetection as runAIDetection } from '../../services/transformationService';
+import {
+  validateTextLength,
+  getCharLimit,
+  type UserTier,
+} from '../../config/transformation-limits';
+
+// Helper to get user tier from role
+function getUserTier(role: string | undefined): UserTier {
+  const tierMap: Record<string, UserTier> = {
+    admin: 'admin',
+    premium: 'premium',
+    pro: 'pro',
+    member: 'member',
+    free: 'free',
+  };
+  return tierMap[role || 'free'] || 'free';
+}
 
 interface SentenceAnalysis {
   sentence: string;
@@ -96,6 +113,7 @@ export function AIAnalysisPane({ content, onHighlightText }: AIAnalysisPaneProps
   const [highlightMode, setHighlightMode] = useState<'off' | 'tellwords' | 'suspects' | 'gptzero' | 'all'>('off');
 
   const canUseGPTZero = user?.role === 'admin' || user?.role === 'pro';
+  const userTier = getUserTier(user?.role);
 
   // Update highlights when mode changes
   useEffect(() => {
@@ -177,6 +195,13 @@ export function AIAnalysisPane({ content, onHighlightText }: AIAnalysisPaneProps
   const handleAnalyze = async () => {
     if (!content.trim()) {
       setError('No content to analyze');
+      return;
+    }
+
+    // Pre-validate text length before making API call
+    const lengthValidation = validateTextLength(content, 'ai-detection', userTier);
+    if (lengthValidation) {
+      setError(lengthValidation.error);
       return;
     }
 
@@ -343,6 +368,30 @@ export function AIAnalysisPane({ content, onHighlightText }: AIAnalysisPaneProps
             <span>GPTZero</span>
             {!canUseGPTZero && <span className="ai-analysis-pane__pro-badge">Pro</span>}
           </label>
+        </div>
+      </div>
+
+      {/* Character Count */}
+      <div className="ai-analysis-pane__char-count">
+        <div className="ai-analysis-pane__char-count-header">
+          <span>{content.length.toLocaleString()} / {getCharLimit('ai-detection', userTier).toLocaleString()} chars</span>
+          {content.length > getCharLimit('ai-detection', userTier) && (
+            <span className="ai-analysis-pane__char-count-over">
+              {(content.length - getCharLimit('ai-detection', userTier)).toLocaleString()} over limit
+            </span>
+          )}
+        </div>
+        <div className="ai-analysis-pane__char-count-bar">
+          <div
+            className={`ai-analysis-pane__char-count-fill ${
+              content.length > getCharLimit('ai-detection', userTier)
+                ? 'ai-analysis-pane__char-count-fill--error'
+                : content.length > getCharLimit('ai-detection', userTier) * 0.8
+                ? 'ai-analysis-pane__char-count-fill--warning'
+                : 'ai-analysis-pane__char-count-fill--success'
+            }`}
+            style={{ width: `${Math.min((content.length / getCharLimit('ai-detection', userTier)) * 100, 100)}%` }}
+          />
         </div>
       </div>
 

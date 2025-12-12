@@ -83,8 +83,8 @@ export class MediaReferenceExtractor {
       if (!message) continue;
 
       // Extract from message content
-      const content = message.content || {};
-      const parts = content.parts || [];
+      const content = message.content as { parts?: (string | object)[] } | undefined;
+      const parts = content?.parts || [];
 
       for (const part of parts) {
         // Handle dict parts (asset_pointer, metadata)

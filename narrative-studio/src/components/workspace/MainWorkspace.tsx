@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import type { Narrative, TransformResult, ViewMode, WorkspaceMode } from '../../types';
 import { MarkdownRenderer } from '../markdown/MarkdownRenderer';
 import { MarkdownEditor } from '../markdown/MarkdownEditor';
 import { Icons } from '../layout/Icons';
 import { stripMarkdown } from '../../services/transformationService';
 import { useSession } from '../../contexts/SessionContext';
+import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
 import { BufferTabs } from './BufferTabs';
 import { BufferSelector } from './BufferSelector';
 import { ViewModeToggle } from './ViewModeToggle';
@@ -64,6 +65,12 @@ export function MainWorkspace({
     handleWorkspaceBufferSelect,
     workspaceContext,
   } = useWorkspaceState({ debug: true });
+
+  // Unified buffer context for paste-to-workspace functionality
+  const { createFromText, setWorkingBuffer } = useUnifiedBuffer();
+
+  // Paste/drop state for empty workspace
+  const [isDragging, setIsDragging] = useState(false);
 
   // Local state (legacy for non-session workflow)
   const [originalViewMode, setOriginalViewMode] = useState<ViewMode>('rendered');
@@ -190,7 +197,7 @@ export function MainWorkspace({
   useEffect(() => {
     if (narrative) {
       // Check if we should scroll to a specific image
-      const scrollToImageUrl = narrative.metadata.scrollToImageUrl as string | undefined;
+      const scrollToImageUrl = narrative.metadata?.scrollToImageUrl as string | undefined;
 
       if (scrollToImageUrl) {
         // Wait for images to load, then scroll to the target image
@@ -223,7 +230,76 @@ export function MainWorkspace({
         }
       }
     }
-  }, [narrative?.id, narrative?.metadata.scrollToImageUrl]); // Run when narrative ID or scroll hint changes
+  }, [narrative?.id, narrative?.metadata?.scrollToImageUrl]); // Run when narrative ID or scroll hint changes
+
+  // Handle paste event for empty workspace - allows pasting text directly
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text');
+    if (text && text.trim()) {
+      e.preventDefault();
+      // Determine format based on content
+      const hasMarkdown = /^#{1,6}\s|\*\*|__|\[.*\]\(.*\)|```/.test(text);
+      const format = hasMarkdown ? 'markdown' : 'plain';
+
+      // Create buffer and set as working
+      const buffer = createFromText(text, format);
+      setWorkingBuffer(buffer);
+      console.log('[MainWorkspace] Pasted content to workspace:', buffer.displayName);
+    }
+  }, [createFromText, setWorkingBuffer]);
+
+  // Handle file drop for empty workspace
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = Array.from(e.dataTransfer.files);
+    const textFile = files.find(f =>
+      f.name.endsWith('.txt') || f.name.endsWith('.md')
+    );
+
+    if (textFile) {
+      try {
+        const text = await textFile.text();
+        const hasMarkdown = /^#{1,6}\s|\*\*|__|\[.*\]\(.*\)|```/.test(text);
+        const format = hasMarkdown ? 'markdown' : 'plain';
+
+        const buffer = createFromText(text, format);
+        // Use filename (without extension) as display name
+        const baseName = textFile.name.replace(/\.[^/.]+$/, '');
+        buffer.displayName = baseName;
+
+        setWorkingBuffer(buffer);
+        console.log('[MainWorkspace] Dropped file to workspace:', buffer.displayName);
+      } catch (err) {
+        console.error('Failed to read dropped file:', err);
+      }
+    } else {
+      // Check for plain text in drag data
+      const text = e.dataTransfer.getData('text');
+      if (text && text.trim()) {
+        const hasMarkdown = /^#{1,6}\s|\*\*|__|\[.*\]\(.*\)|```/.test(text);
+        const format = hasMarkdown ? 'markdown' : 'plain';
+
+        const buffer = createFromText(text, format);
+        setWorkingBuffer(buffer);
+        console.log('[MainWorkspace] Dropped text to workspace:', buffer.displayName);
+      }
+    }
+  }, [createFromText, setWorkingBuffer]);
 
   // Workspace buffer view - show when workspace is active even without a narrative
   if (hasWorkspace && workspaceActiveBuffer && !narrative) {
@@ -496,7 +572,7 @@ export function MainWorkspace({
     );
   }
 
-  // No workspace and no narrative - show empty state
+  // No workspace and no narrative - show empty state with paste/drop zone
   if (!narrative) {
     return (
       <main
@@ -505,28 +581,58 @@ export function MainWorkspace({
           backgroundColor: 'var(--bg-primary)',
           padding: 'var(--space-xl)',
         }}
+        onPaste={handlePaste}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        tabIndex={0} // Make focusable to receive paste events
       >
-        <div className="text-center">
+        <div
+          className="workspace-empty-drop-zone"
+          style={{
+            textAlign: 'center',
+            padding: 'var(--space-2xl)',
+            borderRadius: 'var(--radius-xl)',
+            border: isDragging ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-color)',
+            backgroundColor: isDragging ? 'rgba(var(--accent-primary-rgb, 99, 102, 241), 0.05)' : 'transparent',
+            transition: 'all 0.2s ease',
+            maxWidth: '400px',
+            width: '100%',
+          }}
+        >
           <div
             className="mb-6"
             style={{
               width: '80px',
               height: '80px',
               borderRadius: '50%',
-              backgroundColor: 'var(--bg-tertiary)',
+              backgroundColor: isDragging ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto',
+              transition: 'all 0.2s ease',
             }}
           >
-            <Icons.Eye />
+            {isDragging ? (
+              <Icons.Upload />
+            ) : (
+              <Icons.Eye />
+            )}
           </div>
-          <p className="heading-md mb-3" style={{ color: 'var(--text-secondary)' }}>
-            No narrative selected
+          <p className="heading-md mb-3" style={{ color: isDragging ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>
+            {isDragging ? 'Drop to import' : 'Start your narrative'}
           </p>
-          <p className="text-body" style={{ color: 'var(--text-tertiary)' }}>
-            Select a narrative from the Archive to get started
+          <p className="text-body mb-4" style={{ color: 'var(--text-tertiary)' }}>
+            {isDragging ? 'Drop your text file here' : (
+              <>
+                <strong style={{ color: 'var(--text-secondary)' }}>Paste</strong> text (Ctrl+V) or{' '}
+                <strong style={{ color: 'var(--text-secondary)' }}>drop</strong> a .txt/.md file
+              </>
+            )}
+          </p>
+          <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
+            Or use the 📥 Import tab in the Archive panel
           </p>
         </div>
       </main>

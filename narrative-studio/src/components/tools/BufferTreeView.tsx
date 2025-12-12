@@ -9,6 +9,7 @@
  */
 
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import type { ReactElement } from 'react';
 import { useWorkspaceOptional } from '../../contexts/WorkspaceContext';
 import type { BufferNode, Buffer } from '../../types/workspace';
 import './BufferTreeView.css';
@@ -180,7 +181,7 @@ export function BufferTreeView({
   };
 
   // Render a single buffer node
-  const renderNode = (node: BufferNode): JSX.Element => {
+  const renderNode = (node: BufferNode): ReactElement => {
     const hasChildren = node.children.length > 0;
     const isExpanded = expandedNodes.has(node.id) || node.depth === 0;
     const aiScore = node.analysis?.aiScore;

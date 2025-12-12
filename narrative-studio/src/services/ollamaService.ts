@@ -5,12 +5,20 @@
  * Used in Electron mode when user has Ollama configured.
  */
 
+import { isElectron } from '../config/feature-flags';
+
 const OLLAMA_BASE = 'http://localhost:11434';
 
 /**
  * Check if Ollama is available
+ * Only checks in Electron mode - HTTPS pages cannot access localhost
  */
 export async function isOllamaAvailable(): Promise<boolean> {
+  // Skip in web mode - HTTPS pages cannot access HTTP localhost
+  if (!isElectron) {
+    return false;
+  }
+
   try {
     const response = await fetch(`${OLLAMA_BASE}/api/tags`, {
       signal: AbortSignal.timeout(2000),

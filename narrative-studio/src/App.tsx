@@ -6,7 +6,7 @@ import { SessionProvider, useSession } from './contexts/SessionContext';
 import { ProviderProvider } from './contexts/ProviderContext';
 import { ExploreProvider } from './contexts/ExploreContext';
 import { ActiveBookProvider } from './contexts/ActiveBookContext';
-import { UnifiedBufferProvider } from './contexts/UnifiedBufferContext';
+import { UnifiedBufferProvider, useUnifiedBuffer } from './contexts/UnifiedBufferContext';
 import { WorkspaceProvider } from './contexts/WorkspaceContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
@@ -44,6 +44,8 @@ function AppContent() {
     createTransformationBuffer,
     updateViewMode
   } = useSession();
+  // UnifiedBuffer for syncing narrative selection with buffer system
+  const { createFromText, setWorkingBuffer, clearWorkingBuffer } = useUnifiedBuffer();
   const [narratives, setNarratives] = useState<Narrative[]>([]);
   const [currentNarrativeId, setCurrentNarrativeId] = useState<string | null>(null);
   const [transformResults, setTransformResults] = useState<Map<string, TransformResult>>(
@@ -233,6 +235,10 @@ function AppContent() {
       }
 
       setCurrentNarrativeId(narrative.id);
+
+      // IMPORTANT: Clear any existing workspace buffer when loading new content
+      // This ensures the new narrative content displays, not stale buffer content
+      clearWorkingBuffer();
     }
 
     setWorkspaceMode('single');

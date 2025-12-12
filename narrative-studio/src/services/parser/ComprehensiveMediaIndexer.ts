@@ -6,7 +6,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import imageSize from 'image-size';
+import { imageSize } from 'image-size';
 
 export interface FileMetadata {
   size: number;
@@ -157,7 +157,8 @@ export class ComprehensiveMediaIndexer {
 
         if (ComprehensiveMediaIndexer.IMAGE_EXTENSIONS.has(ext)) {
           try {
-            const dimensions = imageSize(filepath);
+            const buffer = fs.readFileSync(filepath);
+            const dimensions = imageSize(new Uint8Array(buffer));
             width = dimensions.width;
             height = dimensions.height;
           } catch {

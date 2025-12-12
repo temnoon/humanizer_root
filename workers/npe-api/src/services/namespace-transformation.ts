@@ -5,7 +5,8 @@
 import type { Env, NPENamespace } from '../../shared/types';
 import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
-import { filterModelOutput, UnvettedModelError } from './model-vetting';
+import { filterModelOutput, UnvettedModelError, isModelVetted } from './model-vetting';
+import { getModelForUseCase, detectEnvironment, hasCloudflareAI, isModelCompatibleWithEnvironment } from '../config/llm-models';
 
 export interface NamespaceTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
@@ -61,7 +62,7 @@ export class NamespaceTransformationService {
     private env: Env,
     private namespace: NPENamespace,
     private userId: string,
-    private modelId: string = '@cf/meta/llama-3.1-70b-instruct'
+    private modelId: string  // Model MUST be passed from transformNamespace() which handles selection
   ) {}
 
   /**
@@ -285,8 +286,31 @@ export async function transformNamespace(
   userId: string,
   options: NamespaceTransformationOptions = {}
 ): Promise<NamespaceTransformationResult> {
-  const modelId = options.model || '@cf/meta/llama-3.1-70b-instruct';
-  console.log(`[Namespace] Model: ${modelId}${options.model ? ' (user selected)' : ' (default)'}`);
+  // Detect environment (local vs cloud) based on available bindings
+  const environment = detectEnvironment(hasCloudflareAI(env));
+
+  // Determine final model to use
+  let modelId: string;
+
+  if (options.model) {
+    // User provided a model - validate it
+    if (!isModelVetted(options.model)) {
+      throw new Error(`Model ${options.model} is not vetted for use. Check model-vetting/profiles.ts`);
+    }
+    // Check environment compatibility
+    if (!isModelCompatibleWithEnvironment(options.model, environment)) {
+      console.warn(`[Namespace] User selected cloud model ${options.model} but environment is ${environment}. Falling back to default.`);
+      modelId = getModelForUseCase('namespace', environment);
+    } else {
+      modelId = options.model;
+    }
+  } else {
+    // No user model - use config-assigned model
+    modelId = getModelForUseCase('namespace', environment);
+  }
+
+  console.log(`[Namespace] Environment: ${environment}, Model: ${modelId}${options.model === modelId ? ' (user selected)' : ' (default)'}`);
+
   const service = new NamespaceTransformationService(env, namespace, userId, modelId);
   return service.transform(text, options);
 }

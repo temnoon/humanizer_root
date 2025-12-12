@@ -85,11 +85,11 @@ export function ToolsPanel({
 
         // Set first item as default if we don't have a selection yet
         if (!parameters.persona && personasData.length > 0) {
-          setParameters((prev) => ({
-            ...prev,
+          setParameters({
+            ...parameters,
             persona: personasData[0].name,
             style: stylesData[0]?.name || '',
-          }));
+          });
         }
       } catch (error) {
         console.error('Failed to fetch attributes:', error);

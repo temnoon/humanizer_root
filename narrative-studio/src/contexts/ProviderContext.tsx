@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { isOllamaAvailable } from '../services/ollamaService';
 import { STORAGE_PATHS } from '../config/storage-paths';
+import { isElectron as isElectronApp } from '../config/feature-flags';
 
 export type Provider = 'local' | 'cloudflare';
 
@@ -28,7 +29,9 @@ const STORAGE_KEY = 'narrative-studio-provider';
 const MODEL_CONFIG_KEY = 'narrative-studio-model-config';
 
 export function ProviderProvider({ children }: { children: ReactNode }) {
-  const [provider, setProviderState] = useState<Provider>('local');
+  // Default to 'cloudflare' in web app, 'local' in Electron
+  const defaultProvider: Provider = isElectronApp ? 'local' : 'cloudflare';
+  const [provider, setProviderState] = useState<Provider>(defaultProvider);
   const [modelConfig, setModelConfigState] = useState<ModelConfig>({
     persona: 'qwen3:latest',
     style: 'qwen3:latest',
@@ -37,14 +40,20 @@ export function ProviderProvider({ children }: { children: ReactNode }) {
   const [isLocalAvailable, setIsLocalAvailable] = useState(false);
   const [isCloudAvailable, setIsCloudAvailable] = useState(false);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
-  const [isElectron, setIsElectron] = useState(false);
+  const [isElectron, setIsElectron] = useState(isElectronApp);
   const [useOllamaForLocal, setUseOllamaForLocal] = useState(false);
 
   // Load saved provider preference
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as Provider | null;
     if (saved === 'local' || saved === 'cloudflare') {
-      setProviderState(saved);
+      // In web app, ignore 'local' preference (force cloudflare)
+      if (!isElectronApp && saved === 'local') {
+        setProviderState('cloudflare');
+        localStorage.setItem(STORAGE_KEY, 'cloudflare');
+      } else {
+        setProviderState(saved);
+      }
     }
 
     const savedConfig = localStorage.getItem(MODEL_CONFIG_KEY);
@@ -85,11 +94,10 @@ export function ProviderProvider({ children }: { children: ReactNode }) {
       });
   }, []);
 
-  // Check if running in Electron
+  // Log Electron mode (state is initialized from feature-flags)
   useEffect(() => {
-    const electronMode = !!window.isElectron && !!window.electronAPI;
-    setIsElectron(electronMode);
-    console.log('[Provider] Electron mode:', electronMode ? 'Yes ✅' : 'No ❌');
+    console.log('[Provider] Electron mode:', isElectronApp ? 'Yes ✅' : 'No ❌');
+    console.log('[Provider] Default provider:', defaultProvider);
   }, []);
 
   // Check Ollama availability (for Electron mode)

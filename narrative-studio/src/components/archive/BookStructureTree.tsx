@@ -5,7 +5,8 @@
  * Supports drag-and-drop reordering within and across containers.
  */
 
-import { useState, useMemo, useCallback, DragEvent } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import type { DragEvent } from 'react';
 import { useActiveBook } from '../../contexts/ActiveBookContext';
 import { booksService } from '../../services/booksService';
 import type { Chapter, Section, PageSummary } from '../../services/booksService';

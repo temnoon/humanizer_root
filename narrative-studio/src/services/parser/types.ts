@@ -84,6 +84,12 @@ export interface Conversation {
   _source?: ExportFormat;
   _import_date?: string;
   _original_id?: string; // For tracking merges
+  _facebook_metadata?: {
+    participants?: Array<{ name: string }>;
+    is_still_participant?: boolean;
+    thread_type?: string;
+    message_count?: number;
+  };
 }
 
 export interface MediaFile {

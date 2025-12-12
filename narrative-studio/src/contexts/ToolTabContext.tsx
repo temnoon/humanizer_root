@@ -216,8 +216,8 @@ interface ToolTabContextValue {
   updateToolState: <T extends ToolId>(toolId: T, state: Partial<ToolStates[T]>) => void;
 
   // Transform source setting
-  transformSource: 'original' | 'active';
-  setTransformSource: (source: 'original' | 'active') => void;
+  transformSource: 'original' | 'active' | 'buffer';
+  setTransformSource: (source: 'original' | 'active' | 'buffer') => void;
 
   // Processing state
   isTransforming: boolean;
@@ -231,7 +231,7 @@ const STORAGE_KEY = 'narrative-studio-tool-tabs';
 interface StoredState {
   activeToolId: ToolId;
   toolStates: ToolStates;
-  transformSource: 'original' | 'active';
+  transformSource: 'original' | 'active' | 'buffer';
 }
 
 export function ToolTabProvider({ children }: { children: ReactNode }) {
@@ -262,7 +262,7 @@ export function ToolTabProvider({ children }: { children: ReactNode }) {
     return defaultToolStates;
   });
 
-  const [transformSource, setTransformSourceInternal] = useState<'original' | 'active'>(() => {
+  const [transformSource, setTransformSourceInternal] = useState<'original' | 'active' | 'buffer'>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
@@ -318,7 +318,7 @@ export function ToolTabProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Set transform source
-  const setTransformSource = useCallback((source: 'original' | 'active') => {
+  const setTransformSource = useCallback((source: 'original' | 'active' | 'buffer') => {
     setTransformSourceInternal(source);
   }, []);
 

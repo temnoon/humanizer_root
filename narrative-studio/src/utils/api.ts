@@ -69,7 +69,16 @@ class HumanizerAPI {
     localStorage.removeItem('post-social:token');
   }
 
-  async me(): Promise<{ email: string; role: string }> {
+  async me(): Promise<{
+    id: string;
+    email: string;
+    role: 'free' | 'member' | 'pro' | 'premium' | 'admin';
+    created_at: number;
+    last_login?: number;
+    monthly_transformations: number;
+    monthly_tokens_used: number;
+    last_reset_date?: number;
+  }> {
     return this.authenticatedFetch('/auth/me');
   }
 

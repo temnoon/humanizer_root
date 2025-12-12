@@ -157,10 +157,10 @@ export class ConversationOrganizer {
       const message = nodeData.message;
       if (!message) continue;
 
-      const content = message.content || {};
+      const content = message.content as { content_type?: string; text?: string; language?: string } | undefined;
 
       // Extract canvas/artifacts
-      if (content.content_type === 'canvas') {
+      if (content?.content_type === 'canvas') {
         assetCounter.canvas++;
         const text = content.text || '';
         const language = content.language || 'txt';
@@ -169,7 +169,7 @@ export class ConversationOrganizer {
       }
 
       // Extract code blocks from text content
-      else if (content.content_type === 'code') {
+      else if (content?.content_type === 'code') {
         assetCounter.code_block++;
         const text = content.text || '';
         const language = content.language || 'txt';

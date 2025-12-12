@@ -7,7 +7,7 @@
  * IMPORTANT: Uses transformationService which respects provider preference (local/cloudflare/Ollama)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useToolState, useToolTabs } from '../../contexts/ToolTabContext';
 import { useProvider } from '../../contexts/ProviderContext';
 import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
@@ -20,6 +20,18 @@ import { FeedbackWidget } from './FeedbackWidget';
 import { getCustomProfiles, type CustomProfile } from './ProfileFactoryPane';
 import { STORAGE_PATHS } from '../../config/storage-paths';
 import { IntensityHelp } from '../ui/IntensityHelp';
+import {
+  validateTextLength,
+  validateMinWordCount,
+  getCharLimit,
+  type TransformationType,
+  type UserTier,
+} from '../../config/transformation-limits';
+import {
+  runChunkedTransform,
+  needsChunking,
+  canUseChunkedTransform,
+} from '../../services/chunkedTransformationService';
 
 // Helper to get friendly model name from model ID
 function getModelDisplayName(modelId: string | undefined): string | null {
@@ -32,6 +44,72 @@ function getModelDisplayName(modelId: string | undefined): string | null {
     '@cf/meta/llama-3-70b-instruct': 'Llama 3 70B',
   };
   return modelMap[modelId] || modelId.split('/').pop() || modelId;
+}
+
+// Helper to get user tier from role
+function getUserTier(role: string | undefined): UserTier {
+  const tierMap: Record<string, UserTier> = {
+    admin: 'admin',
+    premium: 'premium',
+    pro: 'pro',
+    member: 'member',
+    free: 'free',
+  };
+  return tierMap[role || 'free'] || 'free';
+}
+
+// Character count indicator component
+interface CharCountIndicatorProps {
+  content: string;
+  transformType: TransformationType;
+  userTier: UserTier;
+}
+
+function CharCountIndicator({ content, transformType, userTier }: CharCountIndicatorProps) {
+  const charCount = content.length;
+  const limit = getCharLimit(transformType, userTier);
+  const percentage = Math.min((charCount / limit) * 100, 100);
+  const isOverLimit = charCount > limit;
+  const isNearLimit = charCount > limit * 0.8;
+
+  const barColor = isOverLimit
+    ? 'var(--error)'
+    : isNearLimit
+    ? 'var(--warning)'
+    : 'var(--success)';
+
+  return (
+    <div style={{ marginBottom: '8px' }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '4px',
+        fontSize: '0.6875rem',
+        color: isOverLimit ? 'var(--error)' : 'var(--text-tertiary)',
+      }}>
+        <span>{charCount.toLocaleString()} / {limit.toLocaleString()} chars</span>
+        {isOverLimit && (
+          <span style={{ fontWeight: 600 }}>
+            {(charCount - limit).toLocaleString()} over limit
+          </span>
+        )}
+      </div>
+      <div style={{
+        height: '3px',
+        backgroundColor: 'var(--bg-tertiary)',
+        borderRadius: '2px',
+        overflow: 'hidden',
+      }}>
+        <div style={{
+          height: '100%',
+          width: `${percentage}%`,
+          backgroundColor: barColor,
+          transition: 'width 0.2s, background-color 0.2s',
+        }} />
+      </div>
+    </div>
+  );
 }
 
 // Compact button styles for narrow panels
@@ -86,12 +164,29 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
   const { isTransforming, setIsTransforming } = useToolTabs();
   const { provider, isLocalAvailable, isCloudAvailable, useOllamaForLocal } = useProvider();
   const { recordTransformation: recordToUnifiedBuffer, isChainMode } = useUnifiedBuffer();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const workspaceTools = useWorkspaceTools();
   const [error, setError] = useState<string | null>(null);
   const [providerUsed, setProviderUsed] = useState<string | null>(null);
   const [transformationId, setTransformationId] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+
+  // Get user tier for character limits
+  const userTier = getUserTier(user?.role);
+
+  // State for chunking progress and cancellation
+  const [chunkProgress, setChunkProgress] = useState<{ current: number; total: number } | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  const handleCancel = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setIsTransforming(false);
+      setChunkProgress(null);
+      setError('Transformation cancelled');
+    }
+  };
 
   const handleRun = async () => {
     if (!content.trim()) {
@@ -99,8 +194,32 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
       return;
     }
 
-    // Check backend availability before starting
+    // Validate minimum word count
+    const minWordError = validateMinWordCount(content);
+    if (minWordError) {
+      setError(minWordError);
+      return;
+    }
+
+    // Check if text needs chunking
+    const requiresChunking = needsChunking(content, 'computer-humanizer', userTier);
+    const canChunk = canUseChunkedTransform(userTier);
+
+    // Pre-validate text length before making API call
+    const lengthValidation = validateTextLength(content, 'computer-humanizer', userTier);
+    if (lengthValidation && !canChunk) {
+      setError(lengthValidation.error);
+      return;
+    }
+
+    // Check authentication for cloud backend
     const providerInfo = getProviderInfo();
+    if (providerInfo.provider === 'cloudflare' && !isAuthenticated) {
+      setError('Please sign in to use cloud transformations. Click the user icon in the top bar.');
+      return;
+    }
+
+    // Check backend availability before starting
     if (providerInfo.provider === 'local' && !isLocalAvailable && !useOllamaForLocal) {
       setError(`Local backend (${STORAGE_PATHS.npeApiUrl}) is not available. Start it with: npx wrangler dev --local`);
       return;
@@ -116,21 +235,49 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
       ? workspaceTools.ensureWorkspace(content)
       : null;
 
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
+
     setIsTransforming(true);
     setError(null);
     setProviderUsed(providerInfo.label);
     setShowFeedback(false);
+    setChunkProgress(null);
 
     try {
       console.log(`[HumanizerPane] Using ${providerInfo.provider} backend: ${providerInfo.label}`);
 
-      const result = await runTransform({
-        type: 'computer-humanizer',
-        parameters: {
-          intensity: state.intensity,
-          useLLM: state.useLLM,
-        },
-      }, content);
+      let result;
+
+      if (requiresChunking && canChunk) {
+        // Use chunked transformation
+        console.log('[HumanizerPane] Using chunked transformation');
+        result = await runChunkedTransform(
+          {
+            type: 'computer-humanizer',
+            parameters: {
+              intensity: state.intensity,
+              useLLM: state.useLLM,
+            },
+          },
+          content,
+          {
+            userTier,
+            onProgress: (current, total) => setChunkProgress({ current, total }),
+            signal: controller.signal,
+          }
+        );
+      } else {
+        // Normal transformation
+        result = await runTransform({
+          type: 'computer-humanizer',
+          parameters: {
+            intensity: state.intensity,
+            useLLM: state.useLLM,
+          },
+        }, content);
+      }
 
       setState({ lastResult: result });
 
@@ -159,9 +306,13 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
     } catch (err) {
       console.error('Humanizer failed:', err);
       const errorMsg = err instanceof Error ? err.message : 'Transformation failed';
-      setError(`${errorMsg} (using ${providerInfo.label})`);
+      // Don't overwrite cancelled message
+      if (!controller.signal.aborted) {
+        setError(`${errorMsg} (using ${providerInfo.label})`);
+      }
     } finally {
       setIsTransforming(false);
+      setAbortController(null);
     }
   };
 
@@ -200,18 +351,49 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
         </label>
       </div>
 
-      {/* Run Button */}
-      <button
-        onClick={handleRun}
-        disabled={isTransforming || !content.trim()}
-        style={{
-          ...runButtonStyle,
-          opacity: isTransforming || !content.trim() ? 0.5 : 1,
-          cursor: isTransforming || !content.trim() ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {isTransforming ? '⏳ Processing...' : '🤖 Humanize'}
-      </button>
+      {/* Character Count Indicator */}
+      <CharCountIndicator
+        content={content}
+        transformType="computer-humanizer"
+        userTier={userTier}
+      />
+
+      {/* Run/Cancel Buttons */}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          onClick={handleRun}
+          disabled={isTransforming || !content.trim()}
+          style={{
+            ...runButtonStyle,
+            flex: 1,
+            opacity: isTransforming || !content.trim() ? 0.5 : 1,
+            cursor: isTransforming || !content.trim() ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {isTransforming
+            ? chunkProgress
+              ? `⏳ Chunk ${chunkProgress.current}/${chunkProgress.total}...`
+              : '⏳ Processing...'
+            : '🤖 Humanize'}
+        </button>
+        {isTransforming && (
+          <button
+            onClick={handleCancel}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: 'var(--error)',
+              color: 'var(--text-inverse)',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+            }}
+          >
+            ✕ Cancel
+          </button>
+        )}
+      </div>
 
       {error && (
         <div
@@ -241,6 +423,11 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
           }}
         >
           ✓ Processed via {providerUsed}
+          {state.lastResult?.metadata?.chunked && (
+            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-secondary)' }}>
+              Chunked: {state.lastResult.metadata.chunkCount} segments
+            </span>
+          )}
           {state.lastResult?.metadata?.modelUsed && (
             <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-primary)' }}>
               Model: {getModelDisplayName(state.lastResult.metadata.modelUsed)}
@@ -279,6 +466,7 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
   const { isTransforming, setIsTransforming } = useToolTabs();
   const { provider, isLocalAvailable, isCloudAvailable, useOllamaForLocal } = useProvider();
   const { recordTransformation: recordToUnifiedBuffer, isChainMode } = useUnifiedBuffer();
+  const { isAuthenticated, user } = useAuth();
   const workspaceTools = useWorkspaceTools();
   const [personas, setPersonas] = useState<Array<{ id: number | string; name: string; description: string; isCustom?: boolean }>>([]);
   const [loading, setLoading] = useState(true);
@@ -286,6 +474,9 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
   const [providerUsed, setProviderUsed] = useState<string | null>(null);
   const [transformationId, setTransformationId] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+
+  // Get user tier for character limits
+  const userTier = getUserTier(user?.role);
 
   // Fetch personas on mount (API + custom)
   useEffect(() => {
@@ -333,14 +524,53 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
     fetchPersonas();
   }, []);
 
+  // State for chunking progress and cancellation
+  const [chunkProgress, setChunkProgress] = useState<{ current: number; total: number } | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  const handleCancel = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setIsTransforming(false);
+      setChunkProgress(null);
+      setError('Transformation cancelled');
+    }
+  };
+
   const handleRun = async () => {
     if (!content.trim() || !state.selectedPersona) {
       setError('No content or persona selected');
       return;
     }
 
-    // Check backend availability before starting
+    // Validate minimum word count
+    const minWordError = validateMinWordCount(content);
+    if (minWordError) {
+      setError(minWordError);
+      return;
+    }
+
+    // Check if text needs chunking
+    const requiresChunking = needsChunking(content, 'persona', userTier);
+    const canChunk = canUseChunkedTransform(userTier);
+
+    // Pre-validate text length before making API call
+    const lengthValidation = validateTextLength(content, 'persona', userTier);
+    if (lengthValidation && !canChunk) {
+      // Can't chunk - show error
+      setError(lengthValidation.error);
+      return;
+    }
+
+    // Check authentication for cloud backend
     const providerInfo = getProviderInfo();
+    if (providerInfo.provider === 'cloudflare' && !isAuthenticated) {
+      setError('Please sign in to use cloud transformations. Click the user icon in the top bar.');
+      return;
+    }
+
+    // Check backend availability before starting
     if (providerInfo.provider === 'local' && !isLocalAvailable && !useOllamaForLocal) {
       setError(`Local backend (${STORAGE_PATHS.npeApiUrl}) is not available. Start it with: npx wrangler dev --local`);
       return;
@@ -356,20 +586,47 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
       ? workspaceTools.ensureWorkspace(content)
       : null;
 
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
+
     setIsTransforming(true);
     setError(null);
     setProviderUsed(providerInfo.label);
     setShowFeedback(false);
+    setChunkProgress(null);
 
     try {
       console.log(`[PersonaPane] Using ${providerInfo.provider} backend: ${providerInfo.label}`);
 
-      const result = await runTransform({
-        type: 'persona',
-        parameters: {
-          persona: state.selectedPersona,
-        },
-      }, content);
+      let result;
+
+      if (requiresChunking && canChunk) {
+        // Use chunked transformation
+        console.log('[PersonaPane] Using chunked transformation');
+        result = await runChunkedTransform(
+          {
+            type: 'persona',
+            parameters: {
+              persona: state.selectedPersona,
+            },
+          },
+          content,
+          {
+            userTier,
+            onProgress: (current, total) => setChunkProgress({ current, total }),
+            signal: controller.signal,
+          }
+        );
+      } else {
+        // Normal transformation
+        result = await runTransform({
+          type: 'persona',
+          parameters: {
+            persona: state.selectedPersona,
+          },
+        }, content);
+      }
 
       setState({ lastResult: result });
 
@@ -399,9 +656,13 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
     } catch (err) {
       console.error('Persona transformation failed:', err);
       const errorMsg = err instanceof Error ? err.message : 'Transformation failed';
-      setError(`${errorMsg} (using ${providerInfo.label})`);
+      // Don't overwrite cancelled message
+      if (!controller.signal.aborted) {
+        setError(`${errorMsg} (using ${providerInfo.label})`);
+      }
     } finally {
       setIsTransforming(false);
+      setAbortController(null);
     }
   };
 
@@ -440,18 +701,49 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
         )}
       </div>
 
-      {/* Run Button */}
-      <button
-        onClick={handleRun}
-        disabled={isTransforming || !content.trim() || loading}
-        style={{
-          ...runButtonStyle,
-          opacity: isTransforming || !content.trim() || loading ? 0.5 : 1,
-          cursor: isTransforming || !content.trim() || loading ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {isTransforming ? '⏳ Transforming...' : '👤 Apply Persona'}
-      </button>
+      {/* Character Count Indicator */}
+      <CharCountIndicator
+        content={content}
+        transformType="persona"
+        userTier={userTier}
+      />
+
+      {/* Run/Cancel Buttons */}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          onClick={handleRun}
+          disabled={isTransforming || !content.trim() || loading}
+          style={{
+            ...runButtonStyle,
+            flex: 1,
+            opacity: isTransforming || !content.trim() || loading ? 0.5 : 1,
+            cursor: isTransforming || !content.trim() || loading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {isTransforming
+            ? chunkProgress
+              ? `⏳ Chunk ${chunkProgress.current}/${chunkProgress.total}...`
+              : '⏳ Transforming...'
+            : '👤 Apply Persona'}
+        </button>
+        {isTransforming && (
+          <button
+            onClick={handleCancel}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: 'var(--error)',
+              color: 'var(--text-inverse)',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+            }}
+          >
+            ✕ Cancel
+          </button>
+        )}
+      </div>
 
       {error && (
         <div style={{ marginTop: '8px', padding: '6px 8px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', fontSize: '0.6875rem' }}>
@@ -472,6 +764,11 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
           }}
         >
           ✓ Processed via {providerUsed}
+          {state.lastResult?.metadata?.chunked && (
+            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-secondary)' }}>
+              Chunked: {state.lastResult.metadata.chunkCount} segments
+            </span>
+          )}
           {state.lastResult?.metadata?.modelUsed && (
             <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-primary)' }}>
               Model: {getModelDisplayName(state.lastResult.metadata.modelUsed)}
@@ -510,6 +807,7 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
   const { isTransforming, setIsTransforming } = useToolTabs();
   const { provider, isLocalAvailable, isCloudAvailable, useOllamaForLocal } = useProvider();
   const { recordTransformation: recordToUnifiedBuffer, isChainMode } = useUnifiedBuffer();
+  const { isAuthenticated, user } = useAuth();
   const workspaceTools = useWorkspaceTools();
   const [styles, setStyles] = useState<Array<{ id: number | string; name: string; style_prompt: string; isCustom?: boolean }>>([]);
   const [loading, setLoading] = useState(true);
@@ -517,6 +815,9 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
   const [providerUsed, setProviderUsed] = useState<string | null>(null);
   const [transformationId, setTransformationId] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
+
+  // Get user tier for character limits
+  const userTier = getUserTier(user?.role);
 
   // Fetch styles on mount (API + custom)
   useEffect(() => {
@@ -564,14 +865,52 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
     fetchStyles();
   }, []);
 
+  // State for chunking progress and cancellation
+  const [chunkProgress, setChunkProgress] = useState<{ current: number; total: number } | null>(null);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
+
+  const handleCancel = () => {
+    if (abortController) {
+      abortController.abort();
+      setAbortController(null);
+      setIsTransforming(false);
+      setChunkProgress(null);
+      setError('Transformation cancelled');
+    }
+  };
+
   const handleRun = async () => {
     if (!content.trim() || !state.selectedStyle) {
       setError('No content or style selected');
       return;
     }
 
-    // Check backend availability before starting
+    // Validate minimum word count
+    const minWordError = validateMinWordCount(content);
+    if (minWordError) {
+      setError(minWordError);
+      return;
+    }
+
+    // Check if text needs chunking
+    const requiresChunking = needsChunking(content, 'style', userTier);
+    const canChunk = canUseChunkedTransform(userTier);
+
+    // Pre-validate text length before making API call
+    const lengthValidation = validateTextLength(content, 'style', userTier);
+    if (lengthValidation && !canChunk) {
+      setError(lengthValidation.error);
+      return;
+    }
+
+    // Check authentication for cloud backend
     const providerInfo = getProviderInfo();
+    if (providerInfo.provider === 'cloudflare' && !isAuthenticated) {
+      setError('Please sign in to use cloud transformations. Click the user icon in the top bar.');
+      return;
+    }
+
+    // Check backend availability before starting
     if (providerInfo.provider === 'local' && !isLocalAvailable && !useOllamaForLocal) {
       setError(`Local backend (${STORAGE_PATHS.npeApiUrl}) is not available. Start it with: npx wrangler dev --local`);
       return;
@@ -587,20 +926,47 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
       ? workspaceTools.ensureWorkspace(content)
       : null;
 
+    // Create abort controller for cancellation
+    const controller = new AbortController();
+    setAbortController(controller);
+
     setIsTransforming(true);
     setError(null);
     setProviderUsed(providerInfo.label);
     setShowFeedback(false);
+    setChunkProgress(null);
 
     try {
       console.log(`[StylePane] Using ${providerInfo.provider} backend: ${providerInfo.label}`);
 
-      const result = await runTransform({
-        type: 'style',
-        parameters: {
-          style: state.selectedStyle,
-        },
-      }, content);
+      let result;
+
+      if (requiresChunking && canChunk) {
+        // Use chunked transformation
+        console.log('[StylePane] Using chunked transformation');
+        result = await runChunkedTransform(
+          {
+            type: 'style',
+            parameters: {
+              style: state.selectedStyle,
+            },
+          },
+          content,
+          {
+            userTier,
+            onProgress: (current, total) => setChunkProgress({ current, total }),
+            signal: controller.signal,
+          }
+        );
+      } else {
+        // Normal transformation
+        result = await runTransform({
+          type: 'style',
+          parameters: {
+            style: state.selectedStyle,
+          },
+        }, content);
+      }
 
       setState({ lastResult: result });
 
@@ -630,9 +996,13 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
     } catch (err) {
       console.error('Style transformation failed:', err);
       const errorMsg = err instanceof Error ? err.message : 'Transformation failed';
-      setError(`${errorMsg} (using ${providerInfo.label})`);
+      // Don't overwrite cancelled message
+      if (!controller.signal.aborted) {
+        setError(`${errorMsg} (using ${providerInfo.label})`);
+      }
     } finally {
       setIsTransforming(false);
+      setAbortController(null);
     }
   };
 
@@ -671,18 +1041,49 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
         )}
       </div>
 
-      {/* Run Button */}
-      <button
-        onClick={handleRun}
-        disabled={isTransforming || !content.trim() || loading}
-        style={{
-          ...runButtonStyle,
-          opacity: isTransforming || !content.trim() || loading ? 0.5 : 1,
-          cursor: isTransforming || !content.trim() || loading ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {isTransforming ? '⏳ Transforming...' : '✍️ Apply Style'}
-      </button>
+      {/* Character Count Indicator */}
+      <CharCountIndicator
+        content={content}
+        transformType="style"
+        userTier={userTier}
+      />
+
+      {/* Run/Cancel Buttons */}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          onClick={handleRun}
+          disabled={isTransforming || !content.trim() || loading}
+          style={{
+            ...runButtonStyle,
+            flex: 1,
+            opacity: isTransforming || !content.trim() || loading ? 0.5 : 1,
+            cursor: isTransforming || !content.trim() || loading ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {isTransforming
+            ? chunkProgress
+              ? `⏳ Chunk ${chunkProgress.current}/${chunkProgress.total}...`
+              : '⏳ Transforming...'
+            : '✍️ Apply Style'}
+        </button>
+        {isTransforming && (
+          <button
+            onClick={handleCancel}
+            style={{
+              padding: '10px 16px',
+              backgroundColor: 'var(--error)',
+              color: 'var(--text-inverse)',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+            }}
+          >
+            ✕ Cancel
+          </button>
+        )}
+      </div>
 
       {error && (
         <div style={{ marginTop: '8px', padding: '6px 8px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', fontSize: '0.6875rem' }}>
@@ -703,6 +1104,11 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
           }}
         >
           ✓ Processed via {providerUsed}
+          {state.lastResult?.metadata?.chunked && (
+            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-secondary)' }}>
+              Chunked: {state.lastResult.metadata.chunkCount} segments
+            </span>
+          )}
           {state.lastResult?.metadata?.modelUsed && (
             <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-primary)' }}>
               Model: {getModelDisplayName(state.lastResult.metadata.modelUsed)}
@@ -762,6 +1168,7 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
   const { isTransforming, setIsTransforming } = useToolTabs();
   const { provider, isLocalAvailable, isCloudAvailable, useOllamaForLocal } = useProvider();
   const { recordTransformation: recordToUnifiedBuffer, isChainMode } = useUnifiedBuffer();
+  const { isAuthenticated, user } = useAuth();
   const workspaceTools = useWorkspaceTools();
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
@@ -769,19 +1176,30 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
   const [transformationId, setTransformationId] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
 
+  // Get user tier for character limits
+  const userTier = getUserTier(user?.role);
+
   const handleRun = async () => {
     if (!content.trim()) {
       setError('No content to translate');
       return;
     }
 
-    if (content.length > 5000) {
-      setError('Text too long (max 5,000 characters)');
+    // Pre-validate text length before making API call
+    const lengthValidation = validateTextLength(content, 'round-trip', userTier);
+    if (lengthValidation) {
+      setError(lengthValidation.error);
+      return;
+    }
+
+    // Check authentication for cloud backend
+    const providerInfo = getProviderInfo();
+    if (providerInfo.provider === 'cloudflare' && !isAuthenticated) {
+      setError('Please sign in to use cloud transformations. Click the user icon in the top bar.');
       return;
     }
 
     // Check backend availability before starting
-    const providerInfo = getProviderInfo();
     if (providerInfo.provider === 'local' && !isLocalAvailable && !useOllamaForLocal) {
       setError(`Local backend (${STORAGE_PATHS.npeApiUrl}) is not available. Start it with: npx wrangler dev --local`);
       return;
@@ -861,6 +1279,13 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
           ))}
         </select>
       </div>
+
+      {/* Character Count Indicator */}
+      <CharCountIndicator
+        content={content}
+        transformType="round-trip"
+        userTier={userTier}
+      />
 
       {/* Run Button */}
       <button

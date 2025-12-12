@@ -68,6 +68,9 @@ export interface TransformResult {
 }
 
 export interface TransformMetadata {
+  // Transformation ID (also available at root level for backwards compat)
+  transformation_id?: string;
+
   // Computer Humanizer metrics
   aiConfidenceBefore?: number;
   aiConfidenceAfter?: number;

@@ -300,20 +300,111 @@ export const MODEL_VETTING_PROFILES: Record<string, ModelVettingProfile> = {
     vettedDate: '2025-12-06',
     notes: 'Standard Mistral. Conversational preambles, no XML tags.'
   },
+
+  'qwen3:latest': {
+    modelId: 'qwen3:latest',
+    displayName: 'Qwen 3 8B',
+    provider: 'ollama',
+    patterns: {
+      thinkingTags: [
+        '<think>',
+        '</think>',
+        '<thinking>',
+        '</thinking>',
+      ],
+      // Qwen3 often outputs reasoning as plain text without tags
+      preamblePhrases: [
+        'Okay, let',
+        'Okay,',
+        'Let me',
+        'First,',
+        'First I',
+        'I need to',
+        'I\'ll',
+        'The user wants',
+        'The task is',
+        'So,',
+        'Alright,',
+      ],
+      closingPhrases: [
+        'Let me know',
+        'I hope this',
+        'Is there anything',
+      ],
+      rolePrefixes: [],
+    },
+    strategy: 'heuristic',  // Changed from xml-tags - Qwen3 outputs reasoning as plain text
+    vetted: true,
+    vettedDate: '2025-12-09',
+    notes: 'Qwen 3 8B model. Unlike Qwen 2.5, outputs reasoning as plain text without <think> tags. Uses heuristic filtering.'
+  },
+
+  'qwen3:14b': {
+    modelId: 'qwen3:14b',
+    displayName: 'Qwen 3 14B',
+    provider: 'ollama',
+    patterns: {
+      thinkingTags: [
+        '<think>',
+        '</think>',
+        '<thinking>',
+        '</thinking>',
+      ],
+      preamblePhrases: [
+        'Okay, let',
+        'Okay,',
+        'Let me',
+        'First,',
+        'First I',
+        'I need to',
+        'I\'ll',
+        'The user wants',
+        'The task is',
+        'So,',
+        'Alright,',
+      ],
+      closingPhrases: [
+        'Let me know',
+        'I hope this',
+        'Is there anything',
+      ],
+      rolePrefixes: [],
+    },
+    strategy: 'heuristic',  // Same as qwen3:latest
+    vetted: true,
+    vettedDate: '2025-12-09',
+    notes: 'Larger Qwen 3 model. Same behavior as 8B - reasoning as plain text.'
+  },
 };
 
 /**
+ * Normalize model ID by stripping provider prefixes
+ * (e.g., 'ollama/qwen3:latest' -> 'qwen3:latest')
+ */
+function normalizeModelId(modelId: string): string {
+  return modelId.replace(/^(ollama|local)\//, '');
+}
+
+/**
  * Get profile for a model, or undefined if not vetted
+ * Handles both prefixed (ollama/model) and raw (model) IDs
  */
 export function getVettingProfile(modelId: string): ModelVettingProfile | undefined {
-  return MODEL_VETTING_PROFILES[modelId];
+  // Try raw ID first
+  const profile = MODEL_VETTING_PROFILES[modelId];
+  if (profile) return profile;
+
+  // Try normalized ID (strip ollama/ or local/ prefix)
+  const normalizedId = normalizeModelId(modelId);
+  return MODEL_VETTING_PROFILES[normalizedId];
 }
 
 /**
  * Check if a model is vetted
+ * Handles both prefixed (ollama/model) and raw (model) IDs
  */
 export function isModelVetted(modelId: string): boolean {
-  const profile = MODEL_VETTING_PROFILES[modelId];
+  const profile = getVettingProfile(modelId);
   return profile?.vetted === true;
 }
 

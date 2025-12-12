@@ -13,6 +13,7 @@ import { ThisBookView } from '../archive/ThisBookView';
 import { PageEditorView } from '../archive/PageEditorView';
 import { WorkspacesView } from '../archive/WorkspacesView';
 import { GutenbergView } from '../archive/GutenbergView';
+import { PasteImportView } from '../archive/PasteImportView';
 import { useActiveBook } from '../../contexts/ActiveBookContext';
 import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
 import { STORAGE_PATHS } from '../../config/storage-paths';
@@ -26,7 +27,7 @@ interface ArchivePanelProps {
   onClose: () => void;
 }
 
-type ViewMode = 'conversations' | 'messages' | 'gallery' | 'imports' | 'explore' | 'facebook' | 'books' | 'thisbook' | 'workspaces' | 'gutenberg';
+type ViewMode = 'conversations' | 'messages' | 'gallery' | 'imports' | 'explore' | 'facebook' | 'books' | 'thisbook' | 'workspaces' | 'gutenberg' | 'paste';
 type FilterCategory = 'date' | 'size' | 'media';
 
 interface ActiveFilters {
@@ -79,6 +80,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     createFromConversation,
     createFromFacebookPost,
     createFromMedia,
+    createFromText,
     workingBuffer,
   } = useUnifiedBuffer();
 
@@ -138,9 +140,9 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     localStorage.setItem('archive-book-tree-collapsed', String(bookTreeCollapsed));
   }, [bookTreeCollapsed]);
 
-  // Load conversations on mount
+  // Load conversations on mount - only in Electron mode with local archives
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && features.localArchives) {
       loadConversations();
     }
   }, [isOpen]);
@@ -845,6 +847,8 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
   // Tab list for navigation - conditional based on environment
   const tabList = [
+    // Both: Paste/Import - always available, first for discoverability
+    { id: 'paste', icon: '📥', title: 'Import' },
     // Electron-only: Local archive browsing
     ...(features.localArchives ? [{ id: 'conversations', icon: '📄', title: 'Archive' }] : []),
     // Web-only: Project Gutenberg
@@ -857,7 +861,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     // Electron-only: Gallery, Imports, Explore, Facebook
     ...(features.localArchives ? [
       { id: 'gallery', icon: '🖼️', title: 'Gallery' },
-      { id: 'imports', icon: '⬇️', title: 'Imports' },
+      { id: 'imports', icon: '⬇️', title: 'Archive Imports' },
       { id: 'explore', icon: '🧭', title: 'Explore' },
       { id: 'facebook', icon: 'ⓕ', title: 'Facebook' },
     ] : []),
@@ -1648,6 +1652,24 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           </div>
         )}
 
+        {/* Paste Import View - paste/upload text files */}
+        {viewMode === 'paste' && (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <PasteImportView
+              onImportComplete={(title) => {
+                console.log(`[ArchivePanel] Imported: ${title}`);
+              }}
+              onClose={onClose}
+            />
+          </div>
+        )}
+
         {/* Workspaces View - transformation history */}
         {viewMode === 'workspaces' && (
           <div
@@ -1673,12 +1695,31 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
             <GutenbergView
               onSelectText={(text, title) => {
                 // Load selected book text into the workspace
+                const narrativeId = `gutenberg-${Date.now()}`;
                 onSelectNarrative({
+                  id: narrativeId,
                   content: text,
                   title: title,
                   source: 'gutenberg',
+                  metadata: {},
                 });
+
+                // Also set the unified buffer so workspace can be created
+                // This ensures the text displays in MainWorkspace even if
+                // a subsequent transformation fails (e.g., text too long)
+                const bufferContent = createFromText(text, 'markdown');
+                bufferContent.displayName = title;
+                bufferContent.metadata = {
+                  ...bufferContent.metadata,
+                  source: {
+                    platform: 'import',
+                    archiveName: 'Project Gutenberg',
+                  },
+                };
+                setWorkingBuffer(bufferContent);
+                console.log('[ArchivePanel] Loaded Gutenberg content to unified buffer:', title);
               }}
+              onClose={onClose}
             />
           </div>
         )}

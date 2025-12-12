@@ -5,6 +5,7 @@ import { TextSizeControl } from './TextSizeControl';
 import { ProviderSwitcher } from './ProviderSwitcher';
 import { BookSelector } from './BookSelector';
 import { useAuth } from '../../contexts/AuthContext';
+import { isElectron } from '../../config/feature-flags';
 import type { Narrative, WorkspaceMode } from '../../types';
 
 interface TopBarProps {
@@ -34,7 +35,8 @@ export function TopBar({
   useStudioTools,
   onToggleStudioTools,
 }: TopBarProps) {
-  const { user, logout } = useAuth();
+  const { user, logout, getQuota } = useAuth();
+  const quota = getQuota();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -132,8 +134,34 @@ export function TopBar({
                       {user.email}
                     </p>
                     <p className="ui-text" style={{ color: 'var(--text-tertiary)', fontSize: '0.8125rem', marginTop: 'var(--space-xs)' }}>
-                      Role: {user.role}
+                      Tier: <span style={{ color: 'var(--accent-primary)', fontWeight: 500 }}>{user.role.toUpperCase()}</span>
                     </p>
+                    {quota && !quota.isUnlimited && (
+                      <div style={{ marginTop: 'var(--space-sm)' }}>
+                        <p className="ui-text" style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>
+                          Transformations: {quota.transformationsUsed}/{quota.transformationsLimit}
+                        </p>
+                        <div style={{
+                          marginTop: 'var(--space-xs)',
+                          height: '4px',
+                          backgroundColor: 'var(--bg-tertiary)',
+                          borderRadius: '2px',
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${Math.min(100, (quota.transformationsUsed / quota.transformationsLimit) * 100)}%`,
+                            backgroundColor: quota.transformationsRemaining < 3 ? 'var(--error)' : 'var(--accent-primary)',
+                            transition: 'width 0.3s ease',
+                          }} />
+                        </div>
+                      </div>
+                    )}
+                    {quota?.isUnlimited && (
+                      <p className="ui-text" style={{ color: 'var(--success)', fontSize: '0.75rem', marginTop: 'var(--space-sm)' }}>
+                        ∞ Unlimited transformations
+                      </p>
+                    )}
                   </div>
                   <div style={{ padding: 'var(--space-sm)' }}>
                     <button
@@ -160,8 +188,8 @@ export function TopBar({
           </div>
         )}
 
-        {/* Provider switcher - only show when authenticated */}
-        {user && <ProviderSwitcher />}
+        {/* Provider switcher - only show in Electron (Local/Cloud toggle) */}
+        {user && isElectron && <ProviderSwitcher />}
 
         {/* View toggle button - Only show in split mode */}
         {workspaceMode === 'split' && (

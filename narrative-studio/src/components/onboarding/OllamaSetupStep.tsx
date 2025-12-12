@@ -284,7 +284,7 @@ export function OllamaSetupStep({ onConfigured, onSkip, onBack }: OllamaSetupSte
                   }`}
                   style={{
                     backgroundColor: 'var(--bg-tertiary)',
-                    ringColor: 'var(--accent-primary)'
+                    outlineColor: selectedModel === model.name ? 'var(--accent-primary)' : 'transparent'
                   }}
                 >
                   <input

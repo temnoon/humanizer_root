@@ -68,7 +68,8 @@ export class ClaudeParser {
     };
 
     // Set current_node to the last message in the chain
-    const rootNode = Object.values(mapping).find(node => !node.parent);
+    const mappingValues = Object.values(mapping) as Array<{ parent?: string; children: string[]; id: string }>;
+    const rootNode = mappingValues.find(node => !node.parent);
     if (rootNode && rootNode.children.length > 0) {
       conversation.current_node = this.findLastNode(mapping, rootNode.id);
     }

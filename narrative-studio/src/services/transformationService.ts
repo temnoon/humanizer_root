@@ -12,12 +12,31 @@ import { filterCloudOutput } from './transformationPipeline';
 import { STORAGE_PATHS } from '../config/storage-paths';
 import { getCloudModelPreference } from '../components/settings/CloudAISettings';
 
+// Check if running in Electron (same logic as feature-flags)
+function isElectronApp(): boolean {
+  return typeof window !== 'undefined' && (
+    (window as any).isElectron === true ||
+    (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron'))
+  );
+}
+
 // Get current provider from localStorage
+// Default: 'cloudflare' for web, 'local' for Electron
 function getCurrentProvider(): 'local' | 'cloudflare' {
   const savedProvider = localStorage.getItem('narrative-studio-provider');
-  return (savedProvider === 'local' || savedProvider === 'cloudflare')
-    ? savedProvider
-    : 'local'; // Default to local
+
+  // If no saved preference, use environment-appropriate default
+  if (savedProvider !== 'local' && savedProvider !== 'cloudflare') {
+    return isElectronApp() ? 'local' : 'cloudflare';
+  }
+
+  // In web app, force 'cloudflare' even if 'local' was saved
+  // (the ProviderContext will also fix this, but we need consistency)
+  if (!isElectronApp() && savedProvider === 'local') {
+    return 'cloudflare';
+  }
+
+  return savedProvider;
 }
 
 /**
@@ -68,16 +87,31 @@ function getApiBase(): string {
 // Export provider info for UI feedback
 export function getProviderInfo() {
   const provider = getCurrentProvider();
-  return {
-    provider,
-    label: provider === 'local' ? 'Local (Ollama)' : 'Cloud (Cloudflare Workers)',
-    emoji: provider === 'local' ? '🏠' : '☁️',
-  };
+  // In Electron with 'local', it could be Ollama or Workers API
+  // In web, always cloudflare
+  const isElectron = isElectronApp();
+  let label: string;
+  let emoji: string;
+
+  if (provider === 'cloudflare') {
+    label = 'Cloud (Cloudflare Workers)';
+    emoji = '☁️';
+  } else if (isElectron) {
+    label = 'Local (Ollama)';
+    emoji = '🏠';
+  } else {
+    // Web with 'local' shouldn't happen, but fallback
+    label = 'Cloud (Cloudflare Workers)';
+    emoji = '☁️';
+  }
+
+  return { provider, label, emoji };
 }
 
-// Helper to get auth token
+// Helper to get auth token (check both possible storage keys)
 function getAuthToken(): string | null {
-  return localStorage.getItem('narrative-studio-auth-token');
+  return localStorage.getItem('narrative-studio-auth-token') ||
+         localStorage.getItem('post-social:token');
 }
 
 // Helper to get auth headers
@@ -116,6 +150,7 @@ export interface ComputerHumanizerResult extends TransformResult {
       llmPolished?: string;
     };
     modelUsed?: string;
+    gptzeroAnalysis?: unknown;  // GPTZero-specific analysis data
   };
 }
 
@@ -572,24 +607,32 @@ export async function personaTransform(
   console.log(`[TransformationService] Persona using model: ${cloudModel}`);
 
   try {
+    const requestBody = {
+      text,
+      persona: options.persona,
+      preserveLength: true,
+      enableValidation: true,
+      model: cloudModel,
+    };
+    console.log(`[TransformationService] Persona request:`, {
+      textLength: text?.length,
+      persona: options.persona,
+      hasToken: !!getAuthToken(),
+    });
+
     const response = await fetch(`${getApiBase()}/transformations/persona`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({
-        text,
-        persona: options.persona,
-        preserveLength: true,
-        enableValidation: true,
-        model: cloudModel,
-      }),
+      body: JSON.stringify(requestBody),
       signal: controller.signal,
     });
 
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Persona transformation failed');
+      const errorData = await response.json();
+      console.error(`[TransformationService] Persona error (${response.status}):`, errorData);
+      throw new Error(errorData.error || errorData.message || 'Persona transformation failed');
     }
 
     const data = await response.json();
@@ -668,6 +711,12 @@ export async function styleTransform(
   console.log(`[TransformationService] Style using model: ${cloudModel}`);
 
   try {
+    console.log(`[TransformationService] Style request:`, {
+      textLength: text?.length,
+      style: options.style,
+      hasToken: !!getAuthToken(),
+    });
+
     const response = await fetch(`${getApiBase()}/transformations/style`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -684,8 +733,9 @@ export async function styleTransform(
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Style transformation failed');
+      const errorData = await response.json();
+      console.error(`[TransformationService] Style error (${response.status}):`, errorData);
+      throw new Error(errorData.error || errorData.message || 'Style transformation failed');
     }
 
     const data = await response.json();
@@ -804,8 +854,8 @@ export async function runTransform(config: TransformConfig, text: string): Promi
       return computerHumanizer(text, {
         intensity: config.parameters.intensity || 'moderate',
         useLLM: config.parameters.useLLM ?? true,
-        voiceProfile: config.parameters.voiceProfile,
-        model: config.parameters.model,
+        voiceProfile: config.parameters.voiceProfile as string | undefined,
+        model: config.parameters.model as string | undefined,
       });
 
     case 'ai-detection':
@@ -822,7 +872,7 @@ export async function runTransform(config: TransformConfig, text: string): Promi
 
     case 'namespace':
       return namespaceTransform(text, {
-        namespace: config.parameters.namespace || 'enlightenment_science',
+        namespace: (config.parameters.namespace as string) || 'enlightenment_science',
       });
 
     case 'style':

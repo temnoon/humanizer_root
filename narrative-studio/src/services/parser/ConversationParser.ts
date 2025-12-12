@@ -11,7 +11,7 @@ import { ClaudeParser } from './ClaudeParser';
 import { FacebookParser } from './FacebookParser';
 import { ComprehensiveMediaIndexer } from './ComprehensiveMediaIndexer';
 import { ComprehensiveMediaMatcher } from './ComprehensiveMediaMatcher';
-import type { ParsedArchive, Conversation, ExportFormat } from './types';
+import type { ParsedArchive, Conversation, ExportFormat, MediaFile } from './types';
 import { extractZip, ensureDir, generateId } from './utils';
 
 export class ConversationParser {
@@ -92,8 +92,15 @@ export class ConversationParser {
       console.log(`  - By size only: ${matchStats.bySizeOnly}`);
       console.log(`  - By filename only: ${matchStats.byFilenameOnly}`);
 
-      // Step 6: Extract media file list from indices
-      const mediaFiles = Array.from(indices.pathToMetadata.values());
+      // Step 6: Extract media file list from indices (map FileMetadata to MediaFile)
+      const mediaFiles: MediaFile[] = Array.from(indices.pathToMetadata.entries()).map(
+        ([filePath, meta]) => ({
+          path: filePath,
+          basename: meta.basename,
+          size: meta.size,
+          ext: meta.ext,
+        })
+      );
 
       // Step 7: Calculate statistics
       const stats = this.calculateStats(conversationsWithMedia);

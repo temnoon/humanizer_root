@@ -1,55 +1,114 @@
 import { useState, useEffect } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
-// Available cloud models - these are vetted and known to work well
-// Order matters: recommended model first
-const CLOUD_MODELS = [
-  {
-    id: '@cf/openai/gpt-oss-20b',
-    name: 'GPT-OSS 20B',
-    provider: 'OpenAI (via Cloudflare)',
-    description: 'Best for humanization. Clean output with natural sentence variation.',
-    recommended: true,
-    cost: 'Standard',
-  },
-  {
-    id: '@cf/openai/gpt-oss-120b',
-    name: 'GPT-OSS 120B',
-    provider: 'OpenAI (via Cloudflare)',
-    description: 'Highest quality for complex transformations. Slower but more nuanced.',
-    recommended: false,
-    cost: 'Premium',
-  },
+/**
+ * Cloud Model Configuration
+ *
+ * ALL models listed here MUST be vetted in:
+ * workers/npe-api/src/services/model-vetting/profiles.ts
+ *
+ * Neuron costs (approximate, per 1K tokens):
+ * - Llama 3.1 70B: ~130 input, ~260 output (~$0.004/1K neurons)
+ * - Llama 3.1 8B: ~15 input, ~30 output
+ * - GPT-OSS 120B: Similar to 70B (structured output)
+ * - GPT-OSS 20B: Similar to 8B
+ *
+ * At $0.011 per 1,000 neurons (Cloudflare paid plan):
+ * - 70B model: ~$0.004 per 1K tokens processed
+ * - 8B model: ~$0.0005 per 1K tokens processed
+ */
+
+interface CloudModel {
+  id: string;
+  name: string;
+  provider: string;
+  description: string;
+  recommended: boolean;
+  cost: string;
+  neuronsPerKToken: { input: number; output: number };
+  adminOnly?: boolean;
+}
+
+// Standard models available to all users
+const STANDARD_CLOUD_MODELS: CloudModel[] = [
   {
     id: '@cf/meta/llama-3.1-70b-instruct',
     name: 'Llama 3.1 70B',
     provider: 'Meta (via Cloudflare)',
-    description: 'Fast general-purpose model. Good for quick tasks.',
-    recommended: false,
+    description: 'Primary transformation model. Best quality for humanization.',
+    recommended: true,
     cost: 'Included',
+    neuronsPerKToken: { input: 130, output: 260 },
   },
   {
     id: '@cf/meta/llama-3.1-8b-instruct',
     name: 'Llama 3.1 8B',
     provider: 'Meta (via Cloudflare)',
-    description: 'Fastest option. Best for AI detection only.',
+    description: 'Fastest option. 9x cheaper. Good for quick transforms.',
     recommended: false,
     cost: 'Included',
+    neuronsPerKToken: { input: 15, output: 30 },
+  },
+];
+
+// Extended models available only to admin users (for testing/vetting)
+const ADMIN_CLOUD_MODELS: CloudModel[] = [
+  {
+    id: '@cf/openai/gpt-oss-120b',
+    name: 'GPT-OSS 120B',
+    provider: 'OpenAI (via Cloudflare)',
+    description: 'OpenAI reasoning model. Structured output, clean results. Best for complex transformations.',
+    recommended: false,
+    cost: 'Testing',
+    neuronsPerKToken: { input: 150, output: 300 },
+    adminOnly: true,
+  },
+  {
+    id: '@cf/openai/gpt-oss-20b',
+    name: 'GPT-OSS 20B',
+    provider: 'OpenAI (via Cloudflare)',
+    description: 'Smaller OpenAI model. Good balance of quality and speed.',
+    recommended: false,
+    cost: 'Testing',
+    neuronsPerKToken: { input: 20, output: 40 },
+    adminOnly: true,
+  },
+  {
+    id: '@cf/meta/llama-3-70b-instruct',
+    name: 'Llama 3 70B (Legacy)',
+    provider: 'Meta (via Cloudflare)',
+    description: 'Previous generation Llama. For comparison testing only.',
+    recommended: false,
+    cost: 'Testing',
+    neuronsPerKToken: { input: 130, output: 260 },
+    adminOnly: true,
   },
 ];
 
 const STORAGE_KEY = 'narrative-studio-cloud-model';
 
+// Get all available models (combine standard + admin based on user role)
+function getAvailableModels(isAdmin: boolean): CloudModel[] {
+  return isAdmin
+    ? [...STANDARD_CLOUD_MODELS, ...ADMIN_CLOUD_MODELS]
+    : STANDARD_CLOUD_MODELS;
+}
+
 export function CloudAISettings() {
-  const [selectedModel, setSelectedModel] = useState<string>('@cf/openai/gpt-oss-20b');
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const availableModels = getAvailableModels(isAdmin);
+
+  const [selectedModel, setSelectedModel] = useState<string>('@cf/meta/llama-3.1-70b-instruct');
   const [saved, setSaved] = useState(false);
 
   // Load saved preference
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && CLOUD_MODELS.find(m => m.id === saved)) {
+    if (saved && availableModels.find(m => m.id === saved)) {
       setSelectedModel(saved);
     }
-  }, []);
+  }, [availableModels]);
 
   const handleModelChange = (modelId: string) => {
     setSelectedModel(modelId);
@@ -60,6 +119,7 @@ export function CloudAISettings() {
 
   const currentProvider = localStorage.getItem('narrative-studio-provider') || 'local';
   const isCloudActive = currentProvider === 'cloudflare';
+  const selectedModelData = availableModels.find(m => m.id === selectedModel);
 
   return (
     <div className="p-6 space-y-6">
@@ -88,7 +148,7 @@ export function CloudAISettings() {
         </h3>
 
         <div className="space-y-2">
-          {CLOUD_MODELS.map((model) => (
+          {availableModels.map((model) => (
             <div
               key={model.id}
               className="rounded-lg p-4 cursor-pointer transition-all"
@@ -99,7 +159,9 @@ export function CloudAISettings() {
                   : 'var(--bg-tertiary)',
                 border: selectedModel === model.id
                   ? '2px solid var(--accent-primary)'
-                  : '1px solid var(--border-color)',
+                  : model.adminOnly
+                    ? '1px dashed var(--warning)'
+                    : '1px solid var(--border-color)',
               }}
             >
               <div className="flex items-start justify-between">
@@ -127,10 +189,23 @@ export function CloudAISettings() {
                             backgroundColor: selectedModel === model.id
                               ? 'rgba(255,255,255,0.2)'
                               : 'var(--success)',
-                            color: selectedModel === model.id ? 'white' : 'white',
+                            color: 'white',
                           }}
                         >
                           Recommended
+                        </span>
+                      )}
+                      {model.adminOnly && (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-medium"
+                          style={{
+                            backgroundColor: selectedModel === model.id
+                              ? 'rgba(255,255,255,0.2)'
+                              : 'var(--warning)',
+                            color: selectedModel === model.id ? 'white' : 'black',
+                          }}
+                        >
+                          Admin
                         </span>
                       )}
                     </div>
@@ -153,6 +228,16 @@ export function CloudAISettings() {
                       }}
                     >
                       {model.description}
+                    </p>
+                    <p
+                      className="text-xs mt-2 font-mono"
+                      style={{
+                        color: selectedModel === model.id
+                          ? 'rgba(255,255,255,0.7)'
+                          : 'var(--text-tertiary)',
+                      }}
+                    >
+                      ~{model.neuronsPerKToken.input + model.neuronsPerKToken.output} neurons/1K tokens
                     </p>
                   </div>
                 </div>
@@ -206,16 +291,29 @@ export function CloudAISettings() {
         </h4>
         <ul className="text-xs space-y-1" style={{ color: 'var(--text-secondary)' }}>
           <li>• All models are vetted for clean output (no AI preambles)</li>
-          <li>• GPT-OSS models use structured reasoning (highest quality filtering)</li>
+          <li>• Llama 3.1 70B is recommended for highest quality transformations</li>
           <li>• Model selection applies to Persona, Style, and Namespace transforms</li>
-          <li>• AI Detection always uses the lite detector (free) or GPTZero (premium)</li>
+          <li>• AI Detection uses a fast local detector (free tier)</li>
         </ul>
       </div>
     </div>
   );
 }
 
+// All models combined (for validation)
+const ALL_CLOUD_MODELS = [...STANDARD_CLOUD_MODELS, ...ADMIN_CLOUD_MODELS];
+
 // Export helper to get current model preference
 export function getCloudModelPreference(): string {
-  return localStorage.getItem(STORAGE_KEY) || '@cf/openai/gpt-oss-20b';
+  const saved = localStorage.getItem(STORAGE_KEY);
+  // If saved model is not in our vetted list, return default
+  if (saved && ALL_CLOUD_MODELS.find(m => m.id === saved)) {
+    return saved;
+  }
+  // Default to the recommended (first) model
+  return '@cf/meta/llama-3.1-70b-instruct';
 }
+
+// Export the model list for other components
+export { ALL_CLOUD_MODELS, STANDARD_CLOUD_MODELS, ADMIN_CLOUD_MODELS };
+export type { CloudModel };

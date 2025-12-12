@@ -304,6 +304,31 @@ Example refactor:
 
 ---
 
+## 🔗 SUBSYSTEM DOCUMENTATION (READ BEFORE MODIFYING)
+
+**CRITICAL**: Before modifying any subsystem, READ the relevant documentation first.
+
+| Subsystem | Documentation | Key Files |
+|-----------|---------------|-----------|
+| LLM/Transformations | `narrative-studio/docs/LLM_ARCHITECTURE.md` | `llm-models.ts`, `model-vetting/`, `llm-providers/` |
+| Workspace Buffers | `narrative-studio/docs/WORKSPACE_BUFFERS.md` | `WorkspaceContext.tsx`, `useWorkspaceTools.ts` |
+| AI Detection | `narrative-studio/docs/AI_DETECTION.md` | `ai-detection/`, `AIAnalysisPane.tsx` |
+| Archive Import | `narrative-studio/docs/ARCHIVE_IMPORT.md` | `src/services/parser/` |
+
+**Also query ChromaDB** for operational details: search tags like `llm-architecture`, `workspace-buffers`, `context-continuity`
+
+### Documentation Hierarchy
+1. **CLAUDE.md** (this file) - High-level principles, pointers to detail docs
+2. **`/docs/*.md` files** - Full architectural documentation per subsystem
+3. **ChromaDB** - Operational knowledge, session handoffs, debugging notes
+
+### After Significant Changes
+- UPDATE the relevant subsystem doc
+- STORE handoff notes in ChromaDB with appropriate tags
+- UPDATE this section if new subsystems are created
+
+---
+
 ## 🔍 IMPLEMENTATION-FIRST PROTOCOL (MANDATORY)
 
 **Before proposing or building ANY new feature, you MUST explore the existing codebase.**

@@ -1337,6 +1337,49 @@ samp,
 .ai-analysis-pane__score-value--success { color: var(--success); }
 .ai-analysis-pane__score-value--warning { color: var(--warning); }
 .ai-analysis-pane__score-value--error { color: var(--error); }
+
+/* Character count indicator */
+.ai-analysis-pane__char-count {
+  margin-bottom: var(--space-sm);
+}
+
+.ai-analysis-pane__char-count-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+
+.ai-analysis-pane__char-count-over {
+  font-weight: 600;
+  color: var(--error);
+}
+
+.ai-analysis-pane__char-count-bar {
+  height: 3px;
+  background-color: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.ai-analysis-pane__char-count-fill {
+  height: 100%;
+  transition: width 0.2s, background-color 0.2s;
+}
+
+.ai-analysis-pane__char-count-fill--success {
+  background-color: var(--success);
+}
+
+.ai-analysis-pane__char-count-fill--warning {
+  background-color: var(--warning);
+}
+
+.ai-analysis-pane__char-count-fill--error {
+  background-color: var(--error);
+}
 .ai-analysis-pane__score-value--primary { color: var(--text-primary); }
 
 /* Progress bar fill colors */
@@ -1852,4 +1895,575 @@ samp,
 .tools-panel__source-select:focus {
   outline: none;
   border-color: var(--accent-primary);
+}
+
+/* ============================================================
+   GUTENBERG VIEW - Unified Vertical Step Flow
+   Works in sidebar panels of any width (no 3-column layout)
+   ============================================================ */
+
+.gutenberg-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: var(--space-sm);
+  overflow: hidden;
+}
+
+/* Search Section - compact, always at top */
+.gutenberg-view__search {
+  flex-shrink: 0;
+  margin-bottom: var(--space-sm);
+}
+
+.gutenberg-view__search-row {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.gutenberg-view__search-input {
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  min-height: 36px;
+}
+
+.gutenberg-view__search-input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.gutenberg-view__search-btn {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--gradient-button);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  min-height: 36px;
+  min-width: 60px;
+  transition: filter 0.15s ease;
+}
+
+.gutenberg-view__search-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.gutenberg-view__search-btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* Error Display */
+.gutenberg-view__error {
+  padding: var(--space-xs) var(--space-sm);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-sm);
+  font-size: 0.8125rem;
+  flex-shrink: 0;
+}
+
+/* Content Area - fills remaining space */
+.gutenberg-view__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Step Container - each step fills available space */
+.gutenberg-view__step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Step Header - navigation breadcrumb */
+.gutenberg-view__step-header {
+  flex-shrink: 0;
+  padding: var(--space-xs) 0;
+  margin-bottom: var(--space-xs);
+}
+
+.gutenberg-view__step-header--nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--gradient-primary);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-sm);
+}
+
+.gutenberg-view__step-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.gutenberg-view__step-header--nav .gutenberg-view__step-title {
+  color: var(--text-inverse);
+  text-transform: none;
+  font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gutenberg-view__step-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.gutenberg-view__step-subtitle {
+  font-size: 0.6875rem;
+  color: rgba(255, 255, 255, 0.75);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Back Button */
+.gutenberg-view__back-btn {
+  padding: var(--space-xs) var(--space-sm);
+  background: rgba(255, 255, 255, 0.2);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  min-height: 32px;
+  min-width: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+
+.gutenberg-view__back-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* List Container - scrollable */
+.gutenberg-view__list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm); /* Increased from xs for better separation */
+  padding-bottom: var(--space-sm);
+}
+
+/* List Items - unified styling for books and chapters */
+.gutenberg-view__list-item {
+  padding: var(--space-sm) var(--space-sm);
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: background 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.gutenberg-view__list-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.gutenberg-view__list-item--selected {
+  background: var(--bg-tertiary);
+  border-color: var(--accent-primary);
+}
+
+.gutenberg-view__list-item-title {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.gutenberg-view__list-item-meta {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+/* Preview Text */
+.gutenberg-view__preview-text {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  padding: var(--space-sm);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  min-height: 0;
+}
+
+/* Action Footer - sticky at bottom */
+.gutenberg-view__action-footer {
+  flex-shrink: 0;
+  padding-top: var(--space-sm);
+}
+
+.gutenberg-view__use-btn {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--gradient-button);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.875rem;
+  min-height: 44px;
+  transition: filter 0.15s ease;
+}
+
+.gutenberg-view__use-btn:hover {
+  filter: brightness(1.1);
+}
+
+/* Loading State */
+.gutenberg-view__loading {
+  color: var(--text-tertiary);
+  font-size: 0.8125rem;
+  padding: var(--space-md);
+  text-align: center;
+}
+
+/* Mobile: 2-column grid for books/chapters */
+@media (max-width: 767px) {
+  .gutenberg-view__list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-xs);
+  }
+
+  .gutenberg-view__list-item {
+    min-height: 60px;
+  }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .gutenberg-view__list-item,
+  .gutenberg-view__use-btn,
+  .gutenberg-view__back-btn {
+    transition: none;
+  }
+}
+
+/* ============================================================
+   PASTE IMPORT VIEW
+   ============================================================ */
+
+.paste-import-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  height: 100%;
+  overflow-y: auto;
+}
+
+.paste-import-view__header {
+  text-align: center;
+  padding-bottom: var(--space-sm);
+}
+
+.paste-import-view__title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 var(--space-xs) 0;
+}
+
+.paste-import-view__subtitle {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.paste-import-view__error {
+  background-color: rgba(var(--error-rgb, 239, 68, 68), 0.1);
+  border: 1px solid var(--error);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--error);
+  font-size: 0.875rem;
+}
+
+.paste-import-view__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.paste-import-view__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.paste-import-view__stats {
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.paste-import-view__input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  transition: border-color 0.15s ease;
+}
+
+.paste-import-view__input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.paste-import-view__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.paste-import-view__upload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.paste-import-view__upload-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-lg);
+  background-color: var(--bg-secondary);
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: 100px;
+}
+
+.paste-import-view__upload-btn:hover {
+  border-color: var(--accent-primary);
+  background-color: var(--bg-tertiary);
+}
+
+.paste-import-view__upload-icon {
+  font-size: 1.5rem;
+  color: var(--accent-primary);
+}
+
+.paste-import-view__upload-btn span:nth-child(2) {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.paste-import-view__upload-formats {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.paste-import-view__upload-file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--success);
+}
+
+.paste-import-view__upload-file-icon {
+  font-size: 1rem;
+}
+
+.paste-import-view__upload-file-name {
+  flex: 1;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paste-import-view__upload-file-clear {
+  background: none;
+  border: none;
+  padding: 0;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 1.25rem;
+  border-radius: 50%;
+}
+
+.paste-import-view__upload-file-clear:hover {
+  color: var(--error);
+  background-color: rgba(var(--error-rgb, 239, 68, 68), 0.1);
+}
+
+.paste-import-view__divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  color: var(--text-tertiary);
+  font-size: 0.8125rem;
+}
+
+.paste-import-view__divider::before,
+.paste-import-view__divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background-color: var(--border-color);
+}
+
+.paste-import-view__textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: var(--space-md);
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 0.15s ease;
+}
+
+.paste-import-view__textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.paste-import-view__textarea:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.paste-import-view__textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.paste-import-view__actions {
+  display: flex;
+  gap: var(--space-sm);
+  padding-top: var(--space-sm);
+}
+
+.paste-import-view__btn {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 44px;
+}
+
+.paste-import-view__btn--primary {
+  background: var(--gradient-button);
+  color: var(--text-inverse);
+}
+
+.paste-import-view__btn--primary:hover:not(:disabled) {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+.paste-import-view__btn--primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.paste-import-view__btn--secondary {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.paste-import-view__btn--secondary:hover:not(:disabled) {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.paste-import-view__btn--secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.paste-import-view__help {
+  padding-top: var(--space-sm);
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.paste-import-view__help strong {
+  color: var(--text-secondary);
+}
+
+/* Mobile adjustments */
+@media (max-width: 767px) {
+  .paste-import-view {
+    padding: var(--space-sm);
+  }
+
+  .paste-import-view__upload-btn {
+    padding: var(--space-md);
+    min-height: 80px;
+  }
+
+  .paste-import-view__textarea {
+    min-height: 150px;
+  }
 }

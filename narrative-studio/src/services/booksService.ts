@@ -109,6 +109,7 @@ export interface PageSummary {
   orderIndex: number;
   contentType: 'text' | 'conversation' | 'image' | 'embed';
   wordCount: number;
+  preview?: string;  // First ~100 chars of content
   source?: PageSource;
   createdAt?: number;
   updatedAt?: number;

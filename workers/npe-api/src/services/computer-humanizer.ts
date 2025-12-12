@@ -20,8 +20,9 @@ import {
   hasBlockMarkers,
   getBlockMarkerInstructions
 } from '../lib/block-markers';
-import { filterModelOutput, UnvettedModelError } from './model-vetting';
+import { filterModelOutput, UnvettedModelError, isModelVetted } from './model-vetting';
 import { createLLMProvider } from './llm-providers';
+import { getModelForUseCase, detectEnvironment, hasCloudflareAI, isModelCompatibleWithEnvironment } from '../config/llm-models';
 
 /**
  * Humanization intensity levels
@@ -117,10 +118,31 @@ export async function humanizeText(
     throw new Error('Text must be at least 20 words for humanization');
   }
 
-  // Default model for LLM polish pass
-  // GPT-OSS 20B performs better for humanization tasks (tested Dec 2025)
-  const modelId = options.model || '@cf/openai/gpt-oss-20b';
-  console.log(`[Humanizer] Model: ${modelId}${options.model ? ' (user selected)' : ' (default)'}`);
+  // Model selection using config system
+  // Detect environment (local vs cloud) based on available bindings
+  const environment = detectEnvironment(hasCloudflareAI(env));
+
+  // Determine final model to use
+  let modelId: string;
+
+  if (options.model) {
+    // User provided a model - validate it
+    if (!isModelVetted(options.model)) {
+      throw new Error(`Model ${options.model} is not vetted for use. Check model-vetting/profiles.ts`);
+    }
+    // Check environment compatibility
+    if (!isModelCompatibleWithEnvironment(options.model, environment)) {
+      console.warn(`[Humanizer] User selected cloud model ${options.model} but environment is ${environment}. Falling back to default.`);
+      modelId = getModelForUseCase('general', environment);
+    } else {
+      modelId = options.model;
+    }
+  } else {
+    // No user model - use config-assigned model
+    modelId = getModelForUseCase('general', environment);
+  }
+
+  console.log(`[Humanizer] Environment: ${environment}, Model: ${modelId}${options.model === modelId ? ' (user selected)' : ' (default)'}`);
 
   // Initialize timing trackers
   let stage1Time = 0, stage2Time = 0, stage3Time = 0, stage4Time = 0, stage5Time = 0;

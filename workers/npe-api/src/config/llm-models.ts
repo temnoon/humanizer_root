@@ -17,37 +17,38 @@ export interface ModelConfig {
  */
 export const MODEL_CONFIGS: Record<string, ModelConfig> = {
   // Persona transformation: Requires strong creative writing
+  // Note: qwen3 outputs reasoning as plain text (hard to filter). Using mistral instead.
   persona: {
     cloud: '@cf/meta/llama-3.1-70b-instruct',  // Cloudflare's largest Llama model
-    local: 'ollama/qwen3:latest',               // Ollama qwen3 8B (good for creative tasks)
+    local: 'ollama/mistral:7b',                 // Mistral 7B - clean output, good for creative
     description: 'Persona transformation - changes narrative voice/perspective',
   },
 
   // Style transformation: Requires understanding of literary styles
   style: {
     cloud: '@cf/meta/llama-3.1-70b-instruct',
-    local: 'ollama/qwen3:latest',               // Qwen3 has strong language understanding
+    local: 'ollama/mistral:7b',                 // Mistral 7B - clean output
     description: 'Style transformation - changes writing patterns',
   },
 
   // Round-trip translation: Requires multilingual support
   roundTrip: {
     cloud: '@cf/meta/llama-3.1-70b-instruct',
-    local: 'ollama/qwen3:14b',                  // Larger Qwen3 for translation tasks
+    local: 'ollama/mistral:7b',                 // Mistral for translation
     description: 'Round-trip translation - semantic drift analysis',
   },
 
   // Namespace transformation: Requires deep semantic understanding
   namespace: {
     cloud: '@cf/meta/llama-3.1-70b-instruct',
-    local: 'ollama/qwen3:14b',                  // Larger model for complex reasoning
+    local: 'ollama/mistral:7b',                 // Mistral for semantic tasks
     description: 'Namespace transformation - domain remapping',
   },
 
   // Allegorical projection: Requires creative reasoning
   allegorical: {
     cloud: '@cf/meta/llama-3.1-70b-instruct',
-    local: 'ollama/qwen3:14b',
+    local: 'ollama/mistral:7b',
     description: 'Allegorical projection - multi-stage transformation',
   },
 
@@ -95,5 +96,17 @@ export function hasCloudflareAI(env: any): boolean {
     return false;
   }
 
+  return true;
+}
+
+/**
+ * Check if a model is compatible with the current environment
+ * Cloud models (@cf/) cannot be used in local environment
+ */
+export function isModelCompatibleWithEnvironment(modelId: string, environment: 'local' | 'cloud'): boolean {
+  const isCloudModel = modelId.startsWith('@cf/');
+  if (environment === 'local' && isCloudModel) {
+    return false;
+  }
   return true;
 }

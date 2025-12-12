@@ -105,5 +105,5 @@ export function isTransformationTool(type: string): boolean {
     TOOL_TYPES.PERSONA,
     TOOL_TYPES.STYLE,
     TOOL_TYPES.ROUND_TRIP
-  ].includes(type as ToolType);
+  ].includes(type as typeof TOOL_TYPES.COMPUTER_HUMANIZER);
 }

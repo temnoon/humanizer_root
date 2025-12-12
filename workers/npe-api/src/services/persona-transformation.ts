@@ -5,9 +5,9 @@
 import type { Env, NPEPersona } from '../../shared/types';
 import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-detector';
-import { hasCloudflareAI, detectEnvironment, getModelForUseCase } from '../config/llm-models';
+import { hasCloudflareAI, detectEnvironment, getModelForUseCase, isModelCompatibleWithEnvironment } from '../config/llm-models';
 import { extractStructure, restoreStructure, stripInlineMarkdown } from './markdown-preserver';
-import { filterModelOutput, UnvettedModelError } from './model-vetting';
+import { filterModelOutput, UnvettedModelError, isModelVetted } from './model-vetting';
 
 export interface PersonaTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
@@ -272,16 +272,30 @@ export async function transformPersona(
   userId: string,
   options: PersonaTransformationOptions = {}
 ): Promise<PersonaTransformationResult> {
-  // Use provided model or detect environment and select default
-  let modelId = options.model;
+  // Detect environment (local vs cloud) based on available bindings
+  const environment = detectEnvironment(hasCloudflareAI(env));
 
-  if (!modelId) {
-    const hasAI = hasCloudflareAI(env);
-    const environment = detectEnvironment(hasAI);
+  // Determine final model to use
+  let modelId: string;
+
+  if (options.model) {
+    // User provided a model - validate it
+    if (!isModelVetted(options.model)) {
+      throw new Error(`Model ${options.model} is not vetted for use. Check model-vetting/profiles.ts`);
+    }
+    // Check environment compatibility
+    if (!isModelCompatibleWithEnvironment(options.model, environment)) {
+      console.warn(`[Persona] User selected cloud model ${options.model} but environment is ${environment}. Falling back to default.`);
+      modelId = getModelForUseCase('persona', environment);
+    } else {
+      modelId = options.model;
+    }
+  } else {
+    // No user model - use config-assigned model
     modelId = getModelForUseCase('persona', environment);
   }
 
-  console.log(`[Persona] Model: ${modelId}${options.model ? ' (user selected)' : ' (default)'}`);
+  console.log(`[Persona] Environment: ${environment}, Model: ${modelId}${options.model === modelId ? ' (user selected)' : ' (default)'}`);
 
   const service = new PersonaTransformationService(env, persona, userId, modelId);
   return service.transform(text, options);
