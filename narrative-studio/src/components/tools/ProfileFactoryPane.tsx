@@ -191,7 +191,10 @@ STYLE PROFILE:
 - Pacing: [describe rhythm and flow]
 
 TRANSFORMATION PROMPT:
-[Write a concise prompt that captures ONLY the style mechanics. Start with "Apply this writing style:" and focus on sentence patterns, register, and rhythm. Do NOT include persona elements like worldview, values, or narrator identity.]`;
+[Write a concise prompt that captures ONLY the style mechanics. Start with "Apply this writing style:" and focus on sentence patterns, register, and rhythm. Do NOT include persona elements like worldview, values, or narrator identity.]
+
+IMPORTANT: End the prompt with this vocabulary rule:
+"VOCABULARY RULE: Keep all specific nouns, names, and key terms from the original. Transform sentence structure and hedging style only."`;
 
 // Persona extraction prompt - focuses on WHO is speaking
 const PERSONA_EXTRACTION_PROMPT = `You are a narrative voice analyst specializing in narrator characterization. Your task is to extract the distinctive PERSONA from this text—not the writing style (sentence patterns, vocabulary choices), but the narrator's identity as a perceiving, knowing, valuing entity.
@@ -270,7 +273,10 @@ THE 5 LAYERS:
 5. Reader contract: [why tell this? what's the reader's role?]
 
 TRANSFORMATION PROMPT:
-[Write a persona prompt that captures the narrator's MIND, not their style. Start with "Adopt the perspective of a narrator who..." and describe their worldview, how they know things, what they notice, and their relationship to the reader. Do NOT include style elements like sentence patterns or vocabulary choices.]`;
+[Write a persona prompt that captures the narrator's MIND, not their style. Start with "Adopt the perspective of a narrator who..." and describe their worldview, how they know things, what they notice, and their relationship to the reader. Do NOT include style elements like sentence patterns or vocabulary choices.]
+
+IMPORTANT: End the prompt with this vocabulary rule:
+"VOCABULARY RULE: Keep all specific nouns, verbs, names, and key terms from the original. Only change the FRAMING and PERSPECTIVE, not the vocabulary."`;
 
 interface ProfileFactoryPaneProps {
   content: string;  // Content from buffer (optional use for testing)
@@ -368,11 +374,12 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
           if (!extracted.toLowerCase().startsWith('apply')) {
             extracted = 'Apply this writing style: ' + extracted;
           }
-          // Add preservation instruction
-          extracted += '\n\nCRITICAL: Preserve ALL factual content, names, dates, and specific details. Transform ONLY the writing style mechanics, not the information or narrator identity.';
+          // Add vocabulary preservation rule (key improvement from Opus vs Qwen testing)
+          extracted += '\n\nVOCABULARY RULE: Keep all specific nouns, names, and key terms from the original. Transform sentence structure and hedging style only.';
+          extracted += '\n\nCRITICAL: Preserve ALL factual content. Transform ONLY the writing style mechanics.';
           setGeneratedPrompt(extracted);
         } else {
-          setGeneratedPrompt('Apply this writing style: Use the sentence patterns, register, and rhythm identified in the analysis. Preserve all factual content.');
+          setGeneratedPrompt('Apply this writing style: Use the sentence patterns, register, and rhythm identified in the analysis.\n\nVOCABULARY RULE: Keep all specific nouns and names from the original.\n\nCRITICAL: Preserve all factual content.');
         }
       } else {
         // Parse PERSONA ANALYSIS, THE 5 LAYERS, and TRANSFORMATION PROMPT
@@ -392,11 +399,12 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
           if (!extracted.toLowerCase().startsWith('adopt')) {
             extracted = 'Adopt the perspective of a narrator who ' + extracted;
           }
-          // Add preservation instruction
-          extracted += '\n\nCRITICAL: Preserve ALL factual content, plot events, and setting. Transform ONLY the narrative perspective and epistemic stance, not the events or writing style mechanics.';
+          // Add vocabulary preservation rule (key improvement from Opus vs Qwen testing)
+          extracted += '\n\nVOCABULARY RULE: Keep all specific nouns, verbs, names, and key terms from the original. Only change the FRAMING and PERSPECTIVE, not the vocabulary.';
+          extracted += '\n\nCRITICAL: Preserve ALL factual content and writing mechanics. Transform ONLY the epistemic stance.';
           setGeneratedPrompt(extracted);
         } else {
-          setGeneratedPrompt('Adopt the perspective of a narrator with the worldview and attention patterns identified in the analysis. Preserve all factual content and events.');
+          setGeneratedPrompt('Adopt the perspective of a narrator with the worldview and attention patterns identified in the analysis.\n\nVOCABULARY RULE: Keep all specific nouns and key terms from the original.\n\nCRITICAL: Preserve all factual content and events.');
         }
       }
 
