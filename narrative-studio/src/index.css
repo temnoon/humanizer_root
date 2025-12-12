@@ -429,6 +429,211 @@ samp,
   box-shadow: var(--shadow-lg);
 }
 
+/* Text color utilities - use for theme-aware text colors */
+.u-text-primary {
+  color: var(--text-primary);
+}
+
+.u-text-secondary {
+  color: var(--text-secondary);
+}
+
+.u-text-tertiary {
+  color: var(--text-tertiary);
+}
+
+.u-text-inverse {
+  color: var(--text-inverse);
+}
+
+.u-text-accent {
+  color: var(--accent-primary);
+}
+
+.u-text-success {
+  color: var(--success);
+}
+
+.u-text-warning {
+  color: var(--warning);
+}
+
+.u-text-error {
+  color: var(--error);
+}
+
+/* Background utilities */
+.u-bg-primary {
+  background-color: var(--bg-primary);
+}
+
+.u-bg-secondary {
+  background-color: var(--bg-secondary);
+}
+
+.u-bg-tertiary {
+  background-color: var(--bg-tertiary);
+}
+
+.u-bg-panel {
+  background-color: var(--bg-panel);
+}
+
+/* Layout utilities */
+.u-flex-fill {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.u-scroll-y {
+  overflow-y: auto;
+}
+
+.u-content-center {
+  width: 100%;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.u-content-narrow {
+  width: 100%;
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: var(--space-lg);
+}
+
+/* ============================================================
+   WORKSPACE COMPONENTS
+   Used by MainWorkspace.tsx and related components
+   ============================================================ */
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--bg-primary);
+}
+
+.workspace__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.workspace__title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.workspace__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+}
+
+.workspace__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace__panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workspace__panel--scroll {
+  overflow-y: auto;
+}
+
+.workspace__content {
+  width: 100%;
+  max-width: 80rem;
+  margin: 0 auto;
+  padding: var(--space-xl);
+}
+
+.workspace__content--narrow {
+  max-width: 64rem;
+  padding: var(--space-lg);
+}
+
+.workspace__section-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-md);
+}
+
+.workspace__prose {
+  color: var(--text-primary);
+}
+
+/* Empty state / drop zone */
+.workspace__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: var(--space-2xl);
+  text-align: center;
+}
+
+.workspace__drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  padding: var(--space-2xl);
+  border: 2px dashed var(--border-color);
+  border-radius: var(--radius-xl);
+  background-color: var(--bg-secondary);
+  transition: all 0.2s ease;
+}
+
+.workspace__drop-zone--active {
+  border-color: var(--accent-primary);
+  background-color: rgba(var(--accent-primary-rgb, 59, 130, 246), 0.05);
+}
+
+.workspace__drop-icon {
+  font-size: 4rem;
+  margin-bottom: var(--space-lg);
+  opacity: 0.6;
+}
+
+.workspace__drop-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.workspace__drop-subtitle {
+  font-size: 1rem;
+  color: var(--text-tertiary);
+  margin-bottom: var(--space-md);
+}
+
+.workspace__drop-hint {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+}
+
 /* ============================================================
    SCROLLBAR STYLES
    ============================================================ */
@@ -622,6 +827,230 @@ samp,
 .btn-ghost:hover:not(:disabled) {
   background-color: var(--bg-secondary);
   color: var(--text-primary);
+}
+
+.btn-danger {
+  background-color: var(--error);
+  color: var(--text-inverse);
+  border-color: var(--error);
+}
+
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-danger:focus {
+  outline: none;
+}
+
+/* ============================================================
+   TOOL PANE COMPONENTS
+   Used by transformation tools: Humanizer, Persona, Style, etc.
+   ============================================================ */
+
+.tool-pane {
+  padding: var(--space-sm);
+}
+
+.tool-pane__section {
+  margin-bottom: var(--space-sm);
+}
+
+.tool-pane__section--compact {
+  margin-bottom: var(--space-xs);
+}
+
+.tool-pane__label {
+  display: block;
+  margin-bottom: var(--space-xs);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.tool-pane__label--inline {
+  display: inline;
+  margin-bottom: 0;
+}
+
+.tool-pane__select {
+  width: 100%;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.tool-pane__select:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+}
+
+.tool-pane__select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tool-pane__btn-row {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.tool-pane__btn {
+  padding: var(--space-sm) var(--space-sm);
+  font-size: 0.875rem;
+  min-height: 40px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  transition: opacity 0.15s ease;
+}
+
+.tool-pane__btn:focus {
+  outline: none;
+}
+
+.tool-pane__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tool-pane__btn--transform {
+  flex: 1;
+  width: 100%;
+  background-image: var(--accent-primary-gradient);
+  background-color: transparent;
+  color: var(--text-inverse);
+}
+
+.tool-pane__btn--transform:hover:not(:disabled) {
+  opacity: 0.95;
+}
+
+.tool-pane__btn--cancel {
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--error);
+  color: var(--text-inverse);
+}
+
+.tool-pane__btn--cancel:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.tool-pane__error {
+  margin-top: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background-color: rgba(var(--color-error-rgb, 239, 68, 68), 0.1);
+  border-radius: var(--radius-sm);
+  color: var(--error);
+  font-size: 0.6875rem;
+}
+
+.tool-pane__result {
+  margin-top: var(--space-sm);
+}
+
+.tool-pane__result-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-xs);
+}
+
+.tool-pane__result-label {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+
+.tool-pane__result-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.tool-pane__result-value--positive {
+  color: var(--success);
+}
+
+.tool-pane__result-value--negative {
+  color: var(--error);
+}
+
+.tool-pane__result-value--highlight {
+  color: var(--accent-primary);
+}
+
+.tool-pane__result-value--secondary {
+  color: var(--accent-secondary);
+}
+
+.tool-pane__loading {
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+.tool-pane__checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.tool-pane__checkbox {
+  accent-color: var(--accent-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.tool-pane__checkbox-label {
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.tool-pane__slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.tool-pane__slider-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-tertiary);
+}
+
+.tool-pane__char-limit {
+  font-size: 0.75rem;
+}
+
+.tool-pane__char-limit--over {
+  color: var(--error);
+}
+
+.tool-pane__char-limit--ok {
+  color: var(--text-tertiary);
+}
+
+.tool-pane__progress-bar {
+  height: 3px;
+  background-color: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.tool-pane__progress-fill {
+  height: 100%;
+  transition: width 0.2s, background-color 0.2s;
 }
 
 /* ============================================================

@@ -979,7 +979,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           {/* Header with title */}
           <div style={{ padding: 'var(--space-md) var(--space-lg)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
             <div className="flex items-center justify-between">
-              <h2 className="heading-md" style={{ color: 'var(--text-primary)' }}>Archive</h2>
+              <h2 className="heading-md u-text-primary">Archive</h2>
               <button onClick={onClose} title="Collapse" style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontSize: '16px' }}>‹</button>
             </div>
           </div>
@@ -1006,12 +1006,12 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 }}
                 style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem' }}
               >← Back</button>
-              <div className="flex-1 font-medium text-small line-clamp-1" style={{ color: 'var(--text-primary)' }}>{title}</div>
+              <div className="flex-1 font-medium text-small line-clamp-1 u-text-primary">{title}</div>
             </div>
 
             {/* Search - compact */}
             <div className="relative mb-3">
-              <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
+              <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none u-text-tertiary">
                 <Icons.Search />
               </div>
               <input
@@ -1226,7 +1226,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           {/* Header with title */}
           <div style={{ padding: 'var(--space-md) var(--space-lg)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
             <div className="flex items-center justify-between">
-              <h2 className="heading-md" style={{ color: 'var(--text-primary)' }}>Archive</h2>
+              <h2 className="heading-md u-text-primary">Archive</h2>
               <button onClick={onClose} title="Collapse" style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontSize: '16px' }}>‹</button>
             </div>
           </div>
@@ -1268,7 +1268,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
 
               {/* Gallery search - compact */}
               <div className="relative">
-                <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
+                <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none u-text-tertiary">
                   <Icons.Search />
                 </div>
                 <input
@@ -1415,12 +1415,11 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           }}
         >
           <div className="flex items-center justify-between mb-4">
-            <h2 className="heading-md" style={{ color: 'var(--text-primary)' }}>
+            <h2 className="heading-md u-text-primary">
               Archive{' '}
               {currentArchiveName && (
                 <span
-                  className="text-small"
-                  style={{ color: 'var(--text-tertiary)' }}
+                  className="text-small u-text-tertiary"
                   title={currentArchivePath}
                 >
                   ({currentArchiveName})
@@ -1465,14 +1464,13 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 paddingRight: currentSearchQuery ? '2.75rem' : '1rem',
               }}
             />
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-tertiary)' }}>
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none u-text-tertiary">
               <Icons.Search />
             </div>
             {currentSearchQuery && (
               <button
                 onClick={() => handleSearchChange('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:opacity-70 transition-opacity"
-                style={{ color: 'var(--text-tertiary)' }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md hover:opacity-70 transition-opacity u-text-tertiary"
                 title="Clear search"
                 aria-label="Clear search"
               >
@@ -1629,7 +1627,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           </div>
 
         {/* Stats */}
-        <div className="text-small" style={{ color: 'var(--text-secondary)' }}>
+        <div className="text-small u-text-secondary">
             {currentSearchQuery || hasActiveFilters
               ? `${filteredConversations.length} of ${conversations.length}`
               : `${conversations.length} conversations`}
@@ -1837,7 +1835,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 <p className="text-small font-medium mb-2" style={{ color: 'var(--error)' }}>
                   Archive Connection Error
                 </p>
-                <p className="text-small" style={{ color: 'var(--text-secondary)' }}>
+                <p className="text-small u-text-secondary">
                   {error}
                 </p>
                 <button
@@ -1877,7 +1875,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                 <p className="text-body mb-2" style={{ color: 'var(--text-secondary)' }}>
                   No conversations found
                 </p>
-                <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
+                <p className="text-small u-text-tertiary">
                   {currentSearchQuery || hasActiveFilters
                     ? 'Try adjusting your search or filters'
                     : 'Make sure the archive server is running'}

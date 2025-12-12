@@ -187,16 +187,16 @@ export class PersonaTransformationService {
     const roleTokenLimits: Record<string, number> = {
       'admin': 50000,     // ~37k words - essentially unlimited for admins
       'premium': 20000,   // ~15k words
-      'pro': 10000,       // ~7.5k words
-      'member': 5000,     // ~3.7k words
-      'free': 2000        // ~1.5k words
+      'pro': 10000,       // ~5k words
+      'member': 5000,     // ~2.5k words
+      'free': 4000        // ~2k words
     };
 
     // Default to free tier if role not found
-    const maxTokens = roleTokenLimits[this.userRole || 'free'] || 2000;
+    const maxTokens = roleTokenLimits[this.userRole || 'free'] || 4000;
 
-    // Calculate needed tokens (1.5x word count for transformation expansion)
-    const neededTokens = Math.ceil(wordCount * 1.5);
+    // Calculate needed tokens (2x word count for transformation expansion)
+    const neededTokens = Math.ceil(wordCount * 2.0);
 
     // Return the minimum of needed tokens and role limit
     return Math.min(Math.max(500, neededTokens), maxTokens);

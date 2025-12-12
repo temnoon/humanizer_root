@@ -79,15 +79,9 @@ function CharCountIndicator({ content, transformType, userTier }: CharCountIndic
     : 'var(--success)';
 
   return (
-    <div style={{ marginBottom: '8px' }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '4px',
-        fontSize: '0.6875rem',
-        color: isOverLimit ? 'var(--error)' : 'var(--text-tertiary)',
-      }}>
+    <div className="tool-pane__section--compact">
+      <div className={`tool-pane__char-limit ${isOverLimit ? 'tool-pane__char-limit--over' : 'tool-pane__char-limit--ok'}`}
+        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
         <span>{charCount.toLocaleString()} / {limit.toLocaleString()} chars</span>
         {isOverLimit && (
           <span style={{ fontWeight: 600 }}>
@@ -95,61 +89,16 @@ function CharCountIndicator({ content, transformType, userTier }: CharCountIndic
           </span>
         )}
       </div>
-      <div style={{
-        height: '3px',
-        backgroundColor: 'var(--bg-tertiary)',
-        borderRadius: '2px',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          height: '100%',
-          width: `${percentage}%`,
-          backgroundColor: barColor,
-          transition: 'width 0.2s, background-color 0.2s',
-        }} />
+      <div className="tool-pane__progress-bar">
+        {/* Dynamic width requires inline style */}
+        <div
+          className="tool-pane__progress-fill"
+          style={{ width: `${percentage}%`, backgroundColor: barColor }}
+        />
       </div>
     </div>
   );
 }
-
-// Compact button styles for narrow panels
-const runButtonStyle = {
-  width: '100%',
-  backgroundImage: 'var(--accent-primary-gradient)',
-  backgroundColor: 'transparent',
-  color: 'var(--text-inverse)',
-  padding: '10px 12px',
-  fontSize: '0.875rem',
-  minHeight: '40px',
-  border: 'none',
-  borderRadius: 'var(--radius-sm)',
-  fontWeight: 600,
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '6px',
-};
-
-const selectStyle = {
-  width: '100%',
-  backgroundColor: 'var(--bg-secondary)',
-  border: '1px solid var(--border-color)',
-  color: 'var(--text-primary)',
-  padding: '6px 8px',
-  borderRadius: 'var(--radius-sm)',
-  fontSize: '0.8125rem',
-};
-
-const labelStyle = {
-  display: 'block',
-  marginBottom: '4px',
-  fontSize: '0.6875rem',
-  fontWeight: 600,
-  color: 'var(--text-tertiary)',
-  textTransform: 'uppercase' as const,
-  letterSpacing: '0.5px',
-};
 
 // ====================
 // Humanizer Pane
@@ -317,17 +266,17 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
   };
 
   return (
-    <div style={{ padding: '12px' }}>
+    <div className="tool-pane">
       {/* Intensity */}
-      <div style={{ marginBottom: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}>
-          <label style={{ ...labelStyle, marginBottom: 0 }}>Intensity</label>
+      <div className="tool-pane__section">
+        <div className="tool-pane__slider-row">
+          <label className="tool-pane__label tool-pane__label--inline">Intensity</label>
           <IntensityHelp />
         </div>
         <select
           value={state.intensity}
           onChange={(e) => setState({ intensity: e.target.value as any })}
-          style={selectStyle}
+          className="tool-pane__select"
         >
           <option value="light">Light (50%)</option>
           <option value="moderate">Moderate (70%) - Recommended</option>
@@ -336,18 +285,15 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
       </div>
 
       {/* LLM Polish - compact inline */}
-      <div style={{ marginBottom: '12px' }}>
-        <label
-          className="flex items-center gap-2 cursor-pointer"
-          style={{ color: 'var(--text-primary)', fontSize: '0.8125rem' }}
-        >
+      <div className="tool-pane__section">
+        <label className="tool-pane__checkbox-row">
           <input
             type="checkbox"
             checked={state.useLLM}
             onChange={(e) => setState({ useLLM: e.target.checked })}
-            style={{ accentColor: 'var(--accent-primary)', width: '16px', height: '16px' }}
+            className="tool-pane__checkbox"
           />
-          <span>LLM Polish Pass</span>
+          <span className="tool-pane__checkbox-label">LLM Polish Pass</span>
         </label>
       </div>
 
@@ -359,16 +305,11 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
       />
 
       {/* Run/Cancel Buttons */}
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div className="tool-pane__btn-row">
         <button
           onClick={handleRun}
           disabled={isTransforming || !content.trim()}
-          style={{
-            ...runButtonStyle,
-            flex: 1,
-            opacity: isTransforming || !content.trim() ? 0.5 : 1,
-            cursor: isTransforming || !content.trim() ? 'not-allowed' : 'pointer',
-          }}
+          className="tool-pane__btn tool-pane__btn--transform"
         >
           {isTransforming
             ? chunkProgress
@@ -379,16 +320,7 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
         {isTransforming && (
           <button
             onClick={handleCancel}
-            style={{
-              padding: '10px 16px',
-              backgroundColor: 'var(--error)',
-              color: 'var(--text-inverse)',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-            }}
+            className="tool-pane__btn tool-pane__btn--cancel"
           >
             ✕ Cancel
           </button>
@@ -396,40 +328,22 @@ export function HumanizerPane({ content, onApplyTransform }: HumanizerPaneProps)
       </div>
 
       {error && (
-        <div
-          style={{
-            marginTop: '8px',
-            padding: '6px 8px',
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            borderRadius: 'var(--radius-sm)',
-            color: 'var(--error)',
-            fontSize: '0.6875rem',
-          }}
-        >
+        <div className="tool-pane__error">
           {error}
         </div>
       )}
 
       {/* Provider indicator with model and GPTZero info */}
       {providerUsed && !error && state.lastResult && (
-        <div
-          style={{
-            marginTop: '8px',
-            padding: '6px 8px',
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.625rem',
-            color: 'var(--text-tertiary)',
-          }}
-        >
-          ✓ Processed via {providerUsed}
+        <div className="tool-pane__result">
+          <span className="tool-pane__result-label">✓ Processed via {providerUsed}</span>
           {state.lastResult?.metadata?.chunked && (
-            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-secondary)' }}>
+            <span className="tool-pane__result-value tool-pane__result-value--secondary">
               Chunked: {state.lastResult.metadata.chunkCount} segments
             </span>
           )}
           {state.lastResult?.metadata?.modelUsed && (
-            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-primary)' }}>
+            <span className="tool-pane__result-value tool-pane__result-value--highlight">
               Model: {getModelDisplayName(state.lastResult.metadata.modelUsed)}
             </span>
           )}
@@ -667,17 +581,17 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
   };
 
   return (
-    <div style={{ padding: '12px' }}>
+    <div className="tool-pane">
       {/* Persona Selection */}
-      <div style={{ marginBottom: '12px' }}>
-        <label style={labelStyle}>Persona</label>
+      <div className="tool-pane__section">
+        <label className="tool-pane__label">Persona</label>
         {loading ? (
-          <div style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>Loading...</div>
+          <div className="tool-pane__loading">Loading...</div>
         ) : (
           <select
             value={state.selectedPersona}
             onChange={(e) => setState({ selectedPersona: e.target.value })}
-            style={selectStyle}
+            className="tool-pane__select"
           >
             {personas.some(p => p.isCustom) && (
               <optgroup label="Custom Profiles">
@@ -709,16 +623,11 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
       />
 
       {/* Run/Cancel Buttons */}
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div className="tool-pane__btn-row">
         <button
           onClick={handleRun}
           disabled={isTransforming || !content.trim() || loading}
-          style={{
-            ...runButtonStyle,
-            flex: 1,
-            opacity: isTransforming || !content.trim() || loading ? 0.5 : 1,
-            cursor: isTransforming || !content.trim() || loading ? 'not-allowed' : 'pointer',
-          }}
+          className="tool-pane__btn tool-pane__btn--transform"
         >
           {isTransforming
             ? chunkProgress
@@ -729,16 +638,7 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
         {isTransforming && (
           <button
             onClick={handleCancel}
-            style={{
-              padding: '10px 16px',
-              backgroundColor: 'var(--error)',
-              color: 'var(--text-inverse)',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-            }}
+            className="tool-pane__btn tool-pane__btn--cancel"
           >
             ✕ Cancel
           </button>
@@ -746,31 +646,22 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
       </div>
 
       {error && (
-        <div style={{ marginTop: '8px', padding: '6px 8px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', fontSize: '0.6875rem' }}>
+        <div className="tool-pane__error">
           {error}
         </div>
       )}
 
       {/* Provider indicator with model info */}
       {providerUsed && !error && state.lastResult && (
-        <div
-          style={{
-            marginTop: '8px',
-            padding: '6px 8px',
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.625rem',
-            color: 'var(--text-tertiary)',
-          }}
-        >
-          ✓ Processed via {providerUsed}
+        <div className="tool-pane__result">
+          <span className="tool-pane__result-label">✓ Processed via {providerUsed}</span>
           {state.lastResult?.metadata?.chunked && (
-            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-secondary)' }}>
+            <span className="tool-pane__result-value tool-pane__result-value--secondary">
               Chunked: {state.lastResult.metadata.chunkCount} segments
             </span>
           )}
           {state.lastResult?.metadata?.modelUsed && (
-            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-primary)' }}>
+            <span className="tool-pane__result-value tool-pane__result-value--highlight">
               Model: {getModelDisplayName(state.lastResult.metadata.modelUsed)}
             </span>
           )}
@@ -779,7 +670,7 @@ export function PersonaPane({ content, onApplyTransform }: PersonaPaneProps) {
 
       {/* Feedback Widget */}
       {showFeedback && transformationId && !error && (
-        <div style={{ marginTop: '8px' }}>
+        <div className="tool-pane__result">
           <FeedbackWidget
             transformationId={transformationId}
             modelUsed={state.lastResult?.metadata?.modelUsed || providerUsed || undefined}
@@ -1007,17 +898,17 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
   };
 
   return (
-    <div style={{ padding: '12px' }}>
+    <div className="tool-pane">
       {/* Style Selection */}
-      <div style={{ marginBottom: '12px' }}>
-        <label style={labelStyle}>Style</label>
+      <div className="tool-pane__section">
+        <label className="tool-pane__label">Style</label>
         {loading ? (
-          <div style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>Loading...</div>
+          <div className="tool-pane__loading">Loading...</div>
         ) : (
           <select
             value={state.selectedStyle}
             onChange={(e) => setState({ selectedStyle: e.target.value })}
-            style={selectStyle}
+            className="tool-pane__select"
           >
             {styles.some(s => s.isCustom) && (
               <optgroup label="Custom Profiles">
@@ -1049,16 +940,11 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
       />
 
       {/* Run/Cancel Buttons */}
-      <div style={{ display: 'flex', gap: '8px' }}>
+      <div className="tool-pane__btn-row">
         <button
           onClick={handleRun}
           disabled={isTransforming || !content.trim() || loading}
-          style={{
-            ...runButtonStyle,
-            flex: 1,
-            opacity: isTransforming || !content.trim() || loading ? 0.5 : 1,
-            cursor: isTransforming || !content.trim() || loading ? 'not-allowed' : 'pointer',
-          }}
+          className="tool-pane__btn tool-pane__btn--transform"
         >
           {isTransforming
             ? chunkProgress
@@ -1069,16 +955,7 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
         {isTransforming && (
           <button
             onClick={handleCancel}
-            style={{
-              padding: '10px 16px',
-              backgroundColor: 'var(--error)',
-              color: 'var(--text-inverse)',
-              border: 'none',
-              borderRadius: 'var(--radius-sm)',
-              fontWeight: 600,
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-            }}
+            className="tool-pane__btn tool-pane__btn--cancel"
           >
             ✕ Cancel
           </button>
@@ -1086,31 +963,22 @@ export function StylePane({ content, onApplyTransform }: StylePaneProps) {
       </div>
 
       {error && (
-        <div style={{ marginTop: '8px', padding: '6px 8px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', fontSize: '0.6875rem' }}>
+        <div className="tool-pane__error">
           {error}
         </div>
       )}
 
       {/* Provider indicator with model info */}
       {providerUsed && !error && state.lastResult && (
-        <div
-          style={{
-            marginTop: '8px',
-            padding: '6px 8px',
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.625rem',
-            color: 'var(--text-tertiary)',
-          }}
-        >
-          ✓ Processed via {providerUsed}
+        <div className="tool-pane__result">
+          <span className="tool-pane__result-label">✓ Processed via {providerUsed}</span>
           {state.lastResult?.metadata?.chunked && (
-            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-secondary)' }}>
+            <span className="tool-pane__result-value tool-pane__result-value--secondary">
               Chunked: {state.lastResult.metadata.chunkCount} segments
             </span>
           )}
           {state.lastResult?.metadata?.modelUsed && (
-            <span style={{ display: 'block', marginTop: '2px', color: 'var(--accent-primary)' }}>
+            <span className="tool-pane__result-value tool-pane__result-value--highlight">
               Model: {getModelDisplayName(state.lastResult.metadata.modelUsed)}
             </span>
           )}
@@ -1263,14 +1131,14 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
   };
 
   return (
-    <div style={{ padding: '12px' }}>
+    <div className="tool-pane">
       {/* Language Selection */}
-      <div style={{ marginBottom: '12px' }}>
-        <label style={labelStyle}>Language</label>
+      <div className="tool-pane__section">
+        <label className="tool-pane__label">Language</label>
         <select
           value={state.intermediateLanguage}
           onChange={(e) => setState({ intermediateLanguage: e.target.value })}
-          style={selectStyle}
+          className="tool-pane__select"
         >
           {LANGUAGES.map((lang) => (
             <option key={lang.value} value={lang.value}>
@@ -1291,45 +1159,30 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
       <button
         onClick={handleRun}
         disabled={isTransforming || !content.trim()}
-        style={{
-          ...runButtonStyle,
-          opacity: isTransforming || !content.trim() ? 0.5 : 1,
-          cursor: isTransforming || !content.trim() ? 'not-allowed' : 'pointer',
-        }}
+        className="tool-pane__btn tool-pane__btn--transform"
       >
         {isTransforming ? '⏳ Translating...' : '🔄 Round-Trip'}
       </button>
 
       {error && (
-        <div style={{ marginTop: '8px', padding: '6px 8px', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: 'var(--radius-sm)', color: 'var(--error)', fontSize: '0.6875rem' }}>
+        <div className="tool-pane__error">
           {error}
         </div>
       )}
 
       {/* Results - compact */}
       {result && result.semantic_drift !== undefined && (
-        <div
-          style={{
-            marginTop: '12px',
-            padding: '8px 10px',
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: 'var(--radius-sm)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <span style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Drift</span>
+        <div className="tool-pane__result-row">
+          <span className="tool-pane__result-label">Drift</span>
           <span
-            style={{
-              fontSize: '1.125rem',
-              fontWeight: 700,
-              color: result.semantic_drift < 20
-                ? 'var(--success)'
+            className={`tool-pane__result-value ${
+              result.semantic_drift < 20
+                ? 'tool-pane__result-value--positive'
                 : result.semantic_drift < 50
-                ? 'var(--warning)'
-                : 'var(--error)',
-            }}
+                ? ''
+                : 'tool-pane__result-value--negative'
+            }`}
+            style={{ fontSize: '1.125rem' }}
           >
             {result.semantic_drift}%
           </span>
@@ -1338,23 +1191,14 @@ export function RoundTripPane({ content, onApplyTransform }: RoundTripPaneProps)
 
       {/* Provider indicator */}
       {providerUsed && !error && state.lastResult && (
-        <div
-          style={{
-            marginTop: '8px',
-            padding: '6px 8px',
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.625rem',
-            color: 'var(--text-tertiary)',
-          }}
-        >
-          ✓ Processed via {providerUsed}
+        <div className="tool-pane__result">
+          <span className="tool-pane__result-label">✓ Processed via {providerUsed}</span>
         </div>
       )}
 
       {/* Feedback Widget */}
       {showFeedback && transformationId && !error && (
-        <div style={{ marginTop: '8px' }}>
+        <div className="tool-pane__result">
           <FeedbackWidget
             transformationId={transformationId}
             modelUsed={providerUsed || undefined}

@@ -389,10 +389,10 @@ export function MainWorkspace({
               border: '1px solid var(--border-color)',
             }}
           >
-            <h1 className="heading-lg mb-2" style={{ color: 'var(--text-primary)' }}>
+            <h1 className="heading-lg mb-2 u-text-primary">
               {activeWorkspace?.name || 'Workspace'}
             </h1>
-            <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
+            <div className="flex items-center gap-4 text-small u-text-tertiary">
               <span>{Object.keys(activeWorkspace?.buffers || {}).length} versions</span>
               <span>•</span>
               <span>Active: {workspaceActiveBuffer.displayName}</span>
@@ -403,7 +403,7 @@ export function MainWorkspace({
         {/* Workspace Buffer Content */}
         {workspaceCompareMode && workspaceCompareBuffer ? (
           /* Side-by-side workspace comparison */
-          <div className="hidden md:flex flex-1 flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <div className="hidden md:flex flex-1 flex-col md:flex-row u-flex-fill">
             {/* Left pane: Compare buffer */}
             <div
               ref={leftPaneRef}
@@ -421,9 +421,9 @@ export function MainWorkspace({
                   minHeight: 0,
                 }}
               >
-                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                    <h2 className="heading-md u-text-secondary">
                       {workspaceCompareBuffer.displayName || 'Compare'}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -443,7 +443,7 @@ export function MainWorkspace({
                       </button>
                     </div>
                   </div>
-                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                  <div className="prose max-w-none u-text-primary">
                     <MarkdownRenderer
                       content={workspaceContent.left || ''}
                       highlights={workspaceCompareBuffer?.analysis?.highlights}
@@ -470,9 +470,9 @@ export function MainWorkspace({
                   minHeight: 0,
                 }}
               >
-                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                    <h2 className="heading-md u-text-secondary">
                       {workspaceActiveBuffer.displayName || 'Active'}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -492,7 +492,7 @@ export function MainWorkspace({
                       </button>
                     </div>
                   </div>
-                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                  <div className="prose max-w-none u-text-primary">
                     {/* Use MarkdownRenderer with optional highlights prop for proper rendering */}
                     <MarkdownRenderer
                       content={workspaceContent.right || ''}
@@ -507,7 +507,7 @@ export function MainWorkspace({
           </div>
         ) : (
           /* Single pane: Active buffer only */
-          <div className="flex-1 flex" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <div className="flex-1 flex u-flex-fill">
             <div
               ref={singlePaneRef}
               className="flex-1 flex flex-col"
@@ -524,9 +524,9 @@ export function MainWorkspace({
                   minHeight: 0,
                 }}
               >
-                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                    <h2 className="heading-md u-text-secondary">
                       {workspaceActiveBuffer.displayName || 'Active Buffer'}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -546,7 +546,7 @@ export function MainWorkspace({
                       </button>
                     </div>
                   </div>
-                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                  <div className="prose max-w-none u-text-primary">
                     {/* Use MarkdownRenderer with optional highlights prop for proper rendering */}
                     <MarkdownRenderer
                       content={workspaceContent.right || ''}
@@ -576,32 +576,16 @@ export function MainWorkspace({
   if (!narrative) {
     return (
       <main
-        className="flex-1 flex items-center justify-center"
-        style={{
-          backgroundColor: 'var(--bg-primary)',
-          padding: 'var(--space-xl)',
-        }}
+        className="workspace__empty u-bg-primary"
         onPaste={handlePaste}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         tabIndex={0} // Make focusable to receive paste events
       >
-        <div
-          className="workspace-empty-drop-zone"
-          style={{
-            textAlign: 'center',
-            padding: 'var(--space-2xl)',
-            borderRadius: 'var(--radius-xl)',
-            border: isDragging ? '2px dashed var(--accent-primary)' : '2px dashed var(--border-color)',
-            backgroundColor: isDragging ? 'rgba(var(--accent-primary-rgb, 99, 102, 241), 0.05)' : 'transparent',
-            transition: 'all 0.2s ease',
-            maxWidth: '400px',
-            width: '100%',
-          }}
-        >
+        <div className={`workspace__drop-zone ${isDragging ? 'workspace__drop-zone--active' : ''}`}>
           <div
-            className="mb-6"
+            className="workspace__drop-icon"
             style={{
               width: '80px',
               height: '80px',
@@ -610,8 +594,6 @@ export function MainWorkspace({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto',
-              transition: 'all 0.2s ease',
             }}
           >
             {isDragging ? (
@@ -620,18 +602,18 @@ export function MainWorkspace({
               <Icons.Eye />
             )}
           </div>
-          <p className="heading-md mb-3" style={{ color: isDragging ? 'var(--accent-primary)' : 'var(--text-secondary)' }}>
+          <p className={`workspace__drop-title ${isDragging ? 'u-text-accent' : ''}`}>
             {isDragging ? 'Drop to import' : 'Start your narrative'}
           </p>
-          <p className="text-body mb-4" style={{ color: 'var(--text-tertiary)' }}>
+          <p className="workspace__drop-subtitle">
             {isDragging ? 'Drop your text file here' : (
               <>
-                <strong style={{ color: 'var(--text-secondary)' }}>Paste</strong> text (Ctrl+V) or{' '}
-                <strong style={{ color: 'var(--text-secondary)' }}>drop</strong> a .txt/.md file
+                <strong className="u-text-secondary">Paste</strong> text (Ctrl+V) or{' '}
+                <strong className="u-text-secondary">drop</strong> a .txt/.md file
               </>
             )}
           </p>
-          <p className="text-small" style={{ color: 'var(--text-tertiary)' }}>
+          <p className="workspace__drop-hint">
             Or use the 📥 Import tab in the Archive panel
           </p>
         </div>
@@ -773,10 +755,10 @@ export function MainWorkspace({
               border: '1px solid var(--border-color)',
             }}
           >
-            <h1 className="heading-lg" style={{ color: 'var(--text-primary)' }}>
+            <h1 className="heading-lg u-text-primary">
               {narrative.title}
             </h1>
-            <div className="flex items-center gap-4 text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+            <div className="flex items-center gap-4 text-small mt-1 u-text-tertiary">
               <span>{Object.keys(activeWorkspace?.buffers || {}).length} versions</span>
               <span>•</span>
               <span>{workspaceActiveBuffer.displayName}</span>
@@ -787,7 +769,7 @@ export function MainWorkspace({
         {/* Workspace Buffer Content */}
         {workspaceCompareMode && workspaceCompareBuffer ? (
           /* Side-by-side workspace comparison */
-          <div className="flex-1 flex flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <div className="flex-1 flex flex-col md:flex-row u-flex-fill">
             {/* Left pane: Compare buffer */}
             <div
               ref={leftPaneRef}
@@ -805,9 +787,9 @@ export function MainWorkspace({
                   minHeight: 0,
                 }}
               >
-                <div className="w-full max-w-4xl" style={{ padding: 'var(--space-lg)', margin: '0 auto' }}>
+                <div className="w-full max-w-4xl u-content-narrow">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                    <h2 className="heading-md u-text-secondary">
                       {workspaceCompareBuffer.displayName || 'Compare'}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -827,7 +809,7 @@ export function MainWorkspace({
                       </button>
                     </div>
                   </div>
-                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                  <div className="prose max-w-none u-text-primary">
                     <MarkdownRenderer content={workspaceContent.left || ''} {...mediaProps} />
                   </div>
                 </div>
@@ -851,9 +833,9 @@ export function MainWorkspace({
                   minHeight: 0,
                 }}
               >
-                <div className="w-full max-w-4xl" style={{ padding: 'var(--space-lg)', margin: '0 auto' }}>
+                <div className="w-full max-w-4xl u-content-narrow">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                    <h2 className="heading-md u-text-secondary">
                       {workspaceActiveBuffer.displayName || 'Active'}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -873,7 +855,7 @@ export function MainWorkspace({
                       </button>
                     </div>
                   </div>
-                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                  <div className="prose max-w-none u-text-primary">
                     <MarkdownRenderer content={workspaceContent.right || ''} {...mediaProps} />
                   </div>
                 </div>
@@ -882,7 +864,7 @@ export function MainWorkspace({
           </div>
         ) : (
           /* Single pane: Active buffer only */
-          <div className="flex-1 flex" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <div className="flex-1 flex u-flex-fill">
             <div
               ref={singlePaneRef}
               className="flex-1 flex flex-col"
@@ -899,9 +881,9 @@ export function MainWorkspace({
                   minHeight: 0,
                 }}
               >
-                <div className="w-full max-w-4xl" style={{ padding: 'var(--space-lg)', margin: '0 auto' }}>
+                <div className="w-full max-w-4xl u-content-narrow">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                    <h2 className="heading-md u-text-secondary">
                       {workspaceActiveBuffer.displayName || 'Active Buffer'}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -921,7 +903,7 @@ export function MainWorkspace({
                       </button>
                     </div>
                   </div>
-                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                  <div className="prose max-w-none u-text-primary">
                     <MarkdownRenderer content={workspaceContent.right || ''} {...mediaProps} />
                   </div>
                 </div>
@@ -962,7 +944,7 @@ export function MainWorkspace({
             }}
           >
             <div className="flex items-start justify-between mb-2">
-              <h1 className="heading-xl" style={{ color: 'var(--text-primary)' }}>
+              <h1 className="heading-xl u-text-primary">
                 {narrative.title}
               </h1>
               <div className="flex items-center gap-2">
@@ -982,7 +964,7 @@ export function MainWorkspace({
                 </button>
               </div>
             </div>
-            <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
+            <div className="flex items-center gap-4 text-small u-text-tertiary">
               {narrative.createdAt && (
                 <span>
                   Created {new Date(narrative.createdAt).toLocaleDateString('en-US', {
@@ -1047,10 +1029,10 @@ export function MainWorkspace({
                 {/* Confidence Bar */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-small font-medium" style={{ color: 'var(--text-secondary)' }}>
+                    <span className="text-small font-medium u-text-secondary">
                       AI Confidence
                     </span>
-                    <span className="heading-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                    <span className="heading-lg font-bold u-text-primary">
                       {transformResult.metadata.aiDetection.confidence.toFixed(3)}%
                     </span>
                   </div>
@@ -1083,13 +1065,13 @@ export function MainWorkspace({
                       padding: 'var(--space-md)',
                     }}
                   >
-                    <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                    <div className="text-small mb-2 u-text-tertiary">
                       AI-Flagged Sentences
                     </div>
                     <div className="heading-md" style={{ color: 'var(--accent-red)' }}>
                       {transformResult.metadata.aiDetection.highlightedSentences?.length ?? 0} sentences flagged
                     </div>
-                    <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                    <div className="text-small mt-1 u-text-tertiary">
                       Highlighted in red below
                     </div>
                   </div>
@@ -1099,7 +1081,7 @@ export function MainWorkspace({
                 {transformResult.metadata.aiDetection.tellWords &&
                   transformResult.metadata.aiDetection.tellWords.length > 0 && (
                     <div>
-                      <div className="text-small font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
+                      <div className="text-small font-medium mb-3 u-text-secondary">
                         AI Tell-Words Found ({transformResult.metadata.aiDetection.tellWords.length})
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -1119,7 +1101,7 @@ export function MainWorkspace({
                           </span>
                         ))}
                       </div>
-                      <div className="text-small mt-2" style={{ color: 'var(--text-tertiary)' }}>
+                      <div className="text-small mt-2 u-text-tertiary">
                         Highlighted in amber below
                       </div>
                     </div>
@@ -1135,10 +1117,10 @@ export function MainWorkspace({
                       padding: 'var(--space-md)',
                     }}
                   >
-                    <div className="text-small font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                    <div className="text-small font-semibold mb-2 u-text-primary">
                       Analysis
                     </div>
-                    <p className="text-body" style={{ color: 'var(--text-secondary)' }}>
+                    <p className="text-body u-text-secondary">
                       {transformResult.metadata.aiDetection.reasoning}
                     </p>
                   </div>
@@ -1146,7 +1128,7 @@ export function MainWorkspace({
               </div>
 
               {/* Original Text with Inline Highlights */}
-              <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+              <div className="prose max-w-none u-text-primary">
                 {transformResult.metadata.aiDetection.highlightedMarkdown ? (
                   // Use pre-highlighted markdown from API (preserves markdown formatting + highlights)
                   <MarkdownRenderer content={transformResult.metadata.aiDetection.highlightedMarkdown} />
@@ -1425,10 +1407,10 @@ export function MainWorkspace({
             border: '1px solid var(--border-color)',
           }}
         >
-          <h1 className="heading-lg mb-2" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="heading-lg mb-2 u-text-primary">
             {narrative.title}
           </h1>
-        <div className="flex items-center gap-4 text-small" style={{ color: 'var(--text-tertiary)' }}>
+        <div className="flex items-center gap-4 text-small u-text-tertiary">
           {narrative.createdAt && (
             <span>
               Created {new Date(narrative.createdAt).toLocaleDateString('en-US', {
@@ -1464,7 +1446,7 @@ export function MainWorkspace({
       {hasWorkspace && workspaceActiveBuffer ? (
         workspaceCompareMode && workspaceCompareBuffer ? (
           /* Side-by-side workspace comparison */
-          <div className="hidden md:flex flex-1 flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <div className="hidden md:flex flex-1 flex-col md:flex-row u-flex-fill">
             {/* Left pane: Compare buffer */}
             <div
               ref={leftPaneRef}
@@ -1482,9 +1464,9 @@ export function MainWorkspace({
                   minHeight: 0,
                 }}
               >
-                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                    <h2 className="heading-md u-text-secondary">
                       {workspaceCompareBuffer.displayName || 'Compare'}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -1504,7 +1486,7 @@ export function MainWorkspace({
                       </button>
                     </div>
                   </div>
-                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                  <div className="prose max-w-none u-text-primary">
                     <MarkdownRenderer content={workspaceContent.left || ''} {...mediaProps} />
                   </div>
                 </div>
@@ -1528,9 +1510,9 @@ export function MainWorkspace({
                   minHeight: 0,
                 }}
               >
-                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                    <h2 className="heading-md u-text-secondary">
                       {workspaceActiveBuffer.displayName || 'Active'}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -1550,7 +1532,7 @@ export function MainWorkspace({
                       </button>
                     </div>
                   </div>
-                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                  <div className="prose max-w-none u-text-primary">
                     <MarkdownRenderer content={workspaceContent.right || ''} {...mediaProps} />
                   </div>
                 </div>
@@ -1559,7 +1541,7 @@ export function MainWorkspace({
           </div>
         ) : (
           /* Single pane: Active buffer only */
-          <div className="hidden md:flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <div className="hidden md:flex flex-1 u-flex-fill">
             <div
               ref={singlePaneRef}
               className="flex-1 flex flex-col"
@@ -1576,9 +1558,9 @@ export function MainWorkspace({
                   minHeight: 0,
                 }}
               >
-                <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+                <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="heading-md" style={{ color: 'var(--text-secondary)' }}>
+                    <h2 className="heading-md u-text-secondary">
                       {workspaceActiveBuffer.displayName || 'Active Buffer'}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -1598,7 +1580,7 @@ export function MainWorkspace({
                       </button>
                     </div>
                   </div>
-                  <div className="prose max-w-none" style={{ color: 'var(--text-primary)' }}>
+                  <div className="prose max-w-none u-text-primary">
                     <MarkdownRenderer content={workspaceContent.right || ''} {...mediaProps} />
                   </div>
                 </div>
@@ -1608,7 +1590,7 @@ export function MainWorkspace({
         )
       ) : useSessionRendering && currentViewMode === VIEW_MODES.SINGLE_ORIGINAL ? (
       /* Single-Original View Mode */
-        <div className="hidden md:flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
+        <div className="hidden md:flex flex-1 u-flex-fill">
           <div
             ref={singlePaneRef}
             className="flex-1 flex flex-col"
@@ -1624,7 +1606,7 @@ export function MainWorkspace({
                 minHeight: 0,
               }}
             >
-              <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+              <div className="w-full max-w-5xl u-content-center">
                 <div className="flex items-center justify-between mb-8">
                   <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
                     Original
@@ -1653,7 +1635,7 @@ export function MainWorkspace({
         </div>
       ) : useSessionRendering && currentViewMode === VIEW_MODES.SINGLE_TRANSFORMED ? (
         /* Single-Transformed View Mode */
-        <div className="hidden md:flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
+        <div className="hidden md:flex flex-1 u-flex-fill">
           <div
             ref={singlePaneRef}
             className="flex-1 flex flex-col"
@@ -1670,7 +1652,7 @@ export function MainWorkspace({
                 minHeight: 0,
               }}
             >
-              <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', margin: '0 auto' }}>
+              <div className="w-full max-w-5xl u-content-center">
                 <div className="flex items-center justify-between mb-8">
                   <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
                     Transformed
@@ -1699,7 +1681,7 @@ export function MainWorkspace({
         </div>
       ) : (useSessionRendering ? currentViewMode === VIEW_MODES.SPLIT : mode === 'split') ? (
         /* Side-by-side layout (desktop only) */
-        <div className="hidden md:flex flex-1 flex-col md:flex-row" style={{ minHeight: 0, overflow: 'hidden' }}>
+        <div className="hidden md:flex flex-1 flex-col md:flex-row u-flex-fill">
           {/* Left pane: Original */}
           <div
             ref={leftPaneRef}
@@ -1881,10 +1863,10 @@ export function MainWorkspace({
               {/* Confidence Bar */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-small font-medium" style={{ color: 'var(--text-secondary)' }}>
+                  <span className="text-small font-medium u-text-secondary">
                     AI Confidence
                   </span>
-                  <span className="heading-lg font-bold" style={{ color: 'var(--text-primary)' }}>
+                  <span className="heading-lg font-bold u-text-primary">
                     {transformResult.metadata.aiDetection.confidence.toFixed(1)}%
                   </span>
                 </div>
@@ -1917,13 +1899,13 @@ export function MainWorkspace({
                       padding: 'var(--space-md)',
                     }}
                   >
-                    <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                    <div className="text-small mb-2 u-text-tertiary">
                       Burstiness
                     </div>
                     <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
                       {Math.round(transformResult.metadata.aiDetection.burstiness)}/100
                     </div>
-                    <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                    <div className="text-small mt-1 u-text-tertiary">
                       {transformResult.metadata.aiDetection.burstiness > 60
                         ? 'Human-like variation'
                         : 'AI-like uniformity'}
@@ -1937,13 +1919,13 @@ export function MainWorkspace({
                       padding: 'var(--space-md)',
                     }}
                   >
-                    <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                    <div className="text-small mb-2 u-text-tertiary">
                       Perplexity
                     </div>
                     <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
                       {Math.round(transformResult.metadata.aiDetection.perplexity)}/100
                     </div>
-                    <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                    <div className="text-small mt-1 u-text-tertiary">
                       {transformResult.metadata.aiDetection.perplexity > 60
                         ? 'Varied vocabulary'
                         : 'Predictable patterns'}
@@ -1962,13 +1944,13 @@ export function MainWorkspace({
                     padding: 'var(--space-md)',
                   }}
                 >
-                  <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                  <div className="text-small mb-2 u-text-tertiary">
                     AI-Flagged Sentences
                   </div>
                   <div className="heading-md" style={{ color: 'var(--accent-red)' }}>
                     {transformResult.metadata.aiDetection.highlightedSentences?.length ?? 0} sentences flagged
                   </div>
-                  <div className="text-small mt-1" style={{ color: 'var(--text-tertiary)' }}>
+                  <div className="text-small mt-1 u-text-tertiary">
                     Highlighted in text below
                   </div>
                 </div>
@@ -1978,7 +1960,7 @@ export function MainWorkspace({
               {transformResult.metadata.aiDetection.tellWords &&
                 transformResult.metadata.aiDetection.tellWords.length > 0 && (
                   <div>
-                    <div className="text-small font-medium mb-3" style={{ color: 'var(--text-secondary)' }}>
+                    <div className="text-small font-medium mb-3 u-text-secondary">
                       AI Tell-Words Found ({transformResult.metadata.aiDetection.tellWords.length})
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -2011,10 +1993,10 @@ export function MainWorkspace({
                     padding: 'var(--space-md)',
                   }}
                 >
-                  <div className="text-small font-semibold mb-2" style={{ color: 'var(--text-primary)' }}>
+                  <div className="text-small font-semibold mb-2 u-text-primary">
                     Analysis
                   </div>
-                  <p className="text-body" style={{ color: 'var(--text-secondary)' }}>
+                  <p className="text-body u-text-secondary">
                     {transformResult.metadata.aiDetection.reasoning}
                   </p>
                 </div>
@@ -2266,7 +2248,7 @@ export function MainWorkspace({
               <h3 className="text-small font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
                 Reflection
               </h3>
-              <p className="text-body" style={{ color: 'var(--text-secondary)' }}>
+              <p className="text-body u-text-secondary">
                 {transformResult.reflection}
               </p>
             </div>
@@ -2284,7 +2266,7 @@ export function MainWorkspace({
                     padding: 'var(--space-md)',
                   }}
                 >
-                  <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                  <div className="text-small mb-2 u-text-tertiary">
                     AI Confidence
                   </div>
                   <div className="heading-md" style={{ color: 'var(--text-primary)' }}>
@@ -2300,7 +2282,7 @@ export function MainWorkspace({
                     padding: 'var(--space-md)',
                   }}
                 >
-                  <div className="text-small mb-2" style={{ color: 'var(--text-tertiary)' }}>
+                  <div className="text-small mb-2 u-text-tertiary">
                     Burstiness
                   </div>
                   <div className="heading-md" style={{ color: 'var(--text-primary)' }}>

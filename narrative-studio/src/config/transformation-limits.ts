@@ -27,7 +27,7 @@ export type UserTier = 'free' | 'member' | 'pro' | 'premium' | 'admin';
  *
  * Current backend limits (as of Dec 2025):
  * - Persona: 10,000 chars
- * - Style: 5,000 chars
+ * - Style: 10,000 chars
  * - Round-trip: 5,000 chars
  * - Namespace: 10,000 chars
  * - Computer-humanizer: 10,000 chars (same as persona)
@@ -54,12 +54,12 @@ export const TRANSFORMATION_CHAR_LIMITS: Record<TransformationType, Record<UserT
     admin: 10000,
   },
   style: {
-    // Backend limit: 5,000 per request
-    free: 5000,
-    member: 5000,
-    pro: 5000,
-    premium: 5000,
-    admin: 5000,
+    // Backend limit: 10,000 per request (matches persona)
+    free: 10000,
+    member: 10000,
+    pro: 10000,
+    premium: 10000,
+    admin: 10000,
   },
   namespace: {
     // Backend limit: 10,000 per request
@@ -90,8 +90,9 @@ export const TRANSFORMATION_CHAR_LIMITS: Record<TransformationType, Record<UserT
 /**
  * Minimum chunk size for chunked transformations (in characters)
  * Must be at least this size to ensure coherent output
+ * ~1000 words ≈ 5000-6000 characters
  */
-export const MIN_CHUNK_SIZE = 500;
+export const MIN_CHUNK_SIZE = 4000;
 
 /**
  * Minimum word count for any transformation
@@ -101,9 +102,10 @@ export const MIN_WORD_COUNT = 20;
 
 /**
  * Overlap between chunks to maintain context (in characters)
- * Chunks will overlap by this many characters
+ * This is the number of characters that will be shared between adjacent chunks
+ * to maintain coherence at boundaries. ~50 words ≈ 300 chars.
  */
-export const CHUNK_OVERLAP = 200;
+export const CHUNK_OVERLAP = 300;
 
 /**
  * Get the character limit for a given transformation type and user tier
@@ -272,11 +274,15 @@ export function splitIntoChunks(
 
     chunks.push(chunk);
 
-    // Start next chunk with overlap (but not past the end)
-    startIndex = Math.max(startIndex + 1, endIndex - overlap);
+    // Advance to next chunk position
+    // Move forward by (chunk length - overlap) to create proper overlap
+    // But ensure we always advance by at least MIN_CHUNK_SIZE to prevent tiny increments
+    const chunkLength = endIndex - startIndex;
+    const advancement = Math.max(chunkLength - overlap, MIN_CHUNK_SIZE);
+    startIndex = startIndex + advancement;
 
-    // Prevent infinite loop
-    if (startIndex >= text.length - 1) {
+    // Prevent infinite loop - if we're near the end, break
+    if (startIndex >= text.length - overlap) {
       break;
     }
   }

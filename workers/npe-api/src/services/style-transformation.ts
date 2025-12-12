@@ -87,10 +87,10 @@ export class StyleTransformationService {
    */
   private getMaxTokensForRole(wordCount: number): number {
     const roleTokenLimits: Record<string, number> = {
-      'admin': 50000, 'premium': 20000, 'pro': 10000, 'member': 5000, 'free': 2000
+      'admin': 50000, 'premium': 20000, 'pro': 10000, 'member': 5000, 'free': 4000
     };
-    const maxTokens = roleTokenLimits[this.userRole || 'free'] || 2000;
-    const neededTokens = Math.ceil(wordCount * 1.5);
+    const maxTokens = roleTokenLimits[this.userRole || 'free'] || 4000;
+    const neededTokens = Math.ceil(wordCount * 2.0);
     return Math.min(Math.max(500, neededTokens), maxTokens);
   }
 
@@ -193,6 +193,11 @@ export class StyleTransformationService {
 
   /**
    * Apply writing style while preserving content and voice
+   *
+   * Style transformation follows a 3-layer model:
+   * 1. INVARIANTS - What must be preserved (plot, facts, viewpoint, dialogue)
+   * 2. STYLE CHANGES - What can change (sentence shape, register, figurative language)
+   * 3. PROHIBITIONS - What must NOT happen (platform artifacts, narrator shifts, new facts)
    */
   private async applyStyle(text: string, preserveLength: boolean): Promise<string> {
     if (!this.llmProvider) {
@@ -209,33 +214,86 @@ export class StyleTransformationService {
     const maxTokens = this.getMaxTokensForRole(wordCount);
 
     const lengthGuidance = preserveLength
-      ? `IMPORTANT: Keep the output approximately the same length as the input (around ${wordCount} words).`
+      ? `Keep the output approximately the same length as the input (around ${wordCount} words).`
       : '';
 
-    const prompt = `You are a writing style transformation specialist.
+    // Detect narrative viewpoint from source text
+    const viewpointHint = this.detectViewpoint(plainText);
 
-Your task is to rewrite the following text in "${this.style.name}" style:
+    const prompt = `You are a writing style transformation specialist. Your task is to rewrite the following text in "${this.style.name}" style.
 
+STYLE GUIDANCE:
 ${this.style.style_prompt}
 
-CRITICAL RULES:
-1. PRESERVE ALL CONTENT - Don't add new ideas or remove existing ones
-2. PRESERVE THE VOICE - Keep the same narrative perspective and tone
-3. PRESERVE THE SETTING - Don't change names, locations, or universe
-4. CHANGE ONLY THE WRITING PATTERNS:
-   - Adjust sentence structure (length, complexity, variation)
-   - Adjust formality level (academic, casual, technical, etc.)
-   - Adjust word choice and vocabulary (simple → complex or vice versa)
-   - Adjust rhetorical devices (metaphors, parallelism, etc.)
-5. OUTPUT ONLY THE TRANSFORMED TEXT - No explanations, no thinking process
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 1: INVARIANTS (MUST PRESERVE)
+═══════════════════════════════════════════════════════════════════════════════
+These elements define WHAT the text says and WHO is speaking. Do not change them.
+
+• EVENT ORDER: Every event must happen in the same sequence
+• CAUSE/EFFECT: Preserve all causal relationships between events
+• DIALOGUE CONTENT: Keep dialogue meaning intact (minor wording adjustments OK)
+• CHARACTER KNOWLEDGE: Characters know only what they knew in the original
+• NARRATIVE VIEWPOINT: ${viewpointHint} - maintain this perspective throughout
+• FACTS & ENTITIES: All names, locations, objects, and specific details stay the same
+• GENRE IDENTITY: The text type remains the same (narrative stays narrative, essay stays essay)
+
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 2: STYLE CHANGES (WHAT YOU MAY CHANGE)
+═══════════════════════════════════════════════════════════════════════════════
+Style is HOW the same narrator tells the same events. You may adjust:
+
+SENTENCE-LEVEL:
+• Sentence length and variation (short/medium/long mix)
+• Clause complexity (simple vs compound vs complex)
+• Lexical register (formal ↔ informal vocabulary)
+• Cadence and rhythm (balanced clauses, periodic sentences, fragments)
+
+FIGURATIVE LANGUAGE:
+• Metaphor and simile frequency (within reason - don't drench the text)
+• Imagery source domains appropriate to the style
+• Sound devices (alliteration, assonance - light use only)
+
+DISCOURSE-LEVEL:
+• Connective tissue ("however/thus/indeed" vs "and/so/like")
+• Rhetorical devices (questions, parallel structure, repetition)
+• Pacing of description (slight expansion or compression)
+
 ${lengthGuidance}
 
-Source Text:
-"""
-${plainText}
-"""
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 3: PROHIBITIONS (HARD NO - NEVER DO THESE)
+═══════════════════════════════════════════════════════════════════════════════
 
-Rewrite this text in "${this.style.name}" style while following the rules above.
+❌ NO PLATFORM ARTIFACTS: Never add "EDIT:", "Thanks for reading", "Here goes...",
+   "Now I know what you're thinking", "IANAL", or any meta-commentary about writing.
+
+❌ NO NARRATOR IDENTITY SHIFT: Don't turn third-person into first-person memoir,
+   or add "As I sit here reflecting..." framing. The narrator remains anonymous.
+
+❌ NO NEW FACTS OR ENTITIES: Don't invent new objects, characters, locations,
+   motivations, or worldbuilding details not in the original.
+
+❌ NO MORAL REFRAMING: Don't turn comedy into spiritual parable or vice versa.
+   The text's fundamental tone and meaning stay intact.
+
+❌ NO EXTRADIEGETIC FRAMING: Don't add "Let me tell you a story about..." or
+   "What follows is..." wrappers. Begin directly with the transformed content.
+
+❌ NO VIEWPOINT MIXING: If it starts as third-person limited on Alice, it stays
+   that way. Don't switch between "she" and "I" or add omniscient commentary.
+
+═══════════════════════════════════════════════════════════════════════════════
+SOURCE TEXT:
+═══════════════════════════════════════════════════════════════════════════════
+${plainText}
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT REQUIREMENTS:
+═══════════════════════════════════════════════════════════════════════════════
+• Output ONLY the transformed text - no explanations, no thinking process
+• Begin directly with the transformed content
+• Maintain paragraph structure from the original
 
 Transformed Text:`;
 
@@ -246,12 +304,84 @@ Transformed Text:`;
 
     // Filter output using model-specific vetting profile
     const filterResult = filterModelOutput(result.trim(), this.modelId);
-    const strippedResult = filterResult.content;
+    let strippedResult = filterResult.content;
+
+    // Apply sanity pass to catch any remaining platform artifacts
+    strippedResult = this.sanitizeStyleOutput(strippedResult);
 
     // Restore markdown structure (paragraph breaks, lists)
     const withStructure = restoreStructure(strippedResult, structure);
 
     return withStructure;
+  }
+
+  /**
+   * Detect the narrative viewpoint of the source text
+   */
+  private detectViewpoint(text: string): string {
+    const firstPersonIndicators = /\b(I|me|my|mine|myself|we|us|our)\b/gi;
+    const thirdPersonIndicators = /\b(he|she|they|him|her|them|his|hers|their)\b/gi;
+
+    const firstCount = (text.match(firstPersonIndicators) || []).length;
+    const thirdCount = (text.match(thirdPersonIndicators) || []).length;
+
+    // Check first 200 chars for strong signals
+    const opening = text.slice(0, 200).toLowerCase();
+    const startsWithI = /^[^a-z]*i\s/i.test(opening);
+
+    if (startsWithI || firstCount > thirdCount * 2) {
+      return 'First-person narrator ("I/we")';
+    } else if (thirdCount > firstCount * 2) {
+      return 'Third-person narrator ("he/she/they")';
+    } else if (firstCount > 0 && thirdCount > 0) {
+      return 'Mixed perspective - preserve the original pattern';
+    }
+    return 'Preserve the original narrative perspective';
+  }
+
+  /**
+   * Sanity pass: Remove platform artifacts and framing that slipped through
+   * This catches issues the LLM might generate despite instructions
+   */
+  private sanitizeStyleOutput(text: string): string {
+    let result = text;
+
+    // Platform artifact patterns (Reddit, social media, blog)
+    const platformPatterns = [
+      /^(So,?\s*)?(Here goes\.?\.?\.?|Let me (tell you|explain|rewrite)\.?\.?\.?)\s*/i,
+      /^(Now,?\s*)?I know what you('re| are) thinking\.?\.?\.?\s*/i,
+      /\bEDIT:?\s*.*$/gim,
+      /\bUpdate:?\s*.*$/gim,
+      /\bTL;?DR:?\s*.*$/gim,
+      /\bIANAL\b.*$/gim,
+      /\bIMHO\b/gi,
+      /\bThanks for (reading|the gold|coming to my TED talk).*$/gim,
+      /^(Okay,?\s*so,?\s*)/i,
+      /^(Alright,?\s*so,?\s*)/i,
+    ];
+
+    // Framing/meta-commentary patterns
+    const framingPatterns = [
+      /^(What follows is|The following is|Below is).*?:\s*/i,
+      /^(Let me paint you a picture|Picture this|Imagine)[:,.]?\s*/i,
+      /^(I('ll| will) (now )?(rewrite|transform|convert)).*?:\s*/i,
+      /^Here('s| is) (the|my) (rewrite|transformation|version).*?:\s*/i,
+    ];
+
+    // Apply platform pattern removals
+    for (const pattern of platformPatterns) {
+      result = result.replace(pattern, '');
+    }
+
+    // Apply framing pattern removals
+    for (const pattern of framingPatterns) {
+      result = result.replace(pattern, '');
+    }
+
+    // Clean up any resulting leading whitespace or newlines
+    result = result.replace(/^\s*\n+/, '').trim();
+
+    return result;
   }
 }
 
