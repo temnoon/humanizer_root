@@ -16,6 +16,34 @@ import { generate } from '../../services/ollamaService';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://npe-api.tem-527.workers.dev';
 
+// Cloud extraction API call (for when Ollama isn't available)
+async function extractViaCloud(
+  text: string,
+  type: 'style' | 'persona',
+  token: string
+): Promise<{
+  analysis: string;
+  profile: string;
+  transformationPrompt: string;
+  model: string;
+}> {
+  const response = await fetch(`${API_BASE_URL}/admin/profiles/extract`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ text, type }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Cloud extraction failed');
+  }
+
+  return response.json();
+}
+
 // Inline icons
 const Wand = ({ size = 16 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -329,8 +357,13 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
       return;
     }
 
-    if (!isLocalAvailable && !useOllamaForLocal) {
-      setError('Ollama is required for profile extraction. Please start Ollama.');
+    // Check if we can use local Ollama OR cloud (admin only)
+    const canUseLocal = isLocalAvailable || useOllamaForLocal;
+    const token = localStorage.getItem('narrative-studio-auth-token') || localStorage.getItem('post-social:token');
+    const canUseCloud = isAdmin && token;
+
+    if (!canUseLocal && !canUseCloud) {
+      setError('Ollama is required for profile extraction. Admins can use cloud extraction.');
       return;
     }
 
@@ -339,21 +372,34 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
     setStep('analyze');
 
     try {
-      // Select the appropriate extraction prompt based on profile type
-      const extractionPrompt = profileType === 'style'
-        ? STYLE_EXTRACTION_PROMPT
-        : PERSONA_EXTRACTION_PROMPT;
+      let response: string;
 
-      const prompt = extractionPrompt.replace('{TEXT}', sampleText.substring(0, 3000));
+      if (canUseLocal) {
+        // Use local Ollama
+        const extractionPrompt = profileType === 'style'
+          ? STYLE_EXTRACTION_PROMPT
+          : PERSONA_EXTRACTION_PROMPT;
 
-      const systemPrompt = profileType === 'style'
-        ? 'You are an expert literary style analyst. Extract writing mechanics precisely—sentence patterns, register, figurative language, pacing. Do NOT analyze the narrator\'s worldview or values.'
-        : 'You are an expert narrative voice analyst. Extract the narrator\'s epistemic stance and worldview—how they know, what they notice, what they value. Do NOT analyze sentence patterns or vocabulary choices.';
+        const prompt = extractionPrompt.replace('{TEXT}', sampleText.substring(0, 3000));
 
-      const response = await generate(prompt, {
-        temperature: 0.7,
-        system: systemPrompt,
-      });
+        const systemPrompt = profileType === 'style'
+          ? 'You are an expert literary style analyst. Extract writing mechanics precisely—sentence patterns, register, figurative language, pacing. Do NOT analyze the narrator\'s worldview or values.'
+          : 'You are an expert narrative voice analyst. Extract the narrator\'s epistemic stance and worldview—how they know, what they notice, what they value. Do NOT analyze sentence patterns or vocabulary choices.';
+
+        response = await generate(prompt, {
+          temperature: 0.7,
+          system: systemPrompt,
+        });
+      } else {
+        // Use cloud extraction (admin only)
+        const cloudResult = await extractViaCloud(sampleText, profileType, token!);
+        // Combine analysis and profile for display
+        const combinedNotes = cloudResult.analysis + '\n\n' + cloudResult.profile;
+        setAnalysisNotes(combinedNotes || `${profileType === 'style' ? 'Style' : 'Persona'} analysis complete (via ${cloudResult.model})`);
+        setGeneratedPrompt(cloudResult.transformationPrompt);
+        setStep('edit');
+        return;
+      }
 
       // Parse response based on profile type
       if (profileType === 'style') {
@@ -416,7 +462,7 @@ export function ProfileFactoryPane({ content }: ProfileFactoryPaneProps) {
     } finally {
       setIsAnalyzing(false);
     }
-  }, [sampleText, profileType, isLocalAvailable, useOllamaForLocal]);
+  }, [sampleText, profileType, isLocalAvailable, useOllamaForLocal, isAdmin]);
 
   // Test the profile with sample text
   const handleTest = useCallback(async () => {
@@ -713,7 +759,7 @@ Transformed text:`;
             {isAnalyzing ? (
               <>⏳ Extracting {profileType === 'style' ? 'Style' : 'Persona'}...</>
             ) : (
-              <><Wand size={16} /> Extract {profileType === 'style' ? 'Style' : 'Persona'}</>
+              <><Wand size={16} /> Extract {profileType === 'style' ? 'Style' : 'Persona'} {!isLocalAvailable && !useOllamaForLocal && isAdmin ? '(Cloud)' : ''}</>
             )}
           </button>
         </>
