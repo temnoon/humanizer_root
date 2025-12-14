@@ -14,6 +14,7 @@ import writingSamplesRoutes from './routes/writing-samples';
 import personalPersonasRoutes from './routes/personal-personas';
 import personalStylesRoutes from './routes/personal-styles';
 import aiDetectionRoutes from './routes/ai-detection';
+import sicRoutes from './routes/sic';
 import transformationHistoryRoutes from './routes/transformation-history';
 import { analysisRoutes } from './routes/analysis';
 import { narrativesRoutes } from './routes/v2/narratives';
@@ -102,6 +103,9 @@ app.route('/personal/styles', personalStylesRoutes);
 
 // AI Detection routes
 app.route('/ai-detection', aiDetectionRoutes);
+
+// Subjective Intentional Constraint routes (novel AI detection through constraint analysis)
+app.route('/ai-detection/sic', sicRoutes);
 
 // Transformation History routes
 app.route('/transformation-history', transformationHistoryRoutes);
