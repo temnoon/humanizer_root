@@ -8,6 +8,7 @@ import { detectAILocal, type LocalDetectionResult } from './ai-detection/local-d
 import { hasCloudflareAI, detectEnvironment, getModelForUseCase, isModelCompatibleWithEnvironment } from '../config/llm-models';
 import { extractStructure, restoreStructure, stripInlineMarkdown } from './markdown-preserver';
 import { filterModelOutput, UnvettedModelError, isModelVetted } from './model-vetting';
+import { selectModel, type ModelInfo } from './model-selector';
 
 export interface PersonaTransformationOptions {
   enableValidation?: boolean;  // Default: true - run AI detection
@@ -377,21 +378,36 @@ Transformed Text:`;
 
 /**
  * Convenience function for persona transformation
+ * @param userTier - Optional user tier for model selection (free, pro, premium, admin)
  */
 export async function transformPersona(
   env: Env,
   text: string,
   persona: NPEPersona,
   userId: string,
-  options: PersonaTransformationOptions = {}
+  options: PersonaTransformationOptions = {},
+  userTier?: string
 ): Promise<PersonaTransformationResult> {
   // Detect environment (local vs cloud) based on available bindings
   const environment = detectEnvironment(hasCloudflareAI(env));
 
-  // Determine final model to use
+  // Model selection: Use new registry-based system if userTier is provided
   let modelId: string;
+  let modelInfo: ModelInfo | null = null;
 
-  if (options.model) {
+  if (userTier) {
+    // New system: Use model registry and user preferences
+    try {
+      const selection = await selectModel(env, userId, userTier, 'persona');
+      modelId = selection.model.modelId;
+      modelInfo = selection.model;
+      console.log(`[Persona] Model selected via registry: ${modelId} (${selection.reason})`);
+    } catch (err) {
+      // Fallback to legacy system if registry fails
+      console.warn(`[Persona] Registry selection failed, using legacy: ${err}`);
+      modelId = getModelForUseCase('persona', environment);
+    }
+  } else if (options.model) {
     // User provided a model - validate it
     if (!isModelVetted(options.model)) {
       throw new Error(`Model ${options.model} is not vetted for use. Check model-vetting/profiles.ts`);
@@ -404,11 +420,11 @@ export async function transformPersona(
       modelId = options.model;
     }
   } else {
-    // No user model - use config-assigned model
+    // Legacy fallback: No user tier provided, use config-assigned model
     modelId = getModelForUseCase('persona', environment);
   }
 
-  console.log(`[Persona] Environment: ${environment}, Model: ${modelId}${options.model === modelId ? ' (user selected)' : ' (default)'}`);
+  console.log(`[Persona] Environment: ${environment}, Model: ${modelId}`);
 
   const service = new PersonaTransformationService(env, persona, userId, modelId);
   return service.transform(text, options);

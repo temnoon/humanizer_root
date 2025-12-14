@@ -28,6 +28,7 @@ import adminProfileRoutes from './routes/admin-profiles';
 import profileFactoryRoutes from './routes/profile-factory';
 import { sessionsRoutes } from './routes/sessions';
 import modelVettingTestRoutes from './routes/model-vetting-test';
+import modelSettingsRoutes from './routes/model-settings';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -147,6 +148,9 @@ app.route('/api/sessions', sessionsRoutes);
 
 // Model Vetting Test routes (development only - test LLM output patterns)
 app.route('/api/model-vetting', modelVettingTestRoutes);
+
+// Model Settings routes (LLM configuration, API keys, preferences)
+app.route('/api/model-settings', modelSettingsRoutes);
 
 // 404 handler
 app.notFound((c) => {

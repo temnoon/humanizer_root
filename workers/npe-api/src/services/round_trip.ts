@@ -4,6 +4,7 @@
 import type { Env } from '../../shared/types';
 import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { hasCloudflareAI, detectEnvironment, getModelForUseCase } from '../config/llm-models';
+import { selectModel } from './model-selector';
 
 export interface RoundTripResult {
   transformation_id: string;
@@ -43,16 +44,35 @@ export class RoundTripTranslationService {
   private llmProvider: LLMProvider | null = null;
   private modelId: string;
 
+  private userTier?: string;
+
   constructor(
     private env: Env,
-    private userId: string = 'anonymous'
+    private userId: string = 'anonymous',
+    userTier?: string
   ) {
+    this.userTier = userTier;
     // Detect environment and select appropriate model
     const hasAI = hasCloudflareAI(env);
     const environment = detectEnvironment(hasAI);
-    this.modelId = getModelForUseCase('roundTrip', environment);
+    this.modelId = getModelForUseCase('round_trip', environment);
 
     console.log(`[RoundTrip] Environment: ${environment}, Model: ${this.modelId}`);
+  }
+
+  /**
+   * Initialize model using registry if userTier is available
+   */
+  private async initializeModel(): Promise<void> {
+    if (this.userTier) {
+      try {
+        const selection = await selectModel(this.env, this.userId, this.userTier, 'round_trip');
+        this.modelId = selection.model.modelId;
+        console.log(`[RoundTrip] Model selected via registry: ${this.modelId} (${selection.reason})`);
+      } catch (err) {
+        console.warn(`[RoundTrip] Registry selection failed, using legacy: ${err}`);
+      }
+    }
   }
 
   /**
@@ -78,6 +98,9 @@ export class RoundTripTranslationService {
     userId: string
   ): Promise<RoundTripResult> {
     const startTime = Date.now();
+
+    // Initialize model using registry if userTier is available
+    await this.initializeModel();
 
     // Validate language
     if (!RoundTripTranslationService.isLanguageSupported(intermediateLanguage)) {

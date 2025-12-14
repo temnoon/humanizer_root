@@ -10,6 +10,7 @@ import { CloudflareProvider } from './cloudflare';
 import { OpenAIProvider } from './openai';
 import { AnthropicProvider } from './anthropic';
 import { GoogleProvider } from './google';
+import { GroqProvider } from './groq';
 import { OllamaProvider } from './ollama';
 import { decryptAPIKey } from '../../utils/encryption';
 
@@ -18,6 +19,7 @@ export { CloudflareProvider } from './cloudflare';
 export { OpenAIProvider } from './openai';
 export { AnthropicProvider } from './anthropic';
 export { GoogleProvider } from './google';
+export { GroqProvider } from './groq';
 export { OllamaProvider } from './ollama';
 
 /**
@@ -96,6 +98,27 @@ export async function createLLMProvider(
       );
 
       return new GoogleProvider(apiKey, modelId);
+    }
+
+    case 'groq': {
+      // Fetch and decrypt Groq API key
+      const row = await env.DB.prepare(
+        'SELECT groq_api_key_encrypted FROM users WHERE id = ?'
+      ).bind(userId).first();
+
+      if (!row || !row.groq_api_key_encrypted) {
+        throw new Error('Groq API key not configured. Please add your API key in settings.');
+      }
+
+      const apiKey = await decryptAPIKey(
+        row.groq_api_key_encrypted as string,
+        env.JWT_SECRET,
+        userId
+      );
+
+      // Strip 'groq/' prefix if present
+      const groqModel = modelId.replace(/^groq\//, '');
+      return new GroqProvider(apiKey, groqModel);
     }
 
     case 'ollama': {

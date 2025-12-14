@@ -2,281 +2,448 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
 /**
- * Cloud Model Configuration
+ * Cloud AI Settings - Model Preferences per Use Case
  *
- * ALL models listed here MUST be vetted in:
- * workers/npe-api/src/services/model-vetting/profiles.ts
+ * Fetches available models from the model registry and allows users
+ * to set preferences for each transformation use case.
  *
- * Neuron costs (approximate, per 1K tokens):
- * - Llama 3.1 70B: ~130 input, ~260 output (~$0.004/1K neurons)
- * - Llama 3.1 8B: ~15 input, ~30 output
- * - GPT-OSS 120B: Similar to 70B (structured output)
- * - GPT-OSS 20B: Similar to 8B
- *
- * At $0.011 per 1,000 neurons (Cloudflare paid plan):
- * - 70B model: ~$0.004 per 1K tokens processed
- * - 8B model: ~$0.0005 per 1K tokens processed
+ * Models are filtered based on:
+ * 1. User's tier (free, pro, premium, admin)
+ * 2. Configured API keys (for external providers)
  */
 
-interface CloudModel {
+interface ModelInfo {
   id: string;
-  name: string;
   provider: string;
-  description: string;
-  recommended: boolean;
-  cost: string;
-  neuronsPerKToken: { input: number; output: number };
-  adminOnly?: boolean;
+  modelId: string;
+  displayName: string;
+  capabilities: string[];
+  contextWindow: number;
+  costPerKInput: number;
+  costPerKOutput: number;
+  requiresApiKey: boolean;
+  tierRequired: string;
 }
 
-// Standard models available to all users
-const STANDARD_CLOUD_MODELS: CloudModel[] = [
+interface ModelsByProvider {
+  [provider: string]: ModelInfo[];
+}
+
+// Use case definitions with display names and descriptions
+const USE_CASES = [
   {
-    id: '@cf/meta/llama-3.1-70b-instruct',
-    name: 'Llama 3.1 70B',
-    provider: 'Meta (via Cloudflare)',
-    description: 'Primary transformation model. Best quality for humanization.',
-    recommended: true,
-    cost: 'Included',
-    neuronsPerKToken: { input: 130, output: 260 },
+    id: 'general',
+    name: 'General Transformations',
+    description: 'Default model for most operations',
+    icon: '🔄',
   },
   {
-    id: '@cf/meta/llama-3.1-8b-instruct',
-    name: 'Llama 3.1 8B',
-    provider: 'Meta (via Cloudflare)',
-    description: 'Fastest option. 9x cheaper. Good for quick transforms.',
-    recommended: false,
-    cost: 'Included',
-    neuronsPerKToken: { input: 15, output: 30 },
+    id: 'persona',
+    name: 'Persona Transformation',
+    description: 'Apply writing style of authors/personas',
+    icon: '👤',
+  },
+  {
+    id: 'style',
+    name: 'Style Adjustment',
+    description: 'Modify tone, formality, and voice',
+    icon: '✨',
+  },
+  {
+    id: 'translation',
+    name: 'Translation',
+    description: 'Translate between languages',
+    icon: '🌐',
+  },
+  {
+    id: 'round_trip',
+    name: 'Round-Trip Translation',
+    description: 'Translate away and back for paraphrasing',
+    icon: '🔁',
+  },
+  {
+    id: 'detection',
+    name: 'AI Detection',
+    description: 'Analyze text for AI patterns',
+    icon: '🔍',
+  },
+  {
+    id: 'extraction',
+    name: 'Profile Extraction',
+    description: 'Extract writing profiles from samples',
+    icon: '📊',
+  },
+] as const;
+
+type UseCaseId = typeof USE_CASES[number]['id'];
+
+// Fallback models when API isn't configured
+const FALLBACK_MODELS: ModelInfo[] = [
+  {
+    id: 'cf-llama-3.3-70b',
+    provider: 'cloudflare',
+    modelId: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    displayName: 'Llama 3.3 70B Fast (Cloudflare)',
+    capabilities: ['persona', 'style', 'translation', 'round_trip', 'detection', 'general', 'extraction'],
+    contextWindow: 128000,
+    costPerKInput: 0,
+    costPerKOutput: 0,
+    requiresApiKey: false,
+    tierRequired: 'free',
+  },
+  {
+    id: 'cf-llama-3.1-8b',
+    provider: 'cloudflare',
+    modelId: '@cf/meta/llama-3.1-8b-instruct',
+    displayName: 'Llama 3.1 8B (Cloudflare)',
+    capabilities: ['persona', 'style', 'translation', 'round_trip', 'detection', 'general', 'extraction'],
+    contextWindow: 128000,
+    costPerKInput: 0,
+    costPerKOutput: 0,
+    requiresApiKey: false,
+    tierRequired: 'free',
   },
 ];
 
-// Extended models available only to admin users (for testing/vetting)
-const ADMIN_CLOUD_MODELS: CloudModel[] = [
-  {
-    id: '@cf/openai/gpt-oss-120b',
-    name: 'GPT-OSS 120B',
-    provider: 'OpenAI (via Cloudflare)',
-    description: 'OpenAI reasoning model. Structured output, clean results. Best for complex transformations.',
-    recommended: false,
-    cost: 'Testing',
-    neuronsPerKToken: { input: 150, output: 300 },
-    adminOnly: true,
-  },
-  {
-    id: '@cf/openai/gpt-oss-20b',
-    name: 'GPT-OSS 20B',
-    provider: 'OpenAI (via Cloudflare)',
-    description: 'Smaller OpenAI model. Good balance of quality and speed.',
-    recommended: false,
-    cost: 'Testing',
-    neuronsPerKToken: { input: 20, output: 40 },
-    adminOnly: true,
-  },
-  {
-    id: '@cf/meta/llama-3-70b-instruct',
-    name: 'Llama 3 70B (Legacy)',
-    provider: 'Meta (via Cloudflare)',
-    description: 'Previous generation Llama. For comparison testing only.',
-    recommended: false,
-    cost: 'Testing',
-    neuronsPerKToken: { input: 130, output: 260 },
-    adminOnly: true,
-  },
-];
-
-const STORAGE_KEY = 'narrative-studio-cloud-model';
-
-// Get all available models (combine standard + admin based on user role)
-function getAvailableModels(isAdmin: boolean): CloudModel[] {
-  return isAdmin
-    ? [...STANDARD_CLOUD_MODELS, ...ADMIN_CLOUD_MODELS]
-    : STANDARD_CLOUD_MODELS;
-}
+// Provider display names and colors
+const PROVIDER_META: Record<string, { name: string; color: string }> = {
+  cloudflare: { name: 'Cloudflare (Free)', color: 'var(--accent-primary)' },
+  openai: { name: 'OpenAI', color: '#10a37f' },
+  anthropic: { name: 'Anthropic', color: '#d4a373' },
+  google: { name: 'Google AI', color: '#4285f4' },
+  groq: { name: 'Groq', color: '#f55036' },
+  ollama: { name: 'Ollama (Local)', color: '#666' },
+};
 
 export function CloudAISettings() {
   const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
-  const availableModels = getAvailableModels(isAdmin);
+  const isPaidTier = ['pro', 'premium', 'admin'].includes(user?.role || '');
+  const getToken = () => localStorage.getItem('narrative-studio-auth-token');
 
-  const [selectedModel, setSelectedModel] = useState<string>('@cf/meta/llama-3.1-70b-instruct');
-  const [saved, setSaved] = useState(false);
+  const [models, setModels] = useState<ModelInfo[]>([]);
+  const [preferences, setPreferences] = useState<Record<UseCaseId, string | null>>({
+    general: null,
+    persona: null,
+    style: null,
+    translation: null,
+    round_trip: null,
+    detection: null,
+    extraction: null,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Load saved preference
+  const API_BASE = import.meta.env.VITE_API_URL || 'https://npe-api.tem-527.workers.dev';
+
+  // Fetch available models and preferences
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && availableModels.find(m => m.id === saved)) {
-      setSelectedModel(saved);
-    }
-  }, [availableModels]);
+    async function loadData() {
+      const token = getToken();
 
-  const handleModelChange = (modelId: string) => {
-    setSelectedModel(modelId);
-    localStorage.setItem(STORAGE_KEY, modelId);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+      try {
+        // Fetch available models (works for both auth and unauth)
+        const modelsEndpoint = token
+          ? `${API_BASE}/api/model-settings/models/available`
+          : `${API_BASE}/api/model-settings/models`;
+
+        const modelsRes = await fetch(modelsEndpoint, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (modelsRes.ok) {
+          const data = await modelsRes.json();
+          setModels(data.models || []);
+        } else {
+          // Use fallback models
+          setModels(FALLBACK_MODELS);
+        }
+
+        // Fetch preferences if authenticated
+        if (token) {
+          const prefsRes = await fetch(`${API_BASE}/api/model-settings/preferences`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+
+          if (prefsRes.ok) {
+            const prefsData = await prefsRes.json();
+            setPreferences(prefsData.preferences || {});
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load model settings:', err);
+        setModels(FALLBACK_MODELS);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadData();
+  }, [user, API_BASE]);
+
+  // Group models by provider
+  const modelsByProvider: ModelsByProvider = models.reduce((acc, model) => {
+    if (!acc[model.provider]) {
+      acc[model.provider] = [];
+    }
+    acc[model.provider].push(model);
+    return acc;
+  }, {} as ModelsByProvider);
+
+  // Get models that support a specific use case
+  const getModelsForUseCase = (useCase: string): ModelInfo[] => {
+    return models.filter((m) => m.capabilities.includes(useCase));
   };
 
-  const currentProvider = localStorage.getItem('narrative-studio-provider') || 'local';
-  const isCloudActive = currentProvider === 'cloudflare';
-  const selectedModelData = availableModels.find(m => m.id === selectedModel);
+  // Save preference to server
+  const handlePreferenceChange = async (useCase: UseCaseId, modelId: string | null) => {
+    const token = getToken();
+    if (!token) {
+      setError('Please log in to save preferences');
+      return;
+    }
+
+    setSaving(useCase);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      if (modelId === null || modelId === '') {
+        // Remove preference
+        await fetch(`${API_BASE}/api/model-settings/preferences/${useCase}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } else {
+        // Set preference
+        const res = await fetch(`${API_BASE}/api/model-settings/preferences/${useCase}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ modelId }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || 'Failed to save preference');
+        }
+      }
+
+      setPreferences((prev) => ({ ...prev, [useCase]: modelId }));
+      setSuccess(`${USE_CASES.find((u) => u.id === useCase)?.name} preference saved`);
+      setTimeout(() => setSuccess(null), 2000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save preference');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  // Provider summary
+  const providerCount = Object.keys(modelsByProvider).length;
+  const externalProviders = Object.keys(modelsByProvider).filter(
+    (p) => !['cloudflare', 'ollama'].includes(p)
+  );
+
+  if (loading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <div className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Loading model settings...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
-      {/* Status Banner */}
-      {!isCloudActive && (
+      {/* Header */}
+      <div>
+        <h3 className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>
+          Model Preferences
+        </h3>
+        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Choose which AI model to use for each type of transformation.
+          {!isPaidTier && (
+            <span style={{ color: 'var(--warning)' }}>
+              {' '}
+              Upgrade to Pro for external providers.
+            </span>
+          )}
+        </p>
+      </div>
+
+      {/* Provider Summary */}
+      <div
+        className="rounded-lg p-4 flex flex-wrap gap-3"
+        style={{
+          backgroundColor: 'var(--bg-tertiary)',
+          border: '1px solid var(--border-color)',
+        }}
+      >
+        <span className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+          Available providers:
+        </span>
+        {Object.keys(modelsByProvider).map((provider) => (
+          <span
+            key={provider}
+            className="text-xs px-2 py-1 rounded-full font-medium"
+            style={{
+              backgroundColor: 'var(--bg-secondary)',
+              color: PROVIDER_META[provider]?.color || 'var(--text-primary)',
+              border: `1px solid ${PROVIDER_META[provider]?.color || 'var(--border-color)'}`,
+            }}
+          >
+            {PROVIDER_META[provider]?.name || provider} ({modelsByProvider[provider].length})
+          </span>
+        ))}
+      </div>
+
+      {/* Status Messages */}
+      {error && (
         <div
-          className="rounded-lg p-4"
+          className="p-3 rounded-lg text-sm"
           style={{
-            backgroundColor: 'rgba(234, 179, 8, 0.1)',
-            border: '1px solid var(--warning)',
+            backgroundColor: 'rgba(220, 38, 38, 0.1)',
+            border: '1px solid var(--accent-red, #dc2626)',
+            color: 'var(--accent-red, #dc2626)',
           }}
         >
-          <p className="text-sm font-medium" style={{ color: 'var(--warning)' }}>
-            Cloud AI is not active
-          </p>
-          <p className="text-xs mt-1" style={{ color: 'var(--text-secondary)' }}>
-            You're currently using Local AI (Ollama). Switch to Cloud in the provider toggle to use these models.
-          </p>
+          {error}
+        </div>
+      )}
+      {success && (
+        <div
+          className="p-3 rounded-lg text-sm"
+          style={{
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            border: '1px solid var(--success)',
+            color: 'var(--success)',
+          }}
+        >
+          {success}
         </div>
       )}
 
-      {/* Model Selection */}
-      <div>
-        <h3 className="font-medium mb-4" style={{ color: 'var(--text-primary)' }}>
-          Cloud Transformation Model
-        </h3>
+      {/* Use Case Preferences */}
+      <div className="space-y-4">
+        {USE_CASES.map((useCase) => {
+          const availableModels = getModelsForUseCase(useCase.id);
+          const currentPref = preferences[useCase.id];
+          const selectedModel = currentPref
+            ? models.find((m) => m.id === currentPref)
+            : null;
 
-        <div className="space-y-2">
-          {availableModels.map((model) => (
+          return (
             <div
-              key={model.id}
-              className="rounded-lg p-4 cursor-pointer transition-all"
-              onClick={() => handleModelChange(model.id)}
+              key={useCase.id}
+              className="rounded-lg p-4"
               style={{
-                backgroundColor: selectedModel === model.id
-                  ? 'var(--accent-primary)'
-                  : 'var(--bg-tertiary)',
-                border: selectedModel === model.id
-                  ? '2px solid var(--accent-primary)'
-                  : model.adminOnly
-                    ? '1px dashed var(--warning)'
-                    : '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
               }}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="radio"
-                    checked={selectedModel === model.id}
-                    onChange={() => handleModelChange(model.id)}
-                    style={{ accentColor: 'var(--accent-primary)' }}
-                  />
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <span className="text-lg">{useCase.icon}</span>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p
-                        className="font-medium"
-                        style={{
-                          color: selectedModel === model.id ? 'white' : 'var(--text-primary)',
-                        }}
-                      >
-                        {model.name}
-                      </p>
-                      {model.recommended && (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{
-                            backgroundColor: selectedModel === model.id
-                              ? 'rgba(255,255,255,0.2)'
-                              : 'var(--success)',
-                            color: 'white',
-                          }}
-                        >
-                          Recommended
-                        </span>
-                      )}
-                      {model.adminOnly && (
-                        <span
-                          className="text-xs px-2 py-0.5 rounded-full font-medium"
-                          style={{
-                            backgroundColor: selectedModel === model.id
-                              ? 'rgba(255,255,255,0.2)'
-                              : 'var(--warning)',
-                            color: selectedModel === model.id ? 'white' : 'black',
-                          }}
-                        >
-                          Admin
-                        </span>
-                      )}
-                    </div>
-                    <p
-                      className="text-xs mt-1"
-                      style={{
-                        color: selectedModel === model.id
-                          ? 'rgba(255,255,255,0.8)'
-                          : 'var(--text-tertiary)',
-                      }}
-                    >
-                      {model.provider}
-                    </p>
-                    <p
-                      className="text-sm mt-1"
-                      style={{
-                        color: selectedModel === model.id
-                          ? 'rgba(255,255,255,0.9)'
-                          : 'var(--text-secondary)',
-                      }}
-                    >
-                      {model.description}
-                    </p>
-                    <p
-                      className="text-xs mt-2 font-mono"
-                      style={{
-                        color: selectedModel === model.id
-                          ? 'rgba(255,255,255,0.7)'
-                          : 'var(--text-tertiary)',
-                      }}
-                    >
-                      ~{model.neuronsPerKToken.input + model.neuronsPerKToken.output} neurons/1K tokens
+                    <h4 className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
+                      {useCase.name}
+                    </h4>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
+                      {useCase.description}
                     </p>
                   </div>
                 </div>
-                <span
-                  className="text-xs font-medium px-2 py-1 rounded"
-                  style={{
-                    backgroundColor: selectedModel === model.id
-                      ? 'rgba(255,255,255,0.2)'
-                      : 'var(--bg-secondary)',
-                    color: selectedModel === model.id
-                      ? 'white'
-                      : 'var(--text-tertiary)',
-                  }}
-                >
-                  {model.cost}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
 
-        {/* Save Confirmation */}
-        {saved && (
-          <div
-            className="mt-4 p-3 rounded-lg flex items-center gap-2"
-            style={{
-              backgroundColor: 'rgba(34, 197, 94, 0.1)',
-              border: '1px solid var(--success)',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="var(--success)">
-              <path d="M4 10l4 4 8-8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className="text-sm" style={{ color: 'var(--success)' }}>
-              Model preference saved
-            </span>
-          </div>
-        )}
+                <div className="flex-shrink-0 min-w-[200px]">
+                  <select
+                    value={currentPref || ''}
+                    onChange={(e) =>
+                      handlePreferenceChange(useCase.id, e.target.value || null)
+                    }
+                    disabled={saving === useCase.id}
+                    className="w-full px-3 py-1.5 rounded text-sm"
+                    style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      color: 'var(--text-primary)',
+                    }}
+                  >
+                    <option value="">Use default</option>
+                    {Object.entries(modelsByProvider).map(([provider, providerModels]) => {
+                      const filteredModels = providerModels.filter((m) =>
+                        m.capabilities.includes(useCase.id)
+                      );
+                      if (filteredModels.length === 0) return null;
+
+                      return (
+                        <optgroup key={provider} label={PROVIDER_META[provider]?.name || provider}>
+                          {filteredModels.map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.displayName}
+                              {model.costPerKInput > 0 &&
+                                ` (~$${((model.costPerKInput + model.costPerKOutput) * 0.5).toFixed(4)}/1K)`}
+                            </option>
+                          ))}
+                        </optgroup>
+                      );
+                    })}
+                  </select>
+                </div>
+              </div>
+
+              {/* Show current selection details */}
+              {selectedModel && (
+                <div
+                  className="mt-3 pt-3 flex items-center justify-between"
+                  style={{ borderTop: '1px solid var(--border-color)' }}
+                >
+                  <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                    Using:{' '}
+                    <span style={{ color: PROVIDER_META[selectedModel.provider]?.color }}>
+                      {selectedModel.displayName}
+                    </span>
+                  </span>
+                  {selectedModel.costPerKInput > 0 && (
+                    <span
+                      className="text-xs font-mono"
+                      style={{ color: 'var(--text-tertiary)' }}
+                    >
+                      ${selectedModel.costPerKInput}/1K in • $
+                      {selectedModel.costPerKOutput}/1K out
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
+
+      {/* External API Notice */}
+      {externalProviders.length > 0 && (
+        <div
+          className="rounded-lg p-4"
+          style={{
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            border: '1px solid var(--success)',
+          }}
+        >
+          <h4 className="font-medium text-sm mb-2" style={{ color: 'var(--success)' }}>
+            External APIs Connected
+          </h4>
+          <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
+            You have {externalProviders.length} external provider
+            {externalProviders.length > 1 ? 's' : ''} configured:{' '}
+            {externalProviders.map((p) => PROVIDER_META[p]?.name || p).join(', ')}.
+            Usage costs will be billed to your API keys.
+          </p>
+        </div>
+      )}
 
       {/* Info Section */}
       <div
@@ -287,33 +454,23 @@ export function CloudAISettings() {
         }}
       >
         <h4 className="font-medium text-sm mb-2" style={{ color: 'var(--text-primary)' }}>
-          About Cloud Models
+          About Model Selection
         </h4>
         <ul className="text-xs space-y-1" style={{ color: 'var(--text-secondary)' }}>
-          <li>• All models are vetted for clean output (no AI preambles)</li>
-          <li>• Llama 3.1 70B is recommended for highest quality transformations</li>
-          <li>• Model selection applies to Persona, Style, and Namespace transforms</li>
-          <li>• AI Detection uses a fast local detector (free tier)</li>
+          <li>• Cloudflare models are free and included with your account</li>
+          <li>• External providers (OpenAI, Anthropic, Google, Groq) require API keys</li>
+          <li>• Configure API keys in the &quot;API Keys&quot; tab</li>
+          <li>• &quot;Use default&quot; selects the best available model automatically</li>
+          <li>• Costs shown are estimates per 1,000 tokens</li>
         </ul>
       </div>
     </div>
   );
 }
 
-// All models combined (for validation)
-const ALL_CLOUD_MODELS = [...STANDARD_CLOUD_MODELS, ...ADMIN_CLOUD_MODELS];
+// Legacy exports for backward compatibility
+const STORAGE_KEY = 'narrative-studio-cloud-model';
 
-// Export helper to get current model preference
 export function getCloudModelPreference(): string {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  // If saved model is not in our vetted list, return default
-  if (saved && ALL_CLOUD_MODELS.find(m => m.id === saved)) {
-    return saved;
-  }
-  // Default to the recommended (first) model
-  return '@cf/meta/llama-3.1-70b-instruct';
+  return localStorage.getItem(STORAGE_KEY) || '@cf/meta/llama-3.3-70b-instruct-fp8-fast';
 }
-
-// Export the model list for other components
-export { ALL_CLOUD_MODELS, STANDARD_CLOUD_MODELS, ADMIN_CLOUD_MODELS };
-export type { CloudModel };

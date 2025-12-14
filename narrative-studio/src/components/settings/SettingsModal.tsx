@@ -1,22 +1,27 @@
 import { useState, useEffect } from 'react';
 import { OllamaSettings } from './OllamaSettings';
 import { CloudAISettings } from './CloudAISettings';
+import { APIKeySettings } from './APIKeySettings';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface SettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-type SettingsTab = 'ollama' | 'cloud' | 'archive' | 'appearance';
+type SettingsTab = 'ollama' | 'cloud' | 'apikeys' | 'archive' | 'appearance';
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('ollama');
+  const { user } = useAuth();
+  const isPaidTier = ['pro', 'premium', 'admin'].includes(user?.role || '');
 
   if (!isOpen) return null;
 
-  const tabs: { id: SettingsTab; label: string; icon: string }[] = [
+  const tabs: { id: SettingsTab; label: string; icon: string; requiresPaid?: boolean }[] = [
     { id: 'ollama', label: 'Local AI', icon: '🏠' },
     { id: 'cloud', label: 'Cloud AI', icon: '☁️' },
+    { id: 'apikeys', label: 'API Keys', icon: '🔑', requiresPaid: true },
     { id: 'archive', label: 'Archive', icon: '📁' },
     { id: 'appearance', label: 'Appearance', icon: '🎨' },
   ];
@@ -95,6 +100,9 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               >
                 <span>{tab.icon}</span>
                 <span className="text-sm font-medium">{tab.label}</span>
+                {tab.requiresPaid && !isPaidTier && (
+                  <span className="text-xs opacity-60">Pro</span>
+                )}
               </button>
             ))}
           </div>
@@ -104,6 +112,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             {activeTab === 'ollama' && <OllamaSettings />}
 
             {activeTab === 'cloud' && <CloudAISettings />}
+
+            {activeTab === 'apikeys' && <APIKeySettings />}
 
             {activeTab === 'archive' && (
               <div className="p-6">

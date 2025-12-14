@@ -1,11 +1,12 @@
 /**
- * OpenAI Provider
- * Supports GPT-4o, GPT-4o-mini
+ * Groq Provider
+ * Ultra-fast inference for open-source models (Llama, Mixtral)
+ * Uses OpenAI-compatible API format
  */
 
 import type { LLMProvider, LLMRequest, LLMResponse } from './base';
 
-export class OpenAIProvider implements LLMProvider {
+export class GroqProvider implements LLMProvider {
   constructor(
     private apiKey: string,
     private modelId: string
@@ -13,7 +14,7 @@ export class OpenAIProvider implements LLMProvider {
 
   async call(request: LLMRequest): Promise<LLMResponse> {
     try {
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -29,13 +30,13 @@ export class OpenAIProvider implements LLMProvider {
 
       if (!response.ok) {
         const errorData = await response.text();
-        throw new Error(`OpenAI API error (${response.status}): ${errorData}`);
+        throw new Error(`Groq API error (${response.status}): ${errorData}`);
       }
 
       const data = await response.json() as any;
 
       if (!data.choices || data.choices.length === 0) {
-        throw new Error('OpenAI returned no choices');
+        throw new Error('Groq returned no choices');
       }
 
       return {
@@ -44,13 +45,13 @@ export class OpenAIProvider implements LLMProvider {
         model: this.modelId
       };
     } catch (error) {
-      console.error('OpenAI call failed:', error);
-      throw new Error(`OpenAI failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Groq call failed:', error);
+      throw new Error(`Groq failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   getProviderName(): string {
-    return 'openai';
+    return 'groq';
   }
 
   async isAvailable(): Promise<boolean> {

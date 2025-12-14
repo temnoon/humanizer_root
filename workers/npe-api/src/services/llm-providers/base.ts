@@ -45,14 +45,16 @@ export interface LLMProvider {
   generateText(prompt: string, options: { max_tokens: number; temperature: number }): Promise<string>;
 }
 
+export type ProviderType = 'cloudflare' | 'openai' | 'anthropic' | 'google' | 'groq' | 'ollama';
+
 /**
  * Determine which provider to use based on model ID
  */
-export function getProviderType(modelId: string): 'cloudflare' | 'openai' | 'anthropic' | 'google' | 'ollama' {
+export function getProviderType(modelId: string): ProviderType {
   if (modelId.startsWith('@cf/')) {
     return 'cloudflare';
   }
-  if (modelId.startsWith('gpt-')) {
+  if (modelId.startsWith('gpt-') || modelId.startsWith('o1-') || modelId.startsWith('o3-')) {
     return 'openai';
   }
   if (modelId.startsWith('claude-')) {
@@ -60,6 +62,10 @@ export function getProviderType(modelId: string): 'cloudflare' | 'openai' | 'ant
   }
   if (modelId.startsWith('gemini-')) {
     return 'google';
+  }
+  // Groq models: llama-3.1-70b-versatile, mixtral-8x7b-32768, etc.
+  if (modelId.startsWith('llama-') || modelId.startsWith('mixtral-') || modelId.startsWith('groq/')) {
+    return 'groq';
   }
   if (modelId.startsWith('ollama/') || modelId.startsWith('local/')) {
     return 'ollama';

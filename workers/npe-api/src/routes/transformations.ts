@@ -224,8 +224,8 @@ transformationRoutes.post('/round-trip', optionalLocalAuth(), async (c) => {
       console.error('[Transformation History] Failed to save:', err);
     }
 
-    // Create service
-    const service = new RoundTripTranslationService(c.env, auth.userId);
+    // Create service with user tier for model selection
+    const service = new RoundTripTranslationService(c.env, auth.userId, auth.role || 'free');
 
     // Run round-trip
     try {
@@ -576,7 +576,7 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
 
     // Run humanization
     try {
-      const result = await humanizeText(c.env, text, options, auth.userId);
+      const result = await humanizeText(c.env, text, options, auth.userId, auth.role || 'free');
 
       const response = {
         transformation_id: transformationId,
@@ -720,7 +720,8 @@ Your task is to transform text into how "${persona}" would express the same idea
         preserveLength: preserveLength !== false,
         enableValidation: enableValidation !== false,
         model: model  // Pass user's model preference
-      }
+      },
+      auth.role || 'free'  // Pass user tier for model selection
     );
 
     // Determine which model was actually used

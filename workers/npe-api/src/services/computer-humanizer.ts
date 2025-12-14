@@ -21,8 +21,9 @@ import {
   getBlockMarkerInstructions
 } from '../lib/block-markers';
 import { filterModelOutput, UnvettedModelError, isModelVetted } from './model-vetting';
-import { createLLMProvider } from './llm-providers';
+import { createLLMProvider, type LLMProvider } from './llm-providers';
 import { getModelForUseCase, detectEnvironment, hasCloudflareAI, isModelCompatibleWithEnvironment } from '../config/llm-models';
+import { selectModel, createProviderForUseCase, type ModelInfo } from './model-selector';
 
 /**
  * Humanization intensity levels
@@ -97,12 +98,14 @@ export interface HumanizationResult {
  * @param text - Text to humanize
  * @param options - Humanization options including model choice
  * @param userId - User ID (needed for LLM provider)
+ * @param userTier - Optional user tier for model selection (free, pro, premium, admin)
  */
 export async function humanizeText(
   env: Env,
   text: string,
   options: HumanizationOptions,
-  userId: string
+  userId: string,
+  userTier?: string
 ): Promise<HumanizationResult> {
   const totalStartTime = Date.now();
 
@@ -118,15 +121,25 @@ export async function humanizeText(
     throw new Error('Text must be at least 20 words for humanization');
   }
 
-  // Model selection using config system
-  // Detect environment (local vs cloud) based on available bindings
+  // Model selection: Use new registry-based system if userTier is provided
   const environment = detectEnvironment(hasCloudflareAI(env));
-
-  // Determine final model to use
   let modelId: string;
+  let modelInfo: ModelInfo | null = null;
 
-  if (options.model) {
-    // User provided a model - validate it
+  if (userTier) {
+    // New system: Use model registry and user preferences
+    try {
+      const selection = await selectModel(env, userId, userTier, 'general');
+      modelId = selection.model.modelId;
+      modelInfo = selection.model;
+      console.log(`[Humanizer] Model selected via registry: ${modelId} (${selection.reason})`);
+    } catch (err) {
+      // Fallback to legacy system if registry fails
+      console.warn(`[Humanizer] Registry selection failed, using legacy: ${err}`);
+      modelId = getModelForUseCase('general', environment);
+    }
+  } else if (options.model) {
+    // User provided a model directly - validate it
     if (!isModelVetted(options.model)) {
       throw new Error(`Model ${options.model} is not vetted for use. Check model-vetting/profiles.ts`);
     }
@@ -138,11 +151,11 @@ export async function humanizeText(
       modelId = options.model;
     }
   } else {
-    // No user model - use config-assigned model
+    // Legacy fallback: No user tier provided, use config-assigned model
     modelId = getModelForUseCase('general', environment);
   }
 
-  console.log(`[Humanizer] Environment: ${environment}, Model: ${modelId}${options.model === modelId ? ' (user selected)' : ' (default)'}`);
+  console.log(`[Humanizer] Environment: ${environment}, Model: ${modelId}`);
 
   // Initialize timing trackers
   let stage1Time = 0, stage2Time = 0, stage3Time = 0, stage4Time = 0, stage5Time = 0;

@@ -89,4 +89,13 @@ export class GoogleProvider implements LLMProvider {
   async isAvailable(): Promise<boolean> {
     return !!this.apiKey && this.apiKey.length > 0;
   }
+
+  async generateText(prompt: string, options: { max_tokens: number; temperature: number }): Promise<string> {
+    const response = await this.call({
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: options.max_tokens,
+      temperature: options.temperature
+    });
+    return response.response;
+  }
 }
