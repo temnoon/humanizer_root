@@ -369,7 +369,8 @@ export class SicEngine {
       sicScore,
       genre,
       heuristics,
-      judged.aiProbability
+      judged.aiProbability,
+      features
     );
 
     // Build diagnostics
@@ -513,7 +514,8 @@ export class SicEngine {
     sicScore: number,
     genre: Genre,
     heuristics: ReturnType<typeof runQuickHeuristics>,
-    llmEstimate?: number
+    llmEstimate?: number,
+    features?: Record<SicFeatureKey, FeatureScore>
   ): number {
     // Base probability from SIC score (inverse relationship)
     let baseProbability = (100 - sicScore) / 100;
@@ -521,6 +523,16 @@ export class SicEngine {
     // Adjust for genre (technical/legal should have lower AI probability for same SIC)
     if (genre === 'technical' || genre === 'legal') {
       baseProbability *= 0.7; // Reduce AI probability estimate
+    }
+
+    // For argument genre, anti_smoothing is the KEY signal
+    // High anti_smoothing (chose a side, refused balance) = human
+    // Low anti_smoothing (hedging, "both sides") = AI
+    if (genre === 'argument' && features) {
+      const antiSmooth = features.anti_smoothing?.score ?? 50;
+      // Scale: 0 = +0.2 AI prob, 100 = -0.2 AI prob
+      const antiSmoothAdjustment = (50 - antiSmooth) / 250;
+      baseProbability += antiSmoothAdjustment;
     }
 
     // Heuristic adjustments
@@ -545,9 +557,16 @@ export class SicEngine {
       baseProbability -= 0.1; // Additional reduction for multiple scar tissue markers
     }
 
-    // If LLM provided an estimate, blend with it
+    // Blend with LLM estimate if provided
+    // For argument genre, trust our calculation more (LLM often confused by hedging)
     if (typeof llmEstimate === 'number' && llmEstimate >= 0 && llmEstimate <= 1) {
-      baseProbability = (baseProbability + llmEstimate) / 2;
+      if (genre === 'argument') {
+        // 75% our calculation, 25% LLM for argument genre
+        baseProbability = baseProbability * 0.75 + llmEstimate * 0.25;
+      } else {
+        // 50/50 blend for other genres
+        baseProbability = (baseProbability + llmEstimate) / 2;
+      }
     }
 
     return clamp(baseProbability, 0, 1);

@@ -107,11 +107,27 @@ POSITIVE FEATURES (indicators of human authorship):
 
 NEGATIVE FEATURES (indicators of AI generation):
 
-7. anti_smoothing (INVERSE - high score = GOOD)
-   - Resistance to hedging/balancing
-   - Willingness to be one-sided
-   - NOT covering all perspectives equally
-   Look for: committed positions, unbalanced by design, refusal to hedge
+7. anti_smoothing (INVERSE - high score = GOOD, indicates human authorship)
+   This measures REFUSAL OF SYMMETRY - whether the author closes off the opposing view.
+
+   The key question: Does this text PERFORM BALANCE or REFUSE IT?
+
+   HIGH anti_smoothing (human signal):
+   - Asymmetric commitment: One side gets more weight, the other is dismissed
+   - Closure of alternatives: "They are wrong. Period." "I refuse to pretend both sides..."
+   - Unhedged claims: Positions stated as facts, not possibilities
+   - Genuine anger/frustration without qualifying it away
+
+   LOW anti_smoothing (AI signal):
+   - "Valid arguments on both sides" - explicit symmetry
+   - "On one hand... on the other hand" - performed balance
+   - "The ideal solution likely involves..." - non-committal conclusions
+   - "Flexibility and mutual respect" - feel-good resolution that costs nothing
+   - Acknowledging opponent's points as equally valid
+
+   CRITICAL: Discussing a controversial topic is NOT the same as taking a committed stance.
+   AI often discusses controversy while hedging throughout. Look for whether the author
+   CHOSE A SIDE and CLOSED OFF the alternative, or merely DISCUSSED the controversy.
 
 8. meta_contamination
    - Preambles, "EDIT:", roleplay wrappers
@@ -366,7 +382,7 @@ export const FEATURE_DESCRIPTIONS: Record<SicFeatureKey, string> = {
   bounded_viewpoint:
     'Non-omniscient narration. The narrator acknowledges not knowing everything.',
   anti_smoothing:
-    'Resistance to hedging/balancing. Willingness to be one-sided, committed.',
+    'Refusal of symmetry. Does the author close off the opposing view or perform balance? High = chose a side.',
   meta_contamination:
     'Preambles, meta-exposition, "in conclusion". Manager voice replacing lived sequence.',
 };
