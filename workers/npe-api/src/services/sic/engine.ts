@@ -530,11 +530,19 @@ export class SicEngine {
     if (heuristics.symmetrySignals > 2) {
       baseProbability += 0.05;
     }
+    // Formulaic apology language is an AI signal
+    if (heuristics.formulaicApologySignals > 2) {
+      baseProbability += 0.1;
+    }
     if (heuristics.irreversibilitySignals > 2) {
       baseProbability -= 0.1;
     }
-    if (heuristics.scarTissueSignals > 1) {
-      baseProbability -= 0.1;
+    // Real scar tissue (persistent involuntary residue) is a strong human signal
+    if (heuristics.scarTissueSignals > 0) {
+      baseProbability -= 0.15;
+    }
+    if (heuristics.scarTissueSignals > 2) {
+      baseProbability -= 0.1; // Additional reduction for multiple scar tissue markers
     }
 
     // If LLM provided an estimate, blend with it

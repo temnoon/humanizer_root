@@ -84,10 +84,20 @@ POSITIVE FEATURES (indicators of human authorship):
    Look for: physical sensations, social consequences, reputational risk
 
 5. scar_tissue_specificity
-   - Defensiveness, regret, persistent awkwardness
-   - Residue that cannot be erased
+   - PERSISTENT residue that shows up in the PRESENT, not just apology language
+   - Physical involuntary reactions: flinch, wince, freeze, cringe, stomach drops
+   - Temporal persistence markers: "still", "even now", "years later", "to this day"
+   - Present-tense lingering: "keeps me up", "can't look at", "hard to talk about"
    - "Humans heal; LLMs regenerate."
-   Look for: lingering discomfort, unresolved tension, protective qualifications
+
+   CRITICAL DISTINCTION:
+   - NOT scar tissue: "I am truly sorry", "I take full responsibility", "I apologize"
+     (These are FORMULAIC COMPLETENESS - AI covers all bases)
+   - IS scar tissue: "I still flinch when...", "keeps me up at night", "even now I..."
+     (These show PERSISTENT INVOLUNTARY RESIDUE that can't be smoothed over)
+
+   Look for: involuntary physical reactions, temporal persistence ("still", "even now"),
+   present-tense suffering, defensive specificity that protects a wound
 
 6. bounded_viewpoint
    - Non-omniscient narration
@@ -352,7 +362,7 @@ export const FEATURE_DESCRIPTIONS: Record<SicFeatureKey, string> = {
   situatedness_body_social:
     'Embodied risk, social cost, friction. Body, place, reputation at stake.',
   scar_tissue_specificity:
-    'Defensiveness, regret, persistent awkwardness. "Humans heal; LLMs regenerate."',
+    'Persistent involuntary residue: "still flinch", "keeps me up", "even now". NOT formulaic apologies. "Humans heal; LLMs regenerate."',
   bounded_viewpoint:
     'Non-omniscient narration. The narrator acknowledges not knowing everything.',
   anti_smoothing:

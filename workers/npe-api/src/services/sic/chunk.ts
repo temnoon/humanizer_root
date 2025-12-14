@@ -375,6 +375,56 @@ export const QUICK_HEURISTICS = {
     /pros and cons/i,
     /advantages and disadvantages/i,
   ],
+
+  /**
+   * Scar tissue indicators (positive signal)
+   * Persistent involuntary residue - NOT formulaic apology language
+   */
+  scarTissueMarkers: [
+    // Physical involuntary reactions
+    /still flinch/i,
+    /still cringe/i,
+    /still wince/i,
+    /stomach drops/i,
+    /makes me freeze/i,
+    /can't look at/i,
+    /hard to talk about/i,
+    // Temporal persistence
+    /even now/i,
+    /to this day/i,
+    /years later/i,
+    /still can't/i,
+    /still don't/i,
+    /still haven't/i,
+    // Present-tense lingering suffering
+    /keeps me up/i,
+    /haunts me/i,
+    /can't shake/i,
+    /won't go away/i,
+    /lives with me/i,
+    // Defensive specificity protecting a wound
+    /I hate that I/i,
+    /I can't forgive myself/i,
+    /the worst part is/i,
+    /what kills me is/i,
+  ],
+
+  /**
+   * Formulaic apology language (negative signal - AI pattern)
+   * These should NOT count as scar tissue
+   */
+  formulaicApologyPatterns: [
+    /I am truly sorry/i,
+    /I sincerely apologize/i,
+    /I take full responsibility/i,
+    /I want to apologize/i,
+    /please accept my apolog/i,
+    /I am committed to/i,
+    /moving forward/i,
+    /I value our relationship/i,
+    /your feelings are valid/i,
+    /I understand that my/i,
+  ],
 };
 
 /**
@@ -391,9 +441,9 @@ export function runQuickHeuristics(text: string): {
   tradeoffSignals: number;
   managerVoiceSignals: number;
   symmetrySignals: number;
+  scarTissueSignals: number;
+  formulaicApologySignals: number;
 } {
-  const textLower = text.toLowerCase();
-
   const countMatches = (patterns: (string | RegExp)[]): number => {
     let count = 0;
     for (const pattern of patterns) {
@@ -416,5 +466,7 @@ export function runQuickHeuristics(text: string): {
     tradeoffSignals: countMatches(QUICK_HEURISTICS.tradeoffMarkers),
     managerVoiceSignals: countMatches(QUICK_HEURISTICS.managerVoice),
     symmetrySignals: countMatches(QUICK_HEURISTICS.symmetryPatterns),
+    scarTissueSignals: countMatches(QUICK_HEURISTICS.scarTissueMarkers),
+    formulaicApologySignals: countMatches(QUICK_HEURISTICS.formulaicApologyPatterns),
   };
 }
