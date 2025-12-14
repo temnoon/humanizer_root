@@ -10,7 +10,7 @@ import * as ollamaService from './ollamaService';
 import { stripThinkingPreamble } from './ollamaService';
 import { filterCloudOutput } from './transformationPipeline';
 import { STORAGE_PATHS } from '../config/storage-paths';
-import { getCloudModelPreference } from '../components/settings/CloudAISettings';
+import { getCloudModelPreference, getDeepAnalysisPreference } from '../components/settings/CloudAISettings';
 
 // Check if running in Electron (same logic as feature-flags)
 function isElectronApp(): boolean {
@@ -132,6 +132,7 @@ export interface ComputerHumanizerOptions {
   useLLM?: boolean;
   voiceProfile?: string;
   model?: string;                    // LLM choice for polish pass (default: gpt-oss-20b)
+  enableSicAnalysis?: boolean;       // Enable deep constraint analysis (paid tiers only)
 }
 
 export interface ComputerHumanizerResult extends TransformResult {
@@ -151,6 +152,26 @@ export interface ComputerHumanizerResult extends TransformResult {
     };
     modelUsed?: string;
     gptzeroAnalysis?: unknown;  // GPTZero-specific analysis data
+    // SIC (Subjective Intentional Constraint) analysis results
+    sicAnalysis?: {
+      baseline?: {
+        sicScore: number;
+        aiProbability: number;
+        genre: string;
+        features: Record<string, { score: number; notes: string }>;
+      };
+      final?: {
+        sicScore: number;
+        aiProbability: number;
+        features: Record<string, { score: number; notes: string }>;
+      };
+      constraintGapsIdentified: string[];
+      constraintImprovement?: {
+        sicScoreChange: number;
+        featuresImproved: string[];
+        featuresDeclined: string[];
+      };
+    };
   };
 }
 
@@ -168,13 +189,16 @@ export async function computerHumanizer(
     return mapComputerHumanizerResponse(data, text);
   }
 
-  // Use API backend
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout (can be slow with LLM)
-
   // Get user's model preference for cloud transformations
   const cloudModel = options.model || getCloudModelPreference();
-  console.log(`[TransformationService] Humanizer using model: ${cloudModel}`);
+  // Get deep analysis preference (SIC)
+  const enableSicAnalysis = options.enableSicAnalysis ?? getDeepAnalysisPreference();
+  console.log(`[TransformationService] Humanizer using model: ${cloudModel}, SIC: ${enableSicAnalysis}`);
+
+  // Use API backend - SIC adds ~60s, so extend timeout when enabled
+  const controller = new AbortController();
+  const timeoutMs = enableSicAnalysis ? 240000 : 120000; // 4 min with SIC, 2 min without
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(`${getApiBase()}/transformations/computer-humanizer`, {
@@ -186,6 +210,7 @@ export async function computerHumanizer(
         enableLLMPolish: options.useLLM ?? true,
         voiceSamples: options.voiceProfile ? [options.voiceProfile] : undefined,
         model: cloudModel,
+        enableSicAnalysis,
       }),
       signal: controller.signal,
     });
@@ -202,7 +227,8 @@ export async function computerHumanizer(
   } catch (error: any) {
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
-      throw new Error('Computer Humanizer timed out after 2 minutes. Try using a shorter text.');
+      const timeoutMinutes = enableSicAnalysis ? '4' : '2';
+      throw new Error(`Computer Humanizer timed out after ${timeoutMinutes} minutes. Try using a shorter text${enableSicAnalysis ? ' or disable deep analysis.' : '.'}`);
     }
     throw error;
   }
@@ -235,6 +261,22 @@ function mapComputerHumanizerResponse(data: any, text: string): ComputerHumanize
       // New fields for model selection and GPTZero targeting
       modelUsed: data.model_used,
       gptzeroAnalysis: data.gptzeroAnalysis,
+      // SIC (Subjective Intentional Constraint) analysis results
+      sicAnalysis: data.sicAnalysis ? {
+        baseline: data.sicAnalysis.baseline ? {
+          sicScore: data.sicAnalysis.baseline.sicScore,
+          aiProbability: data.sicAnalysis.baseline.aiProbability,
+          genre: data.sicAnalysis.baseline.genre,
+          features: data.sicAnalysis.baseline.features,
+        } : undefined,
+        final: data.sicAnalysis.final ? {
+          sicScore: data.sicAnalysis.final.sicScore,
+          aiProbability: data.sicAnalysis.final.aiProbability,
+          features: data.sicAnalysis.final.features,
+        } : undefined,
+        constraintGapsIdentified: data.sicAnalysis.constraintGapsIdentified || [],
+        constraintImprovement: data.sicAnalysis.constraintImprovement,
+      } : undefined,
     },
   };
 }

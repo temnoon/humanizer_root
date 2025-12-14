@@ -503,6 +503,7 @@ transformationRoutes.get('/personalizer/history', optionalLocalAuth(), requirePr
  * Options:
  * - model: LLM choice for polish pass (default: gpt-oss-20b)
  * - intensity: light, moderate, or aggressive
+ * - enableSicAnalysis: Enable SIC constraint-guided humanization (paid tiers only)
  */
 transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) => {
   try {
@@ -515,7 +516,8 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
       enableLLMPolish = true,
       targetBurstiness = 60,
       targetLexicalDiversity = 60,
-      model
+      model,
+      enableSicAnalysis = false  // SIC integration - paid tiers only
     } = body;
 
     // Validate input
@@ -556,7 +558,8 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
           enableLLMPolish,
           targetBurstiness,
           targetLexicalDiversity,
-          model: model || '@cf/openai/gpt-oss-20b'
+          model: model || '@cf/openai/gpt-oss-20b',
+          enableSicAnalysis
         }
       });
     } catch (err) {
@@ -571,7 +574,8 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
       enableLLMPolish,
       targetBurstiness,
       targetLexicalDiversity,
-      model
+      model,
+      enableSicAnalysis
     };
 
     // Run humanization
@@ -587,7 +591,9 @@ transformationRoutes.post('/computer-humanizer', optionalLocalAuth(), async (c) 
         stages: result.stages,
         voiceProfile: result.voiceProfile,
         model_used: result.modelUsed,
-        processing: result.processing
+        processing: result.processing,
+        // SIC analysis (when enabled for paid tiers)
+        sicAnalysis: result.sicAnalysis
       };
 
       // Update history on success

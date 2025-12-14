@@ -445,6 +445,9 @@ export function CloudAISettings() {
         </div>
       )}
 
+      {/* Deep Analysis Section (Paid Tiers Only) */}
+      <DeepAnalysisSettings isPaidTier={isPaidTier} />
+
       {/* Info Section */}
       <div
         className="rounded-lg p-4"
@@ -466,6 +469,129 @@ export function CloudAISettings() {
       </div>
     </div>
   );
+}
+
+/**
+ * Deep Analysis Settings Section
+ * Controls Subjective Intentional Constraint (SIC) analysis
+ */
+function DeepAnalysisSettings({ isPaidTier }: { isPaidTier: boolean }) {
+  const [enabled, setEnabled] = useState(() => getDeepAnalysisPreference());
+
+  const handleToggle = () => {
+    if (!isPaidTier) return;
+    const newValue = !enabled;
+    setEnabled(newValue);
+    setDeepAnalysisPreference(newValue);
+  };
+
+  return (
+    <div
+      className="rounded-lg p-4"
+      style={{
+        backgroundColor: 'var(--bg-tertiary)',
+        border: '1px solid var(--border-color)',
+        opacity: isPaidTier ? 1 : 0.6,
+      }}
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🔬</span>
+            <h4 className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>
+              Deep Constraint Analysis
+            </h4>
+            {!isPaidTier && (
+              <span
+                className="text-xs px-2 py-0.5 rounded-full"
+                style={{
+                  backgroundColor: 'var(--warning)',
+                  color: 'white',
+                }}
+              >
+                Pro
+              </span>
+            )}
+          </div>
+          <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>
+            Uses Subjective Intentional Constraint (SIC) analysis to identify missing human
+            authorship signals and guide humanization with targeted constraint injection.
+          </p>
+          <p className="text-xs mt-2" style={{ color: 'var(--text-tertiary)' }}>
+            <strong>Note:</strong> Adds ~30-60 seconds to processing time. Uses additional LLM calls.
+          </p>
+        </div>
+
+        <div className="flex-shrink-0">
+          <button
+            onClick={handleToggle}
+            disabled={!isPaidTier}
+            className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors"
+            style={{
+              backgroundColor: enabled && isPaidTier ? 'var(--accent-primary)' : 'var(--bg-secondary)',
+              cursor: isPaidTier ? 'pointer' : 'not-allowed',
+            }}
+          >
+            <span
+              className="inline-block h-4 w-4 transform rounded-full transition-transform"
+              style={{
+                backgroundColor: 'white',
+                transform: enabled && isPaidTier ? 'translateX(1.375rem)' : 'translateX(0.25rem)',
+              }}
+            />
+          </button>
+        </div>
+      </div>
+
+      {/* Resource Usage Info */}
+      {isPaidTier && (
+        <div
+          className="mt-3 pt-3"
+          style={{ borderTop: '1px solid var(--border-color)' }}
+        >
+          <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+            <strong>Resource usage:</strong> ~2-4 additional LLM calls per transformation.
+            Applies to Computer Humanizer and future SIC-enabled tools.
+          </p>
+        </div>
+      )}
+
+      {!isPaidTier && (
+        <div
+          className="mt-3 pt-3"
+          style={{ borderTop: '1px solid var(--border-color)' }}
+        >
+          <p className="text-xs" style={{ color: 'var(--warning)' }}>
+            Upgrade to Pro or Premium to enable deep constraint analysis.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// DEEP ANALYSIS (SIC) SETTINGS
+// ============================================================
+
+/**
+ * Storage key for deep analysis preference
+ */
+const DEEP_ANALYSIS_KEY = 'narrative-studio-deep-analysis';
+
+/**
+ * Get deep analysis (SIC) preference
+ * Returns true if enabled, false otherwise
+ */
+export function getDeepAnalysisPreference(): boolean {
+  return localStorage.getItem(DEEP_ANALYSIS_KEY) === 'true';
+}
+
+/**
+ * Set deep analysis (SIC) preference
+ */
+export function setDeepAnalysisPreference(enabled: boolean): void {
+  localStorage.setItem(DEEP_ANALYSIS_KEY, enabled ? 'true' : 'false');
 }
 
 // Legacy exports for backward compatibility
