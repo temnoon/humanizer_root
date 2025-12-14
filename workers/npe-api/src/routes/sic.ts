@@ -77,11 +77,19 @@ sicRoutes.post('/sic', optionalLocalAuth(), async (c) => {
     }
 
     // Get user tier for adapter configuration
-    const userRow = await c.env.DB.prepare(
-      'SELECT tier FROM users WHERE id = ?'
-    ).bind(auth.userId).first();
-
-    const tier = (userRow?.tier as 'free' | 'reader' | 'author' | 'scholar') || 'free';
+    // Try to get tier, fall back to 'free' if column doesn't exist or query fails
+    let tier: 'free' | 'reader' | 'author' | 'scholar' = 'free';
+    try {
+      const userRow = await c.env.DB.prepare(
+        'SELECT tier FROM users WHERE id = ?'
+      ).bind(auth.userId).first();
+      if (userRow?.tier) {
+        tier = userRow.tier as 'free' | 'reader' | 'author' | 'scholar';
+      }
+    } catch {
+      // Column may not exist in local dev, use default
+      console.log('Tier lookup failed, using default: free');
+    }
     const config = getAdapterConfigForTier(tier);
 
     // Create adapters
