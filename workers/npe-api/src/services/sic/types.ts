@@ -137,6 +137,28 @@ export interface SicDiagnostics {
 }
 
 /**
+ * Narrative mode signals detected in fiction/narrative text
+ * Exposes reasoning about how narrative technique affects SIC interpretation
+ */
+export interface NarrativeModeCaveat {
+  /** Detected narrative mode (may be uncertain) */
+  mode: 'first_person_confessional' | 'first_person_observer' | 'third_person_limited'
+      | 'third_person_omniscient' | 'stream_of_consciousness' | 'uncertain';
+
+  /** Confidence in mode detection (0-1) */
+  confidence: number;
+
+  /** Specific signals detected that informed this assessment */
+  signals: string[];
+
+  /** How this mode affects SIC interpretation */
+  interpretationNote: string;
+
+  /** Whether standard SIC scoring applies cleanly to this text */
+  standardScoringApplies: boolean;
+}
+
+/**
  * The core SIC result
  * This is the main output of the sic() analysis
  */
@@ -164,6 +186,9 @@ export interface SicResult {
 
   /** Human-readable summary */
   notes: string;
+
+  /** Narrative mode caveat for fiction/narrative (when applicable) */
+  narrativeModeCaveat?: NarrativeModeCaveat;
 
   /** Raw LLM call count for this analysis */
   llmCallCount?: number;

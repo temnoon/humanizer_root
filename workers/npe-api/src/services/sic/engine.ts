@@ -34,6 +34,7 @@ import {
   runQuickHeuristics,
   calculateTextStats,
   clamp,
+  detectNarrativeMode,
 } from './chunk';
 import {
   GENRE_DETECTION_PROMPT,
@@ -383,8 +384,11 @@ export class SicEngine {
         heuristics.managerVoiceSignals > 2,
     };
 
+    // Detect narrative mode for fiction/narrative (exposes reasoning about interpretation)
+    const narrativeModeCaveat = detectNarrativeMode(fullText, genre);
+
     // Generate human-readable notes
-    const notes = this.generateNotes(sicScore, genre, features, diagnostics);
+    const notes = this.generateNotes(sicScore, genre, features, diagnostics, narrativeModeCaveat);
 
     return {
       version: 'sic.v1',
@@ -395,6 +399,7 @@ export class SicEngine {
       inflectionPoints,
       diagnostics,
       notes,
+      narrativeModeCaveat,
     };
   }
 
@@ -579,7 +584,8 @@ export class SicEngine {
     sicScore: number,
     genre: Genre,
     features: Record<SicFeatureKey, FeatureScore>,
-    diagnostics: SicResult['diagnostics']
+    diagnostics: SicResult['diagnostics'],
+    narrativeModeCaveat?: SicResult['narrativeModeCaveat']
   ): string {
     const notes: string[] = [];
 
@@ -603,6 +609,11 @@ export class SicEngine {
 
     if (diagnostics.highFluencyLowCommitmentPattern) {
       notes.push('Pattern detected: high fluency with low commitment—a primary AI signal.');
+    }
+
+    // Narrative mode caveat for fiction
+    if (narrativeModeCaveat && !narrativeModeCaveat.standardScoringApplies) {
+      notes.push(`CAVEAT: ${narrativeModeCaveat.interpretationNote}`);
     }
 
     // Top features

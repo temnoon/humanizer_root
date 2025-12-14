@@ -5,7 +5,7 @@
  * Designed to be fast and deterministic (no LLM calls).
  */
 
-import type { TextChunk } from './types';
+import type { TextChunk, NarrativeModeCaveat } from './types';
 
 /**
  * Split text into chunks of approximately the target sentence count
@@ -468,5 +468,207 @@ export function runQuickHeuristics(text: string): {
     symmetrySignals: countMatches(QUICK_HEURISTICS.symmetryPatterns),
     scarTissueSignals: countMatches(QUICK_HEURISTICS.scarTissueMarkers),
     formulaicApologySignals: countMatches(QUICK_HEURISTICS.formulaicApologyPatterns),
+  };
+}
+
+/**
+ * Narrative mode detection patterns
+ * Used to identify POV, focalization, and stylistic modes in fiction
+ */
+export const NARRATIVE_MODE_SIGNALS = {
+  /**
+   * First-person protagonist markers
+   */
+  firstPersonConfessional: [
+    /\bI felt\b/i,
+    /\bI knew\b/i,
+    /\bI remember\b/i,
+    /\bmy heart\b/i,
+    /\bmy mind\b/i,
+    /\bI couldn't\b/i,
+    /\bI didn't\b/i,
+    /\bI was wrong\b/i,
+    /\bI regret\b/i,
+  ],
+
+  /**
+   * Third-person omniscient markers
+   */
+  thirdPersonOmniscient: [
+    /\bshe thought\b.*\bhe thought\b/is,  // Multiple character thoughts
+    /\blittle did (he|she|they) know\b/i,
+    /\bunbeknownst to\b/i,
+    /\bmeanwhile\b/i,
+    /\bin another part of\b/i,
+    /\bthe narrator\b/i,
+  ],
+
+  /**
+   * Third-person limited markers
+   */
+  thirdPersonLimited: [
+    /\b(he|she) wondered\b/i,
+    /\b(he|she) felt\b/i,
+    /\b(he|she) thought\b/i,
+    /\b(he|she) didn't know\b/i,
+    /\bit seemed to (him|her)\b/i,
+  ],
+
+  /**
+   * Stream of consciousness markers (Woolf, Joyce, Faulkner)
+   */
+  streamOfConsciousness: [
+    /—\s*\w/,                           // Em-dash mid-thought shifts
+    /\.\.\./g,                           // Ellipses (associative gaps)
+    /;\s*[a-z]/,                         // Semicolons before lowercase (stream continuation)
+    /\b(and|but|or)\s+[a-z]/g,          // Coordinating conjunctions as thought connectors
+    /\byes\b.*\byes\b/i,                // Affirmative repetition (Molly Bloom style)
+    /\bremember\b.*\bremember\b/i,      // Memory loops
+  ],
+
+  /**
+   * Fragmentation indicators (modernist technique)
+   */
+  fragmentation: [
+    /[^.!?]\s*\n\s*[a-z]/,              // Line breaks without sentence ending
+    /^[a-z]/m,                           // Lowercase sentence starts
+    /\b(no|not|never)\.\s*[A-Z]/,       // Abrupt negations
+  ],
+};
+
+/**
+ * Detect narrative mode and generate appropriate caveat
+ * Exposes reasoning about how narrative technique affects SIC interpretation
+ *
+ * @param text - The text to analyze
+ * @param genre - Detected genre (narrative modes only apply to 'narrative' genre)
+ * @returns NarrativeModeCaveat or undefined if not applicable
+ */
+export function detectNarrativeMode(
+  text: string,
+  genre: string
+): NarrativeModeCaveat | undefined {
+  // Only generate caveat for narrative genre
+  if (genre !== 'narrative') {
+    return undefined;
+  }
+
+  const signals: string[] = [];
+  let mode: NarrativeModeCaveat['mode'] = 'uncertain';
+  let confidence = 0.5;
+
+  // Count first-person pronouns
+  const firstPersonCount = (text.match(/\bI\b/g) || []).length;
+  const thirdPersonCount = (text.match(/\b(he|she|they)\b/gi) || []).length;
+  const wordCount = text.split(/\s+/).length;
+
+  const firstPersonDensity = firstPersonCount / wordCount;
+  const thirdPersonDensity = thirdPersonCount / wordCount;
+
+  // Detect first-person narrative
+  if (firstPersonDensity > 0.02) {
+    signals.push(`High first-person pronoun density (${(firstPersonDensity * 100).toFixed(1)}%)`);
+
+    // Check for confessional markers
+    const confessionalMatches = NARRATIVE_MODE_SIGNALS.firstPersonConfessional
+      .filter(p => p.test(text));
+
+    if (confessionalMatches.length >= 2) {
+      mode = 'first_person_confessional';
+      confidence = 0.7 + (confessionalMatches.length * 0.05);
+      signals.push(`Confessional markers: ${confessionalMatches.length} patterns found`);
+    } else {
+      mode = 'first_person_observer';
+      confidence = 0.6;
+      signals.push('First-person but limited confessional markers');
+    }
+  }
+
+  // Detect third-person modes
+  if (thirdPersonDensity > 0.02 && firstPersonDensity < 0.01) {
+    signals.push(`Third-person narration detected (${(thirdPersonDensity * 100).toFixed(1)}% pronoun density)`);
+
+    const omniscientMatches = NARRATIVE_MODE_SIGNALS.thirdPersonOmniscient
+      .filter(p => p.test(text));
+    const limitedMatches = NARRATIVE_MODE_SIGNALS.thirdPersonLimited
+      .filter(p => p.test(text));
+
+    if (omniscientMatches.length > 0) {
+      mode = 'third_person_omniscient';
+      confidence = 0.6 + (omniscientMatches.length * 0.1);
+      signals.push(`Omniscient narrator signals: ${omniscientMatches.length}`);
+    } else if (limitedMatches.length > 0) {
+      mode = 'third_person_limited';
+      confidence = 0.6 + (limitedMatches.length * 0.05);
+      signals.push(`Limited POV signals: ${limitedMatches.length}`);
+    }
+  }
+
+  // Detect stream of consciousness (can overlay other modes)
+  const socMatches = NARRATIVE_MODE_SIGNALS.streamOfConsciousness
+    .filter(p => {
+      const matches = text.match(p);
+      return matches && matches.length > 0;
+    });
+
+  const fragMatches = NARRATIVE_MODE_SIGNALS.fragmentation
+    .filter(p => p.test(text));
+
+  if (socMatches.length >= 3 || fragMatches.length >= 2) {
+    mode = 'stream_of_consciousness';
+    confidence = 0.5 + (socMatches.length * 0.1) + (fragMatches.length * 0.1);
+    signals.push(`Stream of consciousness markers: ${socMatches.length} patterns`);
+    if (fragMatches.length > 0) {
+      signals.push(`Fragmentation signals: ${fragMatches.length}`);
+    }
+  }
+
+  // Generate interpretation note based on mode
+  let interpretationNote: string;
+  let standardScoringApplies: boolean;
+
+  switch (mode) {
+    case 'first_person_confessional':
+      interpretationNote = 'First-person confessional narrative detected. Standard SIC scoring applies well—personal stakes and commitment should be evident.';
+      standardScoringApplies = true;
+      break;
+
+    case 'first_person_observer':
+      interpretationNote = 'First-person observer narrative (narrator describes events involving others). SIC features like bounded_viewpoint should be high, but personal stakes may be displaced.';
+      standardScoringApplies = true;
+      break;
+
+    case 'third_person_limited':
+      interpretationNote = 'Third-person limited POV detected. bounded_viewpoint should be moderate (one character\'s perspective). Commitment features depend on how closely the narrator tracks the focal character.';
+      standardScoringApplies = true;
+      break;
+
+    case 'third_person_omniscient':
+      interpretationNote = 'Third-person omniscient narration detected. Low bounded_viewpoint is appropriate for this mode—the narrator can see into multiple minds. Low SIC may reflect narrative technique rather than AI generation.';
+      standardScoringApplies = false;
+      break;
+
+    case 'stream_of_consciousness':
+      interpretationNote = 'Stream of consciousness technique detected (Woolf, Joyce, Faulkner tradition). Constraint manifests through stylistic fragmentation and associative leaps rather than explicit personal stakes. Low traditional SIC scores may reflect artistic constraint, not AI generation.';
+      standardScoringApplies = false;
+      break;
+
+    case 'uncertain':
+    default:
+      interpretationNote = 'Narrative mode uncertain. Multiple signals present or insufficient markers for confident classification. SIC scores should be interpreted with caution.';
+      standardScoringApplies = true;
+  }
+
+  // If we detected nothing meaningful, return undefined
+  if (signals.length === 0) {
+    return undefined;
+  }
+
+  return {
+    mode,
+    confidence: Math.min(confidence, 1.0),
+    signals,
+    interpretationNote,
+    standardScoringApplies,
   };
 }
