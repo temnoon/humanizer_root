@@ -11,6 +11,7 @@ import type { ReactNode } from 'react';
 // Tool identifiers
 export type ToolId =
   | 'ai-analysis'      // Unified AI detection (native + GPTZero)
+  | 'sic-analysis'     // Subjective Intentional Constraint analysis
   | 'humanizer'        // Computer Humanizer
   | 'persona'          // Persona Transformation
   | 'style'            // Style Transformation
@@ -36,6 +37,13 @@ export const TOOL_REGISTRY: ToolMeta[] = [
     label: 'AI Analysis',
     shortLabel: 'AI',
     description: 'Analyze text for AI-generated patterns',
+  },
+  {
+    id: 'sic-analysis',
+    icon: '🎯',
+    label: 'SIC Analysis',
+    shortLabel: 'SIC',
+    description: 'Analyze constraint traces - the cost of authorship',
   },
   {
     id: 'humanizer',
@@ -102,6 +110,11 @@ export interface AIAnalysisState {
   lastResult?: any;
 }
 
+// State for SIC Analysis tool
+export interface SICAnalysisState {
+  lastResult?: any;
+}
+
 // State for Humanizer tool
 export interface HumanizerState {
   intensity: 'light' | 'moderate' | 'aggressive';
@@ -154,6 +167,7 @@ export interface AdminProfilesState {
 // Combined tool states
 export interface ToolStates {
   'ai-analysis': AIAnalysisState;
+  'sic-analysis': SICAnalysisState;
   'humanizer': HumanizerState;
   'persona': PersonaState;
   'style': StyleState;
@@ -169,6 +183,9 @@ const defaultToolStates: ToolStates = {
   'ai-analysis': {
     includeGPTZero: false,
     useLLMJudge: false,
+  },
+  'sic-analysis': {
+    // No default options needed
   },
   'humanizer': {
     intensity: 'moderate',

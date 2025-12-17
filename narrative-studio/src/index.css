@@ -1822,6 +1822,430 @@ samp,
 }
 
 /* ============================================================
+   SIC ANALYSIS PANE
+   Subjective Intentional Constraint Analysis
+   ============================================================ */
+
+.sic-analysis-pane {
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.sic-analysis-pane__header {
+  margin-bottom: var(--space-xs);
+}
+
+.sic-analysis-pane__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+
+.sic-analysis-pane__subtitle {
+  font-size: 0.6875rem;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.sic-analysis-pane__char-count {
+  margin-bottom: var(--space-xs);
+}
+
+.sic-analysis-pane__char-count-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-xs);
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+}
+
+.sic-analysis-pane__char-count-over {
+  font-weight: 600;
+  color: var(--error);
+}
+
+.sic-analysis-pane__char-count-bar {
+  height: 3px;
+  background-color: var(--bg-tertiary);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.sic-analysis-pane__char-count-fill {
+  height: 100%;
+  transition: width 0.2s, background-color 0.2s;
+}
+
+.sic-analysis-pane__char-count-fill--success { background-color: var(--success); }
+.sic-analysis-pane__char-count-fill--warning { background-color: var(--warning); }
+.sic-analysis-pane__char-count-fill--error { background-color: var(--error); }
+
+.sic-analysis-pane__btn-primary {
+  padding: var(--space-sm) var(--space-md);
+  background-color: var(--accent-primary);
+  color: var(--text-inverse);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.sic-analysis-pane__btn-primary:hover {
+  background-color: var(--accent-primary-hover);
+}
+
+.sic-analysis-pane__btn-primary:disabled {
+  background-color: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+}
+
+.sic-analysis-pane__info {
+  padding: var(--space-sm);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  border-left: 3px solid var(--accent-primary);
+}
+
+.sic-analysis-pane__info-text {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.sic-analysis-pane__error {
+  padding: var(--space-sm);
+  background-color: rgba(var(--color-error-rgb, 239, 68, 68), 0.1);
+  border: 1px solid var(--error);
+  border-radius: var(--radius-sm);
+  color: var(--error);
+  font-size: 0.75rem;
+}
+
+.sic-analysis-pane__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* Overall Scores Row */
+.sic-analysis-pane__scores-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.sic-analysis-pane__score-card {
+  padding: var(--space-sm);
+  background-color: var(--bg-elevated);
+  border-radius: var(--radius-md);
+  text-align: center;
+  border: 2px solid transparent;
+}
+
+.sic-analysis-pane__score-card.sic-analysis-pane__overall--success {
+  border-color: var(--success);
+}
+
+.sic-analysis-pane__score-card.sic-analysis-pane__overall--warning {
+  border-color: var(--warning);
+}
+
+.sic-analysis-pane__score-card.sic-analysis-pane__overall--error {
+  border-color: var(--error);
+}
+
+.sic-analysis-pane__score-card.sic-analysis-pane__aiprob--success {
+  border-color: var(--success);
+}
+
+.sic-analysis-pane__score-card.sic-analysis-pane__aiprob--warning {
+  border-color: var(--warning);
+}
+
+.sic-analysis-pane__score-card.sic-analysis-pane__aiprob--error {
+  border-color: var(--error);
+}
+
+.sic-analysis-pane__score-label {
+  font-size: 0.6875rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sic-analysis-pane__score-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sic-analysis-pane__score-hint {
+  font-size: 0.5625rem;
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+/* Genre */
+.sic-analysis-pane__genre {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 0.75rem;
+}
+
+.sic-analysis-pane__genre-label {
+  color: var(--text-tertiary);
+}
+
+.sic-analysis-pane__genre-value {
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+/* Narrative Mode Caveat */
+.sic-analysis-pane__caveat {
+  padding: var(--space-sm);
+  background-color: rgba(var(--color-warning-rgb, 251, 191, 36), 0.1);
+  border-radius: var(--radius-sm);
+  font-size: 0.6875rem;
+  color: var(--warning);
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.sic-analysis-pane__caveat-icon {
+  font-weight: bold;
+}
+
+/* Constraint Gaps */
+.sic-analysis-pane__gaps {
+  padding: var(--space-sm);
+  background-color: rgba(var(--color-error-rgb, 239, 68, 68), 0.05);
+  border-radius: var(--radius-sm);
+}
+
+.sic-analysis-pane__gaps-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--error);
+  margin-bottom: var(--space-xs);
+}
+
+.sic-analysis-pane__gaps-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.sic-analysis-pane__gap-tag {
+  font-size: 0.625rem;
+  padding: 2px var(--space-xs);
+  background-color: var(--error);
+  color: var(--text-inverse);
+  border-radius: var(--radius-sm);
+}
+
+/* Features Section */
+.sic-analysis-pane__features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.sic-analysis-pane__features-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.sic-analysis-pane__features-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* Individual Feature */
+.sic-analysis-pane__feature {
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.sic-analysis-pane__feature--gap {
+  background-color: rgba(var(--color-error-rgb, 239, 68, 68), 0.05);
+}
+
+.sic-analysis-pane__feature-header {
+  padding: var(--space-xs) var(--space-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.sic-analysis-pane__feature-header:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.sic-analysis-pane__feature-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.sic-analysis-pane__feature-expand {
+  font-size: 0.5rem;
+  color: var(--text-tertiary);
+}
+
+.sic-analysis-pane__gap-badge {
+  font-size: 0.5rem;
+  padding: 1px 4px;
+  background-color: var(--error);
+  color: var(--text-inverse);
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+.sic-analysis-pane__negative-badge {
+  font-size: 0.625rem;
+  padding: 0 4px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  border-radius: 2px;
+}
+
+.sic-analysis-pane__feature-score {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.sic-analysis-pane__score--success { color: var(--success); }
+.sic-analysis-pane__score--warning { color: var(--warning); }
+.sic-analysis-pane__score--error { color: var(--error); }
+
+/* Feature Progress Bar */
+.sic-analysis-pane__feature-bar {
+  height: 3px;
+  background-color: var(--bg-tertiary);
+}
+
+.sic-analysis-pane__feature-fill {
+  height: 100%;
+  transition: width 0.3s;
+}
+
+.sic-analysis-pane__feature-fill.sic-analysis-pane__score--success {
+  background-color: var(--success);
+}
+
+.sic-analysis-pane__feature-fill.sic-analysis-pane__score--warning {
+  background-color: var(--warning);
+}
+
+.sic-analysis-pane__feature-fill.sic-analysis-pane__score--error {
+  background-color: var(--error);
+}
+
+/* Feature Details (Expanded) */
+.sic-analysis-pane__feature-details {
+  padding: var(--space-sm);
+  background-color: var(--bg-primary);
+  border-top: 1px solid var(--border-color);
+}
+
+.sic-analysis-pane__feature-description {
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  margin-bottom: var(--space-xs);
+}
+
+.sic-analysis-pane__feature-notes {
+  font-size: 0.6875rem;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.sic-analysis-pane__feature-evidence {
+  margin-top: var(--space-xs);
+  padding-top: var(--space-xs);
+  border-top: 1px dashed var(--border-color);
+}
+
+.sic-analysis-pane__evidence-title {
+  font-size: 0.5625rem;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  margin-bottom: var(--space-xs);
+}
+
+.sic-analysis-pane__evidence-item {
+  font-size: 0.625rem;
+  margin-bottom: var(--space-xs);
+}
+
+.sic-analysis-pane__evidence-quote {
+  color: var(--text-primary);
+  font-style: italic;
+}
+
+.sic-analysis-pane__evidence-relevance {
+  color: var(--text-tertiary);
+  margin-left: var(--space-xs);
+}
+
+/* Notes */
+.sic-analysis-pane__notes {
+  padding: var(--space-sm);
+  background-color: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+}
+
+.sic-analysis-pane__notes-title {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.sic-analysis-pane__notes-content {
+  font-size: 0.6875rem;
+  color: var(--text-primary);
+  line-height: 1.5;
+}
+
+/* Timing */
+.sic-analysis-pane__timing {
+  font-size: 0.5625rem;
+  color: var(--text-tertiary);
+  text-align: right;
+}
+
+/* Empty State */
+.sic-analysis-pane__empty {
+  margin-top: var(--space-md);
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 0.75rem;
+}
+
+/* ============================================================
    RESIZABLE PANELS
    ============================================================ */
 

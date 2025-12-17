@@ -887,6 +887,215 @@ export async function namespaceTransform(
 }
 
 // ============================================================
+// SIC (SUBJECTIVE INTENTIONAL CONSTRAINT) ANALYSIS
+// ============================================================
+
+export interface SicFeatureScore {
+  score: number;
+  notes: string;
+  evidence?: Array<{
+    quote: string;
+    relevance: string;
+  }>;
+}
+
+export interface SicAnalysisResult {
+  version: string;
+  sicScore: number;
+  aiProbability: number;
+  genre: string;
+  features: {
+    commitment_irreversibility: SicFeatureScore;
+    epistemic_risk_uncertainty: SicFeatureScore;
+    time_pressure_tradeoffs: SicFeatureScore;
+    situatedness_body_social: SicFeatureScore;
+    scar_tissue_specificity: SicFeatureScore;
+    bounded_viewpoint: SicFeatureScore;
+    anti_smoothing: SicFeatureScore;
+    meta_contamination: SicFeatureScore;
+  };
+  constraintGaps: string[];
+  notes: string;
+  processingTimeMs: number;
+  narrativeModeCaveat?: {
+    isNarrativeMode: boolean;
+    explanation: string;
+  };
+}
+
+export interface SicAnalysisOptions {
+  genreHint?: string;
+  maxChunks?: number;
+}
+
+/**
+ * SIC (Subjective Intentional Constraint) Analysis
+ * Measures constraint traces in text - the "cost of authorship"
+ *
+ * Returns 8 features:
+ * - commitment_irreversibility: Definitive stances with consequences
+ * - epistemic_risk_uncertainty: Being wrong that mattered
+ * - time_pressure_tradeoffs: Urgency, deadlines, asymmetric time
+ * - situatedness_body_social: Physical/social grounding
+ * - scar_tissue_specificity: Persistent residue ("still flinch")
+ * - bounded_viewpoint: Non-omniscient narration
+ * - anti_smoothing: Refusal of symmetry, taking sides
+ * - meta_contamination: Preambles, "EDIT:", manager voice (negative)
+ */
+export async function sicAnalysis(
+  text: string,
+  options: SicAnalysisOptions = {}
+): Promise<SicAnalysisResult> {
+  // Validate input
+  if (!text || text.trim().length < 50) {
+    throw new Error('Text must be at least 50 characters for SIC analysis');
+  }
+
+  if (text.length > 50000) {
+    throw new Error('Text too long for SIC analysis (max 50,000 characters)');
+  }
+
+  // SIC analysis ALWAYS uses cloud backend (requires LLM capabilities)
+  // Local Ollama doesn't support the SIC analysis pipeline
+  const CLOUD_API_URL = 'https://npe-api.tem-527.workers.dev';
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minute timeout
+
+  console.log('[SIC Analysis] Using cloud API:', CLOUD_API_URL);
+
+  try {
+    const response = await fetch(`${CLOUD_API_URL}/ai-detection/sic/sic`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text,
+        genreHint: options.genreHint,
+        maxChunks: options.maxChunks,
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || error.error || 'SIC analysis failed');
+    }
+
+    const data = await response.json();
+
+    // Map to result format
+    return {
+      version: data.version || 'sic.v1',
+      sicScore: data.sicScore,
+      aiProbability: data.aiProbability,
+      genre: data.genre,
+      features: {
+        commitment_irreversibility: mapFeature(data.features?.commitment_irreversibility),
+        epistemic_risk_uncertainty: mapFeature(data.features?.epistemic_risk_uncertainty),
+        time_pressure_tradeoffs: mapFeature(data.features?.time_pressure_tradeoffs),
+        situatedness_body_social: mapFeature(data.features?.situatedness_body_social),
+        scar_tissue_specificity: mapFeature(data.features?.scar_tissue_specificity),
+        bounded_viewpoint: mapFeature(data.features?.bounded_viewpoint),
+        anti_smoothing: mapFeature(data.features?.anti_smoothing),
+        meta_contamination: mapFeature(data.features?.meta_contamination),
+      },
+      constraintGaps: identifyGaps(data.features),
+      notes: data.notes || '',
+      processingTimeMs: data.diagnostics?.totalDurationMs || 0,
+      narrativeModeCaveat: data.narrativeModeCaveat,
+    };
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('SIC analysis timed out after 2 minutes. Try using a shorter text.');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Helper to map feature data with defaults
+ */
+function mapFeature(feature: any): SicFeatureScore {
+  return {
+    score: feature?.score ?? 50,
+    notes: feature?.notes || '',
+    evidence: feature?.evidence || [],
+  };
+}
+
+/**
+ * Helper to identify constraint gaps (features below threshold)
+ */
+function identifyGaps(features: any): string[] {
+  const GAP_THRESHOLD = 45;
+  const gaps: string[] = [];
+
+  if (!features) return gaps;
+
+  const featureKeys = [
+    'commitment_irreversibility',
+    'epistemic_risk_uncertainty',
+    'time_pressure_tradeoffs',
+    'situatedness_body_social',
+    'scar_tissue_specificity',
+    'bounded_viewpoint',
+    'anti_smoothing',
+  ];
+
+  for (const key of featureKeys) {
+    const score = features[key]?.score;
+    if (typeof score === 'number' && score < GAP_THRESHOLD) {
+      gaps.push(key);
+    }
+  }
+
+  // meta_contamination is negative, so HIGH score is bad
+  if (features.meta_contamination?.score > 55) {
+    gaps.push('meta_contamination');
+  }
+
+  return gaps;
+}
+
+/**
+ * Get SIC feature definitions (for UI help text)
+ */
+export async function getSicFeatureDefinitions(): Promise<Array<{
+  key: string;
+  description: string;
+  type: 'positive' | 'negative';
+}>> {
+  try {
+    const response = await fetch(`${getApiBase()}/ai-detection/sic/features`, {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to fetch SIC features');
+    }
+
+    const data = await response.json();
+    return data.features || [];
+  } catch (error) {
+    // Return hardcoded fallback
+    return [
+      { key: 'commitment_irreversibility', description: 'Concrete decisions with consequences. "Humans trap themselves. LLMs keep exits open."', type: 'positive' },
+      { key: 'epistemic_risk_uncertainty', description: 'Being wrong, surprises, ignorance that mattered. Not hedging, but genuine stakes.', type: 'positive' },
+      { key: 'time_pressure_tradeoffs', description: 'Urgency, deadlines, asymmetric time awareness. Evidence of lived time.', type: 'positive' },
+      { key: 'situatedness_body_social', description: 'Embodied risk, social cost, friction. Body, place, reputation at stake.', type: 'positive' },
+      { key: 'scar_tissue_specificity', description: 'Persistent involuntary residue: "still flinch", "keeps me up". "Humans heal; LLMs regenerate."', type: 'positive' },
+      { key: 'bounded_viewpoint', description: 'Non-omniscient narration. The narrator acknowledges not knowing everything.', type: 'positive' },
+      { key: 'anti_smoothing', description: 'Refusal of symmetry. Does the author take a side or perform balance? High = chose a side.', type: 'positive' },
+      { key: 'meta_contamination', description: 'Preambles, meta-exposition, "in conclusion". Manager voice replacing lived sequence.', type: 'negative' },
+    ];
+  }
+}
+
+// ============================================================
 // UNIFIED TRANSFORM FUNCTION
 // ============================================================
 

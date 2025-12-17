@@ -5,6 +5,7 @@
 export { TabbedToolsPanel, ToolTabProvider } from './TabbedToolsPanel';
 export { HorizontalToolTabs, ToolLabelBar } from './HorizontalToolTabs';
 export { AIAnalysisPane } from './AIAnalysisPane';
+export { SICAnalysisPane } from './SICAnalysisPane';
 export {
   HumanizerPane,
   PersonaPane,
