@@ -1,0 +1,92 @@
+{
+  "version": "1.0",
+  "created": "2025-12-17",
+  "genres": ["narrative", "gothic", "adventure", "argument", "memoir"],
+  "prompts": {
+    "narrative": [
+      {
+        "id": "N1",
+        "genre": "narrative",
+        "prompt": "Write the opening scene of a novel. A woman in her thirties arrives at her childhood home after many years away. The house has been sold and she has one day to collect what remains of her family's belongings. Begin as she approaches the house. Approximately 800 words."
+      },
+      {
+        "id": "N2",
+        "genre": "narrative",
+        "prompt": "Write a scene from a novel. Two old friends meet by chance at a train station. One is departing, the other arriving. They have not spoken in years due to a falling out over a business venture. Write their conversation and its aftermath. Approximately 800 words."
+      },
+      {
+        "id": "N3",
+        "genre": "narrative",
+        "prompt": "Write a scene from a novel. A middle-aged man sits in a hospital waiting room while his father undergoes surgery. He reflects on their relationship while observing other families around him. Approximately 800 words."
+      }
+    ],
+    "gothic": [
+      {
+        "id": "G1",
+        "genre": "gothic",
+        "prompt": "Write a passage in the Gothic tradition. A scholar discovers a hidden chamber in an old library that contains manuscripts no one has read in centuries. As they begin to read, they realize the texts describe events that have not yet occurred. Approximately 800 words."
+      },
+      {
+        "id": "G2",
+        "genre": "gothic",
+        "prompt": "Write a passage in the Gothic tradition. A woman inherits a house in a coastal village. The locals refuse to speak of its history. On her first night, she hears sounds from a room that, according to the floor plans, should not exist. Approximately 800 words."
+      },
+      {
+        "id": "G3",
+        "genre": "gothic",
+        "prompt": "Write a passage in the Gothic tradition. A portrait painter is commissioned to create a likeness of an elderly aristocrat. During their sessions, the subject tells stories that seem impossible—events from centuries past, described as firsthand experience. Approximately 800 words."
+      }
+    ],
+    "adventure": [
+      {
+        "id": "A1",
+        "genre": "adventure",
+        "prompt": "Write an adventure narrative. A ship captain navigates through a dangerous strait during a storm. The crew must make split-second decisions as cargo shifts and rigging fails. Describe the physical struggle against the elements. Approximately 800 words."
+      },
+      {
+        "id": "A2",
+        "genre": "adventure",
+        "prompt": "Write an adventure narrative. An expedition into unmapped jungle discovers ruins of a civilization unknown to history. As they explore deeper, they realize they are not alone. Write their first encounter with the ruins' guardians. Approximately 800 words."
+      },
+      {
+        "id": "A3",
+        "genre": "adventure",
+        "prompt": "Write an adventure narrative. A pilot crash-lands in mountainous terrain. With limited supplies and an injured passenger, they must find a path to safety before winter storms arrive. Describe the first day's journey. Approximately 800 words."
+      }
+    ],
+    "argument": [
+      {
+        "id": "E1",
+        "genre": "argument",
+        "prompt": "Write a philosophical essay arguing a position on this question: Is certainty a virtue or a liability in intellectual life? Take a clear stance and defend it with examples and reasoning. Approximately 800 words."
+      },
+      {
+        "id": "E2",
+        "genre": "argument",
+        "prompt": "Write a philosophical essay arguing a position on this question: Do we have stronger obligations to those near to us than to strangers? Take a clear stance and defend it with examples and reasoning. Approximately 800 words."
+      },
+      {
+        "id": "E3",
+        "genre": "argument",
+        "prompt": "Write a philosophical essay arguing a position on this question: Is the examined life worth living if the examination reveals truths we cannot change? Take a clear stance and defend it with examples and reasoning. Approximately 800 words."
+      }
+    ],
+    "memoir": [
+      {
+        "id": "M1",
+        "genre": "memoir",
+        "prompt": "Write a personal essay about a moment when you realized a long-held belief was wrong. Describe the context, the realization, and its aftermath. Use specific sensory details and emotional honesty. Approximately 800 words."
+      },
+      {
+        "id": "M2",
+        "genre": "memoir",
+        "prompt": "Write a personal essay about a place that shaped who you are. It might be a childhood home, a city you lived in, or somewhere you visited briefly but never forgot. Ground abstract reflections in concrete details. Approximately 800 words."
+      },
+      {
+        "id": "M3",
+        "genre": "memoir",
+        "prompt": "Write a personal essay about a skill or practice you learned later in life than most. What was difficult about it? What did it reveal about yourself? Approximately 800 words."
+      }
+    ]
+  }
+}
