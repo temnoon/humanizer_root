@@ -13,8 +13,8 @@
 | ID | Model | Provider | Size | Notes |
 |----|-------|----------|------|-------|
 | `opus` | Claude Opus 4.5 | Anthropic | ~400B | Frontier, generated via Claude Code |
-| `gpt4o` | GPT-4o | OpenAI | Unknown | Frontier, generated via ChatGPT |
-| `gemini` | Gemini Pro | Google | Unknown | Frontier, generated via Gemini |
+| `gpt52` | GPT-5.2 | OpenAI | Unknown | Frontier, generated via ChatGPT |
+| `gemini3` | Gemini 3 Pro | Google | Unknown | Frontier, generated via Gemini |
 | `llama70` | Llama 3.1 70B | Meta/CF | 70B | Open source, same as SIC judge |
 | `llama8` | Llama 3.1 8B | Meta/CF | 8B | Open source, small |
 | `mistral` | Mistral 7B | Mistral | 7B | Open source, different architecture |
