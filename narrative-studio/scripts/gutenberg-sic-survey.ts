@@ -311,16 +311,41 @@ async function runSurvey(options: {
       }
 
       const structure = bookStructures.get(book.gutenbergId);
+      const sections = structure.structure || structure.sections || [];
 
-      // Find the section
-      if (!structure.sections || structure.sections.length <= chapter.chapterIndex) {
-        console.log(`  Warning: Chapter index ${chapter.chapterIndex} not found, skipping`);
+      // Find the section by chapter number (chapterIndex + 1 = chapter number for most books)
+      // The sample list uses 0-indexed chapter numbers (0 = Chapter 1, 2 = Chapter 3, etc.)
+      const targetChapterNum = chapter.chapterIndex + 1;
+
+      // First, try to find a chapter section with matching number
+      let section = sections.find((s: any) =>
+        s.type === 'chapter' && s.number === targetChapterNum
+      );
+      let sectionIndex = section?.index;
+
+      // If not found by number, fall back to finding nth chapter
+      if (!section) {
+        const chapterSections = sections.filter((s: any) => s.type === 'chapter');
+        if (chapter.chapterIndex < chapterSections.length) {
+          section = chapterSections[chapter.chapterIndex];
+          sectionIndex = section?.index;
+        }
+      }
+
+      // Last resort: use direct index
+      if (!section && chapter.chapterIndex < sections.length) {
+        section = sections[chapter.chapterIndex];
+        sectionIndex = chapter.chapterIndex;
+      }
+
+      if (!section || sectionIndex === undefined) {
+        console.log(`  Warning: Chapter ${targetChapterNum} not found (total sections: ${sections.length}), skipping`);
         continue;
       }
 
       // Fetch section content
-      console.log(`  Fetching chapter content...`);
-      const fullContent = await fetchSection(book.gutenbergId, chapter.chapterIndex);
+      console.log(`  Fetching chapter content (section ${sectionIndex}: ${section.title || 'untitled'})...`);
+      const fullContent = await fetchSection(book.gutenbergId, sectionIndex);
 
       // Extract passage
       const passage = extractPassage(fullContent);
