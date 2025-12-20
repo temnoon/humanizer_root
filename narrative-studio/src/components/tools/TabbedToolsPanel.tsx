@@ -14,6 +14,8 @@ import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
 import { useWorkspaceOptional } from '../../contexts/WorkspaceContext';
 import { HorizontalToolTabs, ToolLabelBar } from './HorizontalToolTabs';
 import { AIAnalysisPane } from './AIAnalysisPane';
+import { V2AnalysisPane } from './V2AnalysisPane';
+import { V3AnalysisPane } from './V3AnalysisPane';
 import { SICAnalysisPane } from './SICAnalysisPane';
 import { HumanizerPane, PersonaPane, StylePane, RoundTripPane, AddToBookPane } from './ToolPanes';
 import { ExportPane } from './ExportPane';
@@ -225,8 +227,14 @@ function TabbedToolsPanelInner({
             overflow: 'auto',
           }}
         >
+          {activeToolId === 'v2-analysis' && (
+            <V2AnalysisPane content={effectiveContent} />
+          )}
           {activeToolId === 'ai-analysis' && (
             <AIAnalysisPane content={effectiveContent} onHighlightText={onHighlightText} />
+          )}
+          {activeToolId === 'v3-analysis' && (
+            <V3AnalysisPane content={effectiveContent} onHighlightText={onHighlightText} />
           )}
           {activeToolId === 'sic-analysis' && (
             <SICAnalysisPane content={effectiveContent} onHighlightText={onHighlightText} />

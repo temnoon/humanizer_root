@@ -11,6 +11,8 @@ import type { ReactNode } from 'react';
 // Tool identifiers
 export type ToolId =
   | 'ai-analysis'      // Unified AI detection (native + GPTZero)
+  | 'v2-analysis'      // HumanizerDetect v2 + Humanization (dedicated)
+  | 'v3-analysis'      // V3 local detection with Chekhov ratio
   | 'sic-analysis'     // Subjective Intentional Constraint analysis
   | 'humanizer'        // Computer Humanizer
   | 'persona'          // Persona Transformation
@@ -32,11 +34,25 @@ export interface ToolMeta {
 
 export const TOOL_REGISTRY: ToolMeta[] = [
   {
+    id: 'v2-analysis',
+    icon: '📊',
+    label: 'V2 Detect + Humanize',
+    shortLabel: 'V2',
+    description: 'HumanizerDetect v2 with visual metrics and humanization',
+  },
+  {
     id: 'ai-analysis',
     icon: '🔍',
-    label: 'AI Analysis',
+    label: 'AI Analysis (Legacy)',
     shortLabel: 'AI',
-    description: 'Analyze text for AI-generated patterns',
+    description: 'Legacy AI detection (v1 + GPTZero)',
+  },
+  {
+    id: 'v3-analysis',
+    icon: '🎭',
+    label: 'V3 Local Detector',
+    shortLabel: 'V3',
+    description: 'Local AI detection with Chekhov ratio (no API)',
   },
   {
     id: 'sic-analysis',
@@ -103,10 +119,23 @@ export const TOOL_REGISTRY: ToolMeta[] = [
   },
 ];
 
+// State for V2 Analysis tool (dedicated v2 detector + humanization)
+export interface V2AnalysisState {
+  lastDetection?: any;
+  lastHumanization?: any;
+  intensity: 'light' | 'moderate' | 'aggressive';
+}
+
 // State for AI Analysis tool
 export interface AIAnalysisState {
   includeGPTZero: boolean;
   useLLMJudge: boolean;
+  useV2Detector?: boolean;
+  lastResult?: any;
+}
+
+// State for V3 Analysis tool
+export interface V3AnalysisState {
   lastResult?: any;
 }
 
@@ -166,7 +195,9 @@ export interface AdminProfilesState {
 
 // Combined tool states
 export interface ToolStates {
+  'v2-analysis': V2AnalysisState;
   'ai-analysis': AIAnalysisState;
+  'v3-analysis': V3AnalysisState;
   'sic-analysis': SICAnalysisState;
   'humanizer': HumanizerState;
   'persona': PersonaState;
@@ -180,9 +211,15 @@ export interface ToolStates {
 
 // Default states
 const defaultToolStates: ToolStates = {
+  'v2-analysis': {
+    intensity: 'moderate',
+  },
   'ai-analysis': {
     includeGPTZero: false,
     useLLMJudge: false,
+  },
+  'v3-analysis': {
+    // No default options needed - local analysis
   },
   'sic-analysis': {
     // No default options needed
