@@ -304,13 +304,7 @@ export function MainWorkspace({
   // Workspace buffer view - show when workspace is active even without a narrative
   if (hasWorkspace && workspaceActiveBuffer && !narrative) {
     return (
-      <main
-        className="flex-1 flex flex-col"
-        style={{
-          backgroundColor: 'var(--bg-primary)',
-          minHeight: 0,
-        }}
-      >
+      <main className="flex-1 flex flex-col u-bg-primary u-min-h-0">
         {/* Workspace Buffer Comparison Toolbar */}
         <div className="workspace-buffer-toolbar">
           <div className="workspace-buffer-toolbar__left">
@@ -407,20 +401,9 @@ export function MainWorkspace({
             {/* Left pane: Compare buffer */}
             <div
               ref={leftPaneRef}
-              className="flex-1 md-border-switch flex flex-col"
-              style={{
-                borderRight: '1px solid var(--border-color)',
-                minHeight: 0,
-                overflow: 'hidden',
-              }}
+              className="flex-1 md-border-switch pane u-border-r"
             >
-              <div
-                className="flex-1 overflow-y-auto"
-                style={{
-                  width: '100%',
-                  minHeight: 0,
-                }}
-              >
+              <div className="pane__scroll">
                 <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="heading-md u-text-secondary">
@@ -456,20 +439,9 @@ export function MainWorkspace({
             {/* Right pane: Active buffer */}
             <div
               ref={rightPaneRef}
-              className="flex-1 flex flex-col"
-              style={{
-                backgroundColor: 'var(--bg-secondary)',
-                minHeight: 0,
-                overflow: 'hidden',
-              }}
+              className="flex-1 pane pane--secondary"
             >
-              <div
-                className="flex-1 overflow-y-auto"
-                style={{
-                  width: '100%',
-                  minHeight: 0,
-                }}
-              >
+              <div className="pane__scroll">
                 <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="heading-md u-text-secondary">
@@ -510,20 +482,9 @@ export function MainWorkspace({
           <div className="flex-1 flex u-flex-fill">
             <div
               ref={singlePaneRef}
-              className="flex-1 flex flex-col"
-              style={{
-                minHeight: 0,
-                overflow: 'hidden',
-                backgroundColor: 'var(--bg-secondary)',
-              }}
+              className="flex-1 pane pane--secondary"
             >
-              <div
-                className="flex-1 overflow-y-auto"
-                style={{
-                  width: '100%',
-                  minHeight: 0,
-                }}
-              >
+              <div className="pane__scroll">
                 <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="heading-md u-text-secondary">
@@ -780,13 +741,7 @@ export function MainWorkspace({
                 overflow: 'hidden',
               }}
             >
-              <div
-                className="flex-1 overflow-y-auto"
-                style={{
-                  width: '100%',
-                  minHeight: 0,
-                }}
-              >
+              <div className="pane__scroll">
                 <div className="w-full max-w-4xl u-content-narrow">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="heading-md u-text-secondary">
@@ -819,20 +774,9 @@ export function MainWorkspace({
             {/* Right pane: Active buffer */}
             <div
               ref={rightPaneRef}
-              className="flex-1 flex flex-col"
-              style={{
-                backgroundColor: 'var(--bg-secondary)',
-                minHeight: 0,
-                overflow: 'hidden',
-              }}
+              className="flex-1 pane pane--secondary"
             >
-              <div
-                className="flex-1 overflow-y-auto"
-                style={{
-                  width: '100%',
-                  minHeight: 0,
-                }}
-              >
+              <div className="pane__scroll">
                 <div className="w-full max-w-4xl u-content-narrow">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="heading-md u-text-secondary">
@@ -867,20 +811,9 @@ export function MainWorkspace({
           <div className="flex-1 flex u-flex-fill">
             <div
               ref={singlePaneRef}
-              className="flex-1 flex flex-col"
-              style={{
-                minHeight: 0,
-                overflow: 'hidden',
-                backgroundColor: 'var(--bg-secondary)',
-              }}
+              className="flex-1 pane pane--secondary"
             >
-              <div
-                className="flex-1 overflow-y-auto"
-                style={{
-                  width: '100%',
-                  minHeight: 0,
-                }}
-              >
+              <div className="pane__scroll">
                 <div className="w-full max-w-4xl u-content-narrow">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="heading-md u-text-secondary">
@@ -928,21 +861,11 @@ export function MainWorkspace({
     return (
       <main
         ref={singlePaneRef}
-        className="flex-1 overflow-y-auto flex flex-col items-center"
-        style={{
-          backgroundColor: 'var(--bg-primary)',
-          minHeight: 0,
-        }}
+        className="flex-1 overflow-y-auto flex flex-col items-center u-bg-primary u-min-h-0"
       >
-        <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)' }}>
+        <div className="u-content-center">
           {/* Title and metadata panel */}
-          <div
-            className="mb-6 p-4 rounded-lg"
-            style={{
-              backgroundColor: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-            }}
-          >
+          <div className="card mb-6">
             <div className="flex items-start justify-between mb-2">
               <h1 className="heading-xl u-text-primary">
                 {narrative.title}
@@ -1013,7 +936,7 @@ export function MainWorkspace({
                       color: 'white',
                     }}
                   >
-                    <div className="text-small mb-1" style={{ opacity: 0.9 }}>
+                    <div className="text-small mb-1 u-opacity-90">
                       Verdict
                     </div>
                     <div className="heading-lg font-bold uppercase">
@@ -1450,20 +1373,9 @@ export function MainWorkspace({
             {/* Left pane: Compare buffer */}
             <div
               ref={leftPaneRef}
-              className="flex-1 md-border-switch flex flex-col"
-              style={{
-                borderRight: '1px solid var(--border-color)',
-                minHeight: 0,
-                overflow: 'hidden',
-              }}
+              className="flex-1 md-border-switch pane u-border-r"
             >
-              <div
-                className="flex-1 overflow-y-auto"
-                style={{
-                  width: '100%',
-                  minHeight: 0,
-                }}
-              >
+              <div className="pane__scroll">
                 <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="heading-md u-text-secondary">
@@ -1496,20 +1408,9 @@ export function MainWorkspace({
             {/* Right pane: Active buffer */}
             <div
               ref={rightPaneRef}
-              className="flex-1 flex flex-col"
-              style={{
-                backgroundColor: 'var(--bg-secondary)',
-                minHeight: 0,
-                overflow: 'hidden',
-              }}
+              className="flex-1 pane pane--secondary"
             >
-              <div
-                className="flex-1 overflow-y-auto"
-                style={{
-                  width: '100%',
-                  minHeight: 0,
-                }}
-              >
+              <div className="pane__scroll">
                 <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="heading-md u-text-secondary">
@@ -1544,20 +1445,9 @@ export function MainWorkspace({
           <div className="hidden md:flex flex-1 u-flex-fill">
             <div
               ref={singlePaneRef}
-              className="flex-1 flex flex-col"
-              style={{
-                minHeight: 0,
-                overflow: 'hidden',
-                backgroundColor: 'var(--bg-secondary)',
-              }}
+              className="flex-1 pane pane--secondary"
             >
-              <div
-                className="flex-1 overflow-y-auto"
-                style={{
-                  width: '100%',
-                  minHeight: 0,
-                }}
-              >
+              <div className="pane__scroll">
                 <div className="w-full max-w-5xl u-content-center">
                   <div className="flex items-center justify-between mb-4">
                     <h2 className="heading-md u-text-secondary">
@@ -1608,7 +1498,7 @@ export function MainWorkspace({
             >
               <div className="w-full max-w-5xl u-content-center">
                 <div className="flex items-center justify-between mb-8">
-                  <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
+                  <h2 className="heading-lg u-text-secondary">
                     Original
                   </h2>
                   <div className="flex items-center gap-2">
@@ -1654,7 +1544,7 @@ export function MainWorkspace({
             >
               <div className="w-full max-w-5xl u-content-center">
                 <div className="flex items-center justify-between mb-8">
-                  <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
+                  <h2 className="heading-lg u-text-secondary">
                     Transformed
                   </h2>
                   <div className="flex items-center gap-2">
@@ -1703,7 +1593,7 @@ export function MainWorkspace({
               <div className="w-full max-w-5xl" style={{ padding: 'var(--space-xl)', minHeight: 0, margin: '0 auto' }}>
                 {/* Header */}
                 <div className="flex items-center justify-between mb-8">
-                  <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
+                  <h2 className="heading-lg u-text-secondary">
                     Original
                   </h2>
                   <div className="flex items-center gap-2">
@@ -1791,7 +1681,7 @@ export function MainWorkspace({
               <div className="w-full max-w-5xl" style={{ paddingTop: 'var(--space-xl)', paddingRight: 'var(--space-xl)', paddingBottom: '120px', paddingLeft: 'var(--space-xl)', minHeight: 0, margin: '0 auto' }}>
               {/* Header */}
               <div className="flex items-center justify-between mb-8">
-                <h2 className="heading-lg" style={{ color: 'var(--text-secondary)' }}>
+                <h2 className="heading-lg u-text-secondary">
                   {transformResult.metadata?.aiDetection ? 'AI Detection Analysis' : 'Transformed'}
                 </h2>
                 <div className="flex items-center gap-2">
@@ -1847,7 +1737,7 @@ export function MainWorkspace({
                     color: 'white',
                   }}
                 >
-                  <div className="text-small mb-1" style={{ opacity: 0.9 }}>
+                  <div className="text-small mb-1 u-opacity-90">
                     Verdict
                   </div>
                   <div className="heading-lg font-bold uppercase">
@@ -2019,7 +1909,7 @@ export function MainWorkspace({
                     color: 'white',
                   }}
                 >
-                  <div className="text-small mb-1" style={{ opacity: 0.9 }}>
+                  <div className="text-small mb-1 u-opacity-90">
                     Semantic Drift
                   </div>
                   <div className="heading-lg font-bold">
@@ -2030,7 +1920,7 @@ export function MainWorkspace({
 
               {/* Forward Translation */}
               <div>
-                <h3 className="text-body font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+                <h3 className="text-body font-medium mb-2 u-text-secondary">
                   Translation to {(transformResult.metadata.intermediateLanguage || 'unknown').charAt(0).toUpperCase() + (transformResult.metadata.intermediateLanguage || 'unknown').slice(1)}
                 </h3>
                 <div
@@ -2046,7 +1936,7 @@ export function MainWorkspace({
 
               {/* Backward Translation */}
               <div>
-                <h3 className="text-body font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
+                <h3 className="text-body font-medium mb-2 u-text-secondary">
                   Back to English
                 </h3>
                 <div

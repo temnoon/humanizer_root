@@ -504,6 +504,79 @@ samp,
   padding: var(--space-lg);
 }
 
+/* Additional layout utilities for inline style replacement */
+.u-min-h-0 {
+  min-height: 0;
+}
+
+.u-w-full {
+  width: 100%;
+}
+
+.u-overflow-hidden {
+  overflow: hidden;
+}
+
+.u-border-r {
+  border-right: 1px solid var(--border-color);
+}
+
+.u-border-b {
+  border-bottom: 1px solid var(--border-color);
+}
+
+.u-border-l {
+  border-left: 1px solid var(--border-color);
+}
+
+.u-border-t {
+  border-top: 1px solid var(--border-color);
+}
+
+/* Flex pane utilities - common patterns for split views */
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pane--primary {
+  background-color: var(--bg-primary);
+}
+
+.pane--secondary {
+  background-color: var(--bg-secondary);
+}
+
+.pane__scroll {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Card/Panel pattern - common component styling */
+.card {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg, 0.5rem);
+  padding: var(--space-md);
+}
+
+.card--elevated {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Text color utilities */
+.u-opacity-90 {
+  opacity: 0.9;
+}
+
+.u-opacity-50 {
+  opacity: 0.5;
+}
+
 /* ============================================================
    WORKSPACE COMPONENTS
    Used by MainWorkspace.tsx and related components
