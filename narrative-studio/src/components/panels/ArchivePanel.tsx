@@ -25,6 +25,7 @@ import { ArchiveIconTabBar } from '../archive/ArchiveIconTabBar';
 import { ArchiveSearchBar } from '../archive/ArchiveSearchBar';
 import { ConversationsListView } from '../archive/ConversationsListView';
 import { MessageListView } from '../archive/MessageListView';
+import { GalleryGridView } from '../archive/GalleryGridView';
 
 const API_BASE = STORAGE_PATHS.archiveServerUrl;
 
@@ -847,139 +848,19 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           />
 
           {/* Gallery content */}
-          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-            {/* Gallery-specific header */}
-            <div style={{ padding: 'var(--space-md)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
-              {/* Source Toggle - compact */}
-              {!galleryFolder && (
-                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                  <button
-                    onClick={() => setGallerySource('openai')}
-                    style={{
-                      padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border-color)',
-                      backgroundColor: gallerySource === 'openai' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                      color: gallerySource === 'openai' ? 'white' : 'var(--text-primary)',
-                      cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
-                    }}
-                  >OpenAI</button>
-                  <button
-                    onClick={() => setGallerySource('facebook')}
-                    style={{
-                      padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--border-color)',
-                      backgroundColor: gallerySource === 'facebook' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                      color: gallerySource === 'facebook' ? 'white' : 'var(--text-primary)',
-                      cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600,
-                    }}
-                  >📘 Facebook</button>
-                </div>
-              )}
-
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '8px' }}>
-                {galleryTotal.toLocaleString()} images • {galleryImages.length} loaded
-              </div>
-
-              {/* Gallery search - compact */}
-              <div className="relative">
-                <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none u-text-tertiary">
-                  <Icons.Search />
-                </div>
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={gallerySearch}
-                  onChange={(e) => setGallerySearch(e.target.value)}
-                  style={{
-                    width: '100%', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-                    color: 'var(--text-primary)', paddingLeft: '2.5rem', paddingRight: gallerySearch ? '2.5rem' : '0.75rem',
-                    paddingTop: '0.5rem', paddingBottom: '0.5rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem',
-                  }}
-                />
-                {gallerySearch && (
-                  <button onClick={() => setGallerySearch('')} className="absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                    <Icons.Close />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Gallery grid */}
-            <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)', minHeight: 0 }}>
-              {galleryLoading && galleryImages.length === 0 ? (
-                <div style={{ color: 'var(--text-secondary)', textAlign: 'center', padding: 'var(--space-xl)' }}>
-                  Loading images...
-                </div>
-              ) : (
-                <>
-                  {/* Image grid - 2 columns on mobile, 3 on desktop */}
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-                      gap: 'var(--space-sm)',
-                    }}
-                  >
-                    {galleryImages.map((img, idx) => (
-                      <div
-                        key={idx}
-                        className="gallery-image-item"
-                        onClick={() => setLightboxImage(img)}
-                        style={{
-                          position: 'relative',
-                          aspectRatio: '1',
-                          overflow: 'hidden',
-                          borderRadius: '4px',
-                          backgroundColor: 'var(--bg-tertiary)',
-                          cursor: 'pointer',
-                          transition: 'opacity 0.2s',
-                        }}
-                      >
-                        <img
-                          src={img.url}
-                          alt={img.conversationTitle}
-                          loading="lazy"
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover',
-                          }}
-                        />
-                        {/* Hover overlay with title */}
-                        <div
-                          className="gallery-image-overlay"
-                          style={{
-                            position: 'absolute',
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)',
-                            padding: 'var(--space-xs)',
-                            pointerEvents: 'none',
-                          }}
-                        >
-                          <div className="text-tiny" style={{ color: 'white', fontWeight: 600 }}>
-                            {img.conversationTitle}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {galleryHasMore && (
-                    <button
-                      onClick={() => loadGalleryImages(false)}
-                      disabled={galleryLoading}
-                      className="btn-secondary mt-4 w-full"
-                      style={{
-                        opacity: galleryLoading ? 0.5 : 1,
-                      }}
-                    >
-                      {galleryLoading ? 'Loading...' : `Load More (${galleryImages.length} of ${galleryTotal})`}
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
+          <GalleryGridView
+            images={galleryImages}
+            total={galleryTotal}
+            hasMore={galleryHasMore}
+            loading={galleryLoading}
+            folder={galleryFolder}
+            source={gallerySource}
+            searchQuery={gallerySearch}
+            onSourceChange={setGallerySource}
+            onSearchChange={setGallerySearch}
+            onLoadMore={() => loadGalleryImages(false)}
+            onImageClick={setLightboxImage}
+          />
         </aside>
 
         {/* Lightbox */}
