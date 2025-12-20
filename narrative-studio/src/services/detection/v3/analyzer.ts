@@ -10,10 +10,10 @@
  * most analysis locally.
  */
 
-import {
+import { DEFAULT_CONFIG } from './types.js';
+import type {
   V3Analysis,
   V3Config,
-  DEFAULT_CONFIG,
   Transformation,
   SentenceAnalysis,
   CompletenessInfo

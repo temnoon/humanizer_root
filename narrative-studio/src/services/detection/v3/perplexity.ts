@@ -11,12 +11,12 @@
  * AI writing has low burstiness (uniform smoothness).
  */
 
-import {
+import { DEFAULT_CONFIG } from './types.js';
+import type {
   SentenceAnalysis,
   SentenceFlag,
   Transformation,
-  V3Config,
-  DEFAULT_CONFIG
+  V3Config
 } from './types.js';
 
 // ============================================================

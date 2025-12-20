@@ -8,6 +8,7 @@ import { ExploreProvider } from './contexts/ExploreContext';
 import { ActiveBookProvider } from './contexts/ActiveBookContext';
 import { UnifiedBufferProvider, useUnifiedBuffer } from './contexts/UnifiedBufferContext';
 import { WorkspaceProvider } from './contexts/WorkspaceContext';
+import { RouteHandler } from './components/routing/RouteHandler';
 import { LoginPage } from './components/auth/LoginPage';
 import { TopBar } from './components/layout/TopBar';
 import { PanelToggle } from './components/layout/PanelToggle';
@@ -422,6 +423,7 @@ function AppContent() {
     : null;
 
   return (
+    <RouteHandler>
     <div className="h-screen flex flex-col" style={{ backgroundColor: 'var(--bg-primary)' }}>
       <TopBar
         currentNarrative={currentNarrative}
@@ -593,6 +595,7 @@ function AppContent() {
         onClose={() => setSettingsOpen(false)}
       />
     </div>
+    </RouteHandler>
   );
 }
 

@@ -13,7 +13,8 @@
  *              their entity fulfillment happens outside the visible text.
  */
 
-import { V3Config, DEFAULT_CONFIG } from './types.js';
+import { DEFAULT_CONFIG } from './types.js';
+import type { V3Config } from './types.js';
 
 // ============================================================
 // Types

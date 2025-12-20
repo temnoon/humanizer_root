@@ -13,7 +13,8 @@
  * it must go off in the third."
  */
 
-import {
+import { DEFAULT_CONFIG } from './types.js';
+import type {
   TrackedEntity,
   EntityType,
   EntityStatus,
@@ -22,8 +23,7 @@ import {
   ChekhovAnalysis,
   ChekhovGrade,
   ChekhovSuggestion,
-  V3Config,
-  DEFAULT_CONFIG
+  V3Config
 } from './types.js';
 
 // ============================================================

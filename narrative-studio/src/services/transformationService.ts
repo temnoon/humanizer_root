@@ -287,8 +287,11 @@ function mapComputerHumanizerResponse(data: any, text: string): ComputerHumanize
 
 export interface AIDetectionOptions {
   threshold?: number;
-  detectorType?: 'lite' | 'gptzero';
+  detectorType?: 'lite' | 'gptzero' | 'v2';
   useLLMJudge?: boolean;
+  /** v2 detector options */
+  returnSentenceAnalysis?: boolean;
+  returnHumanizationRecommendations?: boolean;
 }
 
 export interface AIDetectionResult extends TransformResult {
@@ -306,7 +309,7 @@ export interface AIDetectionResult extends TransformResult {
       perplexity: number;
       reasoning: string;
       highlightedMarkdown?: string; // Markdown with <mark> tags for highlights
-      method?: 'lite' | 'gptzero'; // Which detector was used
+      method?: 'lite' | 'gptzero' | 'v2' | 'v3'; // Which detector was used
       // Lite detector additional metrics
       avgSentenceLength?: number;
       sentenceLengthStd?: number;
@@ -348,6 +351,11 @@ export interface AIDetectionResult extends TransformResult {
       }>;
       modelVersion?: string; // GPTZero model version
       processingTimeMs?: number; // Processing time
+      // V2 detector specific fields
+      semicolonRate?: number;
+      emDashRate?: number;
+      tellPhraseScore?: number;
+      humanizationRecommendations?: any[];
     };
   };
 }
@@ -361,6 +369,8 @@ export async function aiDetection(
   // Route to appropriate detector
   if (detectorType === 'lite') {
     return liteDetection(text, options);
+  } else if (detectorType === 'v2') {
+    return v2Detection(text, options);
   } else {
     return gptzeroDetection(text, options);
   }
@@ -476,6 +486,163 @@ function mapLiteDetectionResponse(data: any, text: string): AIDetectionResult {
       },
     },
   };
+}
+
+/**
+ * HumanizerDetect v2 - Statistical AI Detection (86.4% accuracy)
+ *
+ * Uses burstiness, semicolon/em-dash patterns, and tell-phrase matching.
+ * Based on empirical analysis of 330+ human/AI samples.
+ */
+async function v2Detection(
+  text: string,
+  options: AIDetectionOptions
+): Promise<AIDetectionResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+  try {
+    const response = await fetch(`${getApiBase()}/ai-detection/detect-v2`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        text,
+        options: {
+          returnSentenceAnalysis: options.returnSentenceAnalysis ?? true,
+          returnHumanizationRecommendations: options.returnHumanizationRecommendations ?? true,
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'HumanizerDetect v2 failed');
+    }
+
+    const data = await response.json();
+    return mapV2DetectionResponse(data, text);
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('AI Detection timed out after 60 seconds.');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Map v2 detection API response to TransformResult format
+ */
+function mapV2DetectionResponse(data: any, text: string): AIDetectionResult {
+  // Map sentence analysis to the expected format
+  const sentenceAnalysis = data.sentenceAnalysis?.map((s: any, i: number) => ({
+    sentence: s.text,
+    index: i,
+    aiScore: s.aiLikelihood,
+    tellPhrases: s.flags?.filter((f: string) => f.includes('tell'))?.map((f: string) => ({
+      phrase: f,
+      category: 'tell',
+      weight: 1.0,
+    })) || [],
+    patterns: s.flags || [],
+  }));
+
+  // Filter for suspect sentences (aiLikelihood > 65)
+  const suspectSentences = sentenceAnalysis?.filter((s: any) => s.aiScore > 65);
+
+  // Map tell-phrase matches to the expected format
+  const tellWords = data.tellPhrases?.matches
+    ?.filter((m: any) => m.direction === 'ai')
+    ?.map((m: any) => ({
+      word: m.phrase,
+      category: m.category,
+      count: m.count,
+      weight: m.weight,
+    })) || [];
+
+  return {
+    transformation_id: crypto.randomUUID(),
+    original: text,
+    transformed: text,
+    metadata: {
+      aiDetection: {
+        confidence: data.aiLikelihood,
+        verdict: data.verdict,
+        tellWords,
+        burstiness: (data.features?.burstiness || 0) * 100, // Convert to percentage for UI
+        perplexity: 0, // v2 doesn't use perplexity
+        reasoning: generateV2Reasoning(data),
+        method: 'v2',
+        // v2 specific metrics
+        avgSentenceLength: data.extractedFeatures?.burstiness?.meanSentenceLength,
+        sentenceLengthStd: data.extractedFeatures?.burstiness?.stdSentenceLength,
+        typeTokenRatio: data.extractedFeatures?.vocabulary?.typeTokenRatio,
+        repeatedNgrams: 0,
+        heuristicScore: data.aiLikelihood / 100,
+        confidence_level: data.confidence,
+        highlights: data.humanizationRecommendations?.map((r: any) => ({
+          start: 0,
+          end: 0,
+          reason: r.description,
+          score: r.priority === 'high' ? 0.9 : r.priority === 'medium' ? 0.6 : 0.3,
+        })) || [],
+        sentenceAnalysis,
+        suspectSentences,
+        // v2 specific fields
+        semicolonRate: data.features?.semicolonRate,
+        emDashRate: data.features?.emDashRate,
+        tellPhraseScore: data.features?.tellPhraseScore,
+        humanizationRecommendations: data.humanizationRecommendations,
+        processingTimeMs: data.processingTimeMs,
+        modelVersion: data.detectorVersion,
+      },
+    },
+  };
+}
+
+/**
+ * Generate reasoning text from v2 detection results
+ */
+function generateV2Reasoning(data: any): string {
+  const parts: string[] = [];
+
+  // Verdict
+  if (data.verdict === 'ai') {
+    parts.push('Text shows patterns typical of AI generation.');
+  } else if (data.verdict === 'human') {
+    parts.push('Text shows patterns typical of human writing.');
+  } else {
+    parts.push('Text shows mixed patterns.');
+  }
+
+  // Key signals
+  if (data.features) {
+    const burstiness = data.features.burstiness;
+    if (burstiness < 0.45) {
+      parts.push(`Low burstiness (${(burstiness * 100).toFixed(0)}%) indicates uniform sentence lengths.`);
+    } else if (burstiness > 0.70) {
+      parts.push(`High burstiness (${(burstiness * 100).toFixed(0)}%) indicates varied sentence lengths.`);
+    }
+
+    if (data.features.emDashRate > 2.5) {
+      parts.push(`High em-dash usage (${data.features.emDashRate.toFixed(1)}%) is an AI pattern.`);
+    }
+
+    if (data.features.semicolonRate > 0.5) {
+      parts.push(`Semicolon usage (${data.features.semicolonRate.toFixed(1)}%) suggests human writing.`);
+    }
+  }
+
+  // Tell-phrases
+  const aiTells = data.tellPhrases?.matches?.filter((m: any) => m.direction === 'ai')?.length || 0;
+  if (aiTells > 3) {
+    parts.push(`${aiTells} AI tell-phrases detected.`);
+  }
+
+  return parts.join(' ');
 }
 
 /**
@@ -881,6 +1048,189 @@ export async function namespaceTransform(
     clearTimeout(timeoutId);
     if (error.name === 'AbortError') {
       throw new Error('Namespace transformation timed out after 5 minutes. Try using a shorter text or splitting into smaller sections.');
+    }
+    throw error;
+  }
+}
+
+// ============================================================
+// TEXT HUMANIZATION
+// ============================================================
+
+export interface HumanizationOptions {
+  targetAiLikelihood?: number;  // Default: 30 (aim for 30% AI likelihood)
+  maxIterations?: number;       // Default: 3 (max validation iterations)
+  intensity?: 'light' | 'moderate' | 'aggressive';
+  enableBurstiness?: boolean;   // Default: true
+  enableSemicolons?: boolean;   // Default: true
+  enableTellWords?: boolean;    // Default: true
+  enableEmDashReduction?: boolean; // Default: true
+}
+
+export interface HumanizationChange {
+  type: 'burstiness' | 'semicolon' | 'tell-word' | 'em-dash';
+  original: string;
+  replacement: string;
+  position: number;
+  reason: string;
+}
+
+export interface HumanizationMetrics {
+  burstinessBefore: number;
+  burstinessAfter: number;
+  semicolonRateBefore: number;
+  semicolonRateAfter: number;
+  emDashRateBefore: number;
+  emDashRateAfter: number;
+  tellWordsRemoved: number;
+}
+
+export interface HumanizationResult {
+  original: string;
+  transformed: string;
+  aiLikelihoodBefore: number;
+  aiLikelihoodAfter: number;
+  iterations: number;
+  changesApplied: {
+    burstiness: number;
+    semicolons: number;
+    tellWords: number;
+    emDashes: number;
+    total: number;
+  };
+  changes: HumanizationChange[];
+  metrics: HumanizationMetrics;
+  processingTimeMs: number;
+  humanizerVersion: string;
+}
+
+export interface HumanizationPreview {
+  aiLikelihood: number;
+  wouldApply: {
+    burstiness: number;
+    semicolons: number;
+    tellWords: number;
+    emDashes: number;
+  };
+  tellWordsFound: Array<{
+    original: string;
+    replacement: string;
+    weight: number;
+    category: string;
+  }>;
+  metrics: {
+    burstiness: number;
+    semicolonRate: number;
+    emDashRate: number;
+  };
+}
+
+/**
+ * Full humanization with validation loop
+ * Transforms text to appear more human-like using:
+ * - Burstiness injection (sentence length variance)
+ * - Semicolon insertion (humans use more semicolons)
+ * - Tell-word replacement (AI-characteristic phrases)
+ * - Em-dash reduction (AI overuses em-dashes)
+ */
+export async function humanizeText(
+  text: string,
+  options: HumanizationOptions = {}
+): Promise<HumanizationResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
+  try {
+    const response = await fetch(`${getApiBase()}/ai-detection/humanize`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ text, options }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Humanization failed');
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Humanization timed out after 60 seconds. Try using a shorter text.');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Quick humanization without validation loop (single pass)
+ */
+export async function humanizeTextQuick(
+  text: string,
+  options: HumanizationOptions = {}
+): Promise<HumanizationResult> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+  try {
+    const response = await fetch(`${getApiBase()}/ai-detection/humanize/quick`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ text, options }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Quick humanization failed');
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Humanization timed out after 30 seconds.');
+    }
+    throw error;
+  }
+}
+
+/**
+ * Preview humanization without applying changes
+ * Shows what would be changed and current metrics
+ */
+export async function previewHumanization(
+  text: string,
+  intensity: 'light' | 'moderate' | 'aggressive' = 'moderate'
+): Promise<HumanizationPreview> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
+  try {
+    const response = await fetch(`${getApiBase()}/ai-detection/humanize/preview`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ text, intensity }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Preview failed');
+    }
+
+    return await response.json();
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      throw new Error('Preview timed out after 15 seconds.');
     }
     throw error;
   }

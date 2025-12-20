@@ -105,7 +105,7 @@ export interface TransformMetadata {
     perplexity: number;
     reasoning: string;
     highlightedMarkdown?: string; // Markdown with AI-detected sections highlighted
-    method?: 'lite' | 'gptzero'; // Which detector was used
+    method?: 'lite' | 'gptzero' | 'v2' | 'v3'; // Which detector was used
     // GPTZero Premium fields:
     highlightedSentences?: string[]; // AI-flagged sentences
     paraphrasedProbability?: number; // Average paraphrased detection probability
