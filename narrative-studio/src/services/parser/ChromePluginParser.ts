@@ -188,6 +188,135 @@ export class ChromePluginParser {
   }
 
   /**
+   * Consolidate streaming fragments into complete messages.
+   * Gemini exports include BOTH the complete response AND streaming chunks.
+   * We detect and skip chunks that are duplicates/subsets of previous content.
+   */
+  private consolidateStreamingFragments(messages: LinearMessage[]): LinearMessage[] {
+    if (messages.length === 0) return messages;
+
+    const consolidated: LinearMessage[] = [];
+    const seenTexts: string[] = [];
+
+    for (const msg of messages) {
+      const msgText = msg.content?.parts
+        ?.map(part => part.text || (typeof part === 'string' ? part : ''))
+        .filter(Boolean)
+        .join('\n')
+        .trim() || '';
+
+      if (!msgText) continue;
+
+      // Skip if this text is contained in any previous longer message
+      let isDuplicate = false;
+      for (const prevText of seenTexts) {
+        if (prevText.includes(msgText) || prevText.startsWith(msgText)) {
+          isDuplicate = true;
+          break;
+        }
+      }
+
+      if (isDuplicate) continue;
+
+      // Check if this supersedes a previous shorter message
+      // Remove any previous messages that are subsets of this one
+      const newSeenTexts: string[] = [msgText];
+      const indicesToKeep: number[] = [];
+
+      for (let i = 0; i < consolidated.length; i++) {
+        const prevText = seenTexts[i];
+        if (!msgText.includes(prevText) && !msgText.startsWith(prevText)) {
+          indicesToKeep.push(i);
+          newSeenTexts.push(prevText);
+        }
+      }
+
+      // Rebuild consolidated array if we removed any
+      if (indicesToKeep.length < consolidated.length) {
+        const newConsolidated = indicesToKeep.map(i => consolidated[i]);
+        consolidated.length = 0;
+        consolidated.push(...newConsolidated);
+        seenTexts.length = 0;
+        seenTexts.push(...newSeenTexts.slice(1)); // Skip the current one, add at end
+      }
+
+      // Add this message
+      consolidated.push({
+        ...msg,
+        content: { parts: [{ text: msgText }] }
+      });
+      seenTexts.push(msgText);
+    }
+
+    console.log(`[ChromePluginParser] Deduplicated ${messages.length} fragments → ${consolidated.length} messages`);
+    return consolidated;
+  }
+
+  /**
+   * Infer user vs assistant roles for messages.
+   * The Chrome plugin marks ALL messages as "model" regardless of actual author.
+   * We use heuristics to detect the actual role:
+   * 1. Alternating pattern (user, assistant, user, assistant...)
+   * 2. Content analysis (short prompts vs long responses)
+   */
+  private inferMessageRoles(messages: LinearMessage[]): LinearMessage[] {
+    if (messages.length === 0) return messages;
+
+    // Heuristic patterns for user messages
+    const userPatterns = [
+      /^(yes|no|ok|okay|sure|proceed|continue|go ahead)/i,
+      /^please\b/i,
+      /\?$/,  // Ends with question mark
+      /^(I would like|I want|can you|could you|please|let's)/i,
+      /^(attached|here is|this is)/i,  // User providing context
+    ];
+
+    // Heuristic patterns for assistant messages
+    const assistantPatterns = [
+      /^(here is the text|I have reviewed|I propose|I'll|I will|Let me)/i,
+      /^(Module [IVX]+|Chapter|Section)/i,
+      /^#{1,3}\s/,  // Markdown headers
+    ];
+
+    // Detect if first message is likely a user message
+    const firstText = messages[0]?.content?.parts?.[0]?.text || '';
+    const firstIsUser =
+      firstText.length < 1000 || // Short messages are likely user
+      userPatterns.some(p => p.test(firstText)) ||
+      !assistantPatterns.some(p => p.test(firstText));
+
+    // Apply alternating roles
+    return messages.map((msg, index) => {
+      const text = msg.content?.parts?.[0]?.text || '';
+
+      // Skip system messages (e.g., "Gemini can make mistakes")
+      if (text.includes('can make mistakes') || text.includes('double-check')) {
+        return { ...msg, role: 'system' as const };
+      }
+
+      // Determine role based on position and heuristics
+      let inferredRole: 'user' | 'model';
+
+      // Primary: alternating pattern
+      const shouldBeUser = firstIsUser ? (index % 2 === 0) : (index % 2 === 1);
+
+      // Secondary: content-based override for clear cases
+      const clearlyUser = text.length < 200 && userPatterns.some(p => p.test(text));
+      const clearlyAssistant = text.length > 2000 || assistantPatterns.some(p => p.test(text));
+
+      if (clearlyUser && !clearlyAssistant) {
+        inferredRole = 'user';
+      } else if (clearlyAssistant && !clearlyUser) {
+        inferredRole = 'model';
+      } else {
+        inferredRole = shouldBeUser ? 'user' : 'model';
+      }
+
+      return { ...msg, role: inferredRole };
+    });
+  }
+
+  /**
    * Normalize Claude/Gemini linear array format to standard format
    */
   private normalizeLinearConversation(
@@ -197,6 +326,13 @@ export class ChromePluginParser {
     const mapping: Record<string, ConversationNode> = {};
     let firstTimestamp: number | null = null;
     let lastTimestamp: number | null = null;
+
+    // Consolidate streaming fragments before processing
+    const consolidatedMessages = this.consolidateStreamingFragments(data.messages);
+
+    // Infer user vs assistant roles (Chrome plugin marks everything as "model")
+    const messagesWithRoles = this.inferMessageRoles(consolidatedMessages);
+    console.log(`[ChromePluginParser] Inferred roles for ${messagesWithRoles.length} messages`);
 
     // Create a root node
     const rootId = 'root';
@@ -210,8 +346,8 @@ export class ChromePluginParser {
     let previousNodeId = rootId;
 
     // Convert linear messages to tree structure
-    for (let i = 0; i < data.messages.length; i++) {
-      const msg = data.messages[i];
+    for (let i = 0; i < messagesWithRoles.length; i++) {
+      const msg = messagesWithRoles[i];
       const nodeId = msg.id || `msg_${i}`;
 
       // Track timestamps (convert from milliseconds if needed)
