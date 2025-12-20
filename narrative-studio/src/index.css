@@ -568,13 +568,70 @@ samp,
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-/* Text color utilities */
+/* Opacity utilities */
 .u-opacity-90 {
   opacity: 0.9;
 }
 
+.u-opacity-75 {
+  opacity: 0.75;
+}
+
+.u-opacity-70 {
+  opacity: 0.7;
+}
+
 .u-opacity-50 {
   opacity: 0.5;
+}
+
+/* Font weight utilities */
+.u-font-semibold {
+  font-weight: 600;
+}
+
+.u-font-medium {
+  font-weight: 500;
+}
+
+/* Common inline style patterns */
+.section-header {
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.scroll-container {
+  flex: 1;
+  overflow: auto;
+  padding: var(--space-md);
+  min-height: 0;
+}
+
+/* Small icon button - common pattern */
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.icon-btn:hover {
+  background-color: var(--bg-secondary);
+}
+
+.icon-btn--sm {
+  width: 22px;
+  height: 32px;
 }
 
 /* ============================================================

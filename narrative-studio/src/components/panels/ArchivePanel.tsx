@@ -1055,7 +1055,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
           </div>
 
           {/* Messages list */}
-          <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)', minHeight: 0 }}>
+          <div className="scroll-container">
             <div className="space-y-2">
               {filteredMessages.map((msg, idx) => {
                 const isFacebookItem = !!selectedFacebookItem;
@@ -1123,7 +1123,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                       </span>
                       <div className="flex items-center gap-2">
                         {!isFacebookItem && (
-                          <span className="text-tiny" style={{ opacity: 0.75 }}>
+                          <span className="text-tiny u-opacity-75">
                             #{originalIndex + 1}
                           </span>
                         )}
@@ -1177,7 +1177,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
                         }}>
                           {item.type === 'post' ? '📝 POST' : '💬 COMMENT'}
                         </span>
-                        <span className="text-tiny" style={{ opacity: 0.75 }}>
+                        <span className="text-tiny u-opacity-75">
                           {new Date(item.created_at * 1000).toLocaleTimeString()}
                         </span>
                       </div>
