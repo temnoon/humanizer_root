@@ -26,7 +26,7 @@ import type {
   SearchResult,
 } from './types.js';
 
-const SCHEMA_VERSION = 3;  // Bumped for unified content tables (Facebook, etc.)
+const SCHEMA_VERSION = 4;  // Bumped for pyramid tables and import tracking
 const EMBEDDING_DIM = 384;  // all-MiniLM-L6-v2
 
 export class EmbeddingDatabase {
@@ -268,6 +268,124 @@ export class EmbeddingDatabase {
 
       CREATE INDEX IF NOT EXISTS idx_reactions_content ON reactions(content_item_id);
       CREATE INDEX IF NOT EXISTS idx_reactions_type ON reactions(reaction_type);
+
+      -- ========================================================================
+      -- Import Tracking
+      -- ========================================================================
+      CREATE TABLE IF NOT EXISTS imports (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,              -- 'openai', 'facebook', 'claude', 'paste', 'file'
+        source_path TEXT,                  -- Original file/folder path
+        status TEXT NOT NULL DEFAULT 'pending',  -- 'pending', 'processing', 'completed', 'failed'
+
+        -- Stats
+        thread_count INTEGER DEFAULT 0,
+        message_count INTEGER DEFAULT 0,
+        media_count INTEGER DEFAULT 0,
+        total_words INTEGER DEFAULT 0,
+
+        -- Timestamps
+        created_at REAL NOT NULL,
+        started_at REAL,
+        completed_at REAL,
+
+        -- Error tracking
+        error_message TEXT,
+
+        -- Metadata
+        metadata TEXT                      -- JSON: source-specific details
+      );
+
+      -- ========================================================================
+      -- Pyramid Tables (Hierarchical Summarization)
+      -- ========================================================================
+
+      -- L0 base chunks (leaf nodes of pyramid)
+      CREATE TABLE IF NOT EXISTS pyramid_chunks (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,           -- References content_items.id or conversations.id
+        thread_type TEXT NOT NULL,         -- 'conversation', 'post', 'document'
+
+        chunk_index INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        word_count INTEGER NOT NULL,
+
+        -- Structural metadata
+        start_offset INTEGER,              -- Character offset in original
+        end_offset INTEGER,
+        boundary_type TEXT,                -- 'paragraph', 'section', 'semantic'
+
+        -- Embeddings
+        embedding BLOB,
+        embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+
+        created_at REAL NOT NULL,
+
+        UNIQUE(thread_id, chunk_index)
+      );
+
+      -- L1+ summary nodes
+      CREATE TABLE IF NOT EXISTS pyramid_summaries (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT NOT NULL,
+        level INTEGER NOT NULL,            -- 1 = summarizes chunks, 2 = summarizes L1, etc.
+
+        content TEXT NOT NULL,             -- The summary text
+        word_count INTEGER NOT NULL,
+
+        -- Children (what this summary covers)
+        child_ids TEXT NOT NULL,           -- JSON array of chunk/summary IDs
+        child_type TEXT NOT NULL,          -- 'chunk' or 'summary'
+
+        -- Compression info
+        source_word_count INTEGER,         -- Total words of source content
+        compression_ratio REAL,            -- source_word_count / word_count
+
+        -- Embeddings
+        embedding BLOB,
+        embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+
+        -- LLM tracking
+        model_used TEXT,                   -- 'claude-3-haiku', etc.
+
+        created_at REAL NOT NULL
+      );
+
+      -- Apex summary (one per thread)
+      CREATE TABLE IF NOT EXISTS pyramid_apex (
+        id TEXT PRIMARY KEY,
+        thread_id TEXT UNIQUE NOT NULL,
+
+        -- Core synthesis
+        summary TEXT NOT NULL,             -- Full document summary
+        themes TEXT,                       -- JSON array of extracted themes
+
+        -- Narrative analysis (optional)
+        characters TEXT,                   -- JSON array of key entities/people
+        arc TEXT,                          -- Narrative arc description
+
+        -- Stats
+        total_chunks INTEGER NOT NULL,
+        pyramid_depth INTEGER NOT NULL,    -- How many levels in pyramid
+        total_source_words INTEGER NOT NULL,
+
+        -- Embeddings
+        embedding BLOB,
+        embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+
+        -- LLM tracking
+        model_used TEXT,
+
+        created_at REAL NOT NULL,
+        updated_at REAL
+      );
+
+      -- Indexes for pyramid tables
+      CREATE INDEX IF NOT EXISTS idx_pyramid_chunks_thread ON pyramid_chunks(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_pyramid_summaries_thread ON pyramid_summaries(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_pyramid_summaries_level ON pyramid_summaries(level);
+      CREATE INDEX IF NOT EXISTS idx_imports_status ON imports(status);
+      CREATE INDEX IF NOT EXISTS idx_imports_source ON imports(source);
     `);
 
     // Create vec0 virtual tables for vector search (if extension loaded)
@@ -346,6 +464,33 @@ export class EmbeddingDatabase {
         content_item_id TEXT,
         type TEXT,
         source TEXT,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
+
+    // Pyramid embeddings (hierarchical summarization)
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_pyramid_chunks USING vec0(
+        id TEXT PRIMARY KEY,
+        thread_id TEXT,
+        chunk_index INTEGER,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
+
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_pyramid_summaries USING vec0(
+        id TEXT PRIMARY KEY,
+        thread_id TEXT,
+        level INTEGER,
+        embedding float[${EMBEDDING_DIM}]
+      );
+    `);
+
+    this.db.exec(`
+      CREATE VIRTUAL TABLE IF NOT EXISTS vec_pyramid_apex USING vec0(
+        id TEXT PRIMARY KEY,
+        thread_id TEXT,
         embedding float[${EMBEDDING_DIM}]
       );
     `);
@@ -447,6 +592,112 @@ export class EmbeddingDatabase {
             content_item_id TEXT,
             type TEXT,
             source TEXT,
+            embedding float[${EMBEDDING_DIM}]
+          );
+        `);
+      }
+    }
+
+    // Migration from version 3 to 4: add pyramid tables and import tracking
+    if (fromVersion < 4) {
+      this.db.exec(`
+        -- Import tracking
+        CREATE TABLE IF NOT EXISTS imports (
+          id TEXT PRIMARY KEY,
+          source TEXT NOT NULL,
+          source_path TEXT,
+          status TEXT NOT NULL DEFAULT 'pending',
+          thread_count INTEGER DEFAULT 0,
+          message_count INTEGER DEFAULT 0,
+          media_count INTEGER DEFAULT 0,
+          total_words INTEGER DEFAULT 0,
+          created_at REAL NOT NULL,
+          started_at REAL,
+          completed_at REAL,
+          error_message TEXT,
+          metadata TEXT
+        );
+
+        -- L0 base chunks
+        CREATE TABLE IF NOT EXISTS pyramid_chunks (
+          id TEXT PRIMARY KEY,
+          thread_id TEXT NOT NULL,
+          thread_type TEXT NOT NULL,
+          chunk_index INTEGER NOT NULL,
+          content TEXT NOT NULL,
+          word_count INTEGER NOT NULL,
+          start_offset INTEGER,
+          end_offset INTEGER,
+          boundary_type TEXT,
+          embedding BLOB,
+          embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+          created_at REAL NOT NULL,
+          UNIQUE(thread_id, chunk_index)
+        );
+
+        -- L1+ summary nodes
+        CREATE TABLE IF NOT EXISTS pyramid_summaries (
+          id TEXT PRIMARY KEY,
+          thread_id TEXT NOT NULL,
+          level INTEGER NOT NULL,
+          content TEXT NOT NULL,
+          word_count INTEGER NOT NULL,
+          child_ids TEXT NOT NULL,
+          child_type TEXT NOT NULL,
+          source_word_count INTEGER,
+          compression_ratio REAL,
+          embedding BLOB,
+          embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+          model_used TEXT,
+          created_at REAL NOT NULL
+        );
+
+        -- Apex summary
+        CREATE TABLE IF NOT EXISTS pyramid_apex (
+          id TEXT PRIMARY KEY,
+          thread_id TEXT UNIQUE NOT NULL,
+          summary TEXT NOT NULL,
+          themes TEXT,
+          characters TEXT,
+          arc TEXT,
+          total_chunks INTEGER NOT NULL,
+          pyramid_depth INTEGER NOT NULL,
+          total_source_words INTEGER NOT NULL,
+          embedding BLOB,
+          embedding_model TEXT DEFAULT 'all-MiniLM-L6-v2',
+          model_used TEXT,
+          created_at REAL NOT NULL,
+          updated_at REAL
+        );
+
+        -- Indexes
+        CREATE INDEX IF NOT EXISTS idx_pyramid_chunks_thread ON pyramid_chunks(thread_id);
+        CREATE INDEX IF NOT EXISTS idx_pyramid_summaries_thread ON pyramid_summaries(thread_id);
+        CREATE INDEX IF NOT EXISTS idx_pyramid_summaries_level ON pyramid_summaries(level);
+        CREATE INDEX IF NOT EXISTS idx_imports_status ON imports(status);
+        CREATE INDEX IF NOT EXISTS idx_imports_source ON imports(source);
+      `);
+
+      // Add vector tables for pyramid content
+      if (this.vecLoaded) {
+        this.db.exec(`
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_pyramid_chunks USING vec0(
+            id TEXT PRIMARY KEY,
+            thread_id TEXT,
+            chunk_index INTEGER,
+            embedding float[${EMBEDDING_DIM}]
+          );
+
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_pyramid_summaries USING vec0(
+            id TEXT PRIMARY KEY,
+            thread_id TEXT,
+            level INTEGER,
+            embedding float[${EMBEDDING_DIM}]
+          );
+
+          CREATE VIRTUAL TABLE IF NOT EXISTS vec_pyramid_apex USING vec0(
+            id TEXT PRIMARY KEY,
+            thread_id TEXT,
             embedding float[${EMBEDDING_DIM}]
           );
         `);
@@ -1562,6 +1813,94 @@ export class EmbeddingDatabase {
 
   getReactionsForContentItem(contentItemId: string): any[] {
     return this.db.prepare('SELECT * FROM reactions WHERE content_item_id = ? ORDER BY created_at DESC').all(contentItemId);
+  }
+
+  // ===========================================================================
+  // Import Tracking
+  // ===========================================================================
+
+  createImport(params: {
+    id: string;
+    source: string;
+    sourcePath?: string;
+    metadata?: Record<string, unknown>;
+  }): void {
+    this.db.prepare(`
+      INSERT INTO imports (id, source, source_path, status, created_at, metadata)
+      VALUES (?, ?, ?, 'pending', ?, ?)
+    `).run(
+      params.id,
+      params.source,
+      params.sourcePath || null,
+      Date.now(),
+      params.metadata ? JSON.stringify(params.metadata) : null
+    );
+  }
+
+  startImport(id: string): void {
+    this.db.prepare(`
+      UPDATE imports SET status = 'processing', started_at = ? WHERE id = ?
+    `).run(Date.now(), id);
+  }
+
+  completeImport(id: string, stats: {
+    threadCount: number;
+    messageCount: number;
+    mediaCount: number;
+    totalWords: number;
+  }): void {
+    this.db.prepare(`
+      UPDATE imports SET
+        status = 'completed',
+        completed_at = ?,
+        thread_count = ?,
+        message_count = ?,
+        media_count = ?,
+        total_words = ?
+      WHERE id = ?
+    `).run(
+      Date.now(),
+      stats.threadCount,
+      stats.messageCount,
+      stats.mediaCount,
+      stats.totalWords,
+      id
+    );
+  }
+
+  failImport(id: string, errorMessage: string): void {
+    this.db.prepare(`
+      UPDATE imports SET status = 'failed', completed_at = ?, error_message = ? WHERE id = ?
+    `).run(Date.now(), errorMessage, id);
+  }
+
+  getImport(id: string): Record<string, unknown> | null {
+    return this.db.prepare('SELECT * FROM imports WHERE id = ?').get(id) as Record<string, unknown> | null;
+  }
+
+  getImportsByStatus(status: string): Record<string, unknown>[] {
+    return this.db.prepare('SELECT * FROM imports WHERE status = ? ORDER BY created_at DESC').all(status) as Record<string, unknown>[];
+  }
+
+  getAllImports(): Record<string, unknown>[] {
+    return this.db.prepare('SELECT * FROM imports ORDER BY created_at DESC').all() as Record<string, unknown>[];
+  }
+
+  deleteImport(id: string): boolean {
+    const result = this.db.prepare('DELETE FROM imports WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  // ===========================================================================
+  // Database Access (for PyramidService)
+  // ===========================================================================
+
+  /**
+   * Get the underlying database instance for use by other services
+   * (e.g., PyramidService that needs to share the same database)
+   */
+  getDatabase(): Database.Database {
+    return this.db;
   }
 
   // ===========================================================================

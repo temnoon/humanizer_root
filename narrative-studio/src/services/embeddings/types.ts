@@ -230,3 +230,171 @@ export interface IndexingProgress {
   completedAt?: number;
   error?: string;
 }
+
+// =============================================================================
+// Import Tracking
+// =============================================================================
+
+export type ImportSource = 'openai' | 'facebook' | 'claude' | 'paste' | 'file' | 'gutenberg';
+export type ImportStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface Import {
+  id: string;
+  source: ImportSource;
+  sourcePath: string | null;
+  status: ImportStatus;
+
+  // Stats
+  threadCount: number;
+  messageCount: number;
+  mediaCount: number;
+  totalWords: number;
+
+  // Timestamps
+  createdAt: number;
+  startedAt: number | null;
+  completedAt: number | null;
+
+  // Error tracking
+  errorMessage: string | null;
+
+  // Metadata (source-specific)
+  metadata: Record<string, unknown> | null;
+}
+
+// =============================================================================
+// Pyramid Types (Hierarchical Summarization)
+// =============================================================================
+
+export type ThreadType = 'conversation' | 'post' | 'document';
+export type BoundaryType = 'paragraph' | 'section' | 'semantic';
+export type ChildType = 'chunk' | 'summary';
+
+/**
+ * L0 base chunk - leaf node of the pyramid
+ */
+export interface PyramidChunk {
+  id: string;
+  threadId: string;
+  threadType: ThreadType;
+
+  chunkIndex: number;
+  content: string;
+  wordCount: number;
+
+  // Structural metadata
+  startOffset: number | null;
+  endOffset: number | null;
+  boundaryType: BoundaryType | null;
+
+  // Embeddings
+  embedding: number[] | null;
+  embeddingModel: string;
+
+  createdAt: number;
+}
+
+/**
+ * L1+ summary node - intermediate pyramid level
+ */
+export interface PyramidSummary {
+  id: string;
+  threadId: string;
+  level: number;  // 1 = summarizes chunks, 2 = summarizes L1, etc.
+
+  content: string;
+  wordCount: number;
+
+  // What this summary covers
+  childIds: string[];
+  childType: ChildType;
+
+  // Compression info
+  sourceWordCount: number | null;
+  compressionRatio: number | null;
+
+  // Embeddings
+  embedding: number[] | null;
+  embeddingModel: string;
+
+  // LLM tracking
+  modelUsed: string | null;
+
+  createdAt: number;
+}
+
+/**
+ * Apex summary - top of the pyramid (one per thread)
+ */
+export interface PyramidApex {
+  id: string;
+  threadId: string;
+
+  // Core synthesis
+  summary: string;
+  themes: string[] | null;
+
+  // Narrative analysis (optional)
+  characters: string[] | null;
+  arc: string | null;
+
+  // Stats
+  totalChunks: number;
+  pyramidDepth: number;
+  totalSourceWords: number;
+
+  // Embeddings
+  embedding: number[] | null;
+  embeddingModel: string;
+
+  // LLM tracking
+  modelUsed: string | null;
+
+  createdAt: number;
+  updatedAt: number | null;
+}
+
+/**
+ * Full pyramid structure for a thread
+ */
+export interface Pyramid {
+  threadId: string;
+  threadType: ThreadType;
+
+  chunks: PyramidChunk[];
+  summaries: PyramidSummary[];  // Grouped by level
+  apex: PyramidApex | null;
+
+  // Computed stats
+  depth: number;
+  totalChunks: number;
+  totalWords: number;
+}
+
+/**
+ * Pyramid build configuration
+ */
+export interface PyramidBuildConfig {
+  // Chunking
+  targetChunkWords: number;  // ~500 words default
+  maxChunkWords: number;     // ~800 words max
+  boundaryStrategy: BoundaryType;
+
+  // Summarization
+  summaryRatio: number;      // 0.2 = summarize to 20% of source
+  maxChildrenPerSummary: number;  // 4-6 chunks/summaries per level
+
+  // Model selection
+  embeddingModel: string;
+  summaryModel: string;      // LLM for generating summaries
+}
+
+export const DEFAULT_PYRAMID_CONFIG: PyramidBuildConfig = {
+  targetChunkWords: 500,
+  maxChunkWords: 800,
+  boundaryStrategy: 'semantic',
+  summaryRatio: 0.2,
+  maxChildrenPerSummary: 5,
+  embeddingModel: 'all-MiniLM-L6-v2',
+  summaryModel: 'claude-3-haiku-20240307',
+};
