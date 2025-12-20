@@ -21,7 +21,7 @@ import { features } from '../../config/feature-flags';
 
 // Extracted archive components
 import { useArchiveState, type ViewMode, type FilterCategory } from '../../hooks/useArchiveState';
-import { ArchiveIconTabBar } from '../archive/ArchiveIconTabBar';
+import { ArchivePanelWrapper } from '../archive/ArchivePanelWrapper';
 import { ArchiveSearchBar } from '../archive/ArchiveSearchBar';
 import { ConversationsListView } from '../archive/ConversationsListView';
 import { MessageListView } from '../archive/MessageListView';
@@ -681,565 +681,366 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
   // MESSAGES VIEW (for both conversations and Facebook items)
   if (viewMode === 'messages' && (selectedConversation || selectedFacebookItem)) {
     const isConversation = !!selectedConversation;
-    const title = isConversation
+    const messageTitle = isConversation
       ? selectedConversation.title
       : (selectedFacebookItem.title || `Facebook ${selectedFacebookItem.type}`);
 
+    const messagesHeaderContent = (
+      <div style={{ padding: 'var(--space-md)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
+        {/* Back button + Title */}
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => {
+              if (isConversation) {
+                setViewMode('conversations');
+                if (selectedConversation) {
+                  const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
+                  if (idx !== -1) setFocusedIndex(idx);
+                }
+              } else {
+                setViewMode('facebook');
+                setSelectedFacebookItem(null);
+              }
+            }}
+            style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem' }}
+          >← Back</button>
+          <div className="flex-1 font-medium text-small line-clamp-1 u-text-primary">{messageTitle}</div>
+        </div>
+
+        {/* Search - compact */}
+        <div className="relative mb-3">
+          <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none u-text-tertiary">
+            <Icons.Search />
+          </div>
+          <input
+            type="text"
+            value={currentSearchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onFocus={() => setShowRecentSearches(true)}
+            onBlur={() => setTimeout(() => setShowRecentSearches(false), 200)}
+            placeholder="Search..."
+            style={{
+              width: '100%', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
+              color: 'var(--text-primary)', paddingLeft: '2.5rem', paddingRight: currentSearchQuery ? '2.5rem' : '0.75rem',
+              paddingTop: '0.5rem', paddingBottom: '0.5rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem',
+            }}
+          />
+          {currentSearchQuery && (
+            <button onClick={() => handleSearchChange('')} className="absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+              <Icons.Close />
+            </button>
+          )}
+        </div>
+
+        {/* Action row - compact */}
+        <div className="flex items-center justify-between" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+          <span>
+            {selectedConversation?.messages ? (
+              currentSearchQuery ? `${filteredMessages.length}/${selectedConversation.messages.length}` : `${selectedConversation.messages.length} msgs`
+            ) : selectedFacebookItem ? 'Facebook' : ''}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={loadFullConversationToCanvas}
+              style={{
+                backgroundImage: 'var(--accent-primary-gradient)', backgroundColor: 'transparent',
+                color: 'var(--text-inverse)', padding: '4px 10px', fontSize: '0.75rem', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 600,
+              }}
+            >Load All →</button>
+          </div>
+        </div>
+      </div>
+    );
+
     return (
-      <>
-        {/* Mobile backdrop */}
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={onClose}
-          aria-hidden="true"
+      <ArchivePanelWrapper
+        onClose={onClose}
+        tabs={tabList}
+        viewMode={viewMode}
+        effectiveTabId={effectiveTabId}
+        onTabChange={setViewMode}
+        onFocusConversation={handleFocusConversation}
+        headerContent={messagesHeaderContent}
+      >
+        <MessageListView
+          messages={filteredMessages}
+          selectedConversation={selectedConversation}
+          selectedFacebookItem={selectedFacebookItem}
+          selectedMessageIndex={selectedMessageIndex}
+          focusedIndex={focusedIndex}
+          relatedFacebookItems={relatedFacebookItems}
+          onSelectMessage={loadMessageToCanvas}
+          onSelectFacebookItem={loadFacebookItem}
+          itemRefs={itemRefs}
         />
-
-        {/* Panel */}
-        <aside
-          className="fixed top-16 left-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 panel"
-          style={{
-            backgroundColor: 'var(--bg-panel)',
-            borderRight: '1px solid var(--border-color)',
-            borderRadius: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Header with title */}
-          <div style={{ padding: 'var(--space-md) var(--space-lg)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
-            <div className="flex items-center justify-between">
-              <h2 className="heading-md u-text-primary">Archive</h2>
-              <button onClick={onClose} title="Collapse" style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontSize: '16px' }}>‹</button>
-            </div>
-          </div>
-
-          {/* Icon Tab Bar */}
-          <ArchiveIconTabBar
-            tabs={tabList}
-            activeTabId={viewMode}
-            effectiveTabId={effectiveTabId}
-            onTabChange={setViewMode}
-            onFocusConversation={handleFocusConversation}
-          />
-
-          {/* Messages header */}
-          <div style={{ padding: 'var(--space-md)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
-            {/* Back button + Title */}
-            <div className="flex items-center gap-2 mb-3">
-              <button
-                onClick={() => {
-                  if (isConversation) {
-                    setViewMode('conversations');
-                    if (selectedConversation) {
-                      const idx = filteredConversations.findIndex(c => c.id === selectedConversation.id);
-                      if (idx !== -1) setFocusedIndex(idx);
-                    }
-                  } else {
-                    setViewMode('facebook');
-                    setSelectedFacebookItem(null);
-                  }
-                }}
-                style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.75rem' }}
-              >← Back</button>
-              <div className="flex-1 font-medium text-small line-clamp-1 u-text-primary">{title}</div>
-            </div>
-
-            {/* Search - compact */}
-            <div className="relative mb-3">
-              <div className="absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none u-text-tertiary">
-                <Icons.Search />
-              </div>
-              <input
-                type="text"
-                value={currentSearchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                onFocus={() => setShowRecentSearches(true)}
-                onBlur={() => setTimeout(() => setShowRecentSearches(false), 200)}
-                placeholder="Search..."
-                style={{
-                  width: '100%', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)',
-                  color: 'var(--text-primary)', paddingLeft: '2.5rem', paddingRight: currentSearchQuery ? '2.5rem' : '0.75rem',
-                  paddingTop: '0.5rem', paddingBottom: '0.5rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8125rem',
-                }}
-              />
-              {currentSearchQuery && (
-                <button onClick={() => handleSearchChange('')} className="absolute right-2 top-1/2 -translate-y-1/2" style={{ color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  <Icons.Close />
-                </button>
-              )}
-            </div>
-
-            {/* Action row - compact */}
-            <div className="flex items-center justify-between" style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              <span>
-                {selectedConversation?.messages ? (
-                  currentSearchQuery ? `${filteredMessages.length}/${selectedConversation.messages.length}` : `${selectedConversation.messages.length} msgs`
-                ) : selectedFacebookItem ? 'Facebook' : ''}
-              </span>
-              <div className="flex items-center gap-2">
-                {/* Load All button */}
-                <button
-                  onClick={loadFullConversationToCanvas}
-                  style={{
-                    backgroundImage: 'var(--accent-primary-gradient)', backgroundColor: 'transparent',
-                    color: 'var(--text-inverse)', padding: '4px 10px', fontSize: '0.75rem', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 600,
-                  }}
-                >Load All →</button>
-              </div>
-            </div>
-          </div>
-
-          {/* Messages list */}
-          <MessageListView
-            messages={filteredMessages}
-            selectedConversation={selectedConversation}
-            selectedFacebookItem={selectedFacebookItem}
-            selectedMessageIndex={selectedMessageIndex}
-            focusedIndex={focusedIndex}
-            relatedFacebookItems={relatedFacebookItems}
-            onSelectMessage={loadMessageToCanvas}
-            onSelectFacebookItem={loadFacebookItem}
-            itemRefs={itemRefs}
-          />
-        </aside>
-      </>
+      </ArchivePanelWrapper>
     );
   }
 
   // GALLERY VIEW
   if (viewMode === 'gallery') {
+    const lightboxOverlay = lightboxImage ? (
+      <ImageLightbox
+        image={lightboxImage}
+        images={galleryImages}
+        onClose={() => setLightboxImage(null)}
+        onViewConversation={handleViewConversation}
+      />
+    ) : undefined;
+
     return (
-      <>
-        {/* Mobile backdrop */}
-        <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
-          onClick={onClose}
-          aria-hidden="true"
+      <ArchivePanelWrapper
+        onClose={onClose}
+        tabs={tabList}
+        viewMode={viewMode}
+        effectiveTabId={effectiveTabId}
+        onTabChange={setViewMode}
+        onFocusConversation={handleFocusConversation}
+        overlay={lightboxOverlay}
+      >
+        <GalleryGridView
+          images={galleryImages}
+          total={galleryTotal}
+          hasMore={galleryHasMore}
+          loading={galleryLoading}
+          folder={galleryFolder}
+          source={gallerySource}
+          searchQuery={gallerySearch}
+          onSourceChange={setGallerySource}
+          onSearchChange={setGallerySearch}
+          onLoadMore={() => loadGalleryImages(false)}
+          onImageClick={setLightboxImage}
         />
-
-        {/* Panel */}
-        <aside
-          className="fixed top-16 left-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 panel"
-          style={{
-            backgroundColor: 'var(--bg-panel)',
-            borderRight: '1px solid var(--border-color)',
-            borderRadius: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-          }}
-        >
-          {/* Header with title */}
-          <div style={{ padding: 'var(--space-md) var(--space-lg)', borderBottom: '1px solid var(--border-color)', flexShrink: 0 }}>
-            <div className="flex items-center justify-between">
-              <h2 className="heading-md u-text-primary">Archive</h2>
-              <button onClick={onClose} title="Collapse" style={{ padding: '8px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: 'none', cursor: 'pointer', fontSize: '16px' }}>‹</button>
-            </div>
-          </div>
-
-          {/* Icon Tab Bar */}
-          <ArchiveIconTabBar
-            tabs={tabList}
-            activeTabId={viewMode}
-            effectiveTabId={effectiveTabId}
-            onTabChange={setViewMode}
-            onFocusConversation={handleFocusConversation}
-          />
-
-          {/* Gallery content */}
-          <GalleryGridView
-            images={galleryImages}
-            total={galleryTotal}
-            hasMore={galleryHasMore}
-            loading={galleryLoading}
-            folder={galleryFolder}
-            source={gallerySource}
-            searchQuery={gallerySearch}
-            onSourceChange={setGallerySource}
-            onSearchChange={setGallerySearch}
-            onLoadMore={() => loadGalleryImages(false)}
-            onImageClick={setLightboxImage}
-          />
-        </aside>
-
-        {/* Lightbox */}
-        {lightboxImage && (
-          <ImageLightbox
-            image={lightboxImage}
-            images={galleryImages}
-            onClose={() => setLightboxImage(null)}
-            onViewConversation={handleViewConversation}
-          />
-        )}
-      </>
+      </ArchivePanelWrapper>
     );
   }
 
-  // CONVERSATIONS VIEW
-  return (
-    <>
-      {/* Mobile backdrop */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40 md:hidden"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+  // CONVERSATIONS VIEW (main view with multiple sub-views)
+  const conversationsHeaderContent = viewMode === 'conversations' ? (
+    <ArchiveSearchBar
+      searchQuery={conversationSearch}
+      onSearchChange={handleSearchChange}
+      onClearSearch={clearSearch}
+      placeholder="Search conversations..."
+      recentSearches={recentSearches}
+      showRecentSearches={showRecentSearches}
+      onShowRecentSearches={setShowRecentSearches}
+      onSelectRecentSearch={selectRecentSearch}
+      activeFilters={activeFilters}
+      hasActiveFilters={hasActiveFilters}
+      showingCategory={showingCategory}
+      onShowCategory={setShowingCategory}
+      onSelectFilter={selectFilter}
+      onRemoveFilter={removeFilter}
+      categorizedTags={categorizedTags}
+      sortDirection={sortDirection}
+      onToggleSortDirection={toggleSortDirection}
+      totalCount={conversations.length}
+      filteredCount={filteredConversations.length}
+    />
+  ) : undefined;
 
-      {/* Panel */}
-      <aside
-        className="fixed top-16 left-0 bottom-0 w-80 md:w-full md:h-full z-50 md:relative md:top-0 panel"
-        style={{
-          backgroundColor: 'var(--bg-panel)',
-          borderRight: '1px solid var(--border-color)',
-          borderRadius: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+  const pageEditorOverlay = editingPage ? (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'var(--bg-panel)',
+        zIndex: 100,
+      }}
+    >
+      <PageEditorView
+        bookId={editingPage.bookId}
+        pageId={editingPage.pageId}
+        onClose={() => setEditingPage(null)}
+        onSaved={() => {
+          refreshActiveBook();
         }}
-      >
-        {/* Header */}
+      />
+    </div>
+  ) : undefined;
+
+  return (
+    <ArchivePanelWrapper
+      onClose={onClose}
+      tabs={tabList}
+      viewMode={viewMode}
+      effectiveTabId={effectiveTabId}
+      onTabChange={setViewMode}
+      onFocusConversation={handleFocusConversation}
+      archiveName={currentArchiveName}
+      archivePath={currentArchivePath}
+      showArchiveName={true}
+      headerContent={conversationsHeaderContent}
+      overlay={pageEditorOverlay}
+    >
+      {/* Imports View */}
+      {viewMode === 'imports' && (
+        <div className="overflow-y-auto" style={{ flex: 1, minHeight: 0 }}>
+          <ImportsView />
+        </div>
+      )}
+
+      {/* Paste Import View */}
+      {viewMode === 'paste' && (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <PasteImportView
+            onImportComplete={(title) => console.log(`[ArchivePanel] Imported: ${title}`)}
+            onClose={onClose}
+          />
+        </div>
+      )}
+
+      {/* Workspaces View */}
+      {viewMode === 'workspaces' && (
+        <div className="overflow-y-auto" style={{ flex: 1, minHeight: 0 }}>
+          <WorkspacesView />
+        </div>
+      )}
+
+      {/* Gutenberg View */}
+      {viewMode === 'gutenberg' && (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <GutenbergView
+            onSelectText={(text, title) => {
+              const narrativeId = `gutenberg-${Date.now()}`;
+              onSelectNarrative({
+                id: narrativeId,
+                content: text,
+                title: title,
+                source: 'gutenberg',
+                metadata: {},
+              });
+              const bufferContent = createFromText(text, 'markdown');
+              bufferContent.displayName = title;
+              bufferContent.metadata = {
+                ...bufferContent.metadata,
+                source: { platform: 'import', archiveName: 'Project Gutenberg' },
+              };
+              setWorkingBuffer(bufferContent);
+            }}
+            onClose={onClose}
+          />
+        </div>
+      )}
+
+      {/* Explore View */}
+      {viewMode === 'explore' && (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <ExploreView
+            onNavigateToConversation={(conversationId, messageIndex) => {
+              const conv = conversations.find(c => c.id === conversationId);
+              if (conv) {
+                loadConversation(conv.folder);
+                if (messageIndex !== undefined) setSelectedMessageIndex(messageIndex);
+                setViewMode('messages');
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {/* Facebook View */}
+      {viewMode === 'facebook' && (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <FacebookFeedView onSelectItem={loadFacebookItem} />
+        </div>
+      )}
+
+      {/* Books View */}
+      {viewMode === 'books' && (
+        <div style={{ flex: 1, minHeight: 0 }}>
+          <BooksView
+            onSelectContent={(content, metadata) => {
+              onSelectNarrative({
+                id: `book-${metadata.pageId}`,
+                title: `${metadata.bookTitle} - Page`,
+                content: content,
+                metadata: metadata,
+              });
+            }}
+          />
+        </div>
+      )}
+
+      {/* This Book View */}
+      {viewMode === 'thisbook' && (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <ThisBookView
+            onSelectPage={(content, metadata) => {
+              onSelectNarrative({
+                id: `book-${metadata.pageId}`,
+                title: `${metadata.bookTitle} - ${metadata.chapterTitle}`,
+                content: content,
+                metadata: metadata,
+              });
+            }}
+          />
+        </div>
+      )}
+
+      {/* Conversations list */}
+      {viewMode === 'conversations' && (
+        <div className="overflow-y-auto" style={{ flex: 1, minHeight: 0, padding: 'var(--space-md)' }}>
+          <ConversationsListView
+            conversations={conversations}
+            filteredConversations={filteredConversations}
+            selectedConversation={selectedConversation}
+            focusedIndex={focusedIndex}
+            loading={loading}
+            error={error}
+            searchQuery={conversationSearch}
+            hasActiveFilters={hasActiveFilters}
+            onSelectConversation={(folder) => {
+              loadConversation(folder);
+              if (window.innerWidth < 768) onClose();
+            }}
+            onViewGallery={viewConversationGallery}
+            onAddToBook={activeBook ? (folder) => {
+              loadConversation(folder).then(() => setViewMode('thisbook'));
+            } : undefined}
+            onRetry={loadConversations}
+            itemRefs={itemRefs}
+            activeBook={activeBook}
+          />
+        </div>
+      )}
+
+      {/* Book Structure Tree - shows at bottom when active book exists */}
+      {activeBook && (
         <div
-          className="panel-header"
           style={{
-            padding: 'var(--space-lg)',
-            borderBottom: '1px solid var(--border-color)',
             flexShrink: 0,
+            maxHeight: bookTreeCollapsed ? 'auto' : '40%',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="heading-md u-text-primary">
-              Archive{' '}
-              {currentArchiveName && (
-                <span
-                  className="text-small u-text-tertiary"
-                  title={currentArchivePath}
-                >
-                  ({currentArchiveName})
-                </span>
-              )}
-            </h2>
-            <button
-              onClick={onClose}
-              title="Collapse Archive Panel"
-              className="p-2 rounded-md hover:opacity-70"
-              style={{
-                color: 'var(--text-secondary)',
-                backgroundColor: 'var(--bg-tertiary)',
-                fontSize: '16px',
-              }}
-            >
-              ‹
-            </button>
-          </div>
-
-          {/* Icon Tab Bar */}
-          <ArchiveIconTabBar
-            tabs={tabList}
-            activeTabId={viewMode}
-            effectiveTabId={effectiveTabId}
-            onTabChange={setViewMode}
-            onFocusConversation={handleFocusConversation}
-          />
-
-          {/* Conversations View - Header Content */}
-          {viewMode === 'conversations' && (
-            <ArchiveSearchBar
-              searchQuery={conversationSearch}
-              onSearchChange={handleSearchChange}
-              onClearSearch={clearSearch}
-              placeholder="Search conversations..."
-              recentSearches={recentSearches}
-              showRecentSearches={showRecentSearches}
-              onShowRecentSearches={setShowRecentSearches}
-              onSelectRecentSearch={selectRecentSearch}
-              activeFilters={activeFilters}
-              hasActiveFilters={hasActiveFilters}
-              showingCategory={showingCategory}
-              onShowCategory={setShowingCategory}
-              onSelectFilter={selectFilter}
-              onRemoveFilter={removeFilter}
-              categorizedTags={categorizedTags}
-              sortDirection={sortDirection}
-              onToggleSortDirection={toggleSortDirection}
-              totalCount={conversations.length}
-              filteredCount={filteredConversations.length}
-            />
-          )}
-        </div>
-
-        {/* Imports View - outside header for proper scrolling */}
-        {viewMode === 'imports' && (
-          <div
-            className="overflow-y-auto"
-            style={{
-              flex: 1,
-              minHeight: 0,
-            }}
-          >
-            <ImportsView />
-          </div>
-        )}
-
-        {/* Paste Import View - paste/upload text files */}
-        {viewMode === 'paste' && (
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflow: 'hidden',
-            }}
-          >
-            <PasteImportView
-              onImportComplete={(title) => {
-                console.log(`[ArchivePanel] Imported: ${title}`);
-              }}
-              onClose={onClose}
-            />
-          </div>
-        )}
-
-        {/* Workspaces View - transformation history */}
-        {viewMode === 'workspaces' && (
-          <div
-            className="overflow-y-auto"
-            style={{
-              flex: 1,
-              minHeight: 0,
-            }}
-          >
-            <WorkspacesView />
-          </div>
-        )}
-
-        {/* Gutenberg View - public domain book browser (Web only) */}
-        {viewMode === 'gutenberg' && (
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflow: 'hidden',
-            }}
-          >
-            <GutenbergView
-              onSelectText={(text, title) => {
-                // Load selected book text into the workspace
-                const narrativeId = `gutenberg-${Date.now()}`;
+          <BookStructureTree
+            collapsed={bookTreeCollapsed}
+            onToggleCollapse={() => setBookTreeCollapsed(!bookTreeCollapsed)}
+            onSelectPage={async (pageId, bookId) => {
+              try {
+                const { booksService } = await import('../../services/booksService');
+                const page = await booksService.getPage(bookId, pageId);
                 onSelectNarrative({
-                  id: narrativeId,
-                  content: text,
-                  title: title,
-                  source: 'gutenberg',
-                  metadata: {},
+                  id: `book-page-${pageId}`,
+                  title: `Page from ${activeBook.title}`,
+                  content: page.content,
+                  metadata: { source: 'book', bookId, pageId, bookTitle: activeBook.title },
                 });
-
-                // Also set the unified buffer so workspace can be created
-                // This ensures the text displays in MainWorkspace even if
-                // a subsequent transformation fails (e.g., text too long)
-                const bufferContent = createFromText(text, 'markdown');
-                bufferContent.displayName = title;
-                bufferContent.metadata = {
-                  ...bufferContent.metadata,
-                  source: {
-                    platform: 'import',
-                    archiveName: 'Project Gutenberg',
-                  },
-                };
-                setWorkingBuffer(bufferContent);
-                console.log('[ArchivePanel] Loaded Gutenberg content to unified buffer:', title);
-              }}
-              onClose={onClose}
-            />
-          </div>
-        )}
-
-        {/* Explore View - semantic search and clustering */}
-        {viewMode === 'explore' && (
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
+              } catch (err) {
+                console.error('Failed to load page:', err);
+              }
             }}
-          >
-            <ExploreView
-              onNavigateToConversation={(conversationId, messageIndex) => {
-                // Find conversation by ID and load it
-                const conv = conversations.find(c => c.id === conversationId);
-                if (conv) {
-                  loadConversation(conv.folder);
-                  if (messageIndex !== undefined) {
-                    setSelectedMessageIndex(messageIndex);
-                  }
-                  setViewMode('messages');
-                }
-              }}
-            />
-          </div>
-        )}
-
-        {/* Facebook View - posts and comments feed */}
-        {viewMode === 'facebook' && (
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-            }}
-          >
-            <FacebookFeedView onSelectItem={loadFacebookItem} />
-          </div>
-        )}
-
-        {/* Books View - bookmaking tool */}
-        {viewMode === 'books' && (
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-            }}
-          >
-            <BooksView
-              onSelectContent={(content, metadata) => {
-                // Convert book page to narrative format for transformation
-                const narrative = {
-                  id: `book-${metadata.pageId}`,
-                  title: `${metadata.bookTitle} - Page`,
-                  content: content,
-                  metadata: metadata,
-                };
-                onSelectNarrative(narrative);
-              }}
-            />
-          </div>
-        )}
-
-        {/* This Book View - browse active book pages as source */}
-        {viewMode === 'thisbook' && (
-          <div
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflow: 'hidden',
-            }}
-          >
-            <ThisBookView
-              onSelectPage={(content, metadata) => {
-                // Convert book page to narrative format for transformation
-                const narrative = {
-                  id: `book-${metadata.pageId}`,
-                  title: `${metadata.bookTitle} - ${metadata.chapterTitle}`,
-                  content: content,
-                  metadata: metadata,
-                };
-                onSelectNarrative(narrative);
-              }}
-            />
-          </div>
-        )}
-
-        {/* Conversations list - outside header for proper scrolling */}
-        {viewMode === 'conversations' && (
-          <div
-            className="overflow-y-auto"
-            style={{
-              flex: 1,
-              minHeight: 0,
-              padding: 'var(--space-md)',
-            }}
-          >
-            <ConversationsListView
-              conversations={conversations}
-              filteredConversations={filteredConversations}
-              selectedConversation={selectedConversation}
-              focusedIndex={focusedIndex}
-              loading={loading}
-              error={error}
-              searchQuery={conversationSearch}
-              hasActiveFilters={hasActiveFilters}
-              onSelectConversation={(folder) => {
-                loadConversation(folder);
-                if (window.innerWidth < 768) {
-                  onClose();
-                }
-              }}
-              onViewGallery={viewConversationGallery}
-              onAddToBook={activeBook ? (folder) => {
-                loadConversation(folder).then(() => {
-                  setViewMode('thisbook');
-                });
-              } : undefined}
-              onRetry={loadConversations}
-              itemRefs={itemRefs}
-              activeBook={activeBook}
-            />
-          </div>
-        )}
-
-        {/* Book Structure Tree - shows at bottom when active book exists */}
-        {activeBook && (
-          <div
-            style={{
-              flexShrink: 0,
-              maxHeight: bookTreeCollapsed ? 'auto' : '40%',
-              overflow: 'hidden',
-              display: 'flex',
-              flexDirection: 'column',
-            }}
-          >
-            <BookStructureTree
-              collapsed={bookTreeCollapsed}
-              onToggleCollapse={() => setBookTreeCollapsed(!bookTreeCollapsed)}
-              onSelectPage={async (pageId, bookId) => {
-                // Load page as narrative for transformation
-                try {
-                  const { booksService } = await import('../../services/booksService');
-                  const page = await booksService.getPage(bookId, pageId);
-                  const narrative = {
-                    id: `book-page-${pageId}`,
-                    title: `Page from ${activeBook.title}`,
-                    content: page.content,
-                    metadata: {
-                      source: 'book',
-                      bookId,
-                      pageId,
-                      bookTitle: activeBook.title,
-                    },
-                  };
-                  onSelectNarrative(narrative);
-                } catch (err) {
-                  console.error('Failed to load page:', err);
-                }
-              }}
-              onEditPage={(pageId, bookId) => {
-                setEditingPage({ bookId, pageId });
-              }}
-            />
-          </div>
-        )}
-
-        {/* Page Editor Modal */}
-        {editingPage && (
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'var(--bg-panel)',
-              zIndex: 100,
-            }}
-          >
-            <PageEditorView
-              bookId={editingPage.bookId}
-              pageId={editingPage.pageId}
-              onClose={() => setEditingPage(null)}
-              onSaved={() => {
-                refreshActiveBook();
-              }}
-            />
-          </div>
-        )}
-      </aside>
-    </>
+            onEditPage={(pageId, bookId) => setEditingPage({ bookId, pageId })}
+          />
+        </div>
+      )}
+    </ArchivePanelWrapper>
   );
 }
