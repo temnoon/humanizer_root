@@ -4,6 +4,10 @@
 // Parses conversation exports from the Chrome browser plugin
 // Supports ChatGPT, Claude, and Gemini exports
 // Format: folder/conversation.json + folder/media/file_N.ext
+//
+// Two message formats are supported:
+// 1. ChatGPT: messages is an object with tree structure (parent/children)
+// 2. Claude/Gemini: messages is an array with linear structure
 
 import * as path from 'path';
 import * as fs from 'fs';
@@ -12,7 +16,8 @@ import { readJSON, findFiles } from './utils';
 
 export type ChromePluginSource = 'ChatGPT' | 'Claude' | 'Gemini';
 
-interface ChromePluginMessage {
+// ChatGPT format: messages as object with tree structure
+interface ChatGPTMessage {
   id: string;
   message: {
     id: string;
@@ -41,10 +46,20 @@ interface ChromePluginMessage {
   children: string[];
 }
 
+// Claude/Gemini format: messages as array with linear structure
+interface LinearMessage {
+  id: string;
+  role: 'user' | 'model' | 'assistant' | 'system';
+  content: {
+    parts: Array<{ text?: string; [key: string]: any }>;
+  };
+  timestamp?: number;
+}
+
 interface ChromePluginConversation {
   title: string;
   source: ChromePluginSource;
-  messages: Record<string, ChromePluginMessage>;
+  messages: Record<string, ChatGPTMessage> | LinearMessage[];
 }
 
 export class ChromePluginParser {
@@ -70,10 +85,18 @@ export class ChromePluginParser {
         const mediaDir = path.join(path.dirname(filePath), 'media');
         this.indexMediaFiles(mediaDir);
 
-        const conversation = this.normalizeConversation(data, filePath);
+        // Detect format and parse accordingly
+        const isArrayFormat = Array.isArray(data.messages);
+        const conversation = isArrayFormat
+          ? this.normalizeLinearConversation(data as { title: string; source: ChromePluginSource; messages: LinearMessage[] }, filePath)
+          : this.normalizeTreeConversation(data as { title: string; source: ChromePluginSource; messages: Record<string, ChatGPTMessage> }, filePath);
+
         conversations.push(conversation);
 
-        console.log(`[ChromePluginParser] Parsed "${data.title}" (${data.source}) - ${Object.keys(data.messages).length} nodes`);
+        const nodeCount = isArrayFormat
+          ? (data.messages as LinearMessage[]).length
+          : Object.keys(data.messages).length;
+        console.log(`[ChromePluginParser] Parsed "${data.title}" (${data.source}) - ${nodeCount} ${isArrayFormat ? 'messages' : 'nodes'}`);
       } catch (err) {
         console.error(`[ChromePluginParser] Failed to parse ${filePath}:`, err);
       }
@@ -107,13 +130,29 @@ export class ChromePluginParser {
 
     // Chrome plugin exports have:
     // 1. `source` field with provider name
-    // 2. `messages` as an object (not array)
-    // 3. Messages have parent/children structure
+    // 2. `messages` as either an object (ChatGPT) or array (Claude/Gemini)
     const hasSource = typeof data.source === 'string' &&
       ['ChatGPT', 'Claude', 'Gemini'].includes(data.source);
-    const hasMessages = data.messages && typeof data.messages === 'object' && !Array.isArray(data.messages);
+    const hasMessages = data.messages !== undefined;
 
-    return hasSource && hasMessages;
+    if (!hasSource || !hasMessages) return false;
+
+    // Check for array format (Claude/Gemini)
+    if (Array.isArray(data.messages)) {
+      if (data.messages.length === 0) return true; // Empty array is valid
+      const first = data.messages[0];
+      return first && 'role' in first && 'content' in first;
+    }
+
+    // Check for object format (ChatGPT)
+    if (typeof data.messages === 'object') {
+      const firstKey = Object.keys(data.messages)[0];
+      if (!firstKey) return true; // Empty object is valid
+      const first = data.messages[firstKey];
+      return first && 'parent' in first && 'children' in first;
+    }
+
+    return false;
   }
 
   /**
@@ -140,16 +179,130 @@ export class ChromePluginParser {
         }
       });
 
-      console.log(`[ChromePluginParser] Indexed ${this.mediaFileMap.size} media files`);
+      if (this.mediaFileMap.size > 0) {
+        console.log(`[ChromePluginParser] Indexed ${this.mediaFileMap.size} media files`);
+      }
     } catch (err) {
       console.warn(`[ChromePluginParser] Failed to index media files:`, err);
     }
   }
 
   /**
-   * Normalize Chrome plugin conversation to standard format
+   * Normalize Claude/Gemini linear array format to standard format
    */
-  private normalizeConversation(data: ChromePluginConversation, filePath: string): Conversation {
+  private normalizeLinearConversation(
+    data: { title: string; source: ChromePluginSource; messages: LinearMessage[] },
+    filePath: string
+  ): Conversation {
+    const mapping: Record<string, ConversationNode> = {};
+    let firstTimestamp: number | null = null;
+    let lastTimestamp: number | null = null;
+
+    // Create a root node
+    const rootId = 'root';
+    mapping[rootId] = {
+      id: rootId,
+      message: undefined,
+      parent: undefined,
+      children: [],
+    };
+
+    let previousNodeId = rootId;
+
+    // Convert linear messages to tree structure
+    for (let i = 0; i < data.messages.length; i++) {
+      const msg = data.messages[i];
+      const nodeId = msg.id || `msg_${i}`;
+
+      // Track timestamps (convert from milliseconds if needed)
+      const timestamp = msg.timestamp
+        ? (msg.timestamp > 10000000000 ? Math.floor(msg.timestamp / 1000) : msg.timestamp)
+        : undefined;
+
+      if (timestamp) {
+        if (firstTimestamp === null || timestamp < firstTimestamp) {
+          firstTimestamp = timestamp;
+        }
+        if (lastTimestamp === null || timestamp > lastTimestamp) {
+          lastTimestamp = timestamp;
+        }
+      }
+
+      // Extract text content from parts
+      const textContent = msg.content?.parts
+        ?.map(part => part.text || (typeof part === 'string' ? part : ''))
+        .filter(Boolean)
+        .join('\n') || '';
+
+      // Map role: "model" -> "assistant"
+      const role = msg.role === 'model' ? 'assistant' : msg.role;
+
+      const message: Message = {
+        id: nodeId,
+        author: {
+          role: role as 'user' | 'assistant' | 'system' | 'tool',
+          metadata: {},
+        },
+        create_time: timestamp,
+        content: {
+          content_type: 'text',
+          parts: [textContent],
+        },
+        status: 'finished_successfully',
+        metadata: {},
+        recipient: 'all',
+        weight: 1,
+        end_turn: true,
+      };
+
+      mapping[nodeId] = {
+        id: nodeId,
+        message,
+        parent: previousNodeId,
+        children: [],
+      };
+
+      // Update parent's children
+      mapping[previousNodeId].children.push(nodeId);
+      previousNodeId = nodeId;
+    }
+
+    // Map source to our export format
+    const sourceMap: Record<ChromePluginSource, ExportFormat> = {
+      'ChatGPT': 'openai',
+      'Claude': 'claude',
+      'Gemini': 'openai', // Treat Gemini as openai-like for now
+    };
+
+    const conversation: Conversation = {
+      conversation_id: rootId,
+      id: rootId,
+      title: data.title || 'Untitled Conversation',
+      create_time: firstTimestamp || Math.floor(Date.now() / 1000),
+      update_time: lastTimestamp || Math.floor(Date.now() / 1000),
+      mapping,
+      moderation_results: [],
+      current_node: previousNodeId, // Last message
+      plugin_ids: null,
+      conversation_template_id: null,
+
+      // Extended metadata
+      _source: sourceMap[data.source] || 'unknown',
+      _import_date: new Date().toISOString(),
+      _original_id: rootId,
+      _media_files: Array.from(this.mediaFileMap.values()),
+    };
+
+    return conversation;
+  }
+
+  /**
+   * Normalize ChatGPT tree format to standard format
+   */
+  private normalizeTreeConversation(
+    data: { title: string; source: ChromePluginSource; messages: Record<string, ChatGPTMessage> },
+    filePath: string
+  ): Conversation {
     // Find root node and build the tree
     const mapping: Record<string, ConversationNode> = {};
     let rootId: string | null = null;
@@ -202,7 +355,7 @@ export class ChromePluginParser {
     const sourceMap: Record<ChromePluginSource, ExportFormat> = {
       'ChatGPT': 'openai',
       'Claude': 'claude',
-      'Gemini': 'openai', // Treat Gemini as openai-like for now
+      'Gemini': 'openai',
     };
 
     const conversation: Conversation = {
@@ -228,9 +381,9 @@ export class ChromePluginParser {
   }
 
   /**
-   * Normalize a message from Chrome plugin format
+   * Normalize a message from ChatGPT tree format
    */
-  private normalizeMessage(msg: ChromePluginMessage['message']): Message | undefined {
+  private normalizeMessage(msg: ChatGPTMessage['message']): Message | undefined {
     if (!msg) return undefined;
 
     // Skip system messages that are hidden
@@ -289,10 +442,6 @@ export class ChromePluginParser {
     const assetPointer = part.asset_pointer;
     const dalleMetadata = part.metadata?.dalle;
 
-    // Try to find corresponding local file
-    // The Chrome plugin names files as file_0.jpg, file_1.jpg, etc.
-    // We need to track the order of images encountered
-
     // For now, return a markdown image reference with metadata
     let result = `![Image](${assetPointer})`;
 
@@ -319,19 +468,24 @@ export class ChromePluginParser {
       if (!data) return false;
 
       // Chrome plugin exports have `source` field with provider name
-      // and `messages` as an object (not array like OpenAI full export)
       const hasSource = typeof data.source === 'string' &&
         ['ChatGPT', 'Claude', 'Gemini'].includes(data.source);
-      const hasMessagesObject = data.messages &&
-        typeof data.messages === 'object' &&
-        !Array.isArray(data.messages);
 
-      // Also check that messages have the parent/children structure
-      if (hasSource && hasMessagesObject) {
-        const firstMessage = Object.values(data.messages)[0] as any;
-        if (firstMessage && 'parent' in firstMessage && 'children' in firstMessage) {
-          return true;
-        }
+      if (!hasSource) return false;
+
+      // Check for array format (Claude/Gemini)
+      if (Array.isArray(data.messages)) {
+        if (data.messages.length === 0) return true;
+        const first = data.messages[0];
+        return first && 'role' in first && 'content' in first;
+      }
+
+      // Check for object format (ChatGPT)
+      if (data.messages && typeof data.messages === 'object') {
+        const firstKey = Object.keys(data.messages)[0];
+        if (!firstKey) return true;
+        const first = data.messages[firstKey];
+        return first && 'parent' in first && 'children' in first;
       }
 
       return false;
