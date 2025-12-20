@@ -1,0 +1,357 @@
+// ============================================================
+// CHROME PLUGIN EXPORT PARSER
+// ============================================================
+// Parses conversation exports from the Chrome browser plugin
+// Supports ChatGPT, Claude, and Gemini exports
+// Format: folder/conversation.json + folder/media/file_N.ext
+
+import * as path from 'path';
+import * as fs from 'fs';
+import type { Conversation, ExportFormat, ConversationNode, Message } from './types';
+import { readJSON, findFiles } from './utils';
+
+export type ChromePluginSource = 'ChatGPT' | 'Claude' | 'Gemini';
+
+interface ChromePluginMessage {
+  id: string;
+  message: {
+    id: string;
+    author: {
+      role: 'user' | 'assistant' | 'system' | 'tool';
+      name?: string;
+      metadata?: Record<string, any>;
+    };
+    create_time?: number;
+    update_time?: number;
+    content: {
+      content_type: string;
+      parts?: any[];
+      text?: string;
+      thoughts?: any[];
+      language?: string;
+    };
+    status?: string;
+    end_turn?: boolean;
+    weight?: number;
+    metadata?: Record<string, any>;
+    recipient?: string;
+    channel?: string;
+  } | null;
+  parent: string | null;
+  children: string[];
+}
+
+interface ChromePluginConversation {
+  title: string;
+  source: ChromePluginSource;
+  messages: Record<string, ChromePluginMessage>;
+}
+
+export class ChromePluginParser {
+  private mediaFileMap: Map<string, string> = new Map(); // asset_pointer -> local path
+
+  /**
+   * Parse a Chrome plugin export (folder or zip contents)
+   */
+  async parseConversations(extractedDir: string): Promise<Conversation[]> {
+    const conversations: Conversation[] = [];
+    const conversationFiles = this.findConversationFiles(extractedDir);
+
+    console.log(`[ChromePluginParser] Found ${conversationFiles.length} conversation.json files`);
+
+    for (const filePath of conversationFiles) {
+      try {
+        const data = readJSON<ChromePluginConversation>(filePath);
+        if (!data || !data.source || !data.messages) {
+          continue;
+        }
+
+        // Index media files for this conversation
+        const mediaDir = path.join(path.dirname(filePath), 'media');
+        this.indexMediaFiles(mediaDir);
+
+        const conversation = this.normalizeConversation(data, filePath);
+        conversations.push(conversation);
+
+        console.log(`[ChromePluginParser] Parsed "${data.title}" (${data.source}) - ${Object.keys(data.messages).length} nodes`);
+      } catch (err) {
+        console.error(`[ChromePluginParser] Failed to parse ${filePath}:`, err);
+      }
+    }
+
+    return conversations;
+  }
+
+  /**
+   * Find conversation.json files that match Chrome plugin format
+   */
+  private findConversationFiles(extractedDir: string): string[] {
+    const allFiles = findFiles(extractedDir, /conversation\.json$/i);
+
+    // Filter to only files that look like Chrome plugin exports
+    return allFiles.filter(filePath => {
+      try {
+        const data = readJSON<any>(filePath);
+        return this.isChromePluginFormat(data);
+      } catch {
+        return false;
+      }
+    });
+  }
+
+  /**
+   * Check if data matches Chrome plugin format
+   */
+  private isChromePluginFormat(data: any): boolean {
+    if (!data) return false;
+
+    // Chrome plugin exports have:
+    // 1. `source` field with provider name
+    // 2. `messages` as an object (not array)
+    // 3. Messages have parent/children structure
+    const hasSource = typeof data.source === 'string' &&
+      ['ChatGPT', 'Claude', 'Gemini'].includes(data.source);
+    const hasMessages = data.messages && typeof data.messages === 'object' && !Array.isArray(data.messages);
+
+    return hasSource && hasMessages;
+  }
+
+  /**
+   * Index media files in the media directory
+   * Creates mapping from file-service:// URLs to local paths
+   */
+  private indexMediaFiles(mediaDir: string): void {
+    this.mediaFileMap.clear();
+
+    if (!fs.existsSync(mediaDir)) {
+      return;
+    }
+
+    try {
+      const files = fs.readdirSync(mediaDir);
+      // Files are named file_0.jpg, file_1.jpg, etc.
+      files.forEach(filename => {
+        const match = filename.match(/^file_(\d+)\.\w+$/);
+        if (match) {
+          const index = parseInt(match[1], 10);
+          const fullPath = path.join(mediaDir, filename);
+          // We'll map by index and also store the path
+          this.mediaFileMap.set(`file_${index}`, fullPath);
+        }
+      });
+
+      console.log(`[ChromePluginParser] Indexed ${this.mediaFileMap.size} media files`);
+    } catch (err) {
+      console.warn(`[ChromePluginParser] Failed to index media files:`, err);
+    }
+  }
+
+  /**
+   * Normalize Chrome plugin conversation to standard format
+   */
+  private normalizeConversation(data: ChromePluginConversation, filePath: string): Conversation {
+    // Find root node and build the tree
+    const mapping: Record<string, ConversationNode> = {};
+    let rootId: string | null = null;
+    let firstTimestamp: number | null = null;
+    let lastTimestamp: number | null = null;
+
+    // Convert messages to mapping format
+    for (const [nodeId, node] of Object.entries(data.messages)) {
+      if (node.parent === null && node.message === null) {
+        rootId = nodeId;
+      }
+
+      const message = node.message ? this.normalizeMessage(node.message) : undefined;
+
+      // Track timestamps
+      if (message?.create_time) {
+        if (firstTimestamp === null || message.create_time < firstTimestamp) {
+          firstTimestamp = message.create_time;
+        }
+        if (lastTimestamp === null || message.create_time > lastTimestamp) {
+          lastTimestamp = message.create_time;
+        }
+      }
+
+      mapping[nodeId] = {
+        id: nodeId,
+        message,
+        parent: node.parent || undefined,
+        children: node.children || [],
+      };
+    }
+
+    // Find current_node (the last message in the main branch)
+    let currentNode = rootId;
+    if (rootId && mapping[rootId]) {
+      let node = mapping[rootId];
+      while (node.children && node.children.length > 0) {
+        // Follow the first child (main branch)
+        const nextId = node.children[0];
+        if (mapping[nextId]) {
+          currentNode = nextId;
+          node = mapping[nextId];
+        } else {
+          break;
+        }
+      }
+    }
+
+    // Map source to our export format
+    const sourceMap: Record<ChromePluginSource, ExportFormat> = {
+      'ChatGPT': 'openai',
+      'Claude': 'claude',
+      'Gemini': 'openai', // Treat Gemini as openai-like for now
+    };
+
+    const conversation: Conversation = {
+      conversation_id: rootId || `chrome-${Date.now()}`,
+      id: rootId || `chrome-${Date.now()}`,
+      title: data.title || 'Untitled Conversation',
+      create_time: firstTimestamp || Math.floor(Date.now() / 1000),
+      update_time: lastTimestamp || Math.floor(Date.now() / 1000),
+      mapping,
+      moderation_results: [],
+      current_node: currentNode || undefined,
+      plugin_ids: null,
+      conversation_template_id: null,
+
+      // Extended metadata
+      _source: sourceMap[data.source] || 'unknown',
+      _import_date: new Date().toISOString(),
+      _original_id: rootId,
+      _media_files: Array.from(this.mediaFileMap.values()),
+    };
+
+    return conversation;
+  }
+
+  /**
+   * Normalize a message from Chrome plugin format
+   */
+  private normalizeMessage(msg: ChromePluginMessage['message']): Message | undefined {
+    if (!msg) return undefined;
+
+    // Skip system messages that are hidden
+    if (msg.metadata?.is_visually_hidden_from_conversation) {
+      return undefined;
+    }
+
+    // Process content based on type
+    let content = msg.content;
+
+    // Handle multimodal content with images
+    if (content.content_type === 'multimodal_text' && Array.isArray(content.parts)) {
+      content = {
+        ...content,
+        parts: content.parts.map((part: any) => {
+          if (typeof part === 'string') return part;
+          if (part.content_type === 'image_asset_pointer') {
+            // Convert asset pointer to local file reference
+            return this.resolveImageReference(part);
+          }
+          return JSON.stringify(part);
+        }),
+      };
+    }
+
+    // Handle thoughts/reasoning content
+    if (content.content_type === 'thoughts') {
+      content = {
+        content_type: 'text',
+        parts: ['[Thinking...]'],
+      };
+    }
+
+    return {
+      id: msg.id,
+      author: {
+        role: msg.author.role,
+        name: msg.author.name,
+        metadata: msg.author.metadata || {},
+      },
+      create_time: msg.create_time,
+      update_time: msg.update_time,
+      content: content as any,
+      status: msg.status,
+      metadata: msg.metadata || {},
+      recipient: msg.recipient,
+      weight: msg.weight,
+      end_turn: msg.end_turn,
+    };
+  }
+
+  /**
+   * Resolve image asset pointer to local file reference
+   */
+  private resolveImageReference(part: any): string {
+    const assetPointer = part.asset_pointer;
+    const dalleMetadata = part.metadata?.dalle;
+
+    // Try to find corresponding local file
+    // The Chrome plugin names files as file_0.jpg, file_1.jpg, etc.
+    // We need to track the order of images encountered
+
+    // For now, return a markdown image reference with metadata
+    let result = `![Image](${assetPointer})`;
+
+    if (dalleMetadata?.prompt) {
+      result += `\n\n*DALL-E Prompt: ${dalleMetadata.prompt}*`;
+    }
+
+    return result;
+  }
+
+  /**
+   * Detect if a directory contains Chrome plugin export format
+   */
+  static async detectFormat(extractedDir: string): Promise<boolean> {
+    const conversationFiles = findFiles(extractedDir, /conversation\.json$/i);
+
+    if (conversationFiles.length === 0) {
+      return false;
+    }
+
+    // Check first file for Chrome plugin structure
+    try {
+      const data = readJSON<any>(conversationFiles[0]);
+      if (!data) return false;
+
+      // Chrome plugin exports have `source` field with provider name
+      // and `messages` as an object (not array like OpenAI full export)
+      const hasSource = typeof data.source === 'string' &&
+        ['ChatGPT', 'Claude', 'Gemini'].includes(data.source);
+      const hasMessagesObject = data.messages &&
+        typeof data.messages === 'object' &&
+        !Array.isArray(data.messages);
+
+      // Also check that messages have the parent/children structure
+      if (hasSource && hasMessagesObject) {
+        const firstMessage = Object.values(data.messages)[0] as any;
+        if (firstMessage && 'parent' in firstMessage && 'children' in firstMessage) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get the source type from a conversation file
+   */
+  static getSourceType(filePath: string): ChromePluginSource | null {
+    try {
+      const data = readJSON<any>(filePath);
+      if (data?.source && ['ChatGPT', 'Claude', 'Gemini'].includes(data.source)) {
+        return data.source as ChromePluginSource;
+      }
+    } catch {
+      // Ignore errors
+    }
+    return null;
+  }
+}

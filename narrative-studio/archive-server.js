@@ -1724,10 +1724,13 @@ app.post('/api/import/archive/folder', async (req, res) => {
         const parser = new ConversationParser(true);
 
         // Detect format first
-        const { OpenAIParser, ClaudeParser, FacebookParser } = await import('./src/services/parser/index.js');
+        const { OpenAIParser, ClaudeParser, FacebookParser, ChromePluginParser } = await import('./src/services/parser/index.js');
         let format = 'unknown';
 
-        if (await FacebookParser.detectFormat(folderPath)) {
+        // Check Chrome plugin format first (it has conversation.json but different structure)
+        if (await ChromePluginParser.detectFormat(folderPath)) {
+          format = 'chrome-plugin';
+        } else if (await FacebookParser.detectFormat(folderPath)) {
           format = 'facebook';
         } else if (await OpenAIParser.detectFormat(folderPath)) {
           format = 'openai';
@@ -1736,7 +1739,7 @@ app.post('/api/import/archive/folder', async (req, res) => {
         }
 
         if (format === 'unknown') {
-          throw new Error('Could not detect archive format. Make sure the folder contains conversations.json (OpenAI), conversations/ folder (Claude), or messages/inbox/ (Facebook).');
+          throw new Error('Could not detect archive format. Make sure the folder contains conversations.json (OpenAI/Chrome plugin), conversations/ folder (Claude), or messages/inbox/ (Facebook).');
         }
 
         job.progress = 20;
@@ -1746,9 +1749,12 @@ app.post('/api/import/archive/folder', async (req, res) => {
         const openAIParser = new OpenAIParser();
         const claudeParser = new ClaudeParser();
         const facebookParser = new FacebookParser();
+        const chromePluginParser = new ChromePluginParser();
 
         let conversations;
-        if (format === 'facebook') {
+        if (format === 'chrome-plugin') {
+          conversations = await chromePluginParser.parseConversations(folderPath);
+        } else if (format === 'facebook') {
           conversations = await facebookParser.parseConversations(folderPath);
         } else if (format === 'openai') {
           conversations = await openAIParser.parseConversations(folderPath);

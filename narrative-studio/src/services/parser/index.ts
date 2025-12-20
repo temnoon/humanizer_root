@@ -7,6 +7,7 @@ export { ConversationParser } from './ConversationParser';
 export { OpenAIParser } from './OpenAIParser';
 export { ClaudeParser } from './ClaudeParser';
 export { FacebookParser } from './FacebookParser';
+export { ChromePluginParser } from './ChromePluginParser';
 
 // Original media handling (basic)
 export { MediaIndexer } from './MediaIndexer';

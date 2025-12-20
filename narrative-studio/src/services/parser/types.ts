@@ -4,7 +4,7 @@
 // TypeScript interfaces for conversation parsing
 // Based on OpenAI export format with extensions
 
-export type ExportFormat = 'openai' | 'claude' | 'facebook' | 'unknown';
+export type ExportFormat = 'openai' | 'claude' | 'facebook' | 'chrome-plugin' | 'unknown';
 
 export type ContentType = 'text' | 'code' | 'execution_output' | 'image' | 'multimodal_text';
 
