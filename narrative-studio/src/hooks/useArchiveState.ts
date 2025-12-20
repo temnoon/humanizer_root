@@ -245,6 +245,7 @@ export function useArchiveState(options: UseArchiveStateOptions = {}) {
     // Search
     conversationSearch,
     messageSearch,
+    setMessageSearch,
     gallerySearch,
     currentSearchQuery,
     handleSearchChange,

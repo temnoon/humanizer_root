@@ -48,6 +48,7 @@ export function ArchivePanel({ onSelectNarrative, isOpen, onClose }: ArchivePane
     setViewMode,
     conversationSearch,
     messageSearch,
+    setMessageSearch,
     currentSearchQuery,
     handleSearchChange,
     clearSearch,

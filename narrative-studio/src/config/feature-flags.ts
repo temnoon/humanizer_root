@@ -25,7 +25,8 @@ export const isProduction = typeof window !== 'undefined' &&
  */
 export const features = {
   // Local archive server (port 3002) - Electron only
-  localArchives: isElectron,
+  // DEV TESTING: Temporarily enabled for browser testing
+  localArchives: isElectron || (typeof window !== 'undefined' && window.location.hostname === 'localhost'),
 
   // Ollama local LLM integration - Electron only
   ollamaLocal: isElectron,
