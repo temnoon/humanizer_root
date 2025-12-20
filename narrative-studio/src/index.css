@@ -4752,6 +4752,47 @@ samp,
   color: var(--text-inverse);
 }
 
+.tool-page__nav-item--favorite {
+  border-color: var(--color-warning, #f59e0b);
+}
+
+.tool-page__nav-item--favorite:not(.tool-page__nav-item--active) {
+  background-color: rgba(245, 158, 11, 0.1);
+}
+
+.tool-page__nav-star {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 0.625rem;
+  color: var(--color-warning, #f59e0b);
+}
+
+.tool-page__nav-item {
+  position: relative;
+}
+
+.tool-page__nav-settings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  border: 1px dashed var(--border-color);
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.tool-page__nav-settings:hover {
+  background-color: var(--bg-tertiary);
+  border-style: solid;
+}
+
 /* Document bar */
 .tool-page__document-bar {
   display: flex;

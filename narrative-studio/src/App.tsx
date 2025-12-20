@@ -16,6 +16,7 @@ import { ArchivePanel } from './components/panels/ArchivePanel';
 import { ToolsPanel } from './components/panels/ToolsPanel';
 import { StudioToolsPanel } from './components/panels/StudioToolsPanel';
 import { TabbedToolsPanel } from './components/tools';
+import { ToolTabProvider } from './contexts/ToolTabContext';
 import { MainWorkspace } from './components/workspace/MainWorkspace';
 import { SetupWizard } from './components/onboarding';
 import { SettingsModal } from './components/settings';
@@ -609,7 +610,9 @@ function AppWithSession() {
         <WorkspaceProvider>
           <ExploreProvider>
             <ActiveBookProvider>
-              <AppContent />
+              <ToolTabProvider>
+                <AppContent />
+              </ToolTabProvider>
             </ActiveBookProvider>
           </ExploreProvider>
         </WorkspaceProvider>

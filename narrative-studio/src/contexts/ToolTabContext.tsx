@@ -276,6 +276,15 @@ interface ToolTabContextValue {
   // Processing state
   isTransforming: boolean;
   setIsTransforming: (value: boolean) => void;
+
+  // Tool visibility and favorites
+  hiddenToolIds: ToolId[];
+  favoriteToolIds: ToolId[];
+  toggleToolHidden: (toolId: ToolId) => void;
+  toggleToolFavorite: (toolId: ToolId) => void;
+  isToolHidden: (toolId: ToolId) => boolean;
+  isToolFavorite: (toolId: ToolId) => boolean;
+  getVisibleTools: () => ToolMeta[];
 }
 
 const ToolTabContext = createContext<ToolTabContextValue | null>(null);
@@ -286,6 +295,8 @@ interface StoredState {
   activeToolId: ToolId;
   toolStates: ToolStates;
   transformSource: 'original' | 'active' | 'buffer';
+  hiddenToolIds?: ToolId[];
+  favoriteToolIds?: ToolId[];
 }
 
 export function ToolTabProvider({ children }: { children: ReactNode }) {
@@ -331,15 +342,44 @@ export function ToolTabProvider({ children }: { children: ReactNode }) {
 
   const [isTransforming, setIsTransforming] = useState(false);
 
+  // Hidden and favorite tools
+  const [hiddenToolIds, setHiddenToolIds] = useState<ToolId[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed: StoredState = JSON.parse(stored);
+        return parsed.hiddenToolIds || [];
+      }
+    } catch (e) {
+      console.warn('Failed to load hidden tools:', e);
+    }
+    return [];
+  });
+
+  const [favoriteToolIds, setFavoriteToolIds] = useState<ToolId[]>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed: StoredState = JSON.parse(stored);
+        return parsed.favoriteToolIds || [];
+      }
+    } catch (e) {
+      console.warn('Failed to load favorite tools:', e);
+    }
+    return [];
+  });
+
   // Persist state changes
   useEffect(() => {
     const state: StoredState = {
       activeToolId,
       toolStates,
       transformSource,
+      hiddenToolIds,
+      favoriteToolIds,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [activeToolId, toolStates, transformSource]);
+  }, [activeToolId, toolStates, transformSource, hiddenToolIds, favoriteToolIds]);
 
   // Set active tool
   const setActiveToolId = useCallback((id: ToolId) => {
@@ -376,6 +416,47 @@ export function ToolTabProvider({ children }: { children: ReactNode }) {
     setTransformSourceInternal(source);
   }, []);
 
+  // Toggle tool hidden status
+  const toggleToolHidden = useCallback((toolId: ToolId) => {
+    setHiddenToolIds(prev =>
+      prev.includes(toolId)
+        ? prev.filter(id => id !== toolId)
+        : [...prev, toolId]
+    );
+  }, []);
+
+  // Toggle tool favorite status
+  const toggleToolFavorite = useCallback((toolId: ToolId) => {
+    setFavoriteToolIds(prev =>
+      prev.includes(toolId)
+        ? prev.filter(id => id !== toolId)
+        : [...prev, toolId]
+    );
+  }, []);
+
+  // Check if tool is hidden
+  const isToolHidden = useCallback((toolId: ToolId) => {
+    return hiddenToolIds.includes(toolId);
+  }, [hiddenToolIds]);
+
+  // Check if tool is a favorite
+  const isToolFavorite = useCallback((toolId: ToolId) => {
+    return favoriteToolIds.includes(toolId);
+  }, [favoriteToolIds]);
+
+  // Get visible tools, sorted with favorites first
+  const getVisibleTools = useCallback((): ToolMeta[] => {
+    const visible = TOOL_REGISTRY.filter(tool => !hiddenToolIds.includes(tool.id));
+    // Sort: favorites first, then maintain original order
+    return visible.sort((a, b) => {
+      const aFav = favoriteToolIds.includes(a.id);
+      const bFav = favoriteToolIds.includes(b.id);
+      if (aFav && !bFav) return -1;
+      if (!aFav && bFav) return 1;
+      return 0;
+    });
+  }, [hiddenToolIds, favoriteToolIds]);
+
   return (
     <ToolTabContext.Provider
       value={{
@@ -389,6 +470,13 @@ export function ToolTabProvider({ children }: { children: ReactNode }) {
         setTransformSource,
         isTransforming,
         setIsTransforming,
+        hiddenToolIds,
+        favoriteToolIds,
+        toggleToolHidden,
+        toggleToolFavorite,
+        isToolHidden,
+        isToolFavorite,
+        getVisibleTools,
       }}
     >
       {children}

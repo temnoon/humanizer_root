@@ -11,7 +11,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useUnifiedBuffer } from '../../contexts/UnifiedBufferContext';
 import { useLayoutPreference } from '../../hooks/useLayoutPreference';
-import { TOOL_REGISTRY, type ToolId } from '../../contexts/ToolTabContext';
+import { TOOL_REGISTRY, type ToolId, useToolTabs } from '../../contexts/ToolTabContext';
+import { ToolSettingsModal } from '../tools/ToolSettingsModal';
 
 // Import individual tool panes
 import { AIAnalysisPane } from '../tools/AIAnalysisPane';
@@ -44,7 +45,9 @@ export default function ToolPage() {
   const navigate = useNavigate();
   const { workingBuffer, getTextContent, setWorkingBuffer } = useUnifiedBuffer();
   const { isMobile, preferSplitView, toggleSplitView } = useLayoutPreference();
+  const { getVisibleTools, isToolFavorite } = useToolTabs();
   const [localContent, setLocalContent] = useState('');
+  const [showToolSettings, setShowToolSettings] = useState(false);
 
   // Get the tool metadata
   const toolMeta = TOOL_REGISTRY.find(t => t.id === toolId);
@@ -129,16 +132,24 @@ export default function ToolPage() {
 
       {/* Tool navigation - quick switch between tools */}
       <nav className="tool-page__nav">
-        {TOOL_REGISTRY.filter(t => t.id !== 'admin-profiles').map(tool => (
+        {getVisibleTools().filter(t => t.id !== 'admin-profiles').map(tool => (
           <Link
             key={tool.id}
             to={`/tool/${tool.id}`}
-            className={`tool-page__nav-item ${tool.id === toolId ? 'tool-page__nav-item--active' : ''}`}
+            className={`tool-page__nav-item ${tool.id === toolId ? 'tool-page__nav-item--active' : ''} ${isToolFavorite(tool.id) ? 'tool-page__nav-item--favorite' : ''}`}
             title={tool.label}
           >
             <span className="tool-page__nav-icon">{tool.icon}</span>
+            {isToolFavorite(tool.id) && <span className="tool-page__nav-star">★</span>}
           </Link>
         ))}
+        <button
+          className="tool-page__nav-settings"
+          onClick={() => setShowToolSettings(true)}
+          title="Manage tools"
+        >
+          ⚙️
+        </button>
       </nav>
 
       {/* Document preview bar (shows what content is loaded) */}
@@ -185,6 +196,11 @@ export default function ToolPage() {
             Open Workspace
           </Link>
         </div>
+      )}
+
+      {/* Tool settings modal */}
+      {showToolSettings && (
+        <ToolSettingsModal onClose={() => setShowToolSettings(false)} />
       )}
     </div>
   );
