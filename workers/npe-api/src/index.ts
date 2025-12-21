@@ -30,6 +30,7 @@ import profileFactoryRoutes from './routes/profile-factory';
 import { sessionsRoutes } from './routes/sessions';
 import modelVettingTestRoutes from './routes/model-vetting-test';
 import modelSettingsRoutes from './routes/model-settings';
+import chatRoutes from './routes/chat';
 import { requireAuth } from './middleware/auth';
 import type { Env } from '../shared/types';
 
@@ -155,6 +156,9 @@ app.route('/api/model-vetting', modelVettingTestRoutes);
 
 // Model Settings routes (LLM configuration, API keys, preferences)
 app.route('/api/model-settings', modelSettingsRoutes);
+
+// Chat routes (LLM chat for ChatPane tool)
+app.route('/chat', chatRoutes);
 
 // 404 handler
 app.notFound((c) => {

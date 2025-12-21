@@ -1124,4 +1124,391 @@ booksRoutes.delete('/:id/annotations/:aid', async (c) => {
   }
 });
 
+// ============================================================================
+// EXPORT - Sophisticated Markdown with Pandoc/Print Hints
+// ============================================================================
+
+/**
+ * Book export settings interface
+ */
+interface ExportSettings {
+  trimSize: '5x8' | '5.5x8.5' | '6x9' | '7x10' | 'letter';
+  fontSize: 10 | 11 | 12;
+  fontFamily: 'serif' | 'sans' | 'Georgia' | 'Palatino' | 'Times';
+  includeToC: boolean;
+  includeTitlePage: boolean;
+  includeCopyright: boolean;
+  chapterStartsRight: boolean;  // Chapters start on recto (right) pages
+  smartTypography: boolean;     // Smart quotes, em-dashes
+}
+
+const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
+  trimSize: '6x9',
+  fontSize: 11,
+  fontFamily: 'Georgia',
+  includeToC: true,
+  includeTitlePage: true,
+  includeCopyright: true,
+  chapterStartsRight: true,
+  smartTypography: true,
+};
+
+// Trim size to geometry mapping (Pandoc/LaTeX)
+const TRIM_GEOMETRY: Record<string, string> = {
+  '5x8': 'paperwidth=5in, paperheight=8in, margin=0.6in, bindingoffset=0.2in',
+  '5.5x8.5': 'paperwidth=5.5in, paperheight=8.5in, margin=0.65in, bindingoffset=0.25in',
+  '6x9': 'paperwidth=6in, paperheight=9in, margin=0.75in, bindingoffset=0.25in',
+  '7x10': 'paperwidth=7in, paperheight=10in, margin=0.85in, bindingoffset=0.3in',
+  'letter': 'letterpaper, margin=1in',
+};
+
+/**
+ * Apply smart typography: curly quotes, em-dashes, ellipses
+ */
+function smartTypography(text: string): string {
+  // Unicode constants for typographic quotes
+  const LDQUO = '\u201C';  // "
+  const RDQUO = '\u201D';  // "
+  const LSQUO = '\u2018';  // '
+  const RSQUO = '\u2019';  // ' (also used for apostrophe)
+
+  return text
+    // Em-dashes (-- → —)
+    .replace(/--/g, '—')
+    // Ellipses (... → …)
+    .replace(/\.\.\./g, '…')
+    // Opening double quotes
+    .replace(/(^|[\s\(\[\{])"(\S)/g, `$1${LDQUO}$2`)
+    // Closing double quotes
+    .replace(/(\S)"([\s\)\]\}\.,;:!?]|$)/g, `$1${RDQUO}$2`)
+    // Opening single quotes / apostrophe handling
+    .replace(/(^|[\s\(\[\{])'(\S)/g, `$1${LSQUO}$2`)
+    // Closing single quotes
+    .replace(/(\S)'([\s\)\]\}\.,;:!?]|$)/g, `$1${RSQUO}$2`)
+    // Apostrophes within words
+    .replace(/(\w)'(\w)/g, `$1${RSQUO}$2`);
+}
+
+/**
+ * Generate YAML frontmatter for Pandoc
+ */
+function generateFrontmatter(
+  book: Record<string, unknown>,
+  settings: ExportSettings
+): string {
+  const geometry = TRIM_GEOMETRY[settings.trimSize] || TRIM_GEOMETRY['6x9'];
+
+  return `---
+title: "${(book.title as string).replace(/"/g, '\\"')}"
+${book.subtitle ? `subtitle: "${(book.subtitle as string).replace(/"/g, '\\"')}"` : ''}
+author: "${(book.author as string).replace(/"/g, '\\"')}"
+date: "${new Date().getFullYear()}"
+documentclass: book
+classoption:
+  - openright
+  - twoside
+geometry:
+  - ${geometry}
+fontsize: ${settings.fontSize}pt
+mainfont: "${settings.fontFamily === 'serif' ? 'Georgia' : settings.fontFamily === 'sans' ? 'Helvetica' : settings.fontFamily}"
+linestretch: 1.15
+pagestyle: headings
+toc: ${settings.includeToC}
+toc-depth: 2
+numbersections: true
+secnumdepth: 1
+links-as-notes: true
+---
+
+`;
+}
+
+/**
+ * Generate title page
+ */
+function generateTitlePage(book: Record<string, unknown>): string {
+  return `
+\\thispagestyle{empty}
+\\begin{center}
+
+\\vspace*{2in}
+
+{\\Huge\\bfseries ${book.title}}
+
+${book.subtitle ? `\\vspace{0.5in}\n\n{\\Large\\itshape ${book.subtitle}}\n` : ''}
+\\vspace{1in}
+
+{\\Large ${book.author}}
+
+\\vfill
+
+\\end{center}
+
+\\newpage
+
+`;
+}
+
+/**
+ * Generate copyright page
+ */
+function generateCopyrightPage(book: Record<string, unknown>): string {
+  const year = new Date().getFullYear();
+  return `
+\\thispagestyle{empty}
+
+\\vspace*{\\fill}
+
+\\begin{flushleft}
+\\small
+
+Copyright © ${year} ${book.author}. All rights reserved.
+
+No part of this publication may be reproduced, stored in a retrieval system,
+or transmitted in any form or by any means—electronic, mechanical, photocopying,
+recording, or otherwise—without prior written permission of the publisher.
+
+${book.description ? `\\vspace{0.5in}\n\n${book.description}\n` : ''}
+
+\\vspace{0.5in}
+
+\\textit{First Edition}
+
+\\end{flushleft}
+
+\\newpage
+
+`;
+}
+
+/**
+ * Format epigraph with proper indentation
+ */
+function formatEpigraph(epigraph: string): string {
+  return `
+> *${epigraph.replace(/\n/g, '*\n> *')}*
+
+\\vspace{0.5in}
+
+`;
+}
+
+/**
+ * GET /books/:id/export - Export book as Markdown
+ * Query params:
+ *   - format: 'markdown' (default) | 'pandoc' (with LaTeX)
+ *   - trimSize: '5x8' | '5.5x8.5' | '6x9' | '7x10' | 'letter'
+ *   - fontSize: 10 | 11 | 12
+ *   - includeToC: true | false
+ *   - smartTypography: true | false
+ */
+booksRoutes.get('/:id/export', async (c) => {
+  try {
+    const auth = getAuthContext(c);
+    const bookId = c.req.param('id');
+
+    // Parse query params for settings
+    const query = c.req.query();
+    const format = query.format === 'pandoc' ? 'pandoc' : 'markdown';
+    const settings: ExportSettings = {
+      ...DEFAULT_EXPORT_SETTINGS,
+      trimSize: (['5x8', '5.5x8.5', '6x9', '7x10', 'letter'].includes(query.trimSize || '')
+        ? query.trimSize as ExportSettings['trimSize']
+        : DEFAULT_EXPORT_SETTINGS.trimSize),
+      fontSize: ([10, 11, 12].includes(Number(query.fontSize))
+        ? Number(query.fontSize) as 10 | 11 | 12
+        : DEFAULT_EXPORT_SETTINGS.fontSize),
+      includeToC: query.includeToC !== 'false',
+      includeTitlePage: query.includeTitlePage !== 'false',
+      includeCopyright: query.includeCopyright !== 'false',
+      smartTypography: query.smartTypography !== 'false',
+    };
+
+    // Get book with full structure
+    const bookResult = await c.env.DB.prepare(`
+      SELECT * FROM books
+      WHERE id = ? AND (user_id = ? OR visibility IN ('unlisted', 'public'))
+    `).bind(bookId, auth.userId).first();
+
+    if (!bookResult) {
+      return c.json({ error: 'Book not found' }, 404);
+    }
+
+    // Get chapters
+    const chaptersResult = await c.env.DB.prepare(`
+      SELECT * FROM book_chapters WHERE book_id = ? ORDER BY order_index
+    `).bind(bookId).all();
+
+    // Get sections
+    const chapterIds = (chaptersResult.results || []).map((ch: Record<string, unknown>) => ch.id);
+    let sectionsResult: { results: Record<string, unknown>[] } = { results: [] };
+    if (chapterIds.length > 0) {
+      const placeholders = chapterIds.map(() => '?').join(',');
+      sectionsResult = await c.env.DB.prepare(`
+        SELECT * FROM book_sections WHERE chapter_id IN (${placeholders}) ORDER BY order_index
+      `).bind(...chapterIds).all();
+    }
+
+    // Get pages with FULL content
+    const sectionIds = (sectionsResult.results || []).map((s: Record<string, unknown>) => s.id);
+    let pagesResult: { results: Record<string, unknown>[] } = { results: [] };
+    if (sectionIds.length > 0) {
+      const placeholders = sectionIds.map(() => '?').join(',');
+      pagesResult = await c.env.DB.prepare(`
+        SELECT * FROM book_pages WHERE section_id IN (${placeholders}) ORDER BY order_index
+      `).bind(...sectionIds).all();
+    }
+
+    // Build markdown output
+    const parts: string[] = [];
+
+    // 1. YAML Frontmatter (for Pandoc)
+    if (format === 'pandoc') {
+      parts.push(generateFrontmatter(bookResult as Record<string, unknown>, settings));
+    } else {
+      // Simple frontmatter for plain markdown
+      parts.push(`---
+title: ${bookResult.title}
+${bookResult.subtitle ? `subtitle: ${bookResult.subtitle}` : ''}
+author: ${bookResult.author}
+date: ${new Date().toISOString().split('T')[0]}
+---
+
+`);
+    }
+
+    // 2. Title Page (Pandoc only - uses LaTeX)
+    if (format === 'pandoc' && settings.includeTitlePage) {
+      parts.push(generateTitlePage(bookResult as Record<string, unknown>));
+    }
+
+    // 3. Copyright Page (Pandoc only)
+    if (format === 'pandoc' && settings.includeCopyright) {
+      parts.push(generateCopyrightPage(bookResult as Record<string, unknown>));
+    }
+
+    // 4. Table of Contents placeholder
+    if (settings.includeToC && format !== 'pandoc') {
+      // For plain markdown, generate manual ToC
+      parts.push('# Table of Contents\n\n');
+      (chaptersResult.results || []).forEach((ch: Record<string, unknown>, idx: number) => {
+        const anchor = (ch.title as string).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        parts.push(`${idx + 1}. [${ch.title}](#${anchor})\n`);
+      });
+      parts.push('\n---\n\n');
+    }
+
+    // 5. Chapters with content
+    (chaptersResult.results || []).forEach((chapter: Record<string, unknown>, chapterIdx: number) => {
+      // Page break before chapter (except first)
+      if (chapterIdx > 0) {
+        if (format === 'pandoc') {
+          parts.push('\n\\newpage\n\n');
+          if (settings.chapterStartsRight) {
+            parts.push('\\cleardoublepage\n\n');
+          }
+        } else {
+          parts.push('\n---\n\n<!-- pagebreak -->\n\n');
+        }
+      }
+
+      // Chapter heading
+      parts.push(`# ${chapter.title}\n\n`);
+
+      // Epigraph
+      if (chapter.epigraph) {
+        if (format === 'pandoc') {
+          parts.push(formatEpigraph(chapter.epigraph as string));
+        } else {
+          parts.push(`> *${chapter.epigraph}*\n\n`);
+        }
+      }
+
+      // Chapter summary (if present, as intro paragraph)
+      if (chapter.summary) {
+        parts.push(`*${chapter.summary}*\n\n`);
+      }
+
+      // Sections within chapter
+      const chapterSections = (sectionsResult.results || [])
+        .filter((s: Record<string, unknown>) => s.chapter_id === chapter.id);
+
+      chapterSections.forEach((section: Record<string, unknown>, sectionIdx: number) => {
+        // Section heading (if titled)
+        if (section.title) {
+          parts.push(`\n## ${section.title}\n\n`);
+        } else if (sectionIdx > 0) {
+          // Untitled section break
+          parts.push('\n* * *\n\n');
+        }
+
+        // Pages within section
+        const sectionPages = (pagesResult.results || [])
+          .filter((p: Record<string, unknown>) => p.section_id === section.id);
+
+        sectionPages.forEach((page: Record<string, unknown>) => {
+          let content = page.content as string;
+
+          // Apply smart typography if enabled
+          if (settings.smartTypography) {
+            content = smartTypography(content);
+          }
+
+          // Handle images with bleed hints
+          // Convert: ![alt](url) to pandoc figure with width
+          if (format === 'pandoc') {
+            content = content.replace(
+              /!\[([^\]]*)\]\(([^)]+)\)/g,
+              '![$1]($2){ width=100% }\n\n\\begin{center}\\small\\textit{$1}\\end{center}'
+            );
+          }
+
+          parts.push(content);
+          parts.push('\n\n');
+        });
+      });
+    });
+
+    // 6. Colophon (end matter)
+    if (format === 'pandoc') {
+      parts.push(`
+\\newpage
+\\thispagestyle{empty}
+\\vspace*{\\fill}
+\\begin{center}
+\\small\\textit{This book was typeset using Pandoc and \\LaTeX.}
+\\end{center}
+`);
+    }
+
+    const markdown = parts.join('');
+
+    // Return as JSON with metadata, or raw markdown
+    const wantsRaw = query.raw === 'true';
+    if (wantsRaw) {
+      return c.text(markdown, 200, {
+        'Content-Type': 'text/markdown; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${(bookResult.title as string).replace(/[^a-z0-9]/gi, '_')}.md"`,
+      });
+    }
+
+    return c.json({
+      bookId,
+      title: bookResult.title,
+      format,
+      settings,
+      markdown,
+      wordCount: markdown.split(/\s+/).length,
+      exportedAt: Date.now(),
+      pandocCommand: format === 'pandoc'
+        ? `pandoc book.md -o book.pdf --pdf-engine=xelatex --toc`
+        : null,
+    }, 200);
+
+  } catch (error) {
+    console.error('[Books] Export error:', error);
+    return c.json({ error: 'Failed to export book' }, 500);
+  }
+});
+
 export default booksRoutes;
