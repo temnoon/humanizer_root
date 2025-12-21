@@ -42,6 +42,7 @@ async function getSelectedModel(): Promise<string> {
 
 /**
  * Generate text using Ollama
+ * Timeout: 90 seconds (longer prompts and model loading)
  */
 export async function generate(
   prompt: string,
@@ -50,68 +51,99 @@ export async function generate(
     system?: string;
     temperature?: number;
     stream?: boolean;
+    timeout?: number;
   } = {}
 ): Promise<string> {
   const model = options.model || await getSelectedModel();
+  const timeoutMs = options.timeout ?? 90000; // 90 second default
 
   console.log(`[ollamaService.generate] Starting with model=${model}, prompt length=${prompt.length} chars`);
   const startTime = Date.now();
 
-  const response = await fetch(`${OLLAMA_BASE}/api/generate`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      prompt,
-      system: options.system,
-      stream: options.stream ?? false,
-      options: {
-        temperature: options.temperature ?? 0.7,
-      },
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    throw new Error(`Ollama generate failed: ${response.statusText}`);
+  try {
+    const response = await fetch(`${OLLAMA_BASE}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        prompt,
+        system: options.system,
+        stream: options.stream ?? false,
+        options: {
+          temperature: options.temperature ?? 0.7,
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama generate failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const elapsed = Date.now() - startTime;
+    console.log(`[ollamaService.generate] Completed in ${elapsed}ms, response length=${data.response?.length || 0} chars`);
+    return data.response;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Ollama generate timed out after ${timeoutMs / 1000}s. The model may be loading or the server is unresponsive.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const data = await response.json();
-  const elapsed = Date.now() - startTime;
-  console.log(`[ollamaService.generate] Completed in ${elapsed}ms, response length=${data.response?.length || 0} chars`);
-  return data.response;
 }
 
 /**
  * Chat completion using Ollama
+ * Timeout: 60 seconds (model loading can take time)
  */
 export async function chat(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   options: {
     model?: string;
     temperature?: number;
+    timeout?: number;
   } = {}
 ): Promise<string> {
   const model = options.model || await getSelectedModel();
+  const timeoutMs = options.timeout ?? 60000; // 60 second default
 
-  const response = await fetch(`${OLLAMA_BASE}/api/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      messages,
-      stream: false,
-      options: {
-        temperature: options.temperature ?? 0.7,
-      },
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    throw new Error(`Ollama chat failed: ${response.statusText}`);
+  try {
+    const response = await fetch(`${OLLAMA_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: false,
+        options: {
+          temperature: options.temperature ?? 0.7,
+        },
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama chat failed: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.message?.content || '';
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Ollama chat timed out after ${timeoutMs / 1000}s. The model may be loading or the server is unresponsive.`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const data = await response.json();
-  return data.message?.content || '';
 }
 
 // ============================================================
