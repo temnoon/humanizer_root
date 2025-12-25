@@ -1,0 +1,319 @@
+/**
+ * Selection & Editing Component Styles
+ *
+ * Following Style Agent Protocol:
+ * - All values from tokens.css
+ * - BEM naming (function-based)
+ * - Light/dark mode compatible
+ * - WCAG contrast verified
+ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   SELECTION HIGHLIGHT - Visual feedback for selected text
+   ═══════════════════════════════════════════════════════════════════ */
+
+.selection-highlight {
+  background-color: var(--color-accent-subtle);
+  border-radius: var(--radius-tiny);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.selection-highlight--active {
+  background-color: var(--color-primary-subtle);
+  outline: var(--border-width-thin) solid var(--color-primary);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SELECTION TOOLBAR - Floating actions on text selection
+   ═══════════════════════════════════════════════════════════════════ */
+
+.selection-toolbar {
+  position: absolute;
+  z-index: var(--z-popover);
+  display: flex;
+  align-items: center;
+  gap: var(--space-tiny);
+  padding: var(--space-tiny);
+  background-color: var(--color-surface-elevated);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-medium);
+  opacity: 0;
+  transform: translateY(var(--space-small));
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+.selection-toolbar--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+/* Toolbar arrow pointing to selection */
+.selection-toolbar::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: var(--space-small) solid transparent;
+  border-top-color: var(--color-surface-elevated);
+  border-bottom: none;
+}
+
+.selection-toolbar::after {
+  content: '';
+  position: absolute;
+  top: calc(100% - 1px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: var(--space-small) solid transparent;
+  border-top-color: var(--color-border-subtle);
+  border-bottom: none;
+  z-index: -1;
+}
+
+/* Toolbar action button */
+.selection-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  height: var(--touch-target);
+  padding: 0 var(--space-small);
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--text-size-small);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  border-radius: var(--radius-small);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+  gap: var(--space-tiny);
+}
+
+.selection-action:hover {
+  background-color: var(--color-surface-tertiary);
+  color: var(--color-text-primary);
+}
+
+.selection-action:focus-visible {
+  box-shadow: var(--shadow-focus);
+  outline: none;
+}
+
+.selection-action--primary {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.selection-action--primary:hover {
+  background-color: var(--color-primary-hover);
+  color: var(--color-text-inverse);
+}
+
+/* Icon in action button */
+.selection-action__icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+/* Divider between action groups */
+.selection-toolbar__divider {
+  width: var(--border-width-thin);
+  height: var(--space-large);
+  background-color: var(--color-border-subtle);
+  margin: 0 var(--space-tiny);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   TRANSFORM MENU - Dropdown for transformation options
+   ═══════════════════════════════════════════════════════════════════ */
+
+.transform-menu {
+  position: absolute;
+  z-index: var(--z-dropdown);
+  min-width: 200px;
+  background-color: var(--color-surface-elevated);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-large);
+  padding: var(--space-tiny);
+  opacity: 0;
+  transform: translateY(calc(-1 * var(--space-small)));
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+.transform-menu--visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.transform-menu__group {
+  padding: var(--space-tiny) 0;
+}
+
+.transform-menu__group + .transform-menu__group {
+  border-top: var(--border-width-thin) solid var(--color-border-subtle);
+}
+
+.transform-menu__label {
+  padding: var(--space-tiny) var(--space-small);
+  font-size: var(--text-size-micro);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-caps);
+}
+
+.transform-menu__item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: var(--space-small) var(--space-medium);
+  border: none;
+  background-color: transparent;
+  color: var(--color-text-primary);
+  font-size: var(--text-size-body);
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-small);
+  transition: background-color var(--duration-fast) var(--ease-out);
+  gap: var(--space-small);
+}
+
+.transform-menu__item:hover {
+  background-color: var(--color-surface-tertiary);
+}
+
+.transform-menu__item:focus-visible {
+  box-shadow: var(--shadow-focus);
+  outline: none;
+}
+
+.transform-menu__item-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.transform-menu__item-label {
+  flex-grow: 1;
+}
+
+.transform-menu__item-shortcut {
+  font-size: var(--text-size-small);
+  color: var(--color-text-tertiary);
+  font-family: var(--font-family-mono);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   INLINE EDITOR - Contenteditable text editing
+   ═══════════════════════════════════════════════════════════════════ */
+
+.inline-editor {
+  font-family: var(--font-family-reading);
+  font-size: var(--text-size-body);
+  line-height: var(--line-height-reading);
+  color: var(--color-text-primary);
+  background-color: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+  min-height: 1.5em;
+  resize: none;
+  caret-color: var(--color-primary);
+}
+
+.inline-editor:focus {
+  background-color: var(--color-surface-secondary);
+  border-radius: var(--radius-small);
+  padding: var(--space-small);
+  margin: calc(-1 * var(--space-small));
+}
+
+.inline-editor::placeholder {
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+/* Editor wrapper with controls */
+.editor-block {
+  position: relative;
+}
+
+.editor-block__controls {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  gap: var(--space-tiny);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.editor-block:hover .editor-block__controls,
+.editor-block:focus-within .editor-block__controls {
+  opacity: 1;
+}
+
+.editor-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--space-large);
+  height: var(--space-large);
+  border: none;
+  background-color: var(--color-surface-secondary);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.editor-control:hover {
+  background-color: var(--color-surface-tertiary);
+  color: var(--color-text-primary);
+}
+
+.editor-control:focus-visible {
+  box-shadow: var(--shadow-focus);
+  outline: none;
+}
+
+.editor-control--save {
+  background-color: var(--color-status-success-subtle);
+  color: var(--color-status-success);
+}
+
+.editor-control--save:hover {
+  background-color: var(--color-status-success);
+  color: var(--color-text-inverse);
+}
+
+.editor-control--cancel {
+  background-color: var(--color-status-error-subtle);
+  color: var(--color-status-error);
+}
+
+.editor-control--cancel:hover {
+  background-color: var(--color-status-error);
+  color: var(--color-text-inverse);
+}

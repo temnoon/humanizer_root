@@ -1,0 +1,382 @@
+/**
+ * Sentence Analysis Component Styles
+ *
+ * Following Style Agent Protocol:
+ * - All values from tokens.css
+ * - BEM naming (function-based)
+ * - Light/dark mode compatible
+ * - WCAG contrast verified
+ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   SENTENCE BLOCK - Individual sentence with analysis capability
+   ═══════════════════════════════════════════════════════════════════ */
+
+.sentence-block {
+  position: relative;
+  padding: var(--space-tiny) 0;
+  border-radius: var(--radius-small);
+  transition: background-color var(--duration-fast) var(--ease-out);
+  cursor: default;
+}
+
+.sentence-block:hover {
+  background-color: var(--color-surface-tertiary);
+}
+
+.sentence-block--selected {
+  background-color: var(--color-primary-subtle);
+  outline: var(--border-width-medium) solid var(--color-primary);
+  outline-offset: var(--space-micro);
+}
+
+.sentence-block--editable {
+  cursor: text;
+}
+
+.sentence-block--editable:focus-visible {
+  box-shadow: var(--shadow-focus);
+  outline: none;
+}
+
+/* Sentence text content */
+.sentence-block__text {
+  font-family: var(--font-family-reading);
+  font-size: var(--text-size-body);
+  line-height: var(--line-height-reading);
+  color: var(--color-text-primary);
+}
+
+/* Inline metric indicator (appears on hover) */
+.sentence-block__indicator {
+  position: absolute;
+  left: calc(-1 * var(--space-large));
+  top: 50%;
+  transform: translateY(-50%);
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+
+.sentence-block:hover .sentence-block__indicator {
+  opacity: 1;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   SENTENCE METRICS - Display analysis results
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Metric badge (SIC score, tetralemma stance) */
+.metric-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--space-large);
+  padding: var(--space-micro) var(--space-small);
+  border-radius: var(--radius-full);
+  font-size: var(--text-size-small);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-family-mono);
+}
+
+.metric-badge--sic-high {
+  background-color: var(--color-sic-high-subtle);
+  color: var(--color-sic-high);
+}
+
+.metric-badge--sic-medium {
+  background-color: var(--color-sic-medium-subtle);
+  color: var(--color-sic-medium);
+}
+
+.metric-badge--sic-low {
+  background-color: var(--color-sic-low-subtle);
+  color: var(--color-sic-low);
+}
+
+/* Tetralemma stances */
+.metric-badge--stance-affirmation {
+  background-color: var(--color-status-success-subtle);
+  color: var(--color-status-success);
+}
+
+.metric-badge--stance-negation {
+  background-color: var(--color-status-error-subtle);
+  color: var(--color-status-error);
+}
+
+.metric-badge--stance-both {
+  background-color: var(--color-status-warning-subtle);
+  color: var(--color-status-warning);
+}
+
+.metric-badge--stance-neither {
+  background-color: var(--color-curator-subtle);
+  color: var(--color-curator);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   METRICS SIDEBAR - Detailed sentence analysis panel
+   ═══════════════════════════════════════════════════════════════════ */
+
+.metrics-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(400px, 90vw);
+  background-color: var(--color-surface-elevated);
+  border-left: var(--border-width-thin) solid var(--color-border-subtle);
+  box-shadow: var(--shadow-large);
+  z-index: var(--z-overlay);
+  transform: translateX(100%);
+  transition: transform var(--duration-normal) var(--ease-out);
+  overflow-y: auto;
+}
+
+.metrics-sidebar--open {
+  transform: translateX(0);
+}
+
+.metrics-sidebar__header {
+  position: sticky;
+  top: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-medium);
+  background-color: var(--color-surface-elevated);
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+
+.metrics-sidebar__title {
+  font-size: var(--text-size-large);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.metrics-sidebar__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch-target);
+  height: var(--touch-target);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-medium);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.metrics-sidebar__close:hover {
+  background-color: var(--color-surface-tertiary);
+}
+
+.metrics-sidebar__close:focus-visible {
+  box-shadow: var(--shadow-focus);
+  outline: none;
+}
+
+.metrics-sidebar__content {
+  padding: var(--space-medium);
+}
+
+/* Sentence preview in sidebar */
+.metrics-sidebar__sentence-preview {
+  padding: var(--space-medium);
+  background-color: var(--color-surface-secondary);
+  border-radius: var(--radius-medium);
+  font-family: var(--font-family-reading);
+  font-size: var(--text-size-body);
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-medium);
+}
+
+/* Metric row */
+.metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-small) 0;
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+
+.metric-row:last-child {
+  border-bottom: none;
+}
+
+.metric-row__label {
+  font-size: var(--text-size-small);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-caps);
+}
+
+.metric-row__value {
+  font-family: var(--font-family-mono);
+  font-size: var(--text-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+}
+
+/* Probability bar visualization */
+.probability-bar {
+  display: flex;
+  height: var(--space-small);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background-color: var(--color-surface-sunken);
+}
+
+.probability-bar__segment {
+  height: 100%;
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+.probability-bar__segment--affirmation {
+  background-color: var(--color-status-success);
+}
+
+.probability-bar__segment--negation {
+  background-color: var(--color-status-error);
+}
+
+.probability-bar__segment--both {
+  background-color: var(--color-status-warning);
+}
+
+.probability-bar__segment--neither {
+  background-color: var(--color-curator);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   METRICS TOOLTIP - Quick preview on hover
+   ═══════════════════════════════════════════════════════════════════ */
+
+.metrics-tooltip {
+  position: absolute;
+  z-index: var(--z-tooltip);
+  padding: var(--space-small) var(--space-medium);
+  background-color: var(--color-surface-floating);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-medium);
+  box-shadow: var(--shadow-medium);
+  font-size: var(--text-size-small);
+  color: var(--color-text-primary);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(var(--space-small));
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.metrics-tooltip--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.metrics-tooltip__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-small);
+  white-space: nowrap;
+}
+
+.metrics-tooltip__row + .metrics-tooltip__row {
+  margin-top: var(--space-tiny);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   METRICS MODAL - Deep dive analysis
+   ═══════════════════════════════════════════════════════════════════ */
+
+.metrics-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(600px, 90vw);
+  max-height: 80vh;
+  background-color: var(--color-surface-elevated);
+  border-radius: var(--radius-large);
+  box-shadow: var(--shadow-xlarge);
+  z-index: var(--z-modal);
+  overflow: hidden;
+}
+
+.metrics-modal__backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: hsl(0, 0%, 0%, 0.5);
+  z-index: calc(var(--z-modal) - 1);
+}
+
+.metrics-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-medium) var(--space-large);
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+}
+
+.metrics-modal__body {
+  padding: var(--space-large);
+  overflow-y: auto;
+  max-height: calc(80vh - 120px);
+}
+
+/* Vector visualization */
+.vector-radar {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 300px;
+  margin: 0 auto var(--space-large);
+}
+
+/* Dimension breakdown */
+.dimension-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-small);
+}
+
+.dimension-row {
+  display: grid;
+  grid-template-columns: 120px 1fr auto;
+  align-items: center;
+  gap: var(--space-medium);
+}
+
+.dimension-row__label {
+  font-size: var(--text-size-small);
+  color: var(--color-text-secondary);
+}
+
+.dimension-row__bar {
+  height: var(--space-small);
+  background-color: var(--color-surface-sunken);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.dimension-row__fill {
+  height: 100%;
+  background-color: var(--color-primary);
+  border-radius: var(--radius-full);
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+.dimension-row__value {
+  font-family: var(--font-family-mono);
+  font-size: var(--text-size-small);
+  color: var(--color-text-primary);
+  min-width: 48px;
+  text-align: right;
+}

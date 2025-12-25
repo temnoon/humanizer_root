@@ -1,0 +1,324 @@
+/**
+ * Styled Container Component Styles
+ *
+ * For formatted blocks, dingbat frames, and decorative containers.
+ * Following Style Agent Protocol.
+ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   STYLED BLOCK - Generic container with style variants
+   ═══════════════════════════════════════════════════════════════════ */
+
+.styled-block {
+  position: relative;
+  padding: var(--space-medium);
+  border-radius: var(--radius-medium);
+  background-color: var(--color-surface-secondary);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+}
+
+/* Quote/blockquote style */
+.styled-block--quote {
+  padding-left: var(--space-large);
+  border-left: var(--border-width-thick) solid var(--color-primary);
+  background-color: var(--color-primary-subtle);
+  font-style: italic;
+}
+
+/* Callout/note style */
+.styled-block--callout {
+  padding-left: var(--space-xlarge);
+  border-left: var(--border-width-thick) solid var(--color-accent);
+  background-color: var(--color-accent-subtle);
+}
+
+.styled-block--callout::before {
+  content: '✦';
+  position: absolute;
+  left: var(--space-small);
+  top: var(--space-medium);
+  color: var(--color-accent);
+  font-size: var(--text-size-large);
+}
+
+/* Emphasis/highlight style */
+.styled-block--emphasis {
+  background-color: var(--color-status-warning-subtle);
+  border-color: var(--color-status-warning);
+}
+
+/* Curator voice style */
+.styled-block--curator {
+  background-color: var(--color-curator-subtle);
+  border-color: var(--color-curator);
+  font-family: var(--font-family-reading);
+}
+
+/* Archive source style */
+.styled-block--source {
+  background-color: var(--color-surface-sunken);
+  border: var(--border-width-thin) dashed var(--color-border-default);
+  font-family: var(--font-family-mono);
+  font-size: var(--text-size-small);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   DINGBAT FRAME - Decorative borders with ornaments
+   ═══════════════════════════════════════════════════════════════════ */
+
+.dingbat-frame {
+  position: relative;
+  padding: var(--space-large);
+  margin: var(--space-medium) 0;
+}
+
+/* Corner ornaments */
+.dingbat-frame::before,
+.dingbat-frame::after {
+  position: absolute;
+  font-size: var(--text-size-heading-2);
+  color: var(--color-text-tertiary);
+  line-height: 1;
+}
+
+.dingbat-frame::before {
+  content: attr(data-dingbat-start);
+  top: 0;
+  left: 0;
+}
+
+.dingbat-frame::after {
+  content: attr(data-dingbat-end);
+  bottom: 0;
+  right: 0;
+}
+
+/* Dingbat variants */
+.dingbat-frame--fleuron::before { content: '❧'; }
+.dingbat-frame--fleuron::after { content: '❧'; transform: rotate(180deg); }
+
+.dingbat-frame--asterism::before { content: '⁂'; }
+.dingbat-frame--asterism::after { content: '⁂'; }
+
+.dingbat-frame--pilcrow::before { content: '¶'; }
+.dingbat-frame--pilcrow::after { content: '¶'; }
+
+.dingbat-frame--diamond::before { content: '◆'; }
+.dingbat-frame--diamond::after { content: '◇'; }
+
+.dingbat-frame--flourish::before { content: '❦'; }
+.dingbat-frame--flourish::after { content: '❦'; transform: scaleX(-1); }
+
+.dingbat-frame--leaf::before { content: '🙚'; }
+.dingbat-frame--leaf::after { content: '🙛'; }
+
+/* Section divider */
+.dingbat-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-medium);
+  margin: var(--space-xlarge) 0;
+  color: var(--color-text-tertiary);
+}
+
+.dingbat-divider::before,
+.dingbat-divider::after {
+  content: '';
+  flex: 1;
+  height: var(--border-width-thin);
+  background-color: var(--color-border-subtle);
+}
+
+.dingbat-divider__symbol {
+  font-size: var(--text-size-large);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   BORDERED CONTAINER - Decorative border styles
+   ═══════════════════════════════════════════════════════════════════ */
+
+.bordered-container {
+  padding: var(--space-medium);
+  border: var(--border-width-medium) solid var(--color-border-default);
+  border-radius: var(--radius-medium);
+}
+
+.bordered-container--double {
+  border-style: double;
+  border-width: var(--border-width-thick);
+}
+
+.bordered-container--groove {
+  border-style: groove;
+  border-width: var(--border-width-thick);
+}
+
+.bordered-container--ridge {
+  border-style: ridge;
+  border-width: var(--border-width-thick);
+}
+
+.bordered-container--inset {
+  border-style: inset;
+  background-color: var(--color-surface-sunken);
+}
+
+.bordered-container--outset {
+  border-style: outset;
+  background-color: var(--color-surface-elevated);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   DROP CAP - Initial letter styling
+   ═══════════════════════════════════════════════════════════════════ */
+
+.drop-cap::first-letter {
+  float: left;
+  font-size: var(--text-size-display);
+  font-weight: var(--font-weight-bold);
+  line-height: 0.8;
+  padding-right: var(--space-small);
+  color: var(--color-primary);
+  font-family: var(--font-family-heading);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PULL QUOTE - Large emphasized quote
+   ═══════════════════════════════════════════════════════════════════ */
+
+.pull-quote {
+  position: relative;
+  padding: var(--space-xlarge) var(--space-huge);
+  margin: var(--space-xlarge) 0;
+  font-size: var(--text-size-heading-3);
+  font-family: var(--font-family-reading);
+  font-style: italic;
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-primary);
+  text-align: center;
+}
+
+.pull-quote::before {
+  content: '"';
+  position: absolute;
+  top: 0;
+  left: var(--space-medium);
+  font-size: var(--text-size-display);
+  font-family: var(--font-family-heading);
+  color: var(--color-text-tertiary);
+  line-height: 1;
+}
+
+.pull-quote::after {
+  content: '"';
+  position: absolute;
+  bottom: 0;
+  right: var(--space-medium);
+  font-size: var(--text-size-display);
+  font-family: var(--font-family-heading);
+  color: var(--color-text-tertiary);
+  line-height: 1;
+}
+
+.pull-quote__attribution {
+  display: block;
+  margin-top: var(--space-medium);
+  font-size: var(--text-size-body);
+  font-style: normal;
+  color: var(--color-text-secondary);
+}
+
+.pull-quote__attribution::before {
+  content: '— ';
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   MARGINALIA - Side notes and annotations
+   ═══════════════════════════════════════════════════════════════════ */
+
+.marginalia-container {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr minmax(150px, 200px);
+  gap: var(--space-large);
+}
+
+@media (max-width: 768px) {
+  .marginalia-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.marginalia-container__content {
+  /* Main content area */
+}
+
+.marginalia-container__notes {
+  position: sticky;
+  top: var(--space-large);
+  align-self: start;
+}
+
+.marginalia-note {
+  padding: var(--space-small);
+  margin-bottom: var(--space-medium);
+  font-size: var(--text-size-small);
+  color: var(--color-text-secondary);
+  border-left: var(--border-width-medium) solid var(--color-border-subtle);
+  padding-left: var(--space-small);
+}
+
+.marginalia-note--highlight {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-subtle);
+  border-radius: 0 var(--radius-small) var(--radius-small) 0;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   POEM/VERSE CONTAINER - For poetry and verse
+   ═══════════════════════════════════════════════════════════════════ */
+
+.verse-container {
+  padding: var(--space-large);
+  margin: var(--space-large) 0;
+  background-color: var(--color-surface-secondary);
+  border-radius: var(--radius-medium);
+  font-family: var(--font-family-reading);
+  white-space: pre-wrap;
+  line-height: var(--line-height-relaxed);
+}
+
+.verse-container--centered {
+  text-align: center;
+}
+
+.verse-line {
+  display: block;
+}
+
+.verse-line--indent-1 {
+  padding-left: var(--space-large);
+}
+
+.verse-line--indent-2 {
+  padding-left: var(--space-xlarge);
+}
+
+.verse-line--indent-3 {
+  padding-left: var(--space-huge);
+}
+
+.verse-stanza {
+  margin-bottom: var(--space-large);
+}
+
+.verse-stanza:last-child {
+  margin-bottom: 0;
+}
