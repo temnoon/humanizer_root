@@ -22,3 +22,6 @@ export * from './selection';
 
 // Styled Containers
 export * from './containers';
+
+// Media Gallery
+export * from './media';
