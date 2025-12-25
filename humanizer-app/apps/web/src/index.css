@@ -5,6 +5,16 @@
  * All values MUST use tokens from tokens.css.
  */
 
+/* Import @humanizer/ui design system */
+@import '../../packages/ui/styles/tokens.css';
+@import '../../packages/ui/styles/reset.css';
+
+/* Import @humanizer/ui component styles */
+@import '../../packages/ui/styles/components/sentence.css';
+@import '../../packages/ui/styles/components/selection.css';
+@import '../../packages/ui/styles/components/containers.css';
+@import '../../packages/ui/styles/components/media.css';
+
 /* ═══════════════════════════════════════════════════════════════════
    APP LAYOUT
    ═══════════════════════════════════════════════════════════════════ */
