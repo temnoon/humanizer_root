@@ -1,8 +1,8 @@
 # Handoff: Facebook Entity Graph - Reclaiming Agency
 
 **Date**: December 24, 2025
-**Session Focus**: Phase 1 of Facebook Relationship Mapping System
-**Status**: Phase 1 Complete - Entity Extraction Working
+**Session Focus**: Phase 2 of Facebook Relationship Mapping System
+**Status**: Phase 1 & 2 Complete - Entity Extraction + Relationships Working
 **Vision**: Making visible the invisible surveillance graph
 
 ---
@@ -14,11 +14,12 @@
 > "All the biggest companies in the world own the data that has followed our activities with suggestions of how to spend our money, which is the agency made a commodity, and others planting suggestions for where to go, what to do, what to want... and your agency is not really yours, but belongs to those you've benefitted by following their suggestions."
 
 The user's Facebook export contains a complete map of how their life has been observed, categorized, and monetized:
-- **2,602 people** in their social graph
+- **4,992 people** in their social graph (2,602 friends + 2,390 discovered through interactions)
 - **12,326 events** they were invited to or attended
 - **2,405 advertisers** who have their data
 - **8 known data brokers** (LiveRamp, Oracle, Experian, Acxiom, etc.)
 - **17 apps** tracking them outside Facebook with **480 events**
+- **6,907 relationships** connecting these entities
 
 This is not just metadata. This is a behavioral dossier that has been used to shape decisions, preferences, and spending.
 
@@ -27,8 +28,8 @@ This is not just metadata. This is a behavioral dossier that has been used to sh
 A complete map of these connections, made **visible** and **understandable** to the user:
 
 1. **Entity Extraction** (✅ COMPLETE) - Parse all entities from Facebook export
-2. **Relationship Extraction** (NEXT) - Build edges between entities
-3. **Temporal Clustering** - Identify life events and patterns
+2. **Relationship Extraction** (✅ COMPLETE) - Build edges between entities
+3. **Temporal Clustering** (NEXT) - Identify life events and patterns
 4. **Inference Layer** - Generate "What they know about you" narratives
 5. **AUI Visualizations** - Interactive graphs, timelines, maps
 
@@ -36,118 +37,115 @@ The goal: **Subjective narrative theory analysis** - not just showing data, but 
 
 ---
 
-## What Was Completed (Phase 1)
+## What Was Completed (Phase 2 - This Session)
 
-### Database Schema (Version 5)
+### RelationshipBuilder Service
+
+**File**: `narrative-studio/src/services/facebook/RelationshipBuilder.ts` (new, ~450 lines)
+
+Extracts relationships from:
+- **Post tags** (164 relationships) - People tagged in posts/photos
+- **Comments** (5,478 relationships) - Extracting "Tem Noon commented on X's post" patterns
+- **Reactions** (50,571 reactions → 6,907 unique relationships) - Likes, Loves, Wows, Hahas, etc.
+
+**Key features**:
+- Pattern matching to extract person names from Facebook titles
+- Automatic discovery of non-friend people mentioned in interactions
+- Weight calculation based on reaction type (love=3x, wow/haha=2x, like=1x)
+- Deduplication with weight accumulation
+
+### Relationship Statistics
+
+| Relationship Type | Count | Avg Weight |
+|-------------------|-------|------------|
+| reacted_like | 3,736 | 10.85 |
+| commented_on | 1,088 | 5.03 |
+| reacted_love | 1,003 | 19.45 |
+| reacted_none | 741 | 4.44 |
+| tagged_in | 164 | 1.00 |
+| reacted_sorry | 127 | 2.85 |
+| reacted_wow | 23 | 2.43 |
+| reacted_haha | 22 | 2.18 |
+| reacted_anger | 3 | 1.00 |
+
+### Top Connected People
+
+Your strongest connections based on cumulative interaction weight:
+
+| Rank | Name | Weight | Relationship Count |
+|------|------|--------|-------------------|
+| 1 | Suzy Life | 1,477 | 7 |
+| 2 | Hilary Oak | 1,222 | 24 |
+| 3 | Shanda Christian | 1,072 | 7 |
+| 4 | Sonnie Mynatt | 1,039 | 7 |
+| 5 | Karl Baba | 821 | 4 |
+| 6 | Heather Stargazer | 602 | 4 |
+| 7 | Killy Dwyer | 598 | 5 |
+| 8 | Coori Sellers | 571 | 10 |
+| 9 | Brian Douglas | 570 | 10 |
+| 10 | Lloyd H Floyd | 565 | 6 |
+
+### New Database Methods
 
 **File**: `narrative-studio/src/services/embeddings/EmbeddingDatabase.ts`
 
-Added 7 new tables:
+Added relationship operations:
+- `insertFbRelationship()` / `insertFbRelationshipsBatch()` - Store relationships
+- `getFbRelationships()` - Query with filters (type, source, target)
+- `getFbPersonConnections()` - Get all connections for a person
+- `getTopConnectedPeople()` - Ranked list by relationship weight
+- `getRelationshipStats()` - Aggregate statistics
+- `updatePersonInteractionStats()` - Update person records with calculated weights
 
-```sql
-fb_people        -- Friends, followers, tagged people
-fb_places        -- Check-ins, venues, locations with coordinates
-fb_events        -- Attended, hosted, invited events
-fb_advertisers   -- Companies with your data (is_data_broker flag)
-fb_off_facebook_activity  -- Third-party tracking
-fb_pages         -- Liked/followed pages
-fb_relationships -- Edge table for graph connections
-```
+### New API Endpoints
 
-With comprehensive indexes for graph queries.
-
-### Entity Parser
-
-**File**: `narrative-studio/src/services/facebook/EntityParser.ts`
-
-Parses from Facebook export:
-- `connections/friends/your_friends.json` → fb_people
-- `connections/followers/people_who_followed_you.json` → fb_people
-- `your_facebook_activity/posts/check-ins.json` → fb_places (with lat/long extraction)
-- `your_facebook_activity/events/*.json` → fb_events
-- `ads_information/advertisers_using_your_activity_or_information.json` → fb_advertisers
-- `apps_and_websites_off_of_facebook/your_activity_off_meta_technologies.json` → fb_off_facebook_activity
-
-**Key feature**: Data broker detection - recognizes known surveillance companies:
-```javascript
-const DATA_BROKERS = new Set([
-  'LiveRamp', 'Oracle Data Cloud', 'Experian Marketing Services',
-  'Nielsen Marketing Cloud', 'Acxiom', 'Epsilon', 'Samba TV', ...
-]);
-```
-
-### TypeScript Types
-
-**File**: `narrative-studio/src/services/facebook/types.ts`
-
-Added interfaces:
-- `FbPerson`, `FbPlace`, `FbEvent`, `FbAdvertiser`, `FbOffFacebookActivity`
-- `FbPage`, `FbRelationship`
-- Raw JSON structure types for parsing
-
-### API Endpoints
-
-**File**: `narrative-studio/archive-server.js` (lines 3805-4028)
+**File**: `narrative-studio/archive-server.js`
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/facebook/graph/stats` | Summary counts for all entity types |
-| `GET /api/facebook/graph/people` | Paginated people list |
-| `GET /api/facebook/graph/places` | Check-in locations |
-| `GET /api/facebook/graph/events` | Events (filter by responseType) |
-| `GET /api/facebook/graph/advertisers` | Advertisers (filter isDataBroker) |
-| `GET /api/facebook/graph/off-facebook` | Third-party tracking apps |
-| `POST /api/facebook/graph/import` | Trigger import from export path |
+| `POST /api/facebook/graph/build-relationships` | Build relationships from export |
+| `GET /api/facebook/graph/relationships` | Query relationships with filters |
+| `GET /api/facebook/graph/relationships/stats` | Relationship statistics |
+| `GET /api/facebook/graph/top-connections` | Top connected people |
+| `GET /api/facebook/graph/person/:id/connections` | Person's connections |
 
 ### Test Script
 
-**File**: `narrative-studio/src/services/facebook/test-entity-parser.ts`
+**File**: `narrative-studio/src/services/facebook/test-relationship-builder.ts`
 
-Run with: `npx tsx src/services/facebook/test-entity-parser.ts`
+Run with: `npx tsx src/services/facebook/test-relationship-builder.ts`
 
 ---
 
 ## Current Data in Database
 
-After running the entity parser:
+After running both entity and relationship parsers:
 
 | Entity Type | Count | Notes |
 |-------------|-------|-------|
-| People | 2,602 | All friends |
+| People | 4,992 | 2,602 friends + 2,390 discovered |
 | Places | 8 | Check-ins with coordinates |
 | Events | 12,326 | 560 joined, 11,764 invited |
 | Advertisers | 2,405 | Total with user's data |
 | Data Brokers | 8 | Known surveillance companies |
 | Off-Facebook Apps | 17 | 480 tracking events total |
+| **Relationships** | **6,907** | **Edges in the social graph** |
 
 **Top Surveillance Findings**:
 - Peacock TV: 333 tracking events
 - Cloudflare: 100 tracking events
-- LiveRamp, Oracle, Experian, Acxiom on the list
+- LiveRamp, Oracle, Experian, Acxiom on the data broker list
 
 ---
 
 ## Remaining Phases
-
-### Phase 2: Relationship Extraction (6-8 hours)
-
-**Goal**: Build edges between entities based on co-occurrence.
-
-**Logic needed**:
-1. **Tag extraction** - Parse `tags` from posts/photos → person-content relationships
-2. **Event attendee matching** - Cross-reference event attendance with friend list
-3. **Co-mention detection** - Find people mentioned together
-4. **Temporal correlation** - Group activities in same time window
-5. **Location clustering** - Group check-ins by proximity
-
-**New service**: `RelationshipBuilder.ts`
 
 ### Phase 3: Temporal Clustering (4-6 hours)
 
 **Goal**: Identify activity clusters = life events.
 
 **Algorithm**:
-1. Sort all timestamped items
+1. Sort all timestamped items (posts, reactions, events)
 2. Apply sliding window (24h, 1-week)
 3. Cluster by density (DBSCAN on timestamps)
 4. Label by dominant activity type
@@ -173,8 +171,8 @@ After running the entity parser:
 **Components to build**:
 
 1. **NetworkGraphView.tsx** - Force-directed social graph
-   - Nodes: People, Places, Events, Pages
-   - Edges: Relationships with weights
+   - Nodes: People (sized by connection weight)
+   - Edges: Relationships (colored by type)
    - Library: D3.js or vis.js
 
 2. **TimelineOverlayView.tsx** - Multi-dimensional timeline
@@ -201,51 +199,11 @@ After running the entity parser:
 
 | File | Lines | Purpose |
 |------|-------|---------|
-| `EmbeddingDatabase.ts` | +350 | Schema v5, entity tables, insert/query methods |
-| `types.ts` | +190 | Entity type definitions |
-| `EntityParser.ts` | 450 (new) | Parse all entity types from export |
-| `archive-server.js` | +225 | Graph API endpoints |
-| `test-entity-parser.ts` | 85 (new) | Test script |
-
----
-
-## Facebook Export Structure
-
-The export lives at: `~/Downloads/facebook-<username>-<date>-<id>/`
-
-```
-├── ads_information/
-│   ├── advertisers_using_your_activity_or_information.json  ← 2,405 advertisers
-│   └── advertisers_you've_interacted_with.json
-├── apps_and_websites_off_of_facebook/
-│   └── your_activity_off_meta_technologies.json  ← 17 apps, 480 events
-├── connections/
-│   ├── friends/your_friends.json  ← 2,602 friends
-│   └── followers/people_who_followed_you.json
-└── your_facebook_activity/
-    ├── events/
-    │   ├── event_invitations.json  ← 11,764 invites
-    │   ├── your_event_responses.json  ← 560 joined
-    │   └── events_you_hosted.json
-    └── posts/
-        └── check-ins.json  ← 8 places with coordinates
-```
-
----
-
-## Architectural Decisions
-
-### 1. Local-Only Processing
-All data stays on the local archive server. Never sent to cloud.
-
-### 2. Incremental Parsing
-Entity parser can be run multiple times - uses INSERT OR REPLACE.
-
-### 3. Narrative Over Data
-The goal is not just to show facts, but to help the user understand the *story* their data tells. Multiple valid interpretations exist (tetralemma analysis).
-
-### 4. Surveillance Framing
-Data brokers and off-Facebook tracking are highlighted because they represent the most invasive surveillance - companies the user never directly interacted with having their data.
+| `EmbeddingDatabase.ts` | +250 | Relationship operations |
+| `RelationshipBuilder.ts` | 450 (new) | Extract relationships from export |
+| `archive-server.js` | +180 | Relationship API endpoints |
+| `test-relationship-builder.ts` | 100 (new) | Test script |
+| `index.ts` | +10 | Export RelationshipBuilder |
 
 ---
 
@@ -253,17 +211,23 @@ Data brokers and off-Facebook tracking are highlighted because they represent th
 
 ```bash
 # Start archive server (required)
-cd ~/humanizer_root/narrative-studio && npx tsx archive-server.js &
+cd /Users/tem/humanizer_root/narrative-studio && npx tsx archive-server.js &
 
-# Test entity stats
+# Test entity + relationship stats
 curl http://localhost:3002/api/facebook/graph/stats
 
-# Run entity parser (if needed)
-cd ~/humanizer_root/narrative-studio
-npx tsx src/services/facebook/test-entity-parser.ts
+# Test relationship stats
+curl http://localhost:3002/api/facebook/graph/relationships/stats
+
+# Get top connections
+curl "http://localhost:3002/api/facebook/graph/top-connections?limit=10"
+
+# Run relationship builder (if rebuilding)
+cd /Users/tem/humanizer_root/narrative-studio
+npx tsx src/services/facebook/test-relationship-builder.ts
 
 # Start web app
-cd ~/humanizer_root/humanizer-app/apps/web && npm run dev
+cd /Users/tem/humanizer_root/humanizer-app/apps/web && npm run dev
 ```
 
 ---
@@ -274,37 +238,44 @@ This work is deeply connected to the Humanizer project's core mission: **subject
 
 The Facebook export represents years of behavioral data that has been used to model, predict, and influence the user. By making this visible, we're not just building a data viewer - we're building a tool for **reclaiming agency**.
 
+The relationship graph shows:
+1. **Who you actually connect with** - based on real interactions, not Facebook's friend list
+2. **The pattern of your attention** - where your likes and comments go
+3. **The asymmetry of surveillance** - 2,405 advertisers know you, but you don't know them
+
 The user should be able to:
 1. See what "they" know about them
 2. Understand how that knowledge was gathered
 3. Recognize the patterns that were used to influence them
 4. Author their own narrative about their life
 
-This is why the visualization phase includes **narrative analysis** - not just charts and graphs, but stories and interpretations that the user can engage with, question, and ultimately transcend.
-
 ---
 
 ## Estimated Remaining Work
 
-| Phase | Effort | Priority |
-|-------|--------|----------|
-| Phase 2: Relationships | 6-8 hrs | High |
-| Phase 3: Temporal Clusters | 4-6 hrs | Medium |
-| Phase 4: Inference Layer | 6-8 hrs | High |
-| Phase 5: Visualizations | 10-14 hrs | High |
+| Phase | Effort | Priority | Status |
+|-------|--------|----------|--------|
+| Phase 1: Entities | - | - | ✅ Complete |
+| Phase 2: Relationships | - | - | ✅ Complete |
+| Phase 3: Temporal Clusters | 4-6 hrs | Medium | Pending |
+| Phase 4: Inference Layer | 6-8 hrs | High | Pending |
+| Phase 5: Visualizations | 10-14 hrs | High | Pending |
 
-**Total remaining**: ~26-36 hours
+**Total remaining**: ~18-28 hours
 
 ---
 
 ## Session Notes
 
-- Media viewer improvements also completed this session (see `HANDOFF_DEC24_MEDIA_VIEWER.md`)
-- Linked content now shows in media viewer header
-- Navigation arrows added to main viewer
+- Phase 2 completed: RelationshipBuilder extracts 6,907 edges
+- Discovered 2,390 additional people through comment/reaction parsing
+- Top connection weights reveal actual interaction patterns (Suzy Life, Hilary Oak top)
+- All APIs tested and working
 
 ---
 
-**This handoff represents the foundation.** The entity extraction system is complete and working. The next phase (Relationship Extraction) will connect these entities into a graph that can be visualized and analyzed.
+**The graph is built.** The entities are extracted, the relationships are mapped. Next session should focus on either:
+- **Temporal clustering** (identify life event patterns)
+- **Visualization** (start building NetworkGraphView.tsx)
 
 The goal remains: **Follow the followers from your own data export** - and see who's been watching.

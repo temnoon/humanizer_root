@@ -1,6 +1,15 @@
+/**
+ * BookReader - Simple read-only book viewer
+ *
+ * For full editing/analysis capabilities, use BookEditor instead.
+ */
+
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+
+// Re-export BookEditor for convenience
+export { BookEditor } from './BookEditor';
 
 interface BookReaderProps {
   content?: string;

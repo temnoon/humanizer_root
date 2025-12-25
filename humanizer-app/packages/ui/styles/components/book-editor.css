@@ -1,0 +1,427 @@
+/**
+ * Book Editor Component Styles
+ *
+ * Integrated reader/editor with sentence analysis.
+ * Following Style Agent Protocol.
+ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   BOOK EDITOR - Main container
+   ═══════════════════════════════════════════════════════════════════ */
+
+.book-editor {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: background-color var(--duration-normal) var(--ease-out);
+}
+
+/* Theme variants */
+.book-editor--sepia {
+  --book-bg: hsl(40, 40%, 94%);
+  --book-text: hsl(30, 20%, 20%);
+  --book-text-secondary: hsl(30, 15%, 40%);
+  --book-accent: hsl(30, 50%, 40%);
+  background-color: var(--book-bg);
+  color: var(--book-text);
+}
+
+.book-editor--light {
+  --book-bg: var(--color-surface-primary);
+  --book-text: var(--color-text-primary);
+  --book-text-secondary: var(--color-text-secondary);
+  --book-accent: var(--color-primary);
+  background-color: var(--book-bg);
+  color: var(--book-text);
+}
+
+.book-editor--dark {
+  --book-bg: hsl(220, 20%, 12%);
+  --book-text: hsl(220, 10%, 85%);
+  --book-text-secondary: hsl(220, 10%, 60%);
+  --book-accent: hsl(220, 60%, 65%);
+  background-color: var(--book-bg);
+  color: var(--book-text);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   CONTROLS BAR
+   ═══════════════════════════════════════════════════════════════════ */
+
+.book-editor__controls {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-small) var(--space-large);
+  background-color: var(--book-bg);
+  border-bottom: var(--border-width-thin) solid var(--color-border-subtle);
+  transition: opacity var(--duration-normal) var(--ease-out),
+              transform var(--duration-normal) var(--ease-out);
+}
+
+.book-editor__controls--hidden {
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+.book-editor__controls-left,
+.book-editor__controls-center,
+.book-editor__controls-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-small);
+}
+
+.book-editor__controls-center {
+  flex: 1;
+  justify-content: center;
+}
+
+.book-editor__title {
+  font-size: var(--text-size-body);
+  font-weight: var(--font-weight-medium);
+  color: var(--book-text);
+}
+
+.book-editor__analysis-badge {
+  font-size: var(--text-size-small);
+  color: var(--book-text-secondary);
+  margin-left: var(--space-medium);
+}
+
+/* Mode toggle */
+.book-editor__mode-toggle {
+  display: flex;
+  gap: var(--space-tiny);
+  padding: var(--space-tiny);
+  background-color: var(--color-surface-secondary);
+  border-radius: var(--radius-medium);
+}
+
+.book-editor__btn {
+  padding: var(--space-small) var(--space-medium);
+  border: none;
+  background: transparent;
+  color: var(--book-text-secondary);
+  font-size: var(--text-size-small);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  min-height: var(--touch-target);
+  transition: background-color var(--duration-fast) var(--ease-out),
+              color var(--duration-fast) var(--ease-out);
+}
+
+.book-editor__btn:hover {
+  background-color: var(--color-surface-tertiary);
+  color: var(--book-text);
+}
+
+.book-editor__btn--active {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.book-editor__btn--primary {
+  background-color: var(--color-primary);
+  color: var(--color-text-inverse);
+}
+
+.book-editor__btn--primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.book-editor__select {
+  padding: var(--space-small) var(--space-medium);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-small);
+  background-color: var(--color-surface-secondary);
+  color: var(--book-text);
+  font-size: var(--text-size-small);
+  cursor: pointer;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   MAIN CONTENT AREA
+   ═══════════════════════════════════════════════════════════════════ */
+
+.book-editor__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.book-editor__content {
+  flex: 1;
+  padding: var(--space-xlarge);
+  overflow-y: auto;
+}
+
+.book-editor__article {
+  max-width: var(--width-content-medium);
+  margin: 0 auto;
+  font-family: var(--font-family-reading);
+  line-height: var(--line-height-reading);
+}
+
+/* Typography within article */
+.book-editor__article h1 {
+  font-size: var(--text-size-heading-1);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--space-large);
+  line-height: var(--line-height-tight);
+}
+
+.book-editor__article h2 {
+  font-size: var(--text-size-heading-2);
+  font-weight: var(--font-weight-semibold);
+  margin-top: var(--space-xlarge);
+  margin-bottom: var(--space-medium);
+}
+
+.book-editor__article h3 {
+  font-size: var(--text-size-heading-3);
+  font-weight: var(--font-weight-semibold);
+  margin-top: var(--space-large);
+  margin-bottom: var(--space-small);
+}
+
+.book-editor__article p {
+  margin-bottom: var(--space-medium);
+}
+
+.book-editor__article blockquote {
+  margin: var(--space-large) 0;
+  padding: var(--space-medium) var(--space-large);
+  border-left: var(--border-width-thick) solid var(--book-accent);
+  background-color: rgba(0, 0, 0, 0.03);
+  font-style: italic;
+}
+
+.book-editor--dark .book-editor__article blockquote {
+  background-color: rgba(255, 255, 255, 0.03);
+}
+
+.book-editor__article hr {
+  border: none;
+  border-top: var(--border-width-thin) solid var(--color-border-subtle);
+  margin: var(--space-xlarge) 0;
+}
+
+.book-editor__article ul,
+.book-editor__article ol {
+  margin-bottom: var(--space-medium);
+  padding-left: var(--space-large);
+}
+
+.book-editor__article li {
+  margin-bottom: var(--space-small);
+}
+
+.book-editor__article em {
+  font-style: italic;
+}
+
+.book-editor__article strong {
+  font-weight: var(--font-weight-bold);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   ANALYZE MODE
+   ═══════════════════════════════════════════════════════════════════ */
+
+.book-editor__paragraph--analyzable {
+  cursor: pointer;
+  padding: var(--space-tiny);
+  margin: 0 calc(-1 * var(--space-tiny));
+  border-radius: var(--radius-small);
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.book-editor__paragraph--analyzable:hover {
+  background-color: var(--color-primary-subtle);
+}
+
+.book-editor__blockquote--analyzable {
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.book-editor__blockquote--analyzable:hover {
+  border-color: var(--color-primary);
+}
+
+/* Analysis summary panel */
+.book-editor__analysis-summary {
+  margin-top: var(--space-huge);
+  padding: var(--space-large);
+  background-color: var(--color-surface-secondary);
+  border-radius: var(--radius-large);
+}
+
+.book-editor__analysis-summary h4 {
+  margin: 0 0 var(--space-medium);
+  font-size: var(--text-size-large);
+  font-weight: var(--font-weight-semibold);
+}
+
+.book-editor__sentences-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-small);
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.book-editor__sentence-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-small);
+  padding: var(--space-small);
+  background-color: var(--color-surface-primary);
+  border-radius: var(--radius-small);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.book-editor__sentence-item:hover {
+  background-color: var(--color-surface-tertiary);
+}
+
+.book-editor__sentence-item--high {
+  border-left: var(--border-width-medium) solid var(--color-sic-high);
+}
+
+.book-editor__sentence-item--medium {
+  border-left: var(--border-width-medium) solid var(--color-sic-medium);
+}
+
+.book-editor__sentence-item--low {
+  border-left: var(--border-width-medium) solid var(--color-sic-low);
+}
+
+.book-editor__sentence-index {
+  font-size: var(--text-size-small);
+  font-family: var(--font-family-mono);
+  color: var(--book-text-secondary);
+  min-width: 32px;
+}
+
+.book-editor__sentence-text {
+  flex: 1;
+  font-size: var(--text-size-small);
+  color: var(--book-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.book-editor__sentence-score {
+  font-size: var(--text-size-small);
+  font-family: var(--font-family-mono);
+  font-weight: var(--font-weight-semibold);
+  min-width: 32px;
+  text-align: right;
+}
+
+.book-editor__sentences-more {
+  padding: var(--space-small);
+  text-align: center;
+  font-size: var(--text-size-small);
+  color: var(--book-text-secondary);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   EDIT MODE
+   ═══════════════════════════════════════════════════════════════════ */
+
+.book-editor__edit-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-large);
+}
+
+.book-editor__textarea {
+  flex: 1;
+  width: 100%;
+  max-width: var(--width-content-medium);
+  margin: 0 auto;
+  padding: var(--space-large);
+  border: var(--border-width-thin) solid var(--color-border-subtle);
+  border-radius: var(--radius-medium);
+  background-color: var(--color-surface-primary);
+  color: var(--book-text);
+  font-family: var(--font-family-mono);
+  line-height: var(--line-height-relaxed);
+  resize: none;
+}
+
+.book-editor__textarea:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
+.book-editor__edit-actions {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-medium);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   LOADING OVERLAY
+   ═══════════════════════════════════════════════════════════════════ */
+
+.book-editor__loading {
+  position: fixed;
+  bottom: var(--space-large);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--space-small) var(--space-large);
+  background-color: var(--color-surface-elevated);
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow-medium);
+  font-size: var(--text-size-small);
+  color: var(--color-text-primary);
+  z-index: var(--z-toast);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PRINT STYLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media print {
+  .book-editor__controls {
+    display: none;
+  }
+
+  .book-editor__analysis-summary {
+    display: none;
+  }
+
+  .book-editor {
+    background: white !important;
+    color: black !important;
+  }
+
+  .book-editor__content {
+    padding: 0;
+  }
+
+  .book-editor__article {
+    max-width: none;
+  }
+}
