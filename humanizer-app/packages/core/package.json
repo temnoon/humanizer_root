@@ -1,0 +1,37 @@
+{
+  "name": "@humanizer/core",
+  "version": "0.1.0",
+  "description": "Core computational primitives: density matrices, POVMs, and SIC analysis",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./sentence": {
+      "types": "./dist/sentence/index.d.ts",
+      "import": "./dist/sentence/index.js"
+    },
+    "./sic": {
+      "types": "./dist/sic/index.d.ts",
+      "import": "./dist/sic/index.js"
+    },
+    "./density": {
+      "types": "./dist/density/index.d.ts",
+      "import": "./dist/density/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "lint": "eslint src/"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}

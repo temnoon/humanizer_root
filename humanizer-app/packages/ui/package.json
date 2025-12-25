@@ -1,0 +1,29 @@
+{
+  "name": "@humanizer/ui",
+  "version": "0.1.0",
+  "description": "Shared UI components and token-based design system",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles/tokens.css": "./styles/tokens.css",
+    "./styles/reset.css": "./styles/reset.css",
+    "./styles/utilities.css": "./styles/utilities.css"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  }
+}

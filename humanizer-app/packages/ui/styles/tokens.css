@@ -1,0 +1,320 @@
+/**
+ * Humanizer Design Tokens
+ *
+ * All visual properties flow from here.
+ * NEVER hardcode values in components.
+ */
+
+:root {
+  /* ═══════════════════════════════════════════════════════════════
+     COLOR SYSTEM - HSL for programmatic variant generation
+     ═══════════════════════════════════════════════════════════════ */
+
+  /* Primary Brand - Deep contemplative blue */
+  --hue-primary: 220;
+  --sat-primary: 60%;
+  --color-primary: hsl(var(--hue-primary), var(--sat-primary), 45%);
+  --color-primary-hover: hsl(var(--hue-primary), var(--sat-primary), 40%);
+  --color-primary-subtle: hsl(var(--hue-primary), 30%, 95%);
+
+  /* Accent - Warm amber for highlights */
+  --hue-accent: 38;
+  --sat-accent: 90%;
+  --color-accent: hsl(var(--hue-accent), var(--sat-accent), 50%);
+  --color-accent-hover: hsl(var(--hue-accent), var(--sat-accent), 45%);
+  --color-accent-subtle: hsl(var(--hue-accent), 50%, 95%);
+
+  /* ─────────────────────────────────────────────────────────────────
+     Semantic Text Colors (Light Mode)
+     ───────────────────────────────────────────────────────────────── */
+  --color-text-primary: hsl(220, 20%, 15%);
+  --color-text-secondary: hsl(220, 10%, 40%);
+  --color-text-tertiary: hsl(220, 5%, 55%);
+  --color-text-disabled: hsl(220, 5%, 70%);
+  --color-text-inverse: hsl(0, 0%, 100%);
+  --color-text-link: hsl(var(--hue-primary), var(--sat-primary), 40%);
+  --color-text-link-hover: hsl(var(--hue-primary), var(--sat-primary), 30%);
+
+  /* ─────────────────────────────────────────────────────────────────
+     Semantic Surface Colors (Light Mode)
+     ───────────────────────────────────────────────────────────────── */
+  --color-surface-primary: hsl(40, 20%, 98%);      /* Warm paper white */
+  --color-surface-secondary: hsl(40, 15%, 95%);    /* Cards */
+  --color-surface-tertiary: hsl(40, 10%, 92%);     /* Hover states */
+  --color-surface-elevated: hsl(0, 0%, 100%);      /* Modals, dropdowns */
+  --color-surface-floating: hsl(0, 0%, 100%);      /* Tooltips */
+  --color-surface-sunken: hsl(40, 10%, 90%);       /* Inset areas */
+
+  /* ─────────────────────────────────────────────────────────────────
+     Border Colors
+     ───────────────────────────────────────────────────────────────── */
+  --color-border-subtle: hsl(220, 10%, 88%);
+  --color-border-default: hsl(220, 10%, 80%);
+  --color-border-strong: hsl(220, 10%, 70%);
+  --color-border-focus: hsl(var(--hue-primary), var(--sat-primary), 50%);
+
+  /* ─────────────────────────────────────────────────────────────────
+     Status Colors
+     ───────────────────────────────────────────────────────────────── */
+  --hue-success: 145;
+  --hue-warning: 38;
+  --hue-error: 0;
+  --hue-info: 200;
+
+  --color-status-success: hsl(var(--hue-success), 60%, 40%);
+  --color-status-success-subtle: hsl(var(--hue-success), 50%, 95%);
+  --color-status-warning: hsl(var(--hue-warning), 80%, 45%);
+  --color-status-warning-subtle: hsl(var(--hue-warning), 60%, 95%);
+  --color-status-error: hsl(var(--hue-error), 70%, 50%);
+  --color-status-error-subtle: hsl(var(--hue-error), 50%, 95%);
+  --color-status-info: hsl(var(--hue-info), 60%, 45%);
+  --color-status-info-subtle: hsl(var(--hue-info), 50%, 95%);
+
+  /* ─────────────────────────────────────────────────────────────────
+     Humanizer-Specific: SIC (Subjective Intentional Constraint)
+     ───────────────────────────────────────────────────────────────── */
+  --hue-sic: 145;  /* Green spectrum for human authenticity */
+
+  --color-sic-high: hsl(var(--hue-sic), 65%, 40%);
+  --color-sic-high-subtle: hsl(var(--hue-sic), 40%, 92%);
+  --color-sic-medium: hsl(45, 70%, 50%);
+  --color-sic-medium-subtle: hsl(45, 50%, 93%);
+  --color-sic-low: hsl(0, 60%, 55%);
+  --color-sic-low-subtle: hsl(0, 40%, 94%);
+
+  /* Density/semantic richness */
+  --color-density-high: hsl(var(--hue-primary), 50%, 35%);
+  --color-density-medium: hsl(var(--hue-primary), 30%, 50%);
+  --color-density-low: hsl(var(--hue-primary), 15%, 65%);
+
+  /* Curator voice */
+  --color-curator: hsl(280, 40%, 50%);
+  --color-curator-subtle: hsl(280, 30%, 95%);
+
+  /* Archive source markers */
+  --color-archive-chatgpt: hsl(160, 60%, 40%);
+  --color-archive-facebook: hsl(220, 70%, 50%);
+  --color-archive-notes: hsl(40, 60%, 50%);
+  --color-archive-import: hsl(200, 50%, 50%);
+
+  /* ═══════════════════════════════════════════════════════════════
+     TYPOGRAPHY
+     ═══════════════════════════════════════════════════════════════ */
+
+  --font-family-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-family-heading: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+  --font-family-reading: 'Georgia', 'Times New Roman', serif;
+
+  /* Size scale (1.25 ratio) */
+  --text-size-micro: 0.64rem;      /* 10px */
+  --text-size-small: 0.8rem;       /* 13px */
+  --text-size-body: 1rem;          /* 16px */
+  --text-size-large: 1.25rem;      /* 20px */
+  --text-size-heading-3: 1.563rem; /* 25px */
+  --text-size-heading-2: 1.953rem; /* 31px */
+  --text-size-heading-1: 2.441rem; /* 39px */
+  --text-size-display: 3.052rem;   /* 49px */
+
+  /* Line heights */
+  --line-height-tight: 1.2;
+  --line-height-normal: 1.5;
+  --line-height-relaxed: 1.7;
+  --line-height-reading: 1.8;
+
+  /* Font weights */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Letter spacing */
+  --letter-spacing-tight: -0.02em;
+  --letter-spacing-normal: 0;
+  --letter-spacing-wide: 0.02em;
+  --letter-spacing-caps: 0.1em;
+
+  /* ═══════════════════════════════════════════════════════════════
+     SPACING (4px grid)
+     ═══════════════════════════════════════════════════════════════ */
+
+  --space-hair: 1px;
+  --space-micro: 2px;
+  --space-tiny: 4px;
+  --space-small: 8px;
+  --space-medium: 16px;
+  --space-large: 24px;
+  --space-xlarge: 32px;
+  --space-huge: 48px;
+  --space-massive: 64px;
+  --space-epic: 96px;
+
+  /* ═══════════════════════════════════════════════════════════════
+     LAYOUT
+     ═══════════════════════════════════════════════════════════════ */
+
+  --width-content-narrow: 600px;
+  --width-content-medium: 800px;
+  --width-content-wide: 1200px;
+  --width-content-max: 1440px;
+
+  --touch-target: 44px;
+
+  /* Breakpoints (for reference - use in @media) */
+  --bp-mobile: 320px;
+  --bp-mobile-large: 480px;
+  --bp-tablet: 768px;
+  --bp-desktop: 1024px;
+  --bp-desktop-large: 1280px;
+  --bp-wide: 1536px;
+
+  /* ═══════════════════════════════════════════════════════════════
+     BORDERS & RADIUS
+     ═══════════════════════════════════════════════════════════════ */
+
+  --radius-tiny: 2px;
+  --radius-small: 4px;
+  --radius-medium: 8px;
+  --radius-large: 12px;
+  --radius-xlarge: 16px;
+  --radius-full: 9999px;
+
+  --border-width-thin: 1px;
+  --border-width-medium: 2px;
+  --border-width-thick: 3px;
+
+  /* ═══════════════════════════════════════════════════════════════
+     SHADOWS
+     ═══════════════════════════════════════════════════════════════ */
+
+  --shadow-subtle: 0 1px 2px hsl(220, 10%, 0%, 0.05);
+  --shadow-small: 0 1px 3px hsl(220, 10%, 0%, 0.1), 0 1px 2px hsl(220, 10%, 0%, 0.06);
+  --shadow-medium: 0 4px 6px hsl(220, 10%, 0%, 0.1), 0 2px 4px hsl(220, 10%, 0%, 0.06);
+  --shadow-large: 0 10px 15px hsl(220, 10%, 0%, 0.1), 0 4px 6px hsl(220, 10%, 0%, 0.05);
+  --shadow-xlarge: 0 20px 25px hsl(220, 10%, 0%, 0.1), 0 10px 10px hsl(220, 10%, 0%, 0.04);
+  --shadow-focus: 0 0 0 3px hsl(var(--hue-primary), var(--sat-primary), 50%, 0.3);
+
+  /* ═══════════════════════════════════════════════════════════════
+     ANIMATION & MOTION
+     ═══════════════════════════════════════════════════════════════ */
+
+  --duration-instant: 50ms;
+  --duration-fast: 150ms;
+  --duration-normal: 250ms;
+  --duration-slow: 400ms;
+  --duration-deliberate: 600ms;
+
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+
+  /* ═══════════════════════════════════════════════════════════════
+     Z-INDEX SCALE
+     ═══════════════════════════════════════════════════════════════ */
+
+  --z-below: -1;
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-toast: 600;
+  --z-tooltip: 700;
+  --z-max: 9999;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DARK MODE
+   Respects system preference automatically
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    /* Text */
+    --color-text-primary: hsl(220, 15%, 92%);
+    --color-text-secondary: hsl(220, 10%, 70%);
+    --color-text-tertiary: hsl(220, 5%, 55%);
+    --color-text-disabled: hsl(220, 5%, 40%);
+    --color-text-inverse: hsl(220, 20%, 10%);
+    --color-text-link: hsl(var(--hue-primary), 60%, 65%);
+    --color-text-link-hover: hsl(var(--hue-primary), 60%, 75%);
+
+    /* Surfaces - Dark library at night */
+    --color-surface-primary: hsl(220, 15%, 10%);
+    --color-surface-secondary: hsl(220, 12%, 14%);
+    --color-surface-tertiary: hsl(220, 10%, 18%);
+    --color-surface-elevated: hsl(220, 12%, 16%);
+    --color-surface-floating: hsl(220, 12%, 18%);
+    --color-surface-sunken: hsl(220, 15%, 8%);
+
+    /* Borders */
+    --color-border-subtle: hsl(220, 10%, 20%);
+    --color-border-default: hsl(220, 10%, 28%);
+    --color-border-strong: hsl(220, 10%, 38%);
+
+    /* Brand colors - lighter for dark backgrounds */
+    --color-primary: hsl(var(--hue-primary), var(--sat-primary), 60%);
+    --color-primary-hover: hsl(var(--hue-primary), var(--sat-primary), 65%);
+    --color-primary-subtle: hsl(var(--hue-primary), 30%, 18%);
+
+    --color-accent: hsl(var(--hue-accent), var(--sat-accent), 55%);
+    --color-accent-hover: hsl(var(--hue-accent), var(--sat-accent), 60%);
+    --color-accent-subtle: hsl(var(--hue-accent), 40%, 18%);
+
+    /* Status - adjusted for dark */
+    --color-status-success: hsl(var(--hue-success), 55%, 50%);
+    --color-status-success-subtle: hsl(var(--hue-success), 30%, 18%);
+    --color-status-warning: hsl(var(--hue-warning), 70%, 55%);
+    --color-status-warning-subtle: hsl(var(--hue-warning), 40%, 18%);
+    --color-status-error: hsl(var(--hue-error), 65%, 55%);
+    --color-status-error-subtle: hsl(var(--hue-error), 35%, 18%);
+    --color-status-info: hsl(var(--hue-info), 55%, 55%);
+    --color-status-info-subtle: hsl(var(--hue-info), 35%, 18%);
+
+    /* SIC colors for dark mode */
+    --color-sic-high: hsl(var(--hue-sic), 55%, 50%);
+    --color-sic-high-subtle: hsl(var(--hue-sic), 30%, 18%);
+    --color-sic-medium: hsl(45, 60%, 55%);
+    --color-sic-medium-subtle: hsl(45, 35%, 18%);
+    --color-sic-low: hsl(0, 55%, 55%);
+    --color-sic-low-subtle: hsl(0, 30%, 18%);
+
+    /* Curator */
+    --color-curator: hsl(280, 45%, 65%);
+    --color-curator-subtle: hsl(280, 25%, 18%);
+
+    /* Shadows - more subtle in dark mode */
+    --shadow-subtle: 0 1px 2px hsl(0, 0%, 0%, 0.2);
+    --shadow-small: 0 1px 3px hsl(0, 0%, 0%, 0.3), 0 1px 2px hsl(0, 0%, 0%, 0.2);
+    --shadow-medium: 0 4px 6px hsl(0, 0%, 0%, 0.3), 0 2px 4px hsl(0, 0%, 0%, 0.2);
+    --shadow-large: 0 10px 15px hsl(0, 0%, 0%, 0.3), 0 4px 6px hsl(0, 0%, 0%, 0.2);
+    --shadow-xlarge: 0 20px 25px hsl(0, 0%, 0%, 0.35), 0 10px 10px hsl(0, 0%, 0%, 0.2);
+  }
+}
+
+/* Manual theme override */
+[data-theme="dark"] {
+  /* Same as @media dark - can copy if needed for forced dark */
+}
+
+[data-theme="light"] {
+  /* Force light mode - use :root values */
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   REDUCED MOTION
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

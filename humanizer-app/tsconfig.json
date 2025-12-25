@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false,
+    "paths": {
+      "@humanizer/core": ["./packages/core/src"],
+      "@humanizer/archive": ["./packages/archive/src"],
+      "@humanizer/curator": ["./packages/curator/src"],
+      "@humanizer/transform": ["./packages/transform/src"],
+      "@humanizer/ui": ["./packages/ui/src"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

@@ -1,0 +1,62 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+.turbo/
+
+# TypeScript build artifacts (source is .ts only)
+*.js
+*.js.map
+*.d.ts.map
+!vite.config.ts
+
+# Environment
+.env
+.env.local
+.env.*.local
+.dev.vars
+
+# System files
+.DS_Store
+*.swp
+*.swo
+*~
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.sublime-*
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Private data (never commit archives or personal data)
+*.db
+*.sqlite
+my-archive/
+archives/
+*-archive/
+facebook-export/
+chatgpt-export/
+
+# Book projects (personal content - never commit)
+# These contain your actual writing, not code
+lifeworld-book/
+three-threads-book/
+*-book/
+
+# Temp files
+tmp/
+temp/
+*.tmp
