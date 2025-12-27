@@ -26,6 +26,10 @@ import { getChatService, closeChatService, type ChatServiceConfig, type SendMess
 import { getCouncilOrchestrator, type CouncilOrchestrator, type ProposedAction, type TaskOptions } from './agents/council/orchestrator';
 import { getAgentRegistry } from './agents/runtime/registry';
 
+// Set app name for macOS menu bar (development mode)
+// In production, this comes from electron-builder.json productName
+app.name = 'Humanizer';
+
 // Paths
 const RENDERER_DEV_URL = process.env.VITE_DEV_SERVER_URL;
 const DIST = path.join(__dirname, '../apps/web/dist');
@@ -604,10 +608,11 @@ function registerIPCHandlers() {
   ipcMain.handle('agents:task:request', async (_e, request: { agentId: string; taskType: string; payload: unknown; projectId?: string }) => {
     try {
       const taskId = await orchestrator.assignTask({
-        agentId: request.agentId,
+        targetAgent: request.agentId,
         type: request.taskType,
         payload: request.payload,
         projectId: request.projectId,
+        priority: 5, // Default medium priority
       });
       return { taskId };
     } catch (error) {
