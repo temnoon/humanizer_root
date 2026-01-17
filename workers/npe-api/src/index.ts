@@ -20,7 +20,9 @@ import { analysisRoutes } from './routes/analysis';
 import { narrativesRoutes } from './routes/v2/narratives';
 import { rhoRoutes } from './routes/v2/rho';
 import { adminRoutes } from './routes/admin';
+import adminConfigRoutes from './routes/admin-config';
 import { secureArchive } from './routes/secure-archive';
+import { archiveRoutes } from './routes/archive';
 import gutenbergRoutes from './routes/gutenberg';
 import stripeRoutes from './routes/stripe';
 import booksRoutes from './routes/books';
@@ -127,8 +129,15 @@ app.route('/v2/workspace', workspaceRoutes);
 // Admin routes (metrics, user management, system health)
 app.route('/admin', adminRoutes);
 
+// Admin Config routes (pricing, features, secrets management)
+app.route('/admin', adminConfigRoutes);
+
 // Secure Archive routes (encrypted file storage)
 app.route('/secure-archive', secureArchive);
+
+// Cloud Archive routes (conversation import/storage)
+app.route('/api/archives', archiveRoutes);
+app.route('/api', archiveRoutes);
 
 // Gutenberg routes (book search and persona extraction)
 app.route('/gutenberg', gutenbergRoutes);
