@@ -2,6 +2,12 @@
 import { Hono } from 'hono';
 import { requireAuth, getAuthContext } from '../middleware/auth';
 import type { Env } from '../../shared/types';
+import {
+  getDayPassPrice,
+  getTrialDays,
+  getTaxRate,
+  getConfig,
+} from '../services/admin-config';
 
 const stripeRoutes = new Hono<{ Bindings: Env }>();
 
@@ -14,27 +20,18 @@ const PRICE_IDS: Record<string, string> = {
   member: 'price_1SYxjbAan5JVY3W94tofsfOZ',
   pro: 'price_1SYxllAan5JVY3W9TpguSxMZ',
   premium: 'price_1SYxo5Aan5JVY3W93wVtePwk',
-  day_pass: '' // Set after creating in Stripe - one-time $2.99
+  day_pass: '' // Set after creating in Stripe - one-time purchase
 };
 
-// Tax configuration (Lynbrook, NY - Nassau County)
-// NY State: 4% + Nassau County: 4.25% + MTA: 0.375% = 8.625%
-const TAX_RATE = 0.08625;
-const TAX_JURISDICTION = 'Lynbrook, NY (Nassau County)';
+// Day pass duration (24 hours in milliseconds)
+const DAY_PASS_DURATION_MS = 24 * 60 * 60 * 1000;
 
-// Calculate tax from inclusive price
-function calculateTaxFromInclusive(inclusivePriceCents: number): { pretax: number; tax: number } {
-  const pretax = Math.round(inclusivePriceCents / (1 + TAX_RATE));
+// Calculate tax from inclusive price (dynamic tax rate)
+function calculateTaxFromInclusive(inclusivePriceCents: number, taxRate: number): { pretax: number; tax: number } {
+  const pretax = Math.round(inclusivePriceCents / (1 + taxRate));
   const tax = inclusivePriceCents - pretax;
   return { pretax, tax };
 }
-
-// Day pass pricing (tax-inclusive)
-const DAY_PASS_PRICE_CENTS = 299; // $2.99 includes tax
-const DAY_PASS_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
-
-// Trial period configuration
-const TRIAL_DAYS = 7;
 
 // Tier mapping from Stripe price to our tier system
 const PRICE_TO_TIER: Record<string, string> = {
@@ -222,7 +219,9 @@ stripeRoutes.post('/webhook', async (c) => {
           const userId = session.metadata.user_id;
           const purchasedAt = now;
           const expiresAt = now + DAY_PASS_DURATION_MS;
-          const { pretax, tax } = calculateTaxFromInclusive(DAY_PASS_PRICE_CENTS);
+          const dayPassPrice = await getDayPassPrice(c.env);
+          const taxRate = await getTaxRate(c.env);
+          const { pretax, tax } = calculateTaxFromInclusive(dayPassPrice, taxRate);
 
           await c.env.DB.prepare(`
             INSERT INTO day_passes
@@ -234,7 +233,7 @@ stripeRoutes.post('/webhook', async (c) => {
             session.payment_intent,
             purchasedAt,
             expiresAt,
-            DAY_PASS_PRICE_CENTS,
+            dayPassPrice,
             tax,
             now
           ).run();
@@ -501,7 +500,8 @@ stripeRoutes.post('/checkout', requireAuth(), async (c) => {
 
     // Add trial period if requested
     if (withTrial) {
-      params['subscription_data[trial_period_days]'] = TRIAL_DAYS;
+      const trialDays = await getTrialDays(c.env);
+      params['subscription_data[trial_period_days]'] = trialDays;
     }
 
     // Pre-apply promo code if provided
@@ -534,10 +534,11 @@ stripeRoutes.post('/checkout', requireAuth(), async (c) => {
 
     const session = await response.json() as { id: string; url: string };
 
+    const trialDays = withTrial ? await getTrialDays(c.env) : 0;
     return c.json({
       sessionId: session.id,
       url: session.url,
-      trialDays: withTrial ? TRIAL_DAYS : 0
+      trialDays
     });
   } catch (error) {
     console.error('Checkout error:', error);
@@ -659,8 +660,17 @@ stripeRoutes.get('/history', requireAuth(), async (c) => {
  * GET /stripe/prices - Get available subscription prices
  */
 stripeRoutes.get('/prices', async (c) => {
-  // Return pricing info - these would normally come from Stripe
-  // but we hardcode for simplicity and to avoid extra API calls
+  // Fetch config values from database
+  const [dayPassPrice, taxRate, trialDays, taxJurisdiction] = await Promise.all([
+    getDayPassPrice(c.env),
+    getTaxRate(c.env),
+    getTrialDays(c.env),
+    getConfig(c.env, 'pricing', 'tax_jurisdiction').then(cfg =>
+      cfg?.value ? String(cfg.value).replace(/^"|"$/g, '') : 'Lynbrook, NY (Nassau County)'
+    ),
+  ]);
+
+  // Return pricing info - subscription prices from Stripe, day pass from config
   return c.json({
     monthly: {
       member: {
@@ -702,7 +712,7 @@ stripeRoutes.get('/prices', async (c) => {
     },
     annual: null, // No annual pricing until we've existed for a year!
     dayPass: {
-      amount: 2.99,
+      amount: dayPassPrice / 100,
       currency: 'usd',
       duration: '24 hours',
       features: [
@@ -713,14 +723,14 @@ stripeRoutes.get('/prices', async (c) => {
       ],
       taxIncluded: true,
       taxInfo: {
-        rate: TAX_RATE,
-        jurisdiction: TAX_JURISDICTION,
-        ...calculateTaxFromInclusive(DAY_PASS_PRICE_CENTS)
+        rate: taxRate,
+        jurisdiction: taxJurisdiction,
+        ...calculateTaxFromInclusive(dayPassPrice, taxRate)
       }
     },
     trial: {
-      days: TRIAL_DAYS,
-      description: `${TRIAL_DAYS}-day free trial on any subscription`
+      days: trialDays,
+      description: `${trialDays}-day free trial on any subscription`
     }
   });
 });
@@ -765,6 +775,9 @@ stripeRoutes.post('/day-pass', requireAuth(), async (c) => {
       user.email as string
     );
 
+    // Get day pass price from config
+    const dayPassPrice = await getDayPassPrice(c.env);
+
     // Create a payment intent for the day pass
     const response = await stripeRequest('/checkout/sessions', 'POST', c.env.STRIPE_SECRET_KEY, {
       customer: customerId,
@@ -772,7 +785,7 @@ stripeRoutes.post('/day-pass', requireAuth(), async (c) => {
       'line_items[0][price_data][currency]': 'usd',
       'line_items[0][price_data][product_data][name]': 'Humanizer Day Pass',
       'line_items[0][price_data][product_data][description]': '24-hour full access to Pro features',
-      'line_items[0][price_data][unit_amount]': DAY_PASS_PRICE_CENTS,
+      'line_items[0][price_data][unit_amount]': dayPassPrice,
       'line_items[0][quantity]': 1,
       success_url: successUrl || 'https://humanizer.com/dashboard?day_pass=success',
       cancel_url: cancelUrl || 'https://humanizer.com/pricing',
@@ -791,7 +804,7 @@ stripeRoutes.post('/day-pass', requireAuth(), async (c) => {
     return c.json({
       sessionId: session.id,
       url: session.url,
-      price: DAY_PASS_PRICE_CENTS / 100,
+      price: dayPassPrice / 100,
       duration: '24 hours'
     });
   } catch (error) {
@@ -942,22 +955,39 @@ stripeRoutes.post('/validate-promo', async (c) => {
  * GET /stripe/tax-info - Get tax calculation info
  */
 stripeRoutes.get('/tax-info', async (c) => {
+  // Fetch config values from database
+  const [taxRate, dayPassPrice, taxJurisdiction, taxBreakdown] = await Promise.all([
+    getTaxRate(c.env),
+    getDayPassPrice(c.env),
+    getConfig(c.env, 'pricing', 'tax_jurisdiction').then(cfg =>
+      cfg?.value ? String(cfg.value).replace(/^"|"$/g, '') : 'Lynbrook, NY (Nassau County)'
+    ),
+    getConfig(c.env, 'pricing', 'tax_breakdown').then(cfg => {
+      if (cfg?.value) {
+        try {
+          return typeof cfg.value === 'string' ? JSON.parse(cfg.value) : cfg.value;
+        } catch { return null; }
+      }
+      return null;
+    }),
+  ]);
+
   return c.json({
-    rate: TAX_RATE,
-    ratePercent: (TAX_RATE * 100).toFixed(3) + '%',
-    jurisdiction: TAX_JURISDICTION,
+    rate: taxRate,
+    ratePercent: (taxRate * 100).toFixed(3) + '%',
+    jurisdiction: taxJurisdiction,
     note: 'All prices include applicable sales tax',
-    breakdown: {
+    breakdown: taxBreakdown || {
       nyState: '4.000%',
       nassauCounty: '4.250%',
       mtaSurcharge: '0.375%',
       total: '8.625%'
     },
     examples: {
-      member: calculateTaxFromInclusive(999),
-      pro: calculateTaxFromInclusive(2999),
-      premium: calculateTaxFromInclusive(9999),
-      dayPass: calculateTaxFromInclusive(299)
+      member: calculateTaxFromInclusive(999, taxRate),
+      pro: calculateTaxFromInclusive(2999, taxRate),
+      premium: calculateTaxFromInclusive(9999, taxRate),
+      dayPass: calculateTaxFromInclusive(dayPassPrice, taxRate)
     }
   });
 });
