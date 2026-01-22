@@ -158,10 +158,13 @@ export function validateAgentTask(data: unknown): {
   return { success: false, error: result.error };
 }
 
+/** Input type that allows defaults to be omitted */
+export type CreateTaskInputRaw = z.input<typeof CreateTaskInputSchema>;
+
 /**
  * Create a valid task
  */
-export function createAgentTask(input: CreateTaskInput): AgentTask {
+export function createAgentTask(input: CreateTaskInputRaw): AgentTask {
   const validated = CreateTaskInputSchema.parse(input);
   return {
     id: generateUUID(),

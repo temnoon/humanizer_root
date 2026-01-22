@@ -121,6 +121,9 @@ export const CreateSignoffRequestInputSchema = z.object({
 
 export type CreateSignoffRequestInput = z.infer<typeof CreateSignoffRequestInputSchema>;
 
+/** Input type that allows defaults to be omitted */
+export type CreateSignoffRequestInputRaw = z.input<typeof CreateSignoffRequestInputSchema>;
+
 // ═══════════════════════════════════════════════════════════════════
 // SIGNOFF VOTE INPUT
 // ═══════════════════════════════════════════════════════════════════
@@ -161,7 +164,7 @@ export function validateSignoffRequest(data: unknown): {
 /**
  * Create a valid signoff request
  */
-export function createSignoffRequest(input: CreateSignoffRequestInput): SignoffRequest {
+export function createSignoffRequest(input: CreateSignoffRequestInputRaw): SignoffRequest {
   const validated = CreateSignoffRequestInputSchema.parse(input);
   
   // Initialize votes as pending for all required agents

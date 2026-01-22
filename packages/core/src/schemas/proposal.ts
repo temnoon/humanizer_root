@@ -105,6 +105,9 @@ export const CreateProposalInputSchema = z.object({
 
 export type CreateProposalInput = z.infer<typeof CreateProposalInputSchema>;
 
+/** Input type that allows defaults to be omitted */
+export type CreateProposalInputRaw = z.input<typeof CreateProposalInputSchema>;
+
 // ═══════════════════════════════════════════════════════════════════
 // PROPOSAL DECISION
 // ═══════════════════════════════════════════════════════════════════
@@ -145,7 +148,7 @@ export function validateProposal(data: unknown): {
 /**
  * Create a valid proposal
  */
-export function createProposal(input: CreateProposalInput): Proposal {
+export function createProposal(input: CreateProposalInputRaw): Proposal {
   const validated = CreateProposalInputSchema.parse(input);
   const now = Date.now();
   

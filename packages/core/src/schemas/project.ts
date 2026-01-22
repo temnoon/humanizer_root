@@ -122,6 +122,9 @@ export const CreateProjectConfigInputSchema = z.object({
 
 export type CreateProjectConfigInput = z.infer<typeof CreateProjectConfigInputSchema>;
 
+/** Input type that allows defaults to be omitted */
+export type CreateProjectConfigInputRaw = z.input<typeof CreateProjectConfigInputSchema>;
+
 // ═══════════════════════════════════════════════════════════════════
 // VALIDATION HELPERS
 // ═══════════════════════════════════════════════════════════════════
@@ -146,8 +149,10 @@ export function validateProjectConfig(data: unknown): {
 /**
  * Create default project council config
  */
-export function createProjectConfig(input: CreateProjectConfigInput): ProjectCouncilConfig {
-  return ProjectCouncilConfigSchema.parse(input);
+export function createProjectConfig(input: CreateProjectConfigInputRaw): ProjectCouncilConfig {
+  // First parse with input schema to apply defaults, then validate as full config
+  const withDefaults = CreateProjectConfigInputSchema.parse(input);
+  return ProjectCouncilConfigSchema.parse(withDefaults);
 }
 
 /**
