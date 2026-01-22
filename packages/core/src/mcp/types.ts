@@ -202,6 +202,40 @@ export interface TraceDataFlowInput {
 }
 
 /**
+ * Validate structure input
+ */
+export interface ValidateStructureInput {
+  files: CodeFile[];
+  constraints: Array<{
+    type: 'dependency' | 'layer' | 'module' | 'pattern';
+    rule: string;
+  }>;
+}
+
+/**
+ * Plan refactoring input
+ */
+export interface PlanRefactoringInput {
+  files: CodeFile[];
+  targetPattern?: string;
+  goals?: string[];
+}
+
+/**
+ * Audit permissions input
+ */
+export interface AuditPermissionsInput {
+  files: CodeFile[];
+}
+
+/**
+ * Review auth input
+ */
+export interface ReviewAuthInput {
+  files: CodeFile[];
+}
+
+/**
  * Trigger review input
  */
 export interface TriggerReviewInput {

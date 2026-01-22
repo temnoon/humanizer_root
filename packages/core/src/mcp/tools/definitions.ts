@@ -148,6 +148,58 @@ export const ARCHITECT_TOOLS: MCPToolDefinition[] = [
       required: ['files'],
     },
   },
+  {
+    name: 'validate_structure',
+    description: 'Validate codebase structure against architectural constraints (dependency rules, layer architecture)',
+    category: 'codeguard',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: FilesArraySchema,
+        constraints: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              type: {
+                type: 'string',
+                enum: ['dependency', 'layer', 'module', 'pattern'],
+                description: 'Type of constraint',
+              },
+              rule: {
+                type: 'string',
+                description: 'Constraint rule (e.g., "ui cannot import from server" or "presentation -> business -> data")',
+              },
+            },
+            required: ['type', 'rule'],
+          },
+          description: 'Architectural constraints to validate',
+        },
+      },
+      required: ['files', 'constraints'],
+    },
+  },
+  {
+    name: 'plan_refactoring',
+    description: 'Create a refactoring plan based on code analysis, with effort estimates and suggested order',
+    category: 'codeguard',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: FilesArraySchema,
+        targetPattern: {
+          type: 'string',
+          description: 'Optional target design pattern to introduce',
+        },
+        goals: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Refactoring goals (e.g., "reduce complexity", "improve testability")',
+        },
+      },
+      required: ['files'],
+    },
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════
@@ -234,6 +286,11 @@ export const SECURITY_TOOLS: MCPToolDefinition[] = [
       type: 'object',
       properties: {
         files: FilesArraySchema,
+        includeEnvFiles: {
+          type: 'boolean',
+          default: false,
+          description: 'Include .env.example files in the scan',
+        },
       },
       required: ['files'],
     },
@@ -241,6 +298,30 @@ export const SECURITY_TOOLS: MCPToolDefinition[] = [
   {
     name: 'audit_crypto',
     description: 'Audit cryptographic implementations for weaknesses',
+    category: 'codeguard',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: FilesArraySchema,
+      },
+      required: ['files'],
+    },
+  },
+  {
+    name: 'audit_permissions',
+    description: 'Audit permission models and access control patterns',
+    category: 'codeguard',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: FilesArraySchema,
+      },
+      required: ['files'],
+    },
+  },
+  {
+    name: 'review_auth',
+    description: 'Review authentication implementation for security issues (rate limiting, session config, password policies)',
     category: 'codeguard',
     inputSchema: {
       type: 'object',
@@ -466,6 +547,15 @@ export const SYSTEM_TOOLS: MCPToolDefinition[] = [
   {
     name: 'get_server_status',
     description: 'Get overall server status including all agents',
+    category: 'system',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
+    name: 'health_check',
+    description: 'Detailed health check of all agents with individual status',
     category: 'system',
     inputSchema: {
       type: 'object',

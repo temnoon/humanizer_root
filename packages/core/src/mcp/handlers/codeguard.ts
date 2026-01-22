@@ -23,6 +23,10 @@ import type {
   CheckCompatibilityInput,
   TraceDataFlowInput,
   FilesInput,
+  ValidateStructureInput,
+  PlanRefactoringInput,
+  AuditPermissionsInput,
+  ReviewAuthInput,
 } from '../types.js';
 import type {
   CodeFile,
@@ -131,21 +135,52 @@ export async function handleAnalyzeCoupling(args: AnalyzeCouplingInput): Promise
 export async function handleAnalyzeComplexity(args: AnalyzeComplexityInput): Promise<MCPResult> {
   try {
     const architect = getArchitectAgent();
-    
+
     const review = await architect.reviewArchitecture({
       codebase: { files: args.files },
       focus: 'complexity',
       reviewDepth: 'deep',
     });
-    
+
     return jsonResult({
       overallComplexity: review.designQuality.complexity,
-      technicalDebt: review.technicalDebt.filter(d => 
+      technicalDebt: review.technicalDebt.filter(d =>
         d.description.toLowerCase().includes('complexity')
       ),
     });
   } catch (err) {
     return errorResult(`Complexity analysis failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+export async function handleValidateStructure(args: ValidateStructureInput): Promise<MCPResult> {
+  try {
+    const architect = getArchitectAgent();
+
+    const result = await architect.validateStructure({
+      codebase: { files: args.files },
+      constraints: args.constraints,
+    });
+
+    return jsonResult(result);
+  } catch (err) {
+    return errorResult(`Structure validation failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+export async function handlePlanRefactoring(args: PlanRefactoringInput): Promise<MCPResult> {
+  try {
+    const architect = getArchitectAgent();
+
+    const plan = await architect.planRefactoring({
+      files: args.files,
+      targetPattern: args.targetPattern,
+      goals: args.goals,
+    });
+
+    return jsonResult(plan);
+  } catch (err) {
+    return errorResult(`Refactoring planning failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -249,18 +284,46 @@ export async function handleReviewSecrets(args: ReviewSecretsInput): Promise<MCP
 export async function handleAuditCrypto(args: FilesInput): Promise<MCPResult> {
   try {
     const security = getSecurityAgent();
-    
+
     const report = await security.scanVulnerabilities({
       codebase: { files: args.files },
       scanTypes: ['crypto'],
     });
-    
+
     return jsonResult({
       cryptoIssues: report.cryptoIssues,
       count: report.cryptoIssues.length,
     });
   } catch (err) {
     return errorResult(`Crypto audit failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+export async function handleAuditPermissions(args: AuditPermissionsInput): Promise<MCPResult> {
+  try {
+    const security = getSecurityAgent();
+
+    const result = await security.validatePermissions({
+      files: args.files,
+    });
+
+    return jsonResult(result);
+  } catch (err) {
+    return errorResult(`Permission audit failed: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+export async function handleReviewAuth(args: ReviewAuthInput): Promise<MCPResult> {
+  try {
+    const security = getSecurityAgent();
+
+    const result = await security.reviewAuth({
+      files: args.files,
+    });
+
+    return jsonResult(result);
+  } catch (err) {
+    return errorResult(`Auth review failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
@@ -381,22 +444,26 @@ export const CODEGUARD_HANDLERS: Record<string, (args: unknown) => Promise<MCPRe
   detect_anti_patterns: handleDetectAntiPatterns as (args: unknown) => Promise<MCPResult>,
   analyze_coupling: handleAnalyzeCoupling as (args: unknown) => Promise<MCPResult>,
   analyze_complexity: handleAnalyzeComplexity as (args: unknown) => Promise<MCPResult>,
-  
+  validate_structure: handleValidateStructure as (args: unknown) => Promise<MCPResult>,
+  plan_refactoring: handlePlanRefactoring as (args: unknown) => Promise<MCPResult>,
+
   // Stylist
   review_code_style: handleReviewCodeStyle as (args: unknown) => Promise<MCPResult>,
   validate_naming: handleValidateNaming as (args: unknown) => Promise<MCPResult>,
   check_consistency: handleCheckConsistency as (args: unknown) => Promise<MCPResult>,
-  
+
   // Security
   scan_vulnerabilities: handleScanVulnerabilities as (args: unknown) => Promise<MCPResult>,
   review_secrets: handleReviewSecrets as (args: unknown) => Promise<MCPResult>,
   audit_crypto: handleAuditCrypto as (args: unknown) => Promise<MCPResult>,
-  
+  audit_permissions: handleAuditPermissions as (args: unknown) => Promise<MCPResult>,
+  review_auth: handleReviewAuth as (args: unknown) => Promise<MCPResult>,
+
   // Accessibility
   audit_accessibility: handleAuditAccessibility as (args: unknown) => Promise<MCPResult>,
   validate_aria: handleValidateAria as (args: unknown) => Promise<MCPResult>,
   check_contrast: handleCheckContrast as (args: unknown) => Promise<MCPResult>,
-  
+
   // Data
   validate_schemas: handleValidateSchemas as (args: unknown) => Promise<MCPResult>,
   check_compatibility: handleCheckCompatibility as (args: unknown) => Promise<MCPResult>,

@@ -53,6 +53,8 @@ const AGENT_DESCRIPTIONS: Record<DevelopmentHouseType, {
       'detect_anti_patterns - Find architectural issues',
       'analyze_coupling - Measure module coupling',
       'analyze_complexity - Calculate complexity metrics',
+      'validate_structure - Validate architectural constraints',
+      'plan_refactoring - Create refactoring plans',
     ],
   },
   stylist: {
@@ -71,6 +73,8 @@ const AGENT_DESCRIPTIONS: Record<DevelopmentHouseType, {
       'scan_vulnerabilities - Scan for security vulnerabilities',
       'review_secrets - Check for exposed secrets',
       'audit_crypto - Audit cryptographic implementations',
+      'audit_permissions - Audit permission models',
+      'review_auth - Review authentication implementation',
     ],
   },
   accessibility: {
@@ -196,7 +200,7 @@ export async function handleGetServerStatus(): Promise<MCPResult> {
     version: '1.0.0',
     uptime,
     agents: agentStatuses,
-    toolCount: 21, // Total number of tools
+    toolCount: 30, // Total number of tools
   };
   
   return jsonResult(status);
