@@ -9,6 +9,11 @@ export {
   ReviewHooksManager,
   getReviewHooksManager,
   resetReviewHooksManager,
+  triggerFileChangeReview,
+  runFullReview,
+  setReviewHooksEnabled,
+  areReviewHooksEnabled,
+  getReviewTriggers,
   type ReviewHooksConfig,
   type CombinedReviewResult,
 } from './review-hooks.js';

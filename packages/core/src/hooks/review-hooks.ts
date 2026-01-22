@@ -682,3 +682,70 @@ export function getReviewHooksManager(): ReviewHooksManager {
 export function resetReviewHooksManager(): void {
   _hookManager = null;
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// CONVENIENCE FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Trigger file change review (convenience function)
+ */
+export async function triggerFileChangeReview(
+  event: FileChangeEvent,
+  agents?: DevelopmentHouseType[]
+): Promise<ReviewResult[]> {
+  const manager = getReviewHooksManager();
+  await manager.initialize();
+  
+  const result = await manager.triggerReview(event.files, agents);
+  return Array.from(result.agentResults.values());
+}
+
+/**
+ * Run full review on files (convenience function)
+ */
+export async function runFullReview(files: string[]): Promise<ReviewResult[]> {
+  const manager = getReviewHooksManager();
+  await manager.initialize();
+  
+  const result = await manager.runFullReview(files);
+  return Array.from(result.agentResults.values());
+}
+
+/**
+ * Set hooks enabled state (convenience function)
+ */
+export async function setReviewHooksEnabled(enabled: boolean): Promise<void> {
+  const manager = getReviewHooksManager();
+  await manager.initialize();
+  manager.setEnabled(enabled);
+}
+
+/**
+ * Check if hooks are enabled (convenience function)
+ */
+export async function areReviewHooksEnabled(): Promise<boolean> {
+  const manager = getReviewHooksManager();
+  await manager.initialize();
+  return manager.getConfig().enabled;
+}
+
+/**
+ * Get review triggers configuration (convenience function)
+ */
+export function getReviewTriggers(): ReviewTrigger[] {
+  const manager = getReviewHooksManager();
+  const config = manager.getConfig();
+  
+  const triggers: ReviewTrigger[] = [];
+  
+  for (const [agent, agentConfig] of Object.entries(config.agents)) {
+    triggers.push({
+      agent: agent as DevelopmentHouseType,
+      condition: 'file-change',
+      enabled: agentConfig.enabled,
+    });
+  }
+  
+  return triggers;
+}
