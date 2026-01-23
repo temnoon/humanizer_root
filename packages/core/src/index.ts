@@ -114,3 +114,8 @@ export * from './pyramid/index.js';
 // CLUSTERING - Density-based clustering (HDBSCAN) for document assembly
 // ═══════════════════════════════════════════════════════════════════
 export * from './clustering/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// INTEGRATION - Agent-to-infrastructure wiring
+// ═══════════════════════════════════════════════════════════════════
+export * from './integration/index.js';
