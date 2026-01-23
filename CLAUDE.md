@@ -587,4 +587,119 @@ See `/workers/post-social-ui/` for reference implementation.
 
 ---
 
+## 📋 CHROMADB MEMORY PROTOCOL (RECENCY-FIRST)
+
+**Added**: Jan 23, 2026
+**Purpose**: Cross-session context with temporal awareness to avoid stale data.
+
+### The Problem
+
+Semantic search returns old memories that may be architecturally obsolete. A 6-month-old "buffer architecture" note can outrank yesterday's if embeddings are closer. **ALWAYS prefer recent context.**
+
+### Tagging Convention (MANDATORY)
+
+All memories MUST use this tag format:
+```
+tags: "TYPE,YYYY-MM-DD,DOMAIN,vN"
+       ↑      ↑          ↑     ↑
+     type  ISO date   subsystem  version
+```
+
+**Examples:**
+- `handoff,2026-01-23,buffer-arch,v3`
+- `task-completed,2026-01-23,css-compliance,v1`
+- `deprecation,2026-01-15,passage-system,active`
+
+### Retrieval Protocol (ALWAYS FOLLOW THIS ORDER)
+
+**Step 1: Recent timeframe first**
+```
+mcp__chromadb-memory__recall_by_timeframe(start_date: "7 days ago", n_results: 10)
+```
+
+**Step 2: Check for deprecations**
+```
+mcp__chromadb-memory__search_by_tag(["deprecation", "active"])
+```
+If deprecation found for domain, IGNORE older memories for that domain.
+
+**Step 3: Domain-specific handoffs**
+```
+mcp__chromadb-memory__search_by_tag(["handoff", "DOMAIN"])
+```
+Sort results by date tag, use MOST RECENT only.
+
+**Step 4: ONLY IF above insufficient**
+```
+mcp__chromadb-memory__retrieve_memory(query, n_results: 5)
+```
+Check dates in results. If older than 30 days, verify still valid before using.
+
+### Storing Memories
+
+**Session Handoff (end of significant work):**
+```
+content: "[2026-01-23] HANDOFF: domain-name v3
+
+          COMPLETED: [bullet list]
+          CURRENT STATE: [what exists now]
+          NEXT STEPS: [recommendations]
+
+          SUPERSEDES: Any domain-name memories before this date"
+
+tags: "handoff,2026-01-23,domain-name,v3"
+type: "session-handoff"
+```
+
+**Deprecation Notice (after major refactor):**
+```
+content: "[2026-01-23] DEPRECATION: domain-name versions before v3 INVALID
+
+          Major refactor changed [what]. Old patterns no longer apply.
+          IGNORE: memories tagged domain-name with dates before 2026-01-23"
+
+tags: "deprecation,2026-01-23,domain-name,active"
+type: "deprecation"
+```
+
+**Task Events:**
+```
+content: "[2026-01-23] TASK COMPLETED: subject
+          Outcome: [what was done]
+          Files: [key files touched]"
+
+tags: "task-completed,2026-01-23,domain-name,v1"
+type: "task-event"
+```
+
+### Pruning Schedule
+
+Quarterly, prune stale content for volatile domains:
+```
+mcp__chromadb-memory__delete_before_date(before_date: "YYYY-MM-DD", tag: "domain-name")
+```
+
+### Automatic Hook (Configured)
+
+PostToolUse hook captures `TaskCreate` and `TaskUpdate`:
+- **Script**: `.claude/hooks/task-to-chromadb.py`
+- **Config**: `.claude/settings.local.json`
+- **Log**: `~/.claude/task-events.jsonl`
+
+Restart session to activate after config changes.
+
+### Quick Reference: Domains in This Codebase
+
+| Domain Tag | Subsystem | Current Version | Last Major Refactor |
+|------------|-----------|-----------------|---------------------|
+| `buffer-arch` | UnifiedBufferContext | v1 | - |
+| `css-compliance` | Theme/styling system | v1 | Dec 2025 |
+| `archive-import` | Parser module | v1 | Nov 2025 |
+| `embeddings` | Semantic search | v1 | Nov 2025 |
+| `llm-arch` | LLM/transformation | v1 | - |
+
+**Update this table when major refactors occur.**
+
+---
+
 **End of Guide** | Next: Test with additional OpenAI exports
