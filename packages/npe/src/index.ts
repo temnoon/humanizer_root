@@ -67,3 +67,8 @@ export * from './quantum/index.js';
 // TRANSFORMATIONS
 // ═══════════════════════════════════════════════════════════════════════════
 export * from './transformations/index.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HUMANIZER (AI Detection + Text Humanization)
+// ═══════════════════════════════════════════════════════════════════════════
+export * from './humanizer/index.js';
