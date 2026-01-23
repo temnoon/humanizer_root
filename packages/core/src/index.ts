@@ -94,3 +94,13 @@ export * from './hooks/index.js';
 // ADAPTERS - UCG Import Adapters for content sources
 // ═══════════════════════════════════════════════════════════════════
 export * from './adapters/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// CHUNKING - Content chunking for embedding
+// ═══════════════════════════════════════════════════════════════════
+export * from './chunking/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// RETRIEVAL - Hybrid search and quality-gated retrieval
+// ═══════════════════════════════════════════════════════════════════
+export * from './retrieval/index.js';
