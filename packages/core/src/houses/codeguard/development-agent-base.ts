@@ -138,10 +138,13 @@ export abstract class DevelopmentAgentBase extends AgentBase {
   protected matchesPattern(filePath: string, patterns: string[]): boolean {
     return patterns.some(pattern => {
       // Convert glob pattern to regex
+      // Use placeholder for ** to avoid double-replacement
+      const GLOBSTAR_PLACEHOLDER = '\u0000GLOBSTAR\u0000';
       const regexPattern = pattern
         .replace(/\./g, '\\.')
-        .replace(/\*\*/g, '.*')
-        .replace(/\*/g, '[^/]*')
+        .replace(/\*\*/g, GLOBSTAR_PLACEHOLDER)  // Placeholder for **
+        .replace(/\*/g, '[^/]*')                  // Single * = one segment
+        .replace(new RegExp(GLOBSTAR_PLACEHOLDER, 'g'), '.*')  // ** = any path
         .replace(/\?/g, '.');
       return new RegExp(`^${regexPattern}$`).test(filePath);
     });

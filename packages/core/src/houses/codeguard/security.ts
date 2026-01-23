@@ -820,16 +820,20 @@ export class SecurityAgent extends DevelopmentAgentBase {
       for (const [name, version] of Object.entries(allDeps)) {
         const vuln = knownVulnerable.find(v => v.package === name);
         if (vuln) {
-          // Simple version comparison (real implementation would use semver)
+          // Extract version string (remove ^ or ~ prefix)
           const versionStr = (version as string).replace(/^[\^~]/, '');
-          vulnerabilities.push({
-            package: name,
-            version: versionStr,
-            vulnerability: `Known vulnerability in ${name}`,
-            severity: vuln.severity,
-            fixedVersion: vuln.before,
-            cve: vuln.cve,
-          });
+
+          // Only flag if installed version is below the fixed version
+          if (this.isVersionBelow(versionStr, vuln.before)) {
+            vulnerabilities.push({
+              package: name,
+              version: versionStr,
+              vulnerability: `Known vulnerability in ${name}`,
+              severity: vuln.severity,
+              fixedVersion: vuln.before,
+              cve: vuln.cve,
+            });
+          }
         }
       }
     } catch {
@@ -842,6 +846,31 @@ export class SecurityAgent extends DevelopmentAgentBase {
   // ─────────────────────────────────────────────────────────────────
   // HELPER METHODS
   // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Compare semver versions - returns true if v1 < v2
+   */
+  private isVersionBelow(v1: string, v2: string): boolean {
+    const parse = (v: string): number[] => {
+      // Extract numeric parts (e.g., "4.17.21" -> [4, 17, 21])
+      const match = v.match(/^(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+      if (!match) return [0, 0, 0];
+      return [
+        parseInt(match[1] || '0', 10),
+        parseInt(match[2] || '0', 10),
+        parseInt(match[3] || '0', 10),
+      ];
+    };
+
+    const parts1 = parse(v1);
+    const parts2 = parse(v2);
+
+    for (let i = 0; i < 3; i++) {
+      if (parts1[i] < parts2[i]) return true;
+      if (parts1[i] > parts2[i]) return false;
+    }
+    return false; // Equal versions
+  }
 
   private getLineNumber(content: string, index: number): number {
     return content.slice(0, index).split('\n').length;
