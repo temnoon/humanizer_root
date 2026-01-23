@@ -86,31 +86,69 @@ async function main() {
   console.log(`   "${text.slice(0, 100)}..."\n`);
   console.log(`🎭 Persona: ${persona.name}\n`);
 
-  // Check Ollama
+  // Create adapter and discover models
   console.log('🔌 Connecting to Ollama...');
-  try {
-    const response = await fetch('http://localhost:11434/api/tags');
-    if (!response.ok) throw new Error('Ollama not responding');
-    console.log('   ✓ Ollama connected\n');
-  } catch {
+  const adapter = new OllamaAdapter({
+    baseUrl: 'http://localhost:11434',
+  });
+
+  if (!(await adapter.isAvailable())) {
     console.error('   ✗ Ollama not running. Start with: ollama serve');
     process.exit(1);
   }
 
-  // Create adapter and embedder
-  const adapter = new OllamaAdapter({
+  // List available models
+  const availableModels = await adapter.listModels();
+  console.log(`   ✓ Ollama connected (${availableModels.length} models available)`);
+
+  // Find suitable models for completion and embedding
+  const embeddingModels = availableModels.filter(
+    (m) => m.includes('embed') || m.includes('nomic') || m.includes('bge') || m.includes('mxbai')
+  );
+  const completionModels = availableModels.filter(
+    (m) => !m.includes('embed') && !m.includes('bge') && !m.includes('mxbai')
+  );
+
+  // Select completion model (prefer certain families)
+  const preferredCompletion = ['qwen3', 'llama3', 'mistral', 'gemma'];
+  let selectedModel = completionModels[0];
+  for (const pref of preferredCompletion) {
+    const match = completionModels.find((m) => m.includes(pref));
+    if (match) {
+      selectedModel = match;
+      break;
+    }
+  }
+
+  // Select embedding model - PREFER nomic-embed-text for archive consistency (768 dims)
+  // Archive uses nomic-embed-text, so Rho analysis should use same latent space
+  const preferredEmbed = ['nomic-embed', 'nomic', 'bge', 'mxbai'];
+  let selectedEmbedModel = embeddingModels[0] || 'nomic-embed-text:latest';
+  for (const pref of preferredEmbed) {
+    const match = embeddingModels.find((m) => m.includes(pref));
+    if (match) {
+      selectedEmbedModel = match;
+      break;
+    }
+  }
+
+  console.log(`   📝 Completion model: ${selectedModel}`);
+  console.log(`   🔢 Embedding model: ${selectedEmbedModel}\n`);
+
+  // Reconfigure adapter with discovered models
+  const configuredAdapter = new OllamaAdapter({
     baseUrl: 'http://localhost:11434',
-    model: 'llama3.1:8b',
-    embeddingModel: 'nomic-embed-text',
+    model: selectedModel,
+    embedModel: selectedEmbedModel,
   });
 
   const embedder = async (text: string): Promise<number[]> => {
-    const result = await adapter.embed(text);
+    const result = await configuredAdapter.embed(text);
     return result.embedding;
   };
 
   // Create agent
-  const agent = createBookAgent(adapter, embedder, {
+  const agent = createBookAgent(configuredAdapter, embedder, {
     verbose: true,
     thresholds: {
       minPurity: 0.12,
