@@ -72,3 +72,8 @@ export * from './transformations/index.js';
 // HUMANIZER (AI Detection + Text Humanization)
 // ═══════════════════════════════════════════════════════════════════════════
 export * from './humanizer/index.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BQL (Batch Query Language + RLM Context Management)
+// ═══════════════════════════════════════════════════════════════════════════
+export * from './bql/index.js';
