@@ -1,0 +1,68 @@
+{
+  "name": "@humanizer/npe",
+  "version": "0.1.0",
+  "description": "Narrative Projection Engine - Transformation and Analysis Services",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./sic": {
+      "types": "./dist/sic/index.d.ts",
+      "import": "./dist/sic/index.js"
+    },
+    "./quantum": {
+      "types": "./dist/quantum/index.d.ts",
+      "import": "./dist/quantum/index.js"
+    },
+    "./transformations": {
+      "types": "./dist/transformations/index.d.ts",
+      "import": "./dist/transformations/index.js"
+    },
+    "./llm": {
+      "types": "./dist/llm/index.d.ts",
+      "import": "./dist/llm/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
+  },
+  "peerDependencies": {
+    "@humanizer/core": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@humanizer/core": {
+      "optional": true
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "humanizer",
+    "npe",
+    "transformation",
+    "sic",
+    "quantum-reading",
+    "narrative"
+  ],
+  "license": "UNLICENSED"
+}
