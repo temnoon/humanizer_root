@@ -457,7 +457,13 @@ export class PipelineExecutor {
         tokensUsed += Math.ceil(transformed.length / 4);
       }
 
+      // DEPRECATED: Namespace transformation loses original meaning
+      // Use persona (WHO) + style (HOW) instead
       if (ns && BUILTIN_NAMESPACES[ns]) {
+        console.warn(
+          `[BQL] DEPRECATED: namespace transformation ("${ns}") changes content too much. ` +
+          `Consider using persona + style instead.`
+        );
         const result = await this.transformer.transformNamespace(
           transformed,
           BUILTIN_NAMESPACES[ns]

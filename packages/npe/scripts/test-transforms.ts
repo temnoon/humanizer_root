@@ -143,9 +143,8 @@ async function analyzePrompts() {
   if (!personaPrompt.includes('5-layer') && !personaPrompt.includes('ONTOLOGICAL')) {
     missing.push('❌ 5-layer persona stack (ontology, epistemics, attention, values, reader)');
   }
-  if (!personaPrompt.includes('sanitize')) {
-    missing.push('❌ sanitizePersonaOutput() post-filter (in code, not prompt)');
-  }
+  // Note: sanitizeOutput() is correctly implemented in prompts.ts and used by TransformerService
+  // It's a code feature, not a prompt feature, so we don't check for it in the prompt
 
   if (missing.length === 0) {
     console.log('✅ All production features present');
