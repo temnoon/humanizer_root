@@ -8,13 +8,19 @@
  * - A singleton BqlCli instance maintains session state across requests
  * - Buffers persist until explicitly cleared or session reset
  * - Command history is tracked for context in NL interpretation
+ *
+ * Storage:
+ * - Connects to PostgresContentStore via StorageBridge for archive access
+ * - Falls back gracefully if store not initialized (in-memory buffers only)
  */
 
 import type { MCPResult } from '../types.js';
+import { getContentStore } from '../../storage/index.js';
 
 // Lazy-loaded NPE components
 let BqlCli: typeof import('@humanizer/npe').BqlCli | null = null;
 let OllamaAdapter: typeof import('@humanizer/npe').OllamaAdapter | null = null;
+let createStorageBridge: typeof import('@humanizer/npe').createStorageBridge | null = null;
 let parseBql: typeof import('@humanizer/npe').parseBql | null = null;
 let BQL_HELP: string | null = null;
 let BUILTIN_PERSONAS: typeof import('@humanizer/npe').BUILTIN_PERSONAS | null = null;
@@ -23,6 +29,7 @@ let BUILTIN_STYLES: typeof import('@humanizer/npe').BUILTIN_STYLES | null = null
 // Singleton instances
 let adapter: InstanceType<typeof import('@humanizer/npe').OllamaAdapter> | null = null;
 let cli: InstanceType<typeof import('@humanizer/npe').BqlCli> | null = null;
+let storageConnected = false;
 
 // ═══════════════════════════════════════════════════════════════════
 // LAZY LOADING & SESSION MANAGEMENT
@@ -33,6 +40,7 @@ async function ensureNpeLoaded(): Promise<void> {
     const npe = await import('@humanizer/npe');
     BqlCli = npe.BqlCli;
     OllamaAdapter = npe.OllamaAdapter;
+    createStorageBridge = npe.createStorageBridge;
     parseBql = npe.parseBql;
     BQL_HELP = npe.BQL_HELP;
     BUILTIN_PERSONAS = npe.BUILTIN_PERSONAS;
@@ -51,14 +59,124 @@ async function getCli(): Promise<InstanceType<typeof import('@humanizer/npe').Bq
       throw new Error('Ollama is not available. Please ensure Ollama is running on localhost:11434');
     }
 
+    // Try to connect to PostgresContentStore for archive access
+    let storage: import('@humanizer/npe').StorageBridge | undefined;
+    try {
+      const store = getContentStore();
+      // Test if store is actually connected by checking stats
+      await store.getStats();
+
+      // Create embedding function using Ollama
+      const embedFn = async (text: string) => {
+        const result = await adapter!.embed(text);
+        return result.embedding;
+      };
+
+      // Create storage bridge for BQL
+      // The store interface is compatible at runtime, we cast to unknown first
+      storage = createStorageBridge!({
+        store: store as unknown as import('@humanizer/npe').ContentStoreInterface,
+        embedFn,
+        searchMode: 'hybrid',
+        defaultLimit: 50,
+        semanticThreshold: 0.5,
+      });
+      storageConnected = true;
+    } catch {
+      // Store not initialized - continue without archive access
+      storageConnected = false;
+    }
+
     cli = new BqlCli!({
       llm: adapter,
-      // Storage bridge would be added here for full archive access
-      // storage: createStorageBridge(contentStore, embedder),
+      storage,
     });
   }
 
   return cli;
+}
+
+/**
+ * Check if storage is connected to the archive
+ */
+export function isStorageConnected(): boolean {
+  return storageConnected;
+}
+
+/**
+ * Session state for MCP resources
+ */
+export interface AuiSessionState {
+  initialized: boolean;
+  storageConnected: boolean;
+  buffers: Array<{
+    name: string;
+    itemCount: number;
+    preview?: unknown;
+  }>;
+  historyCount: number;
+}
+
+/**
+ * Get current AUI session state for resource inspection
+ */
+export function getAuiSessionState(): AuiSessionState {
+  if (!cli) {
+    return {
+      initialized: false,
+      storageConnected: false,
+      buffers: [],
+      historyCount: 0,
+    };
+  }
+
+  const session = cli.getSession();
+  const buffers = Array.from(session.workspace.buffers.entries()).map(([name, data]) => ({
+    name,
+    itemCount: Array.isArray(data) ? data.length : 1,
+    preview: Array.isArray(data) && data.length > 0 ? summarizeItemForResource(data[0]) : undefined,
+  }));
+
+  return {
+    initialized: true,
+    storageConnected,
+    buffers,
+    historyCount: session.history.length,
+  };
+}
+
+/**
+ * Get buffer contents for resource read
+ */
+export function getBufferContents(name: string): unknown[] | null {
+  if (!cli) {
+    return null;
+  }
+  const buffer = cli.getBuffer(name);
+  return buffer ?? null;
+}
+
+/**
+ * Summarize an item for resource preview
+ */
+function summarizeItemForResource(item: unknown): unknown {
+  if (item === null || item === undefined) return null;
+  if (typeof item === 'string') {
+    return item.length > 100 ? item.substring(0, 100) + '...' : item;
+  }
+  if (typeof item === 'number' || typeof item === 'boolean') return item;
+  if (typeof item === 'object') {
+    const obj = item as Record<string, unknown>;
+    if ('text' in obj || 'content' in obj) {
+      const text = (obj.text || obj.content) as string;
+      return {
+        id: obj.id,
+        text: typeof text === 'string' && text.length > 100 ? text.substring(0, 100) + '...' : text,
+      };
+    }
+    return { type: 'object', keys: Object.keys(obj).slice(0, 5) };
+  }
+  return String(item);
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -109,6 +227,8 @@ export async function handleAuiQuery(args: AuiQueryInput): Promise<MCPResult> {
       data: response.data ? summarizeData(response.data) : undefined,
       suggestions: response.suggestions,
       awaitInput: response.awaitInput,
+      storageConnected,
+      ...(storageConnected ? {} : { storageNote: 'Archive not connected. Use initContentStore() to enable search.' }),
     });
   } catch (err) {
     return errorResult(`AUI query failed: ${err instanceof Error ? err.message : String(err)}`);

@@ -44,7 +44,7 @@ export interface MCPToolDefinition {
   name: string;
   description: string;
   inputSchema: JSONSchema;
-  category?: 'codeguard' | 'hooks' | 'system' | 'book-agent' | 'bookmaking' | 'aui';
+  category?: 'codeguard' | 'hooks' | 'system' | 'book-agent' | 'bookmaking' | 'aui' | 'arxiv';
 }
 
 /**
@@ -66,9 +66,21 @@ export interface MCPResult {
 }
 
 /**
- * Tool handler function type
+ * Handler context for progress reporting and other MCP features
  */
-export type MCPToolHandler<T = unknown> = (args: T) => Promise<MCPResult>;
+export interface HandlerContext {
+  /** Progress token from client request (if client supports progress) */
+  progressToken?: string | number;
+  /** Send progress update to client */
+  sendProgress: (current: number, total?: number) => Promise<void>;
+}
+
+/**
+ * Tool handler function type
+ * @param args - Tool arguments
+ * @param context - Optional handler context for progress reporting
+ */
+export type MCPToolHandler<T = unknown> = (args: T, context?: HandlerContext) => Promise<MCPResult>;
 
 // ═══════════════════════════════════════════════════════════════════
 // TOOL INPUT TYPES

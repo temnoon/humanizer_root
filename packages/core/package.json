@@ -54,7 +54,9 @@
     "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "cli": "npx tsx src/mcp/cli.ts",
+    "mcp": "npx tsx src/mcp/cli.ts interactive"
   },
   "dependencies": {
     "@humanizer/npe": "file:../npe",
@@ -64,7 +66,7 @@
     "zod": "^3.22.4"
   },
   "bin": {
-    "humanizer-mcp": "./dist/mcp/index.js"
+    "humanizer-mcp": "./dist/mcp/cli.js"
   },
   "devDependencies": {
     "@types/pg": "^8.11.10",

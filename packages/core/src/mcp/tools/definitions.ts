@@ -571,6 +571,7 @@ export const SYSTEM_TOOLS: MCPToolDefinition[] = [
 import { BOOK_AGENT_TOOLS } from './book-agent.js';
 import { BOOKMAKING_TOOLS } from './bookmaking.js';
 import { ALL_AUI_TOOLS } from './aui.js';
+import { ARXIV_TOOLS } from './arxiv.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // ALL TOOLS
@@ -587,12 +588,13 @@ export const ALL_TOOLS: MCPToolDefinition[] = [
   ...BOOK_AGENT_TOOLS,
   ...BOOKMAKING_TOOLS,
   ...ALL_AUI_TOOLS,
+  ...ARXIV_TOOLS,
 ];
 
 /**
  * Get tools by category
  */
-export function getToolsByCategory(category: 'codeguard' | 'hooks' | 'system' | 'book-agent' | 'bookmaking' | 'aui'): MCPToolDefinition[] {
+export function getToolsByCategory(category: 'codeguard' | 'hooks' | 'system' | 'book-agent' | 'bookmaking' | 'aui' | 'arxiv'): MCPToolDefinition[] {
   return ALL_TOOLS.filter(tool => tool.category === category);
 }
 

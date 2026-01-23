@@ -6,9 +6,15 @@
  *
  * Note: These handlers require Ollama for embeddings. Handlers check
  * availability and return helpful errors if services are unavailable.
+ *
+ * Storage:
+ * - Connects to PostgresContentStore for archive search
+ * - Falls back to metadata-only responses if store not initialized
  */
 
-import type { MCPResult } from '../types.js';
+import type { MCPResult, HandlerContext } from '../types.js';
+import { getContentStore } from '../../storage/index.js';
+import type { SearchResult } from '../../storage/types.js';
 import { ClusteringService } from '../../clustering/clustering-service.js';
 import type { ClusterPoint } from '../../clustering/types.js';
 import {
@@ -19,6 +25,30 @@ import {
   computeCentroid,
 } from '../../retrieval/anchor-refinement.js';
 import type { SemanticAnchor } from '../../retrieval/types.js';
+
+// Track storage connection status
+let storageConnected = false;
+
+/**
+ * Try to get the content store, returning null if not initialized
+ */
+function tryGetContentStore() {
+  try {
+    const store = getContentStore();
+    storageConnected = true;
+    return store;
+  } catch {
+    storageConnected = false;
+    return null;
+  }
+}
+
+/**
+ * Check if storage is connected
+ */
+export function isStorageConnected(): boolean {
+  return storageConnected;
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // LAZY-LOADED NPE ADAPTER
@@ -93,15 +123,45 @@ export async function handleSearchArchive(args: SearchArchiveInput): Promise<MCP
     const embedder = await getEmbedder();
     const embedding = await embedder(args.query);
 
-    // Note: In production, this would connect to HybridSearchService with PostgresContentStore
-    // For now, we return a simulated structure showing what the search would return
+    const store = tryGetContentStore();
+    if (store) {
+      // Use real search via PostgresContentStore
+      const limit = args.limit ?? 20;
+      const threshold = args.minRelevance ?? 0.5;
+
+      const results = await store.searchByEmbedding(embedding, {
+        limit,
+        threshold,
+      });
+
+      return jsonResult({
+        query: args.query,
+        resultCount: results.length,
+        results: results.map((r: SearchResult) => ({
+          id: r.node.id,
+          text: r.node.text.substring(0, 300) + (r.node.text.length > 300 ? '...' : ''),
+          title: r.node.title,
+          score: r.score,
+          distance: r.distance,
+          author: r.node.author,
+          sourceType: r.node.sourceType,
+          createdAt: r.node.sourceCreatedAt
+            ? new Date(r.node.sourceCreatedAt).toISOString()
+            : undefined,
+        })),
+        storageConnected: true,
+      });
+    }
+
+    // Fallback: Return metadata-only structure
     return jsonResult({
       query: args.query,
       embedding: {
         dimensions: embedding.length,
         preview: embedding.slice(0, 5).map(n => n.toFixed(4)),
       },
-      message: 'Search executed. Connect to PostgresContentStore for full results.',
+      message: 'Search ready. Use initContentStore() to connect to archive for results.',
+      storageConnected: false,
       parameters: {
         limit: args.limit ?? 20,
         minRelevance: args.minRelevance ?? 0.5,
@@ -128,16 +188,49 @@ export async function handleFindSimilar(args: FindSimilarInput): Promise<MCPResu
 
     const embedder = await getEmbedder();
     const embedding = await embedder(args.text);
+    const limit = args.limit ?? 10;
 
+    const store = tryGetContentStore();
+    if (store) {
+      // Use real search via PostgresContentStore
+      const results = await store.searchByEmbedding(embedding, {
+        limit: limit + (args.excludeIds?.length ?? 0), // Get extra to account for exclusions
+        threshold: 0.3, // Lower threshold for similarity search
+      });
+
+      // Filter out excluded IDs
+      const excludeSet = new Set(args.excludeIds ?? []);
+      const filteredResults = results
+        .filter((r: SearchResult) => !excludeSet.has(r.node.id))
+        .slice(0, limit);
+
+      return jsonResult({
+        query: args.text.substring(0, 100) + (args.text.length > 100 ? '...' : ''),
+        resultCount: filteredResults.length,
+        results: filteredResults.map((r: SearchResult) => ({
+          id: r.node.id,
+          text: r.node.text.substring(0, 300) + (r.node.text.length > 300 ? '...' : ''),
+          title: r.node.title,
+          similarity: r.score,
+          distance: r.distance,
+          author: r.node.author,
+          sourceType: r.node.sourceType,
+        })),
+        storageConnected: true,
+      });
+    }
+
+    // Fallback: Return metadata-only structure
     return jsonResult({
       query: args.text.substring(0, 100) + '...',
       embedding: {
         dimensions: embedding.length,
         preview: embedding.slice(0, 5).map(n => n.toFixed(4)),
       },
-      message: 'Similarity search ready. Connect to content store for results.',
+      message: 'Similarity search ready. Use initContentStore() to connect to archive.',
+      storageConnected: false,
       parameters: {
-        limit: args.limit ?? 10,
+        limit,
         excludeIds: args.excludeIds ?? [],
       },
     });
@@ -158,13 +251,17 @@ interface ClusterContentInput {
   computeCentroids?: boolean;
 }
 
-export async function handleClusterContent(args: ClusterContentInput): Promise<MCPResult> {
+export async function handleClusterContent(
+  args: ClusterContentInput,
+  context?: HandlerContext
+): Promise<MCPResult> {
   try {
-    // If query provided, we'd first search then cluster
-    // For now demonstrate clustering capability
     if (!args.contentIds && !args.query) {
       return errorResult('Provide either contentIds or query');
     }
+
+    const embedder = await getEmbedder();
+    const store = tryGetContentStore();
 
     const service = new ClusteringService({
       hdbscan: {
@@ -175,17 +272,88 @@ export async function handleClusterContent(args: ClusterContentInput): Promise<M
       computeCentroids: args.computeCentroids ?? true,
     });
 
-    // Demo with query - would search first in production
-    if (args.query) {
-      const embedder = await getEmbedder();
-      const embedding = await embedder(args.query);
+    // If query provided and store connected, search and cluster
+    if (args.query && store) {
+      // Progress: Step 1 - Search
+      await context?.sendProgress(1, 4);
+
+      const queryEmbedding = await embedder(args.query);
+
+      // Search for content to cluster
+      const searchResults = await store.searchByEmbedding(queryEmbedding, {
+        limit: 100, // Get a good sample for clustering
+        threshold: 0.3,
+      });
+
+      if (searchResults.length < 3) {
+        return jsonResult({
+          message: 'Not enough results to cluster (need at least 3)',
+          resultCount: searchResults.length,
+          storageConnected: true,
+        });
+      }
+
+      // Progress: Step 2 - Generate embeddings
+      await context?.sendProgress(2, 4);
+
+      // Get embeddings for all results with progress reporting
+      const points: ClusterPoint[] = [];
+      for (let i = 0; i < searchResults.length; i++) {
+        const r = searchResults[i] as SearchResult;
+        points.push({
+          id: r.node.id,
+          embedding: await embedder(r.node.text),
+          metadata: {
+            text: r.node.text.substring(0, 200),
+            title: r.node.title,
+            author: r.node.author,
+          },
+        });
+        // Sub-progress within step 2: report every 10 items
+        if (i > 0 && i % 10 === 0 && context?.progressToken) {
+          await context.sendProgress(2 + (i / searchResults.length) * 0.8, 4);
+        }
+      }
+
+      // Progress: Step 3 - Clustering
+      await context?.sendProgress(3, 4);
+
+      // Run clustering
+      const clusterResult = service.cluster(points);
+
+      // Progress: Step 4 - Done
+      await context?.sendProgress(4, 4);
 
       return jsonResult({
-        message: 'Clustering service initialized. Connect to content store to cluster actual content.',
+        query: args.query,
+        resultCount: searchResults.length,
+        clusters: clusterResult.clusters.map((c, i) => ({
+          clusterId: i,
+          size: c.points.length,
+          centroid: args.computeCentroids !== false ? c.centroid?.slice(0, 3) : undefined,
+          samples: c.points.slice(0, 3).map(p => ({
+            id: p.id,
+            preview: (p.metadata as { text?: string })?.text?.substring(0, 100) + '...',
+          })),
+        })),
+        noise: {
+          count: clusterResult.noise.length,
+          sampleIds: clusterResult.noise.slice(0, 5).map(p => p.id),
+        },
+        storageConnected: true,
+      });
+    }
+
+    // Fallback: Return metadata-only structure
+    if (args.query) {
+      const queryEmbedding = await embedder(args.query);
+      return jsonResult({
+        message: 'Clustering ready. Use initContentStore() to connect to archive.',
         query: args.query,
         queryEmbedding: {
-          dimensions: embedding.length,
+          dimensions: queryEmbedding.length,
         },
+        storageConnected: false,
         config: {
           minClusterSize: args.minClusterSize ?? 3,
           maxClusters: args.maxClusters ?? 10,
@@ -195,8 +363,9 @@ export async function handleClusterContent(args: ClusterContentInput): Promise<M
     }
 
     return jsonResult({
-      message: 'Clustering service ready. Provide content embeddings to cluster.',
+      message: 'Clustering service ready. Use initContentStore() to connect to archive.',
       contentIds: args.contentIds,
+      storageConnected: false,
       config: {
         minClusterSize: args.minClusterSize ?? 3,
         maxClusters: args.maxClusters ?? 10,
@@ -362,15 +531,81 @@ interface HarvestForThreadInput {
   limit?: number;
 }
 
-export async function handleHarvestForThread(args: HarvestForThreadInput): Promise<MCPResult> {
+export async function handleHarvestForThread(
+  args: HarvestForThreadInput,
+  context?: HandlerContext
+): Promise<MCPResult> {
   try {
     if (!args.theme || !args.queries || args.queries.length === 0) {
       return errorResult('Theme and at least one query are required');
     }
 
     const embedder = await getEmbedder();
+    const store = tryGetContentStore();
+    const limit = args.limit ?? 20;
+    const excludeSet = new Set(args.existingPassageIds ?? []);
+    const totalQueries = args.queries.length;
 
-    // Embed all queries
+    if (store) {
+      // Execute real harvest via PostgresContentStore
+      const allResults: Array<SearchResult & { querySource: string }> = [];
+
+      for (let i = 0; i < args.queries.length; i++) {
+        const query = args.queries[i];
+
+        // Report progress per query
+        await context?.sendProgress(i, totalQueries + 1); // +1 for dedup step
+
+        const embedding = await embedder(query);
+        const results = await store.searchByEmbedding(embedding, {
+          limit: limit * 2, // Get extra to account for deduplication
+          threshold: 0.4,
+        });
+
+        results.forEach((r: SearchResult) => {
+          allResults.push({ ...r, querySource: query });
+        });
+      }
+
+      // Progress: Deduplication step
+      await context?.sendProgress(totalQueries, totalQueries + 1);
+
+      // Deduplicate by node ID, keeping highest score
+      const dedupedMap = new Map<string, SearchResult & { querySource: string }>();
+      for (const r of allResults) {
+        const existing = dedupedMap.get(r.node.id);
+        if (!existing || r.score > existing.score) {
+          dedupedMap.set(r.node.id, r);
+        }
+      }
+
+      // Filter exclusions and sort by score
+      const dedupedResults = Array.from(dedupedMap.values())
+        .filter(r => !excludeSet.has(r.node.id))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+
+      // Progress: Complete
+      await context?.sendProgress(totalQueries + 1, totalQueries + 1);
+
+      return jsonResult({
+        theme: args.theme,
+        queryCount: args.queries.length,
+        resultCount: dedupedResults.length,
+        results: dedupedResults.map(r => ({
+          id: r.node.id,
+          text: r.node.text.substring(0, 400) + (r.node.text.length > 400 ? '...' : ''),
+          title: r.node.title,
+          score: r.score,
+          matchedQuery: r.querySource,
+          author: r.node.author,
+          sourceType: r.node.sourceType,
+        })),
+        storageConnected: true,
+      });
+    }
+
+    // Fallback: Return metadata-only structure
     const queryEmbeddings = await Promise.all(
       args.queries.map(async q => ({
         query: q,
@@ -385,10 +620,11 @@ export async function handleHarvestForThread(args: HarvestForThreadInput): Promi
         embeddingDimensions: qe.embedding.length,
       })),
       parameters: {
-        limit: args.limit ?? 20,
-        excludeCount: args.existingPassageIds?.length ?? 0,
+        limit,
+        excludeCount: excludeSet.size,
       },
-      message: 'Harvest queries prepared. Connect to content store to execute.',
+      message: 'Harvest ready. Use initContentStore() to connect to archive.',
+      storageConnected: false,
       workflow: [
         '1. Search for each query',
         '2. Deduplicate results',
@@ -414,6 +650,7 @@ export async function handleDiscoverConnections(args: DiscoverConnectionsInput):
     }
 
     const embedder = await getEmbedder();
+    const store = tryGetContentStore();
 
     const seedEmbeddings = await Promise.all(
       args.seedTexts.map(async (text, i) => ({
@@ -442,6 +679,58 @@ export async function handleDiscoverConnections(args: DiscoverConnectionsInput):
       }
     }
 
+    if (store) {
+      // Execute real discovery via PostgresContentStore
+      const discoveries: Array<{
+        seedIndex: number;
+        connections: Array<{
+          id: string;
+          text: string;
+          similarity: number;
+          title?: string;
+        }>;
+      }> = [];
+
+      for (const seed of seedEmbeddings) {
+        // Search with lower threshold to find tangential connections
+        const results = await store.searchByEmbedding(seed.embedding, {
+          limit: 20,
+          threshold: 0.3,
+        });
+
+        // Filter to "tangential" range (related but not too similar)
+        const tangential = results
+          .filter((r: SearchResult) => r.score >= 0.3 && r.score <= 0.7)
+          .slice(0, 5);
+
+        discoveries.push({
+          seedIndex: seed.index,
+          connections: tangential.map((r: SearchResult) => ({
+            id: r.node.id,
+            text: r.node.text.substring(0, 200) + '...',
+            similarity: r.score,
+            title: r.node.title,
+          })),
+        });
+      }
+
+      return jsonResult({
+        seedCount: args.seedTexts.length,
+        seeds: seedEmbeddings.map(s => ({
+          index: s.index,
+          preview: s.preview + '...',
+        })),
+        pairwiseSimilarities: pairwiseSimilarities.map(p => ({
+          seeds: [p.i, p.j],
+          similarity: p.similarity.toFixed(4),
+        })),
+        discoveries,
+        explorationDepth: args.explorationDepth ?? 1,
+        storageConnected: true,
+      });
+    }
+
+    // Fallback: Return metadata-only structure
     return jsonResult({
       seedCount: args.seedTexts.length,
       seeds: seedEmbeddings.map(s => ({
@@ -453,7 +742,8 @@ export async function handleDiscoverConnections(args: DiscoverConnectionsInput):
         similarity: p.similarity.toFixed(4),
       })),
       explorationDepth: args.explorationDepth ?? 1,
-      message: 'Discovery prepared. Connect to content store to find tangential connections.',
+      message: 'Discovery ready. Use initContentStore() to connect to archive.',
+      storageConnected: false,
       algorithm: [
         '1. Search semantically near each seed',
         '2. Find content that is related but not too similar',
@@ -480,6 +770,8 @@ export async function handleExpandThread(args: ExpandThreadInput): Promise<MCPRe
     }
 
     const embedder = await getEmbedder();
+    const store = tryGetContentStore();
+    const limit = args.limit ?? 10;
 
     // Create expansion query based on direction
     let expansionQuery: string;
@@ -503,13 +795,64 @@ export async function handleExpandThread(args: ExpandThreadInput): Promise<MCPRe
     );
     const centroid = computeCentroid(existingEmbeddings);
 
+    if (store) {
+      // Search using expansion query embedding
+      const results = await store.searchByEmbedding(expansionEmbedding, {
+        limit: limit * 3, // Get extra for filtering
+        threshold: 0.3,
+      });
+
+      // Filter based on direction strategy
+      let filteredResults: SearchResult[];
+      if (args.direction === 'deeper') {
+        // Find content closer to centroid (more similar to existing)
+        filteredResults = results
+          .filter((r: SearchResult) => r.score >= 0.5)
+          .slice(0, limit);
+      } else if (args.direction === 'broader') {
+        // Find content in middle range (related but not too similar)
+        filteredResults = results
+          .filter((r: SearchResult) => r.score >= 0.3 && r.score <= 0.7)
+          .slice(0, limit);
+      } else {
+        // Contrasting: find content that's less similar
+        filteredResults = results
+          .filter((r: SearchResult) => r.score >= 0.2 && r.score <= 0.5)
+          .slice(0, limit);
+      }
+
+      return jsonResult({
+        theme: args.theme,
+        direction: args.direction,
+        expansionQuery,
+        existingCount: args.existingTexts.length,
+        resultCount: filteredResults.length,
+        results: filteredResults.map((r: SearchResult) => ({
+          id: r.node.id,
+          text: r.node.text.substring(0, 300) + (r.node.text.length > 300 ? '...' : ''),
+          title: r.node.title,
+          score: r.score,
+          author: r.node.author,
+          sourceType: r.node.sourceType,
+        })),
+        strategy: args.direction === 'deeper'
+          ? 'Found more specific, detailed content'
+          : args.direction === 'broader'
+            ? 'Found related but wider context'
+            : 'Found opposing or alternative viewpoints',
+        storageConnected: true,
+      });
+    }
+
+    // Fallback: Return metadata-only structure
     return jsonResult({
       theme: args.theme,
       direction: args.direction,
       expansionQuery,
       existingCount: args.existingTexts.length,
       centroidComputed: true,
-      message: 'Expansion prepared. Connect to content store to find new content.',
+      message: 'Expansion ready. Use initContentStore() to connect to archive.',
+      storageConnected: false,
       strategy: args.direction === 'deeper'
         ? 'Find more specific, detailed content'
         : args.direction === 'broader'

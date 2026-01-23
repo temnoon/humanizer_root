@@ -16,13 +16,16 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema,
   type CallToolResult,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import type { MCPServerConfig, MCPResult } from './types.js';
+import type { MCPServerConfig, MCPResult, HandlerContext } from './types.js';
 import { ALL_TOOLS, getToolDefinition } from './tools/definitions.js';
 import { getHandler } from './handlers/index.js';
 import { initializeDevelopmentAgents, shutdownDevelopmentAgents } from '../houses/codeguard/index.js';
+import { getAuiSessionState, getBufferContents } from './handlers/aui.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // MCP SERVER CLASS
@@ -50,6 +53,7 @@ export class HumanizerMCPServer {
       {
         capabilities: {
           tools: {},
+          resources: {},
         },
       }
     );
@@ -122,8 +126,87 @@ export class HumanizerMCPServer {
       return { tools };
     });
 
+    // List resources handler
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      const sessionState = getAuiSessionState();
+      const resources: Array<{
+        uri: string;
+        name: string;
+        description: string;
+        mimeType: string;
+      }> = [];
+
+      // Add session state resource
+      resources.push({
+        uri: 'humanizer://aui/session',
+        name: 'AUI Session State',
+        description: 'Current state of the AUI session including buffers and history',
+        mimeType: 'application/json',
+      });
+
+      // Add each buffer as a resource
+      for (const buffer of sessionState.buffers) {
+        resources.push({
+          uri: `humanizer://aui/buffer/${encodeURIComponent(buffer.name)}`,
+          name: `Buffer: ${buffer.name}`,
+          description: `AUI buffer with ${buffer.itemCount} items`,
+          mimeType: 'application/json',
+        });
+      }
+
+      return { resources };
+    });
+
+    // Read resource handler
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      const { uri } = request.params;
+
+      // Parse the URI
+      if (uri === 'humanizer://aui/session') {
+        const sessionState = getAuiSessionState();
+        return {
+          contents: [{
+            uri,
+            mimeType: 'application/json',
+            text: JSON.stringify(sessionState, null, 2),
+          }],
+        };
+      }
+
+      if (uri.startsWith('humanizer://aui/buffer/')) {
+        const bufferName = decodeURIComponent(uri.replace('humanizer://aui/buffer/', ''));
+        const contents = getBufferContents(bufferName);
+
+        if (contents === null) {
+          return {
+            contents: [{
+              uri,
+              mimeType: 'application/json',
+              text: JSON.stringify({ error: `Buffer "${bufferName}" not found or AUI not initialized` }),
+            }],
+          };
+        }
+
+        return {
+          contents: [{
+            uri,
+            mimeType: 'application/json',
+            text: JSON.stringify({ name: bufferName, itemCount: contents.length, items: contents }, null, 2),
+          }],
+        };
+      }
+
+      return {
+        contents: [{
+          uri,
+          mimeType: 'text/plain',
+          text: `Unknown resource: ${uri}`,
+        }],
+      };
+    });
+
     // Call tool handler
-    this.server.setRequestHandler(CallToolRequestSchema, async (request): Promise<CallToolResult> => {
+    this.server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
       const { name, arguments: args } = request.params;
 
       this.log('debug', `Tool call: ${name}`, args);
@@ -137,9 +220,33 @@ export class HumanizerMCPServer {
         };
       }
 
+      // Create handler context with progress reporting capability
+      const progressToken = extra._meta?.progressToken;
+      const context: HandlerContext = {
+        progressToken,
+        sendProgress: async (current: number, total?: number) => {
+          if (progressToken !== undefined) {
+            try {
+              // Send progress notification using the extra.sendNotification method
+              await extra.sendNotification({
+                method: 'notifications/progress',
+                params: {
+                  progressToken,
+                  progress: current,
+                  total,
+                },
+              });
+            } catch (err) {
+              // Progress notification failed - log but don't fail the handler
+              this.log('debug', `Progress notification failed: ${err}`);
+            }
+          }
+        },
+      };
+
       // Execute the handler
       try {
-        const result = await handler(args || {});
+        const result = await handler(args || {}, context);
         // Convert our MCPResult to CallToolResult format
         return {
           content: result.content.map(c => ({
