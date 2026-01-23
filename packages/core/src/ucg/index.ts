@@ -6,14 +6,12 @@
  * MIGRATION NOTE: The InMemoryUCGProvider has been removed.
  * Use ContentStore from '../storage/index.js' for persistent storage.
  *
- * Pyramid features (L0 → L1 → L2 → L3 → Apex) will be implemented
- * in Phase 4 of the UCG Storage Implementation Plan.
- *
- * For now, this module provides type definitions only.
+ * Pyramid features are now implemented in '../pyramid/index.js'.
+ * This module provides legacy type definitions and re-exports.
  */
 
 // ═══════════════════════════════════════════════════════════════════
-// TYPES - Content Resolution Levels
+// TYPES - Content Resolution Levels (Legacy)
 // ═══════════════════════════════════════════════════════════════════
 
 /**
@@ -25,6 +23,8 @@
  * - L2: Apex (document summary, ~300 words)
  *
  * Note: L3 and higher levels may be added for very large documents.
+ *
+ * @deprecated Use PyramidLevel from '../pyramid/index.js' instead
  */
 export type ResolutionLevel = 'L0' | 'L1' | 'L2' | 'apex';
 
@@ -78,11 +78,12 @@ export interface ContentMetadata {
 }
 
 // ═══════════════════════════════════════════════════════════════════
-// TYPES - Pyramid Structure
+// LEGACY PYRAMID CONFIG (for backwards compatibility)
 // ═══════════════════════════════════════════════════════════════════
 
 /**
  * Pyramid configuration constants
+ * @deprecated Use constants from '../pyramid/index.js' instead
  */
 export const PYRAMID_CONFIG = {
   /** Minimum tokens to trigger pyramid building */
@@ -97,88 +98,6 @@ export const PYRAMID_CONFIG = {
   /** Target word count for apex synthesis */
   TARGET_APEX_WORDS: 300,
 } as const;
-
-/**
- * The apex (top) of the pyramid - single summary
- */
-export interface ApexNode {
-  /** Summary text */
-  summary: string;
-
-  /** Embedding */
-  embedding?: number[];
-
-  /** Key themes */
-  themes: string[];
-
-  /** Key entities */
-  entities: string[];
-
-  /** Total word count in pyramid */
-  totalWords: number;
-
-  /** Date range of content */
-  dateRange?: { start: number; end: number };
-
-  /** When generated */
-  generatedAt: number;
-}
-
-/**
- * Statistics about a pyramid
- */
-export interface PyramidStats {
-  /** Node counts by level */
-  nodeCounts: Record<ResolutionLevel, number>;
-
-  /** Total nodes */
-  totalNodes: number;
-
-  /** Total words */
-  totalWords: number;
-
-  /** Average node size by level */
-  avgNodeSize: Record<ResolutionLevel, number>;
-
-  /** Embedding coverage (% of nodes with embeddings) */
-  embeddingCoverage: number;
-
-  /** Compression ratios achieved */
-  compressionRatios?: {
-    l0ToL1?: number;
-    l1ToApex?: number;
-  };
-}
-
-// ═══════════════════════════════════════════════════════════════════
-// TYPES - Search
-// ═══════════════════════════════════════════════════════════════════
-
-/**
- * Options for pyramid search
- */
-export interface PyramidSearchOptions {
-  /** Which levels to search */
-  levels?: ResolutionLevel[];
-
-  /** Minimum similarity threshold */
-  minSimilarity?: number;
-
-  /** Maximum results */
-  maxResults?: number;
-
-  /** Include context */
-  includeContext?: boolean;
-
-  /** Filter by content type */
-  contentType?: string;
-
-  /** Filter by topic */
-  topic?: string;
-
-  /** Date range filter */
-  dateRange?: { start: number; end: number };
-}
 
 // ═══════════════════════════════════════════════════════════════════
 // RE-EXPORTS from storage (canonical location for stored nodes)
@@ -201,3 +120,10 @@ export {
   initContentStore,
   closeContentStore,
 } from '../storage/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// RE-EXPORTS from pyramid (canonical implementation)
+// ═══════════════════════════════════════════════════════════════════
+
+// Note: ApexNode, PyramidStats, PyramidSearchOptions are now in pyramid module
+// Import them from '../pyramid/index.js' for new code

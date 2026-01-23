@@ -104,3 +104,8 @@ export * from './chunking/index.js';
 // RETRIEVAL - Hybrid search and quality-gated retrieval
 // ═══════════════════════════════════════════════════════════════════
 export * from './retrieval/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// PYRAMID - Multi-resolution content for large documents
+// ═══════════════════════════════════════════════════════════════════
+export * from './pyramid/index.js';
