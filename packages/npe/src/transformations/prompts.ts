@@ -1,7 +1,16 @@
 /**
  * Transformation Prompts
  *
- * System and user prompts for persona, style, and namespace transformations.
+ * System and user prompts for persona and style transformations.
+ *
+ * Key Design Principles:
+ * - Style = HOW (sentence patterns, register, figurative language)
+ * - Persona = WHO (5-layer epistemic stack: ontology, epistemics, attention, values, reader)
+ * - VOCABULARY preservation is crucial for quality
+ *
+ * @see Dec 2025 testing: "Vocabulary anchors prevent content drift"
+ *
+ * Note: Namespace transformations are DEPRECATED (lose original meaning).
  */
 
 import type { PersonaDefinition, StyleDefinition, NamespaceDefinition } from './types.js';
@@ -37,6 +46,11 @@ These elements define WHAT happens and HOW it's written. Do not change them.
 • DIALOGUE CONTENT: Keep dialogue meaning intact
 • WRITING STYLE: Preserve sentence patterns, vocabulary register, figurative language density
   (Persona changes WHO perceives, not HOW they write)
+
+⚠️ VOCABULARY RULE (CRITICAL):
+Keep ALL specific nouns, verbs, names, and key terms from the original.
+Only change the FRAMING and PERSPECTIVE, not the vocabulary.
+Do not replace "boss" with "supervisor", "email" with "correspondence", etc.
 
 ═══════════════════════════════════════════════════════════════════════════════
 LAYER 2: PERSONA DIMENSIONS (WHAT YOU MAY CHANGE)
@@ -124,6 +138,11 @@ LAYER 1: INVARIANTS (MUST PRESERVE)
 • FACTS & ENTITIES: All names, locations, objects, and details stay the same
 • GENRE IDENTITY: The text type remains the same
 
+⚠️ VOCABULARY RULE (CRITICAL):
+Keep ALL specific nouns, names, and key terms from the original.
+Transform sentence STRUCTURE and hedging style only.
+Do not replace "boss" with "supervisor", "email" with "missive", etc.
+
 ═══════════════════════════════════════════════════════════════════════════════
 LAYER 2: STYLE CHANGES (WHAT YOU MAY CHANGE)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -170,6 +189,7 @@ Begin directly with the transformed content.`;
 
 /**
  * Namespace transformation - Step 1: Extract structure
+ * @deprecated Namespace transformations lose original meaning. Use persona/style instead.
  */
 export function createNamespaceExtractPrompt(text: string): string {
   return `You are a narrative structure analyst.
