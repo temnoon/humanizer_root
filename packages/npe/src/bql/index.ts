@@ -82,3 +82,16 @@ export {
   BqlCli,
   createBqlCli,
 } from './cli.js';
+
+// Storage Bridge (connects BQL to @humanizer/core storage)
+export {
+  StorageBridge,
+  createStorageBridge,
+  createMockStorageBridge,
+  type StoredNodeSubset,
+  type SearchResultSubset,
+  type ContentStoreInterface,
+  type EmbeddingFunction,
+  type StorageBridgeOptions,
+  type BqlStorageInterface,
+} from './storage-bridge.js';
