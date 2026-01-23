@@ -77,3 +77,8 @@ export * from './humanizer/index.js';
 // BQL (Batch Query Language + RLM Context Management)
 // ═══════════════════════════════════════════════════════════════════════════
 export * from './bql/index.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AGENTS (Autonomous Book Making with Rho Quality Control)
+// ═══════════════════════════════════════════════════════════════════════════
+export * from './agents/index.js';
