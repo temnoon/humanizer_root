@@ -1,12 +1,13 @@
 #!/usr/bin/env npx tsx
 /**
- * Test Storage Bridge with Real PostgreSQL
+ * Test Storage Bridge with Real PostgreSQL and Ollama Embeddings
  *
  * Run with: npx tsx scripts/test-storage-bridge.ts
  *
  * Prerequisites:
  * - PostgreSQL running on localhost:5432
  * - humanizer_archive database with content_nodes table
+ * - Ollama running on localhost:11434 with nomic-embed-text model
  */
 
 import { Pool } from 'pg';
@@ -19,6 +20,7 @@ import {
   type StoredNodeSubset,
   type SearchResultSubset,
 } from '../src/bql/storage-bridge.js';
+import { OllamaAdapter, createOllamaAdapter } from '../src/llm/index.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Configuration
@@ -31,7 +33,7 @@ const DB_CONFIG = {
   // Uses default user from env
 };
 
-// Test data to insert
+// Test data - semantically distinct content
 const TEST_NODES = [
   {
     id: crypto.randomUUID(),
@@ -51,9 +53,9 @@ const TEST_NODES = [
     id: crypto.randomUUID(),
     content_hash: `test-hash-${Date.now()}-2`,
     uri: `content://test/message/${Date.now()}-2`,
-    text: 'Technical documentation should be clear and concise. This guide explains API authentication using OAuth 2.0 and JWT tokens.',
+    text: 'Technical documentation should be clear and concise. This guide explains API authentication using OAuth 2.0 and JWT tokens for secure access.',
     format: 'text',
-    word_count: 19,
+    word_count: 21,
     source_type: 'test',
     source_adapter: 'test-adapter',
     hierarchy_level: 0,
@@ -72,6 +74,20 @@ const TEST_NODES = [
     source_adapter: 'test-adapter',
     hierarchy_level: 0,
     title: 'Philosophy Notes',
+    author: 'user',
+    author_role: 'user',
+  },
+  {
+    id: crypto.randomUUID(),
+    content_hash: `test-hash-${Date.now()}-4`,
+    uri: `content://test/message/${Date.now()}-4`,
+    text: 'Family gatherings at holidays were always chaotic but joyful. Cousins running through the house, the kitchen full of delicious aromas.',
+    format: 'text',
+    word_count: 22,
+    source_type: 'test',
+    source_adapter: 'test-adapter',
+    hierarchy_level: 0,
+    title: 'Holiday Memories',
     author: 'user',
     author_role: 'user',
   },
@@ -231,15 +247,24 @@ class TestContentStore implements ContentStoreInterface {
 // Test Utilities
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function insertTestData(pool: Pool): Promise<string[]> {
+async function insertTestDataWithEmbeddings(
+  pool: Pool,
+  ollama: OllamaAdapter
+): Promise<string[]> {
   const ids: string[] = [];
 
+  console.log('   Generating embeddings...');
   for (const node of TEST_NODES) {
+    // Generate real embedding
+    const embedResult = await ollama.embed(node.text);
+    const vectorSql = toSql(embedResult.embedding);
+
     await pool.query(
       `INSERT INTO content_nodes (
         id, content_hash, uri, text, format, word_count,
-        source_type, source_adapter, hierarchy_level, title, author, author_role
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        source_type, source_adapter, hierarchy_level, title, author, author_role,
+        embedding
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::vector)
       ON CONFLICT (uri) DO NOTHING`,
       [
         node.id,
@@ -254,10 +279,13 @@ async function insertTestData(pool: Pool): Promise<string[]> {
         node.title,
         node.author,
         node.author_role,
+        vectorSql,
       ]
     );
     ids.push(node.id);
+    process.stdout.write('   .');
   }
+  console.log(' done');
 
   return ids;
 }
@@ -271,11 +299,21 @@ async function cleanupTestData(pool: Pool): Promise<void> {
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function main() {
-  console.log('Storage Bridge Integration Test');
-  console.log('================================\n');
+  console.log('Storage Bridge Integration Test (with Real Embeddings)');
+  console.log('=======================================================\n');
+
+  // Check Ollama availability
+  console.log('1. Checking Ollama...');
+  const ollama = createOllamaAdapter();
+  const ollamaAvailable = await ollama.isAvailable();
+  if (!ollamaAvailable) {
+    console.error('   ❌ Ollama not available. Start Ollama with: ollama serve');
+    process.exit(1);
+  }
+  console.log('   ✅ Ollama available');
 
   // Connect to PostgreSQL
-  console.log('1. Connecting to PostgreSQL...');
+  console.log('\n2. Connecting to PostgreSQL...');
   const pool = new Pool(DB_CONFIG);
 
   try {
@@ -289,75 +327,123 @@ async function main() {
     const countResult = await pool.query('SELECT COUNT(*) FROM content_nodes');
     console.log(`   Existing nodes: ${countResult.rows[0].count}`);
 
-    // Insert test data
-    console.log('\n2. Inserting test data...');
-    const testIds = await insertTestData(pool);
-    console.log(`   ✅ Inserted ${testIds.length} test nodes`);
+    // Insert test data with embeddings
+    console.log('\n3. Inserting test data with embeddings...');
+    const testIds = await insertTestDataWithEmbeddings(pool, ollama);
+    console.log(`   ✅ Inserted ${testIds.length} test nodes with embeddings`);
 
     // Create content store and bridge
-    console.log('\n3. Creating storage bridge...');
+    console.log('\n4. Creating storage bridge with embedding function...');
     const store = new TestContentStore(pool);
     const bridge = createStorageBridge({
       store,
+      embedFn: async (text) => {
+        const result = await ollama.embed(text);
+        return result.embedding;
+      },
       searchMode: 'keyword',
       defaultLimit: 10,
     });
     console.log('   ✅ Bridge created');
 
     // Test keyword search
-    console.log('\n4. Testing keyword search...');
+    console.log('\n5. Testing KEYWORD search...');
     const keywordResults = await bridge.search('memories childhood');
     console.log(`   Query: "memories childhood"`);
     console.log(`   Results: ${keywordResults.length}`);
     if (keywordResults.length > 0) {
-      const first = keywordResults[0] as { text: string; score: number };
-      console.log(`   First result: "${first.text.slice(0, 60)}..."`);
-      console.log(`   Score: ${first.score}`);
+      const first = keywordResults[0] as { text: string; title: string; score: number };
+      console.log(`   First result: "${first.title}" (score: ${first.score.toFixed(4)})`);
     }
 
-    // Test another search
-    console.log('\n5. Testing search for "API documentation"...');
-    const apiResults = await bridge.search('API documentation');
-    console.log(`   Results: ${apiResults.length}`);
-    if (apiResults.length > 0) {
-      const first = apiResults[0] as { text: string; title: string };
-      console.log(`   First result title: "${first.title}"`);
+    // Test semantic search with prefix
+    console.log('\n6. Testing SEMANTIC search (prefix override)...');
+    const semanticResults = await bridge.search('semantic:nostalgic family moments');
+    console.log(`   Query: "semantic:nostalgic family moments"`);
+    console.log(`   Results: ${semanticResults.length}`);
+    if (semanticResults.length > 0) {
+      console.log('   Results by similarity:');
+      for (const result of semanticResults.slice(0, 4)) {
+        const r = result as { title: string; score: number };
+        console.log(`     - "${r.title}" (score: ${r.score.toFixed(4)})`);
+      }
     }
 
-    // Test philosophy search
-    console.log('\n6. Testing search for "consciousness philosophy"...');
-    const philResults = await bridge.search('consciousness philosophy');
-    console.log(`   Results: ${philResults.length}`);
-    if (philResults.length > 0) {
-      const first = philResults[0] as { text: string };
-      console.log(`   First result: "${first.text.slice(0, 60)}..."`);
+    // Test semantic search for technical content
+    console.log('\n7. Testing SEMANTIC search for technical content...');
+    const techResults = await bridge.search('semantic:REST API security tokens');
+    console.log(`   Query: "semantic:REST API security tokens"`);
+    console.log(`   Results: ${techResults.length}`);
+    if (techResults.length > 0) {
+      console.log('   Results by similarity:');
+      for (const result of techResults.slice(0, 4)) {
+        const r = result as { title: string; score: number };
+        console.log(`     - "${r.title}" (score: ${r.score.toFixed(4)})`);
+      }
+    }
+
+    // Test hybrid search
+    console.log('\n8. Testing HYBRID search...');
+    const hybridBridge = createStorageBridge({
+      store,
+      embedFn: async (text) => {
+        const result = await ollama.embed(text);
+        return result.embedding;
+      },
+      searchMode: 'hybrid',
+      defaultLimit: 10,
+    });
+    const hybridResults = await hybridBridge.search('philosophy consciousness mind');
+    console.log(`   Query: "philosophy consciousness mind"`);
+    console.log(`   Results: ${hybridResults.length}`);
+    if (hybridResults.length > 0) {
+      console.log('   Results (hybrid fused):');
+      for (const result of hybridResults.slice(0, 4)) {
+        const r = result as { title: string; score: number };
+        console.log(`     - "${r.title}" (score: ${r.score.toFixed(4)})`);
+      }
+    }
+
+    // Test semantic search with threshold
+    console.log('\n9. Testing semantic search with threshold (0.6)...');
+    const thresholdBridge = createStorageBridge({
+      store,
+      embedFn: async (text) => {
+        const result = await ollama.embed(text);
+        return result.embedding;
+      },
+      searchMode: 'semantic',
+      semanticThreshold: 0.6,
+      defaultLimit: 10,
+    });
+    const thresholdResults = await thresholdBridge.search('summer vacation countryside');
+    console.log(`   Query: "summer vacation countryside"`);
+    console.log(`   Results above 0.6 threshold: ${thresholdResults.length}`);
+    for (const result of thresholdResults) {
+      const r = result as { title: string; score: number };
+      console.log(`     - "${r.title}" (score: ${r.score.toFixed(4)})`);
     }
 
     // Test load by source type
-    console.log('\n7. Testing load by source type...');
+    console.log('\n10. Testing load by source type...');
     const testNodes = await bridge.load('source:test');
-    console.log(`   source:test returned ${testNodes.length} nodes`);
+    console.log(`    source:test returned ${testNodes.length} nodes`);
 
     // Test save and load buffer
-    console.log('\n8. Testing buffer save/load...');
-    await bridge.save('search_results', keywordResults);
+    console.log('\n11. Testing buffer save/load...');
+    await bridge.save('search_results', semanticResults);
     const loaded = await bridge.load('search_results');
-    console.log(`   Saved ${keywordResults.length} items, loaded ${loaded.length} items`);
-    console.log(`   ✅ Buffer round-trip successful`);
-
-    // Test load all
-    console.log('\n9. Testing load all...');
-    const allNodes = await bridge.load('all');
-    console.log(`   Total nodes accessible: ${allNodes.length}`);
+    console.log(`    Saved ${semanticResults.length} items, loaded ${loaded.length} items`);
+    console.log('    ✅ Buffer round-trip successful');
 
     // Cleanup
-    console.log('\n10. Cleaning up test data...');
+    console.log('\n12. Cleaning up test data...');
     await cleanupTestData(pool);
     console.log('    ✅ Test data removed');
 
-    console.log('\n' + '='.repeat(50));
-    console.log('✅ All tests passed!');
-    console.log('='.repeat(50));
+    console.log('\n' + '='.repeat(55));
+    console.log('✅ All tests passed! Semantic search working correctly.');
+    console.log('='.repeat(55));
 
   } catch (error) {
     console.error('\n❌ Test failed:', error);

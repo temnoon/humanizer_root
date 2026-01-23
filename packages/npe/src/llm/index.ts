@@ -26,3 +26,9 @@ export {
   createTestAdapter,
 } from './mock-adapter.js';
 export type { MockResponse } from './mock-adapter.js';
+
+export {
+  OllamaAdapter,
+  createOllamaAdapter,
+} from './ollama-adapter.js';
+export type { OllamaConfig } from './ollama-adapter.js';
