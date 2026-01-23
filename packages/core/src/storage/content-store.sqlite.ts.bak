@@ -1,0 +1,1157 @@
+/**
+ * ContentStore - SQLite-backed UCG Storage
+ *
+ * Production-ready storage for the Universal Content Graph.
+ * Uses better-sqlite3 for synchronous operations and sqlite-vec
+ * for vector similarity search.
+ *
+ * Key features:
+ * - Content deduplication via SHA-256 hashing
+ * - Full-text search via FTS5
+ * - Vector search via vec0
+ * - Batch operations for efficient imports
+ * - Import job tracking
+ */
+
+import Database from 'better-sqlite3';
+import * as sqliteVec from 'sqlite-vec';
+import { createHash, randomUUID } from 'crypto';
+import {
+  initializeSchema,
+  INSERT_CONTENT_NODE,
+  INSERT_EMBEDDING,
+  UPDATE_EMBEDDING,
+  INSERT_FTS,
+  DELETE_FTS,
+  INSERT_LINK,
+  INSERT_JOB,
+  VECTOR_SEARCH,
+  FTS_SEARCH,
+} from './schema.js';
+import type {
+  StoredNode,
+  StoredLink,
+  ImportJob,
+  QueryOptions,
+  QueryResult,
+  SearchResult,
+  EmbeddingSearchOptions,
+  KeywordSearchOptions,
+  ContentStoreStats,
+  StorageConfig,
+  BatchStoreResult,
+  BatchEmbeddingResult,
+  MediaRef,
+  AuthorRole,
+  ContentFormat,
+  ContentLinkType,
+} from './types.js';
+import type { ImportedNode, ContentLink } from '../adapters/types.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTENT STORE CLASS
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * SQLite-backed content store for UCG
+ */
+export class ContentStore {
+  private db: Database.Database;
+  private config: StorageConfig;
+  private initialized = false;
+
+  // Prepared statements (lazily initialized)
+  private stmtInsertNode?: Database.Statement;
+  private stmtInsertEmbedding?: Database.Statement;
+  private stmtUpdateEmbedding?: Database.Statement;
+  private stmtInsertFts?: Database.Statement;
+  private stmtDeleteFts?: Database.Statement;
+  private stmtInsertLink?: Database.Statement;
+  private stmtInsertJob?: Database.Statement;
+  private stmtVectorSearch?: Database.Statement;
+  private stmtFtsSearch?: Database.Statement;
+
+  constructor(config: Partial<StorageConfig> & { dbPath: string }) {
+    this.config = {
+      dbPath: config.dbPath,
+      embeddingDimension: config.embeddingDimension ?? 768,
+      enableFTS: config.enableFTS ?? true,
+      enableVec: config.enableVec ?? true,
+      enableWAL: config.enableWAL ?? true,
+    };
+
+    // Open database
+    this.db = new Database(this.config.dbPath);
+
+    // Load sqlite-vec extension
+    if (this.config.enableVec) {
+      sqliteVec.load(this.db);
+    }
+  }
+
+  /**
+   * Initialize the database schema
+   */
+  initialize(): void {
+    if (this.initialized) return;
+
+    initializeSchema(this.db as unknown as Parameters<typeof initializeSchema>[0], this.config);
+    this.prepareStatements();
+    this.initialized = true;
+  }
+
+  /**
+   * Close the database connection
+   */
+  close(): void {
+    this.db.close();
+    this.initialized = false;
+  }
+
+  /**
+   * Get the raw database for advanced operations
+   */
+  getDatabase(): Database.Database {
+    return this.db;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // NODE OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Store a single node from an adapter
+   */
+  storeNode(node: ImportedNode, jobId?: string): StoredNode {
+    this.ensureInitialized();
+
+    // Check for duplicate by content hash
+    const existing = this.getNodeByHash(node.contentHash);
+    if (existing) {
+      return existing;
+    }
+
+    const now = Date.now();
+    const id = node.id || randomUUID();
+
+    // Compute word count
+    const wordCount = this.countWords(node.content);
+
+    // Extract source adapter from URI
+    const sourceAdapter = node.uri.split('/')[2] || 'unknown';
+
+    const stored: StoredNode = {
+      id,
+      contentHash: node.contentHash,
+      uri: node.uri,
+      text: node.content,
+      format: node.format as ContentFormat,
+      wordCount,
+      sourceType: node.sourceType,
+      sourceAdapter,
+      sourceOriginalId: node.metadata?.originalId as string | undefined,
+      sourceOriginalPath: node.metadata?.originalPath as string | undefined,
+      importJobId: jobId,
+      parentNodeId: node.parentUri ? this.uriToId(node.parentUri) : undefined,
+      position: node.position,
+      hierarchyLevel: 0, // Base content is level 0
+      threadRootId: node.threadRootUri ? this.uriToId(node.threadRootUri) : undefined,
+      title: node.metadata?.title as string | undefined,
+      author: node.author?.name || node.author?.handle,
+      authorRole: node.author?.role as AuthorRole | undefined,
+      tags: node.metadata?.tags as string[] | undefined,
+      mediaRefs: node.media as MediaRef[] | undefined,
+      sourceMetadata: node.metadata,
+      sourceCreatedAt: node.sourceCreatedAt?.getTime(),
+      sourceUpdatedAt: node.sourceUpdatedAt?.getTime(),
+      createdAt: now,
+      importedAt: now,
+    };
+
+    // Insert into content_nodes
+    this.stmtInsertNode!.run(
+      stored.id,
+      stored.contentHash,
+      stored.uri,
+      stored.text,
+      stored.format,
+      stored.wordCount,
+      stored.sourceType,
+      stored.sourceAdapter,
+      stored.sourceOriginalId ?? null,
+      stored.sourceOriginalPath ?? null,
+      stored.importJobId ?? null,
+      stored.parentNodeId ?? null,
+      stored.position ?? null,
+      stored.chunkIndex ?? null,
+      stored.chunkStartOffset ?? null,
+      stored.chunkEndOffset ?? null,
+      stored.hierarchyLevel,
+      stored.threadRootId ?? null,
+      stored.embeddingModel ?? null,
+      stored.embeddingAt ?? null,
+      stored.embeddingTextHash ?? null,
+      stored.title ?? null,
+      stored.author ?? null,
+      stored.authorRole ?? null,
+      stored.tags ? JSON.stringify(stored.tags) : null,
+      stored.mediaRefs ? JSON.stringify(stored.mediaRefs) : null,
+      stored.sourceMetadata ? JSON.stringify(stored.sourceMetadata) : null,
+      stored.sourceCreatedAt ?? null,
+      stored.sourceUpdatedAt ?? null,
+      stored.createdAt,
+      stored.importedAt
+    );
+
+    // Insert into FTS index
+    if (this.config.enableFTS) {
+      this.stmtInsertFts!.run(stored.id, stored.text, stored.title ?? '');
+    }
+
+    // Store links
+    if (node.links) {
+      for (const link of node.links) {
+        this.createLink(stored.id, link);
+      }
+    }
+
+    return stored;
+  }
+
+  /**
+   * Store multiple nodes in batch
+   */
+  storeNodes(nodes: ImportedNode[], jobId?: string): BatchStoreResult {
+    this.ensureInitialized();
+
+    const result: BatchStoreResult = {
+      stored: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+    };
+
+    const transaction = this.db.transaction(() => {
+      for (const node of nodes) {
+        try {
+          const existing = this.getNodeByHash(node.contentHash);
+          if (existing) {
+            result.skipped++;
+            continue;
+          }
+
+          this.storeNode(node, jobId);
+          result.stored++;
+        } catch (error) {
+          result.failed++;
+          result.errors?.push({
+            nodeId: node.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    });
+
+    transaction();
+    return result;
+  }
+
+  /**
+   * Get a node by ID
+   */
+  getNode(id: string): StoredNode | undefined {
+    this.ensureInitialized();
+
+    const row = this.db
+      .prepare('SELECT * FROM content_nodes WHERE id = ?')
+      .get(id) as DbRow | undefined;
+
+    return row ? this.rowToNode(row) : undefined;
+  }
+
+  /**
+   * Get a node by URI
+   */
+  getNodeByUri(uri: string): StoredNode | undefined {
+    this.ensureInitialized();
+
+    const row = this.db
+      .prepare('SELECT * FROM content_nodes WHERE uri = ?')
+      .get(uri) as DbRow | undefined;
+
+    return row ? this.rowToNode(row) : undefined;
+  }
+
+  /**
+   * Get a node by content hash
+   */
+  getNodeByHash(hash: string): StoredNode | undefined {
+    this.ensureInitialized();
+
+    const row = this.db
+      .prepare('SELECT * FROM content_nodes WHERE content_hash = ?')
+      .get(hash) as DbRow | undefined;
+
+    return row ? this.rowToNode(row) : undefined;
+  }
+
+  /**
+   * Query nodes with filters
+   */
+  queryNodes(options: QueryOptions): QueryResult {
+    this.ensureInitialized();
+
+    const { sql, params } = this.buildQuerySql(options);
+
+    // Get total count
+    const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as count');
+    const countResult = this.db.prepare(countSql).get(...params) as { count: number };
+    const total = countResult.count;
+
+    // Get paginated results
+    let paginatedSql = sql;
+    const paginatedParams = [...params];
+
+    if (options.orderBy) {
+      const orderCol = this.columnNameMap[options.orderBy] || 'created_at';
+      const orderDir = options.orderDir?.toUpperCase() || 'DESC';
+      paginatedSql += ` ORDER BY ${orderCol} ${orderDir}`;
+    } else {
+      paginatedSql += ' ORDER BY created_at DESC';
+    }
+
+    if (options.limit) {
+      paginatedSql += ' LIMIT ?';
+      paginatedParams.push(options.limit);
+    }
+
+    if (options.offset) {
+      paginatedSql += ' OFFSET ?';
+      paginatedParams.push(options.offset);
+    }
+
+    const rows = this.db.prepare(paginatedSql).all(...paginatedParams) as DbRow[];
+    const nodes = rows.map((row) => this.rowToNode(row));
+
+    return {
+      nodes,
+      total,
+      hasMore: (options.offset ?? 0) + nodes.length < total,
+    };
+  }
+
+  /**
+   * Delete a node by ID
+   */
+  deleteNode(id: string): boolean {
+    this.ensureInitialized();
+
+    // Delete from FTS first
+    if (this.config.enableFTS) {
+      this.stmtDeleteFts!.run(id);
+    }
+
+    // Delete embedding
+    if (this.config.enableVec) {
+      this.db.prepare('DELETE FROM content_nodes_vec WHERE id = ?').run(id);
+    }
+
+    // Delete node (links deleted via CASCADE)
+    const result = this.db.prepare('DELETE FROM content_nodes WHERE id = ?').run(id);
+    return result.changes > 0;
+  }
+
+  /**
+   * Delete nodes by import job
+   */
+  deleteByJob(jobId: string): number {
+    this.ensureInitialized();
+
+    // Get node IDs first
+    const nodes = this.db
+      .prepare('SELECT id FROM content_nodes WHERE import_job_id = ?')
+      .all(jobId) as { id: string }[];
+
+    let count = 0;
+    for (const { id } of nodes) {
+      if (this.deleteNode(id)) {
+        count++;
+      }
+    }
+
+    return count;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // EMBEDDING OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Store an embedding for a node
+   */
+  storeEmbedding(nodeId: string, embedding: number[], model: string): void {
+    this.ensureInitialized();
+
+    if (!this.config.enableVec) {
+      throw new Error('Vector search is not enabled');
+    }
+
+    // Get node to compute text hash
+    const node = this.getNode(nodeId);
+    if (!node) {
+      throw new Error(`Node not found: ${nodeId}`);
+    }
+
+    const textHash = this.hashText(node.text);
+    const now = Date.now();
+
+    // Convert to Float32Array for sqlite-vec
+    const embeddingArray = new Float32Array(embedding);
+
+    // Try insert first, update if exists
+    try {
+      this.stmtInsertEmbedding!.run(nodeId, node.contentHash, embeddingArray);
+    } catch {
+      // Already exists, update
+      this.stmtUpdateEmbedding!.run(embeddingArray, node.contentHash, nodeId);
+    }
+
+    // Update node metadata
+    this.db
+      .prepare(
+        'UPDATE content_nodes SET embedding_model = ?, embedding_at = ?, embedding_text_hash = ? WHERE id = ?'
+      )
+      .run(model, now, textHash, nodeId);
+  }
+
+  /**
+   * Store embeddings in batch
+   */
+  storeEmbeddings(
+    items: Array<{ nodeId: string; embedding: number[] }>,
+    model: string
+  ): BatchEmbeddingResult {
+    this.ensureInitialized();
+
+    const result: BatchEmbeddingResult = {
+      stored: 0,
+      skipped: 0,
+      failed: 0,
+    };
+
+    const transaction = this.db.transaction(() => {
+      for (const { nodeId, embedding } of items) {
+        try {
+          this.storeEmbedding(nodeId, embedding, model);
+          result.stored++;
+        } catch {
+          result.failed++;
+        }
+      }
+    });
+
+    transaction();
+    return result;
+  }
+
+  /**
+   * Get embedding for a node
+   */
+  getEmbedding(nodeId: string): number[] | undefined {
+    this.ensureInitialized();
+
+    if (!this.config.enableVec) {
+      return undefined;
+    }
+
+    const row = this.db
+      .prepare('SELECT embedding FROM content_nodes_vec WHERE id = ?')
+      .get(nodeId) as { embedding: Float32Array } | undefined;
+
+    return row ? Array.from(row.embedding) : undefined;
+  }
+
+  /**
+   * Check if an embedding is stale (text changed since embedding)
+   */
+  isEmbeddingStale(nodeId: string): boolean {
+    this.ensureInitialized();
+
+    const node = this.getNode(nodeId);
+    if (!node || !node.embeddingTextHash) {
+      return true;
+    }
+
+    const currentHash = this.hashText(node.text);
+    return currentHash !== node.embeddingTextHash;
+  }
+
+  /**
+   * Get nodes that need embeddings
+   */
+  getNodesNeedingEmbeddings(limit: number): StoredNode[] {
+    this.ensureInitialized();
+
+    const rows = this.db
+      .prepare(
+        `SELECT cn.* FROM content_nodes cn
+         LEFT JOIN content_nodes_vec cv ON cn.id = cv.id
+         WHERE cv.id IS NULL
+         LIMIT ?`
+      )
+      .all(limit) as DbRow[];
+
+    return rows.map((row) => this.rowToNode(row));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // SEARCH OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Search by embedding similarity
+   */
+  searchByEmbedding(
+    embedding: number[],
+    options: EmbeddingSearchOptions = {}
+  ): SearchResult[] {
+    this.ensureInitialized();
+
+    if (!this.config.enableVec) {
+      throw new Error('Vector search is not enabled');
+    }
+
+    const limit = options.limit ?? 20;
+    const embeddingArray = new Float32Array(embedding);
+
+    // Get candidates from vec0
+    const vecResults = this.stmtVectorSearch!.all(embeddingArray, limit * 2) as Array<{
+      id: string;
+      distance: number;
+    }>;
+
+    // Filter and enrich results
+    const results: SearchResult[] = [];
+    for (const { id, distance } of vecResults) {
+      // Convert distance to similarity (assuming cosine distance)
+      const similarity = 1 - distance;
+
+      if (options.threshold && similarity < options.threshold) {
+        continue;
+      }
+
+      const node = this.getNode(id);
+      if (!node) continue;
+
+      // Apply filters
+      if (options.sourceType) {
+        const types = Array.isArray(options.sourceType)
+          ? options.sourceType
+          : [options.sourceType];
+        if (!types.includes(node.sourceType)) continue;
+      }
+
+      if (options.hierarchyLevel !== undefined && node.hierarchyLevel !== options.hierarchyLevel) {
+        continue;
+      }
+
+      if (options.threadRootId && node.threadRootId !== options.threadRootId) {
+        continue;
+      }
+
+      results.push({
+        node,
+        score: similarity,
+        distance,
+      });
+
+      if (results.length >= limit) break;
+    }
+
+    return results;
+  }
+
+  /**
+   * Search by keywords (FTS5)
+   */
+  searchByKeyword(query: string, options: KeywordSearchOptions = {}): SearchResult[] {
+    this.ensureInitialized();
+
+    if (!this.config.enableFTS) {
+      throw new Error('Full-text search is not enabled');
+    }
+
+    const limit = options.limit ?? 20;
+
+    // Build FTS query
+    let ftsQuery = query;
+    if (options.searchTitle) {
+      ftsQuery = `text:${query} OR title:${query}`;
+    }
+
+    // Search FTS
+    const ftsResults = this.stmtFtsSearch!.all(ftsQuery, limit * 2) as Array<{
+      id: string;
+      score: number;
+    }>;
+
+    // Enrich results
+    const results: SearchResult[] = [];
+    for (const { id, score } of ftsResults) {
+      const node = this.getNode(id);
+      if (!node) continue;
+
+      // Apply filters
+      if (options.sourceType) {
+        const types = Array.isArray(options.sourceType)
+          ? options.sourceType
+          : [options.sourceType];
+        if (!types.includes(node.sourceType)) continue;
+      }
+
+      if (options.hierarchyLevel !== undefined && node.hierarchyLevel !== options.hierarchyLevel) {
+        continue;
+      }
+
+      if (options.threadRootId && node.threadRootId !== options.threadRootId) {
+        continue;
+      }
+
+      // Normalize BM25 score (negative, lower is better)
+      const normalizedScore = Math.abs(score);
+
+      results.push({
+        node,
+        score: normalizedScore,
+        bm25Score: score,
+      });
+
+      if (results.length >= limit) break;
+    }
+
+    return results;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // LINK OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Create a link between nodes
+   */
+  createLink(sourceId: string, link: ContentLink): StoredLink {
+    this.ensureInitialized();
+
+    const id = randomUUID();
+    const now = Date.now();
+    const targetId = this.uriToId(link.targetUri);
+
+    this.stmtInsertLink!.run(
+      id,
+      sourceId,
+      targetId,
+      link.type,
+      link.metadata ? JSON.stringify(link.metadata) : null,
+      now
+    );
+
+    return {
+      id,
+      sourceId,
+      targetId,
+      linkType: link.type as ContentLinkType,
+      metadata: link.metadata as Record<string, unknown> | undefined,
+      createdAt: now,
+    };
+  }
+
+  /**
+   * Get links from a node
+   */
+  getLinksFrom(nodeId: string): StoredLink[] {
+    this.ensureInitialized();
+
+    const rows = this.db
+      .prepare('SELECT * FROM content_links WHERE source_id = ?')
+      .all(nodeId) as DbLinkRow[];
+
+    return rows.map((row) => this.rowToLink(row));
+  }
+
+  /**
+   * Get links to a node
+   */
+  getLinksTo(nodeId: string): StoredLink[] {
+    this.ensureInitialized();
+
+    const rows = this.db
+      .prepare('SELECT * FROM content_links WHERE target_id = ?')
+      .all(nodeId) as DbLinkRow[];
+
+    return rows.map((row) => this.rowToLink(row));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // JOB OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Create an import job
+   */
+  createJob(adapterId: string, sourcePath: string): ImportJob {
+    this.ensureInitialized();
+
+    const id = randomUUID();
+    const now = Date.now();
+
+    this.stmtInsertJob!.run(id, adapterId, sourcePath, now);
+
+    return {
+      id,
+      adapterId,
+      sourcePath,
+      status: 'pending',
+      nodesImported: 0,
+      nodesSkipped: 0,
+      nodesFailed: 0,
+      linksCreated: 0,
+      startedAt: now,
+    };
+  }
+
+  /**
+   * Update job status
+   */
+  updateJob(jobId: string, update: Partial<ImportJob>): void {
+    this.ensureInitialized();
+
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+
+    if (update.status !== undefined) {
+      setClauses.push('status = ?');
+      params.push(update.status);
+    }
+    if (update.nodesImported !== undefined) {
+      setClauses.push('nodes_imported = ?');
+      params.push(update.nodesImported);
+    }
+    if (update.nodesSkipped !== undefined) {
+      setClauses.push('nodes_skipped = ?');
+      params.push(update.nodesSkipped);
+    }
+    if (update.nodesFailed !== undefined) {
+      setClauses.push('nodes_failed = ?');
+      params.push(update.nodesFailed);
+    }
+    if (update.linksCreated !== undefined) {
+      setClauses.push('links_created = ?');
+      params.push(update.linksCreated);
+    }
+    if (update.completedAt !== undefined) {
+      setClauses.push('completed_at = ?');
+      params.push(update.completedAt);
+    }
+    if (update.error !== undefined) {
+      setClauses.push('error = ?');
+      params.push(update.error);
+    }
+    if (update.stats !== undefined) {
+      setClauses.push('stats = ?');
+      params.push(JSON.stringify(update.stats));
+    }
+
+    if (setClauses.length === 0) return;
+
+    params.push(jobId);
+    this.db.prepare(`UPDATE import_jobs SET ${setClauses.join(', ')} WHERE id = ?`).run(...params);
+  }
+
+  /**
+   * Get job by ID
+   */
+  getJob(jobId: string): ImportJob | undefined {
+    this.ensureInitialized();
+
+    const row = this.db.prepare('SELECT * FROM import_jobs WHERE id = ?').get(jobId) as
+      | DbJobRow
+      | undefined;
+
+    return row ? this.rowToJob(row) : undefined;
+  }
+
+  /**
+   * Get all jobs
+   */
+  getJobs(status?: ImportJob['status']): ImportJob[] {
+    this.ensureInitialized();
+
+    let sql = 'SELECT * FROM import_jobs';
+    const params: unknown[] = [];
+
+    if (status) {
+      sql += ' WHERE status = ?';
+      params.push(status);
+    }
+
+    sql += ' ORDER BY started_at DESC';
+
+    const rows = this.db.prepare(sql).all(...params) as DbJobRow[];
+    return rows.map((row) => this.rowToJob(row));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // STATS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Get storage statistics
+   */
+  getStats(): ContentStoreStats {
+    this.ensureInitialized();
+
+    // Total nodes
+    const totalResult = this.db.prepare('SELECT COUNT(*) as count FROM content_nodes').get() as {
+      count: number;
+    };
+
+    // Nodes by source type
+    const byTypeRows = this.db
+      .prepare('SELECT source_type, COUNT(*) as count FROM content_nodes GROUP BY source_type')
+      .all() as Array<{ source_type: string; count: number }>;
+
+    const nodesBySourceType: Record<string, number> = {};
+    for (const row of byTypeRows) {
+      nodesBySourceType[row.source_type] = row.count;
+    }
+
+    // Nodes by adapter
+    const byAdapterRows = this.db
+      .prepare('SELECT source_adapter, COUNT(*) as count FROM content_nodes GROUP BY source_adapter')
+      .all() as Array<{ source_adapter: string; count: number }>;
+
+    const nodesByAdapter: Record<string, number> = {};
+    for (const row of byAdapterRows) {
+      nodesByAdapter[row.source_adapter] = row.count;
+    }
+
+    // Nodes with embeddings
+    let nodesWithEmbeddings = 0;
+    if (this.config.enableVec) {
+      const embResult = this.db
+        .prepare('SELECT COUNT(*) as count FROM content_nodes_vec')
+        .get() as { count: number };
+      nodesWithEmbeddings = embResult.count;
+    }
+
+    // Total links
+    const linksResult = this.db.prepare('SELECT COUNT(*) as count FROM content_links').get() as {
+      count: number;
+    };
+
+    // Total jobs
+    const jobsResult = this.db.prepare('SELECT COUNT(*) as count FROM import_jobs').get() as {
+      count: number;
+    };
+
+    return {
+      totalNodes: totalResult.count,
+      nodesBySourceType,
+      nodesByAdapter,
+      nodesWithEmbeddings,
+      totalLinks: linksResult.count,
+      totalJobs: jobsResult.count,
+    };
+  }
+
+  /**
+   * Health check
+   */
+  healthCheck(): boolean {
+    try {
+      this.db.prepare('SELECT 1').get();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // PRIVATE HELPERS
+  // ─────────────────────────────────────────────────────────────────
+
+  private ensureInitialized(): void {
+    if (!this.initialized) {
+      this.initialize();
+    }
+  }
+
+  private prepareStatements(): void {
+    this.stmtInsertNode = this.db.prepare(INSERT_CONTENT_NODE);
+    this.stmtInsertLink = this.db.prepare(INSERT_LINK);
+    this.stmtInsertJob = this.db.prepare(INSERT_JOB);
+
+    if (this.config.enableVec) {
+      this.stmtInsertEmbedding = this.db.prepare(INSERT_EMBEDDING);
+      this.stmtUpdateEmbedding = this.db.prepare(UPDATE_EMBEDDING);
+      this.stmtVectorSearch = this.db.prepare(VECTOR_SEARCH);
+    }
+
+    if (this.config.enableFTS) {
+      this.stmtInsertFts = this.db.prepare(INSERT_FTS);
+      this.stmtDeleteFts = this.db.prepare(DELETE_FTS);
+      this.stmtFtsSearch = this.db.prepare(FTS_SEARCH);
+    }
+  }
+
+  private countWords(text: string): number {
+    return text.split(/\s+/).filter((w) => w.length > 0).length;
+  }
+
+  private hashText(text: string): string {
+    return createHash('sha256').update(text.normalize('NFC')).digest('hex');
+  }
+
+  private uriToId(uri: string): string {
+    // Try to find node by URI and return its ID
+    const node = this.getNodeByUri(uri);
+    if (node) return node.id;
+
+    // If not found, extract ID from URI (last segment)
+    const segments = uri.split('/');
+    return segments[segments.length - 1];
+  }
+
+  private readonly columnNameMap: Record<string, string> = {
+    createdAt: 'created_at',
+    sourceCreatedAt: 'source_created_at',
+    importedAt: 'imported_at',
+    wordCount: 'word_count',
+  };
+
+  private buildQuerySql(options: QueryOptions): { sql: string; params: unknown[] } {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+
+    if (options.sourceType) {
+      if (Array.isArray(options.sourceType)) {
+        conditions.push(`source_type IN (${options.sourceType.map(() => '?').join(', ')})`);
+        params.push(...options.sourceType);
+      } else {
+        conditions.push('source_type = ?');
+        params.push(options.sourceType);
+      }
+    }
+
+    if (options.adapterId) {
+      conditions.push('source_adapter = ?');
+      params.push(options.adapterId);
+    }
+
+    if (options.importJobId) {
+      conditions.push('import_job_id = ?');
+      params.push(options.importJobId);
+    }
+
+    if (options.hierarchyLevel !== undefined) {
+      conditions.push('hierarchy_level = ?');
+      params.push(options.hierarchyLevel);
+    }
+
+    if (options.threadRootId) {
+      conditions.push('thread_root_id = ?');
+      params.push(options.threadRootId);
+    }
+
+    if (options.parentNodeId) {
+      conditions.push('parent_node_id = ?');
+      params.push(options.parentNodeId);
+    }
+
+    if (options.authorRole) {
+      conditions.push('author_role = ?');
+      params.push(options.authorRole);
+    }
+
+    if (options.dateRange?.start) {
+      conditions.push('source_created_at >= ?');
+      params.push(options.dateRange.start);
+    }
+
+    if (options.dateRange?.end) {
+      conditions.push('source_created_at <= ?');
+      params.push(options.dateRange.end);
+    }
+
+    let sql = 'SELECT * FROM content_nodes';
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    return { sql, params };
+  }
+
+  private rowToNode(row: DbRow): StoredNode {
+    return {
+      id: row.id,
+      contentHash: row.content_hash,
+      uri: row.uri,
+      text: row.text,
+      format: row.format as ContentFormat,
+      wordCount: row.word_count,
+      sourceType: row.source_type,
+      sourceAdapter: row.source_adapter,
+      sourceOriginalId: row.source_original_id ?? undefined,
+      sourceOriginalPath: row.source_original_path ?? undefined,
+      importJobId: row.import_job_id ?? undefined,
+      parentNodeId: row.parent_node_id ?? undefined,
+      position: row.position ?? undefined,
+      chunkIndex: row.chunk_index ?? undefined,
+      chunkStartOffset: row.chunk_start_offset ?? undefined,
+      chunkEndOffset: row.chunk_end_offset ?? undefined,
+      hierarchyLevel: row.hierarchy_level,
+      threadRootId: row.thread_root_id ?? undefined,
+      embeddingModel: row.embedding_model ?? undefined,
+      embeddingAt: row.embedding_at ?? undefined,
+      embeddingTextHash: row.embedding_text_hash ?? undefined,
+      title: row.title ?? undefined,
+      author: row.author ?? undefined,
+      authorRole: row.author_role as AuthorRole | undefined,
+      tags: row.tags ? JSON.parse(row.tags) : undefined,
+      mediaRefs: row.media_refs ? JSON.parse(row.media_refs) : undefined,
+      sourceMetadata: row.source_metadata ? JSON.parse(row.source_metadata) : undefined,
+      sourceCreatedAt: row.source_created_at ?? undefined,
+      sourceUpdatedAt: row.source_updated_at ?? undefined,
+      createdAt: row.created_at,
+      importedAt: row.imported_at,
+    };
+  }
+
+  private rowToLink(row: DbLinkRow): StoredLink {
+    return {
+      id: row.id,
+      sourceId: row.source_id,
+      targetId: row.target_id,
+      linkType: row.link_type as ContentLinkType,
+      metadata: row.metadata ? JSON.parse(row.metadata) : undefined,
+      createdAt: row.created_at,
+    };
+  }
+
+  private rowToJob(row: DbJobRow): ImportJob {
+    return {
+      id: row.id,
+      adapterId: row.adapter_id,
+      sourcePath: row.source_path,
+      status: row.status as ImportJob['status'],
+      nodesImported: row.nodes_imported,
+      nodesSkipped: row.nodes_skipped,
+      nodesFailed: row.nodes_failed,
+      linksCreated: row.links_created,
+      startedAt: row.started_at ?? undefined,
+      completedAt: row.completed_at ?? undefined,
+      error: row.error ?? undefined,
+      stats: row.stats ? JSON.parse(row.stats) : undefined,
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DATABASE ROW TYPES
+// ═══════════════════════════════════════════════════════════════════
+
+interface DbRow {
+  id: string;
+  content_hash: string;
+  uri: string;
+  text: string;
+  format: string;
+  word_count: number;
+  source_type: string;
+  source_adapter: string;
+  source_original_id: string | null;
+  source_original_path: string | null;
+  import_job_id: string | null;
+  parent_node_id: string | null;
+  position: number | null;
+  chunk_index: number | null;
+  chunk_start_offset: number | null;
+  chunk_end_offset: number | null;
+  hierarchy_level: number;
+  thread_root_id: string | null;
+  embedding_model: string | null;
+  embedding_at: number | null;
+  embedding_text_hash: string | null;
+  title: string | null;
+  author: string | null;
+  author_role: string | null;
+  tags: string | null;
+  media_refs: string | null;
+  source_metadata: string | null;
+  source_created_at: number | null;
+  source_updated_at: number | null;
+  created_at: number;
+  imported_at: number;
+}
+
+interface DbLinkRow {
+  id: string;
+  source_id: string;
+  target_id: string;
+  link_type: string;
+  metadata: string | null;
+  created_at: number;
+}
+
+interface DbJobRow {
+  id: string;
+  adapter_id: string;
+  source_path: string;
+  status: string;
+  nodes_imported: number;
+  nodes_skipped: number;
+  nodes_failed: number;
+  links_created: number;
+  started_at: number | null;
+  completed_at: number | null;
+  error: string | null;
+  stats: string | null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SINGLETON MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════
+
+let _store: ContentStore | null = null;
+
+/**
+ * Get the content store singleton
+ */
+export function getContentStore(): ContentStore {
+  if (!_store) {
+    throw new Error('ContentStore not initialized. Call initContentStore() first.');
+  }
+  return _store;
+}
+
+/**
+ * Initialize the content store singleton
+ */
+export function initContentStore(config: Partial<StorageConfig> & { dbPath: string }): ContentStore {
+  if (_store) {
+    _store.close();
+  }
+  _store = new ContentStore(config);
+  _store.initialize();
+  return _store;
+}
+
+/**
+ * Close the content store singleton
+ */
+export function closeContentStore(): void {
+  if (_store) {
+    _store.close();
+    _store = null;
+  }
+}
