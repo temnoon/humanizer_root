@@ -1,0 +1,1126 @@
+/**
+ * PostgresContentStore - PostgreSQL-backed UCG Storage
+ *
+ * Production-ready storage for the Universal Content Graph using
+ * PostgreSQL + pgvector for HNSW-indexed vector search.
+ *
+ * Key features:
+ * - Content deduplication via SHA-256 hashing
+ * - Full-text search via tsvector + GIN index
+ * - Vector search via pgvector HNSW index
+ * - Batch operations for efficient imports
+ * - Import job tracking
+ * - Async API throughout
+ */
+
+import { createHash, randomUUID } from 'crypto';
+import { Pool, PoolClient } from 'pg';
+import { registerTypes } from 'pgvector/pg';
+import { toSql, fromSql } from 'pgvector';
+import {
+  initializeSchema,
+  PostgresStorageConfig,
+  DEFAULT_POSTGRES_CONFIG,
+  INSERT_CONTENT_NODE,
+  UPDATE_EMBEDDING,
+  INSERT_LINK,
+  INSERT_JOB,
+  VECTOR_SEARCH,
+  FTS_SEARCH,
+  GET_NODE_BY_ID,
+  GET_NODE_BY_URI,
+  GET_NODE_BY_HASH,
+  DELETE_NODE,
+  GET_LINKS_FROM,
+  GET_LINKS_TO,
+  GET_JOB,
+  GET_JOBS,
+  GET_NODES_NEEDING_EMBEDDINGS,
+  GET_EMBEDDING,
+  GET_STATS,
+  GET_NODES_BY_SOURCE_TYPE,
+  GET_NODES_BY_ADAPTER,
+} from './schema-postgres.js';
+import type {
+  StoredNode,
+  StoredLink,
+  ImportJob,
+  ImportJobStatus,
+  QueryOptions,
+  QueryResult,
+  SearchResult,
+  EmbeddingSearchOptions,
+  KeywordSearchOptions,
+  ContentStoreStats,
+  BatchStoreResult,
+  BatchEmbeddingResult,
+  MediaRef,
+  AuthorRole,
+  ContentFormat,
+  ContentLinkType,
+} from './types.js';
+import type { ImportedNode, ContentLink } from '../adapters/types.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// DATABASE ROW TYPES
+// ═══════════════════════════════════════════════════════════════════
+
+interface DbRow {
+  id: string;
+  content_hash: string;
+  uri: string;
+  text: string;
+  format: string;
+  word_count: number;
+  embedding: string | null;
+  embedding_model: string | null;
+  embedding_at: Date | null;
+  embedding_text_hash: string | null;
+  parent_node_id: string | null;
+  position: number | null;
+  chunk_index: number | null;
+  chunk_start_offset: number | null;
+  chunk_end_offset: number | null;
+  hierarchy_level: number;
+  thread_root_id: string | null;
+  source_type: string;
+  source_adapter: string;
+  source_original_id: string | null;
+  source_original_path: string | null;
+  import_job_id: string | null;
+  title: string | null;
+  author: string | null;
+  author_role: string | null;
+  tags: string[] | null;
+  media_refs: MediaRef[] | null;
+  source_metadata: Record<string, unknown> | null;
+  source_created_at: Date | null;
+  source_updated_at: Date | null;
+  created_at: Date;
+  imported_at: Date;
+}
+
+interface DbLinkRow {
+  id: string;
+  source_id: string;
+  target_id: string;
+  link_type: string;
+  metadata: Record<string, unknown> | null;
+  created_at: Date;
+}
+
+interface DbJobRow {
+  id: string;
+  adapter_id: string;
+  source_path: string;
+  status: string;
+  nodes_imported: number;
+  nodes_skipped: number;
+  nodes_failed: number;
+  links_created: number;
+  started_at: Date | null;
+  completed_at: Date | null;
+  error: string | null;
+  stats: Record<string, unknown> | null;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTENT STORE CLASS
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * PostgreSQL-backed content store for UCG
+ */
+export class PostgresContentStore {
+  private pool: Pool | null = null;
+  private config: PostgresStorageConfig;
+  private initialized = false;
+
+  constructor(config: Partial<PostgresStorageConfig> = {}) {
+    this.config = { ...DEFAULT_POSTGRES_CONFIG, ...config };
+  }
+
+  /**
+   * Initialize the database connection and schema
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    // Create connection pool
+    this.pool = new Pool({
+      host: this.config.host,
+      port: this.config.port,
+      database: this.config.database,
+      user: this.config.user,
+      password: this.config.password,
+      max: this.config.maxConnections,
+      idleTimeoutMillis: this.config.idleTimeoutMs,
+      connectionTimeoutMillis: this.config.connectionTimeoutMs,
+    });
+
+    // Register pgvector types on each new connection
+    this.pool.on('connect', async (client) => {
+      await registerTypes(client);
+    });
+
+    // Handle pool errors
+    this.pool.on('error', (err) => {
+      console.error('PostgreSQL pool error:', err);
+    });
+
+    // Initialize pgvector types on existing connections by getting a client
+    const client = await this.pool.connect();
+    await registerTypes(client);
+    client.release();
+
+    // Initialize schema
+    await initializeSchema(this.pool, this.config);
+
+    this.initialized = true;
+  }
+
+  /**
+   * Close the database connection
+   */
+  async close(): Promise<void> {
+    if (this.pool) {
+      await this.pool.end();
+      this.pool = null;
+    }
+    this.initialized = false;
+  }
+
+  /**
+   * Get the raw pool for advanced operations
+   */
+  getPool(): Pool {
+    this.ensureInitialized();
+    return this.pool!;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // NODE OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Store a single node from an adapter
+   */
+  async storeNode(node: ImportedNode, jobId?: string): Promise<StoredNode> {
+    this.ensureInitialized();
+
+    // Check for duplicate by content hash
+    const existing = await this.getNodeByHash(node.contentHash);
+    if (existing) {
+      return existing;
+    }
+
+    const now = new Date();
+    const id = node.id || randomUUID();
+
+    // Compute word count
+    const wordCount = this.countWords(node.content);
+
+    // Extract source adapter from URI
+    const sourceAdapter = node.uri.split('/')[2] || 'unknown';
+
+    // Resolve parent and thread root IDs
+    const parentNodeId = node.parentUri ? await this.uriToId(node.parentUri) : null;
+    const threadRootId = node.threadRootUri ? await this.uriToId(node.threadRootUri) : null;
+
+    const params = [
+      id,
+      node.contentHash,
+      node.uri,
+      node.content,
+      node.format,
+      wordCount,
+      null, // embedding
+      null, // embedding_model
+      null, // embedding_at
+      null, // embedding_text_hash
+      parentNodeId,
+      node.position ?? null,
+      null, // chunk_index
+      null, // chunk_start_offset
+      null, // chunk_end_offset
+      0, // hierarchy_level
+      threadRootId,
+      node.sourceType,
+      sourceAdapter,
+      (node.metadata?.originalId as string) ?? null,
+      (node.metadata?.originalPath as string) ?? null,
+      jobId ?? null,
+      (node.metadata?.title as string) ?? null,
+      node.author?.name || node.author?.handle || null,
+      node.author?.role ?? null,
+      (node.metadata?.tags as string[]) ?? [],
+      node.media ?? [],
+      node.metadata ?? null,
+      node.sourceCreatedAt ?? null,
+      node.sourceUpdatedAt ?? null,
+      now,
+      now,
+    ];
+
+    const result = await this.pool!.query(INSERT_CONTENT_NODE, params);
+    const row = result.rows[0] as DbRow;
+
+    // Store links
+    if (node.links) {
+      for (const link of node.links) {
+        await this.createLink(id, link);
+      }
+    }
+
+    return this.rowToNode(row);
+  }
+
+  /**
+   * Store multiple nodes in batch
+   */
+  async storeNodes(nodes: ImportedNode[], jobId?: string): Promise<BatchStoreResult> {
+    this.ensureInitialized();
+
+    const result: BatchStoreResult = {
+      stored: 0,
+      skipped: 0,
+      failed: 0,
+      errors: [],
+    };
+
+    const client = await this.pool!.connect();
+    
+    try {
+      await client.query('BEGIN');
+
+      for (const node of nodes) {
+        try {
+          const existing = await this.getNodeByHashWithClient(client, node.contentHash);
+          if (existing) {
+            result.skipped++;
+            continue;
+          }
+
+          await this.storeNodeWithClient(client, node, jobId);
+          result.stored++;
+        } catch (error) {
+          result.failed++;
+          result.errors?.push({
+            nodeId: node.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    return result;
+  }
+
+  /**
+   * Get a node by ID
+   */
+  async getNode(id: string): Promise<StoredNode | undefined> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_NODE_BY_ID, [id]);
+    const row = result.rows[0] as DbRow | undefined;
+
+    return row ? this.rowToNode(row) : undefined;
+  }
+
+  /**
+   * Get a node by URI
+   */
+  async getNodeByUri(uri: string): Promise<StoredNode | undefined> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_NODE_BY_URI, [uri]);
+    const row = result.rows[0] as DbRow | undefined;
+
+    return row ? this.rowToNode(row) : undefined;
+  }
+
+  /**
+   * Get a node by content hash
+   */
+  async getNodeByHash(hash: string): Promise<StoredNode | undefined> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_NODE_BY_HASH, [hash]);
+    const row = result.rows[0] as DbRow | undefined;
+
+    return row ? this.rowToNode(row) : undefined;
+  }
+
+  /**
+   * Query nodes with filters
+   */
+  async queryNodes(options: QueryOptions): Promise<QueryResult> {
+    this.ensureInitialized();
+
+    const { sql, params } = this.buildQuerySql(options);
+
+    // Get total count
+    const countSql = sql.replace('SELECT *', 'SELECT COUNT(*) as count');
+    const countResult = await this.pool!.query(countSql, params);
+    const total = parseInt(countResult.rows[0].count, 10);
+
+    // Get paginated results
+    let paginatedSql = sql;
+    const paginatedParams = [...params];
+
+    if (options.orderBy) {
+      const orderCol = this.columnNameMap[options.orderBy] || 'created_at';
+      const orderDir = options.orderDir?.toUpperCase() || 'DESC';
+      paginatedSql += ` ORDER BY ${orderCol} ${orderDir}`;
+    } else {
+      paginatedSql += ' ORDER BY created_at DESC';
+    }
+
+    if (options.limit) {
+      paginatedSql += ` LIMIT $${paginatedParams.length + 1}`;
+      paginatedParams.push(options.limit);
+    }
+
+    if (options.offset) {
+      paginatedSql += ` OFFSET $${paginatedParams.length + 1}`;
+      paginatedParams.push(options.offset);
+    }
+
+    const result = await this.pool!.query(paginatedSql, paginatedParams);
+    const nodes = result.rows.map((row: DbRow) => this.rowToNode(row));
+
+    return {
+      nodes,
+      total,
+      hasMore: (options.offset ?? 0) + nodes.length < total,
+    };
+  }
+
+  /**
+   * Delete a node by ID
+   */
+  async deleteNode(id: string): Promise<boolean> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(DELETE_NODE, [id]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * Delete nodes by import job
+   */
+  async deleteByJob(jobId: string): Promise<number> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(
+      'DELETE FROM content_nodes WHERE import_job_id = $1',
+      [jobId]
+    );
+    return result.rowCount ?? 0;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // EMBEDDING OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Store an embedding for a node
+   */
+  async storeEmbedding(nodeId: string, embedding: number[], model: string): Promise<void> {
+    this.ensureInitialized();
+
+    if (!this.config.enableVec) {
+      throw new Error('Vector search is not enabled');
+    }
+
+    // Get node to compute text hash
+    const node = await this.getNode(nodeId);
+    if (!node) {
+      throw new Error(`Node not found: ${nodeId}`);
+    }
+
+    const textHash = this.hashText(node.text);
+    const now = new Date();
+
+    // Convert to pgvector format
+    const vectorSql = toSql(embedding);
+
+    await this.pool!.query(UPDATE_EMBEDDING, [vectorSql, model, now, textHash, nodeId]);
+  }
+
+  /**
+   * Store embeddings in batch
+   */
+  async storeEmbeddings(
+    items: Array<{ nodeId: string; embedding: number[] }>,
+    model: string
+  ): Promise<BatchEmbeddingResult> {
+    this.ensureInitialized();
+
+    const result: BatchEmbeddingResult = {
+      stored: 0,
+      skipped: 0,
+      failed: 0,
+    };
+
+    const client = await this.pool!.connect();
+
+    try {
+      await client.query('BEGIN');
+
+      for (const { nodeId, embedding } of items) {
+        try {
+          // Get node text for hash
+          const nodeResult = await client.query('SELECT text FROM content_nodes WHERE id = $1', [nodeId]);
+          if (nodeResult.rows.length === 0) {
+            result.failed++;
+            continue;
+          }
+
+          const textHash = this.hashText(nodeResult.rows[0].text);
+          const vectorSql = toSql(embedding);
+          const now = new Date();
+
+          await client.query(UPDATE_EMBEDDING, [vectorSql, model, now, textHash, nodeId]);
+          result.stored++;
+        } catch {
+          result.failed++;
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    return result;
+  }
+
+  /**
+   * Get embedding for a node
+   */
+  async getEmbedding(nodeId: string): Promise<number[] | undefined> {
+    this.ensureInitialized();
+
+    if (!this.config.enableVec) {
+      return undefined;
+    }
+
+    const result = await this.pool!.query(GET_EMBEDDING, [nodeId]);
+    if (result.rows.length === 0 || !result.rows[0].embedding) {
+      return undefined;
+    }
+
+    return fromSql(result.rows[0].embedding);
+  }
+
+  /**
+   * Check if an embedding is stale (text changed since embedding)
+   */
+  async isEmbeddingStale(nodeId: string): Promise<boolean> {
+    this.ensureInitialized();
+
+    const node = await this.getNode(nodeId);
+    if (!node || !node.embeddingTextHash) {
+      return true;
+    }
+
+    const currentHash = this.hashText(node.text);
+    return currentHash !== node.embeddingTextHash;
+  }
+
+  /**
+   * Get nodes that need embeddings
+   */
+  async getNodesNeedingEmbeddings(limit: number): Promise<StoredNode[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_NODES_NEEDING_EMBEDDINGS, [limit]);
+    return result.rows.map((row: DbRow) => this.rowToNode(row));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // SEARCH OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Search by embedding similarity
+   */
+  async searchByEmbedding(
+    embedding: number[],
+    options: EmbeddingSearchOptions = {}
+  ): Promise<SearchResult[]> {
+    this.ensureInitialized();
+
+    if (!this.config.enableVec) {
+      throw new Error('Vector search is not enabled');
+    }
+
+    const limit = options.limit ?? 20;
+    const vectorSql = toSql(embedding);
+
+    // Get candidates from vector search
+    const vecResults = await this.pool!.query(VECTOR_SEARCH, [vectorSql, limit * 2]);
+
+    // Filter and enrich results
+    const results: SearchResult[] = [];
+    for (const row of vecResults.rows as Array<{ id: string; similarity: number }>) {
+      const similarity = row.similarity;
+
+      if (options.threshold && similarity < options.threshold) {
+        continue;
+      }
+
+      const node = await this.getNode(row.id);
+      if (!node) continue;
+
+      // Apply filters
+      if (options.sourceType) {
+        const types = Array.isArray(options.sourceType)
+          ? options.sourceType
+          : [options.sourceType];
+        if (!types.includes(node.sourceType)) continue;
+      }
+
+      if (options.hierarchyLevel !== undefined && node.hierarchyLevel !== options.hierarchyLevel) {
+        continue;
+      }
+
+      if (options.threadRootId && node.threadRootId !== options.threadRootId) {
+        continue;
+      }
+
+      results.push({
+        node,
+        score: similarity,
+        distance: 1 - similarity,
+      });
+
+      if (results.length >= limit) break;
+    }
+
+    return results;
+  }
+
+  /**
+   * Search by keywords (FTS)
+   */
+  async searchByKeyword(query: string, options: KeywordSearchOptions = {}): Promise<SearchResult[]> {
+    this.ensureInitialized();
+
+    if (!this.config.enableFTS) {
+      throw new Error('Full-text search is not enabled');
+    }
+
+    const limit = options.limit ?? 20;
+
+    // Search using tsvector
+    const ftsResults = await this.pool!.query(FTS_SEARCH, [query, limit * 2]);
+
+    // Enrich results
+    const results: SearchResult[] = [];
+    for (const row of ftsResults.rows as Array<{ id: string; rank: number }>) {
+      const node = await this.getNode(row.id);
+      if (!node) continue;
+
+      // Apply filters
+      if (options.sourceType) {
+        const types = Array.isArray(options.sourceType)
+          ? options.sourceType
+          : [options.sourceType];
+        if (!types.includes(node.sourceType)) continue;
+      }
+
+      if (options.hierarchyLevel !== undefined && node.hierarchyLevel !== options.hierarchyLevel) {
+        continue;
+      }
+
+      if (options.threadRootId && node.threadRootId !== options.threadRootId) {
+        continue;
+      }
+
+      results.push({
+        node,
+        score: row.rank,
+        bm25Score: row.rank,
+      });
+
+      if (results.length >= limit) break;
+    }
+
+    return results;
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // LINK OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Create a link between nodes
+   */
+  async createLink(sourceId: string, link: ContentLink): Promise<StoredLink> {
+    this.ensureInitialized();
+
+    const id = randomUUID();
+    const now = new Date();
+    const targetId = await this.uriToId(link.targetUri);
+
+    const result = await this.pool!.query(INSERT_LINK, [
+      id,
+      sourceId,
+      targetId,
+      link.type,
+      link.metadata ?? null,
+      now,
+    ]);
+
+    const row = result.rows[0] as DbLinkRow;
+    return this.rowToLink(row);
+  }
+
+  /**
+   * Get links from a node
+   */
+  async getLinksFrom(nodeId: string): Promise<StoredLink[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_LINKS_FROM, [nodeId]);
+    return result.rows.map((row: DbLinkRow) => this.rowToLink(row));
+  }
+
+  /**
+   * Get links to a node
+   */
+  async getLinksTo(nodeId: string): Promise<StoredLink[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_LINKS_TO, [nodeId]);
+    return result.rows.map((row: DbLinkRow) => this.rowToLink(row));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // JOB OPERATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Create an import job
+   */
+  async createJob(adapterId: string, sourcePath: string): Promise<ImportJob> {
+    this.ensureInitialized();
+
+    const id = randomUUID();
+    const now = new Date();
+
+    const result = await this.pool!.query(INSERT_JOB, [id, adapterId, sourcePath, now]);
+    const row = result.rows[0] as DbJobRow;
+
+    return this.rowToJob(row);
+  }
+
+  /**
+   * Update job status
+   */
+  async updateJob(jobId: string, update: Partial<ImportJob>): Promise<void> {
+    this.ensureInitialized();
+
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (update.status !== undefined) {
+      setClauses.push(`status = $${paramIndex++}`);
+      params.push(update.status);
+    }
+    if (update.nodesImported !== undefined) {
+      setClauses.push(`nodes_imported = $${paramIndex++}`);
+      params.push(update.nodesImported);
+    }
+    if (update.nodesSkipped !== undefined) {
+      setClauses.push(`nodes_skipped = $${paramIndex++}`);
+      params.push(update.nodesSkipped);
+    }
+    if (update.nodesFailed !== undefined) {
+      setClauses.push(`nodes_failed = $${paramIndex++}`);
+      params.push(update.nodesFailed);
+    }
+    if (update.linksCreated !== undefined) {
+      setClauses.push(`links_created = $${paramIndex++}`);
+      params.push(update.linksCreated);
+    }
+    if (update.completedAt !== undefined) {
+      setClauses.push(`completed_at = $${paramIndex++}`);
+      params.push(new Date(update.completedAt));
+    }
+    if (update.error !== undefined) {
+      setClauses.push(`error = $${paramIndex++}`);
+      params.push(update.error);
+    }
+    if (update.stats !== undefined) {
+      setClauses.push(`stats = $${paramIndex++}`);
+      params.push(update.stats);
+    }
+
+    if (setClauses.length === 0) return;
+
+    params.push(jobId);
+    await this.pool!.query(
+      `UPDATE import_jobs SET ${setClauses.join(', ')} WHERE id = $${paramIndex}`,
+      params
+    );
+  }
+
+  /**
+   * Get job by ID
+   */
+  async getJob(jobId: string): Promise<ImportJob | undefined> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_JOB, [jobId]);
+    const row = result.rows[0] as DbJobRow | undefined;
+
+    return row ? this.rowToJob(row) : undefined;
+  }
+
+  /**
+   * Get all jobs
+   */
+  async getJobs(status?: ImportJobStatus): Promise<ImportJob[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_JOBS, [status ?? null]);
+    return result.rows.map((row: DbJobRow) => this.rowToJob(row));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // STATS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Get storage statistics
+   */
+  async getStats(): Promise<ContentStoreStats> {
+    this.ensureInitialized();
+
+    // Get basic stats
+    const statsResult = await this.pool!.query(GET_STATS);
+    const stats = statsResult.rows[0];
+
+    // Get nodes by source type
+    const byTypeResult = await this.pool!.query(GET_NODES_BY_SOURCE_TYPE);
+    const nodesBySourceType: Record<string, number> = {};
+    for (const row of byTypeResult.rows as Array<{ source_type: string; count: string }>) {
+      nodesBySourceType[row.source_type] = parseInt(row.count, 10);
+    }
+
+    // Get nodes by adapter
+    const byAdapterResult = await this.pool!.query(GET_NODES_BY_ADAPTER);
+    const nodesByAdapter: Record<string, number> = {};
+    for (const row of byAdapterResult.rows as Array<{ source_adapter: string; count: string }>) {
+      nodesByAdapter[row.source_adapter] = parseInt(row.count, 10);
+    }
+
+    return {
+      totalNodes: parseInt(stats.total_nodes, 10),
+      nodesBySourceType,
+      nodesByAdapter,
+      nodesWithEmbeddings: parseInt(stats.nodes_with_embeddings, 10),
+      totalLinks: parseInt(stats.total_links, 10),
+      totalJobs: parseInt(stats.total_jobs, 10),
+    };
+  }
+
+  /**
+   * Health check
+   */
+  async healthCheck(): Promise<boolean> {
+    try {
+      await this.pool!.query('SELECT 1');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // PRIVATE HELPERS
+  // ─────────────────────────────────────────────────────────────────
+
+  private ensureInitialized(): void {
+    if (!this.initialized || !this.pool) {
+      throw new Error('ContentStore not initialized. Call initialize() first.');
+    }
+  }
+
+  private async getNodeByHashWithClient(client: PoolClient, hash: string): Promise<StoredNode | undefined> {
+    const result = await client.query(GET_NODE_BY_HASH, [hash]);
+    const row = result.rows[0] as DbRow | undefined;
+    return row ? this.rowToNode(row) : undefined;
+  }
+
+  private async storeNodeWithClient(client: PoolClient, node: ImportedNode, jobId?: string): Promise<StoredNode> {
+    const now = new Date();
+    const id = node.id || randomUUID();
+    const wordCount = this.countWords(node.content);
+    const sourceAdapter = node.uri.split('/')[2] || 'unknown';
+
+    // Resolve parent and thread root IDs
+    let parentNodeId: string | null = null;
+    let threadRootId: string | null = null;
+
+    if (node.parentUri) {
+      const parentResult = await client.query(GET_NODE_BY_URI, [node.parentUri]);
+      if (parentResult.rows.length > 0) {
+        parentNodeId = parentResult.rows[0].id;
+      }
+    }
+
+    if (node.threadRootUri) {
+      const threadResult = await client.query(GET_NODE_BY_URI, [node.threadRootUri]);
+      if (threadResult.rows.length > 0) {
+        threadRootId = threadResult.rows[0].id;
+      }
+    }
+
+    const params = [
+      id,
+      node.contentHash,
+      node.uri,
+      node.content,
+      node.format,
+      wordCount,
+      null, // embedding
+      null, // embedding_model
+      null, // embedding_at
+      null, // embedding_text_hash
+      parentNodeId,
+      node.position ?? null,
+      null, // chunk_index
+      null, // chunk_start_offset
+      null, // chunk_end_offset
+      0, // hierarchy_level
+      threadRootId,
+      node.sourceType,
+      sourceAdapter,
+      (node.metadata?.originalId as string) ?? null,
+      (node.metadata?.originalPath as string) ?? null,
+      jobId ?? null,
+      (node.metadata?.title as string) ?? null,
+      node.author?.name || node.author?.handle || null,
+      node.author?.role ?? null,
+      (node.metadata?.tags as string[]) ?? [],
+      node.media ?? [],
+      node.metadata ?? null,
+      node.sourceCreatedAt ?? null,
+      node.sourceUpdatedAt ?? null,
+      now,
+      now,
+    ];
+
+    const result = await client.query(INSERT_CONTENT_NODE, params);
+    return this.rowToNode(result.rows[0] as DbRow);
+  }
+
+  private countWords(text: string): number {
+    return text.split(/\s+/).filter((w) => w.length > 0).length;
+  }
+
+  private hashText(text: string): string {
+    return createHash('sha256').update(text.normalize('NFC')).digest('hex');
+  }
+
+  private async uriToId(uri: string): Promise<string> {
+    // Try to find node by URI and return its ID
+    const node = await this.getNodeByUri(uri);
+    if (node) return node.id;
+
+    // If not found, extract ID from URI (last segment)
+    const segments = uri.split('/');
+    return segments[segments.length - 1];
+  }
+
+  private readonly columnNameMap: Record<string, string> = {
+    createdAt: 'created_at',
+    sourceCreatedAt: 'source_created_at',
+    importedAt: 'imported_at',
+    wordCount: 'word_count',
+  };
+
+  private buildQuerySql(options: QueryOptions): { sql: string; params: unknown[] } {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    if (options.sourceType) {
+      if (Array.isArray(options.sourceType)) {
+        const placeholders = options.sourceType.map(() => `$${paramIndex++}`).join(', ');
+        conditions.push(`source_type IN (${placeholders})`);
+        params.push(...options.sourceType);
+      } else {
+        conditions.push(`source_type = $${paramIndex++}`);
+        params.push(options.sourceType);
+      }
+    }
+
+    if (options.adapterId) {
+      conditions.push(`source_adapter = $${paramIndex++}`);
+      params.push(options.adapterId);
+    }
+
+    if (options.importJobId) {
+      conditions.push(`import_job_id = $${paramIndex++}`);
+      params.push(options.importJobId);
+    }
+
+    if (options.hierarchyLevel !== undefined) {
+      conditions.push(`hierarchy_level = $${paramIndex++}`);
+      params.push(options.hierarchyLevel);
+    }
+
+    if (options.threadRootId) {
+      conditions.push(`thread_root_id = $${paramIndex++}`);
+      params.push(options.threadRootId);
+    }
+
+    if (options.parentNodeId) {
+      conditions.push(`parent_node_id = $${paramIndex++}`);
+      params.push(options.parentNodeId);
+    }
+
+    if (options.authorRole) {
+      conditions.push(`author_role = $${paramIndex++}`);
+      params.push(options.authorRole);
+    }
+
+    if (options.dateRange?.start) {
+      conditions.push(`source_created_at >= $${paramIndex++}`);
+      params.push(new Date(options.dateRange.start));
+    }
+
+    if (options.dateRange?.end) {
+      conditions.push(`source_created_at <= $${paramIndex++}`);
+      params.push(new Date(options.dateRange.end));
+    }
+
+    let sql = 'SELECT * FROM content_nodes';
+    if (conditions.length > 0) {
+      sql += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    return { sql, params };
+  }
+
+  private rowToNode(row: DbRow): StoredNode {
+    return {
+      id: row.id,
+      contentHash: row.content_hash,
+      uri: row.uri,
+      text: row.text,
+      format: row.format as ContentFormat,
+      wordCount: row.word_count,
+      sourceType: row.source_type,
+      sourceAdapter: row.source_adapter,
+      sourceOriginalId: row.source_original_id ?? undefined,
+      sourceOriginalPath: row.source_original_path ?? undefined,
+      importJobId: row.import_job_id ?? undefined,
+      parentNodeId: row.parent_node_id ?? undefined,
+      position: row.position ?? undefined,
+      chunkIndex: row.chunk_index ?? undefined,
+      chunkStartOffset: row.chunk_start_offset ?? undefined,
+      chunkEndOffset: row.chunk_end_offset ?? undefined,
+      hierarchyLevel: row.hierarchy_level,
+      threadRootId: row.thread_root_id ?? undefined,
+      embeddingModel: row.embedding_model ?? undefined,
+      embeddingAt: row.embedding_at?.getTime() ?? undefined,
+      embeddingTextHash: row.embedding_text_hash ?? undefined,
+      title: row.title ?? undefined,
+      author: row.author ?? undefined,
+      authorRole: row.author_role as AuthorRole | undefined,
+      tags: row.tags ?? undefined,
+      mediaRefs: row.media_refs ?? undefined,
+      sourceMetadata: row.source_metadata ?? undefined,
+      sourceCreatedAt: row.source_created_at?.getTime() ?? undefined,
+      sourceUpdatedAt: row.source_updated_at?.getTime() ?? undefined,
+      createdAt: row.created_at.getTime(),
+      importedAt: row.imported_at.getTime(),
+    };
+  }
+
+  private rowToLink(row: DbLinkRow): StoredLink {
+    return {
+      id: row.id,
+      sourceId: row.source_id,
+      targetId: row.target_id,
+      linkType: row.link_type as ContentLinkType,
+      metadata: row.metadata ?? undefined,
+      createdAt: row.created_at.getTime(),
+    };
+  }
+
+  private rowToJob(row: DbJobRow): ImportJob {
+    return {
+      id: row.id,
+      adapterId: row.adapter_id,
+      sourcePath: row.source_path,
+      status: row.status as ImportJobStatus,
+      nodesImported: row.nodes_imported,
+      nodesSkipped: row.nodes_skipped,
+      nodesFailed: row.nodes_failed,
+      linksCreated: row.links_created,
+      startedAt: row.started_at?.getTime() ?? undefined,
+      completedAt: row.completed_at?.getTime() ?? undefined,
+      error: row.error ?? undefined,
+      stats: row.stats ?? undefined,
+    };
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// SINGLETON MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════
+
+let _store: PostgresContentStore | null = null;
+
+/**
+ * Get the content store singleton
+ */
+export function getContentStore(): PostgresContentStore {
+  if (!_store) {
+    throw new Error('ContentStore not initialized. Call initContentStore() first.');
+  }
+  return _store;
+}
+
+/**
+ * Initialize the content store singleton
+ */
+export async function initContentStore(
+  config: Partial<PostgresStorageConfig> = {}
+): Promise<PostgresContentStore> {
+  if (_store) {
+    await _store.close();
+  }
+  _store = new PostgresContentStore(config);
+  await _store.initialize();
+  return _store;
+}
+
+/**
+ * Close the content store singleton
+ */
+export async function closeContentStore(): Promise<void> {
+  if (_store) {
+    await _store.close();
+    _store = null;
+  }
+}

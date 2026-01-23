@@ -56,7 +56,12 @@ export * from './doctrine/index.js';
 export * from './instruments/index.js';
 
 // ═══════════════════════════════════════════════════════════════════
-// UCG - Unified Content Graph / Content Pyramid
+// STORAGE - SQLite-backed UCG storage (canonical location)
+// ═══════════════════════════════════════════════════════════════════
+export * from './storage/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// UCG - Unified Content Graph / Content Pyramid types
 // ═══════════════════════════════════════════════════════════════════
 export * from './ucg/index.js';
 
@@ -84,3 +89,8 @@ export * from './houses/index.js';
 // HOOKS - Review Hook System
 // ═══════════════════════════════════════════════════════════════════
 export * from './hooks/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// ADAPTERS - UCG Import Adapters for content sources
+// ═══════════════════════════════════════════════════════════════════
+export * from './adapters/index.js';
