@@ -569,6 +569,7 @@ export const SYSTEM_TOOLS: MCPToolDefinition[] = [
 // ═══════════════════════════════════════════════════════════════════
 
 import { BOOK_AGENT_TOOLS } from './book-agent.js';
+import { BOOKMAKING_TOOLS } from './bookmaking.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // ALL TOOLS
@@ -583,12 +584,13 @@ export const ALL_TOOLS: MCPToolDefinition[] = [
   ...HOOKS_TOOLS,
   ...SYSTEM_TOOLS,
   ...BOOK_AGENT_TOOLS,
+  ...BOOKMAKING_TOOLS,
 ];
 
 /**
  * Get tools by category
  */
-export function getToolsByCategory(category: 'codeguard' | 'hooks' | 'system' | 'book-agent'): MCPToolDefinition[] {
+export function getToolsByCategory(category: 'codeguard' | 'hooks' | 'system' | 'book-agent' | 'bookmaking'): MCPToolDefinition[] {
   return ALL_TOOLS.filter(tool => tool.category === category);
 }
 

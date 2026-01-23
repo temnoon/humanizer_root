@@ -32,6 +32,8 @@ export interface JSONSchema {
   maximum?: number;
   minLength?: number;
   maxLength?: number;
+  minItems?: number;
+  maxItems?: number;
   pattern?: string;
 }
 
@@ -42,7 +44,7 @@ export interface MCPToolDefinition {
   name: string;
   description: string;
   inputSchema: JSONSchema;
-  category?: 'codeguard' | 'hooks' | 'system' | 'book-agent';
+  category?: 'codeguard' | 'hooks' | 'system' | 'book-agent' | 'bookmaking';
 }
 
 /**
