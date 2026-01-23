@@ -42,7 +42,7 @@ export interface MCPToolDefinition {
   name: string;
   description: string;
   inputSchema: JSONSchema;
-  category?: 'codeguard' | 'hooks' | 'system';
+  category?: 'codeguard' | 'hooks' | 'system' | 'book-agent';
 }
 
 /**
@@ -248,6 +248,41 @@ export interface TriggerReviewInput {
  */
 export interface GetAgentStatusInput {
   agentId: DevelopmentHouseType;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// BOOK AGENT INPUT TYPES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Analyze text Rho input
+ */
+export interface AnalyzeTextRhoInput {
+  text: string;
+}
+
+/**
+ * Transform with persona input
+ */
+export interface TransformWithPersonaInput {
+  text: string;
+  persona: string;
+}
+
+/**
+ * Transform with style input
+ */
+export interface TransformWithStyleInput {
+  text: string;
+  style: string;
+}
+
+/**
+ * Find load bearing sentences input
+ */
+export interface FindLoadBearingSentencesInput {
+  text: string;
+  topN?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════

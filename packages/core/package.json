@@ -57,6 +57,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@humanizer/npe": "file:../npe",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "pg": "^8.13.1",
     "pgvector": "^0.2.1",

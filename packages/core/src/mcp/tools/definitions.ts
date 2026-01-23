@@ -565,6 +565,12 @@ export const SYSTEM_TOOLS: MCPToolDefinition[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════
+// BOOK AGENT TOOLS (imported from separate file for modularity)
+// ═══════════════════════════════════════════════════════════════════
+
+import { BOOK_AGENT_TOOLS } from './book-agent.js';
+
+// ═══════════════════════════════════════════════════════════════════
 // ALL TOOLS
 // ═══════════════════════════════════════════════════════════════════
 
@@ -576,12 +582,13 @@ export const ALL_TOOLS: MCPToolDefinition[] = [
   ...DATA_TOOLS,
   ...HOOKS_TOOLS,
   ...SYSTEM_TOOLS,
+  ...BOOK_AGENT_TOOLS,
 ];
 
 /**
  * Get tools by category
  */
-export function getToolsByCategory(category: 'codeguard' | 'hooks' | 'system'): MCPToolDefinition[] {
+export function getToolsByCategory(category: 'codeguard' | 'hooks' | 'system' | 'book-agent'): MCPToolDefinition[] {
   return ALL_TOOLS.filter(tool => tool.category === category);
 }
 

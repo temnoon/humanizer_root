@@ -5,10 +5,12 @@
 export { CODEGUARD_HANDLERS } from './codeguard.js';
 export { SYSTEM_HANDLERS } from './system.js';
 export { HOOKS_HANDLERS } from './hooks.js';
+export { BOOK_AGENT_HANDLERS } from './book-agent.js';
 
 import { CODEGUARD_HANDLERS } from './codeguard.js';
 import { SYSTEM_HANDLERS } from './system.js';
 import { HOOKS_HANDLERS } from './hooks.js';
+import { BOOK_AGENT_HANDLERS } from './book-agent.js';
 import type { MCPResult } from '../types.js';
 
 /**
@@ -18,6 +20,7 @@ export const ALL_HANDLERS: Record<string, (args: unknown) => Promise<MCPResult>>
   ...CODEGUARD_HANDLERS,
   ...SYSTEM_HANDLERS,
   ...HOOKS_HANDLERS,
+  ...BOOK_AGENT_HANDLERS,
 };
 
 /**
