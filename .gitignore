@@ -36,6 +36,7 @@ checkpoints/
 # IDEs
 .vscode/
 .idea/
+.zed/
 *.swp
 *.swo
 *~
