@@ -219,7 +219,7 @@ function conversationToNodes(
   // Create message nodes
   let position = 0;
   for (const msg of messages) {
-    const msgId = msg.id || `${convId}_msg_${position}`;
+    const msgId = (msg.id as string) || `${convId}_msg_${position}`;
     const msgUri = `${format}://${convId}/${msgId}`;
 
     // Extract text content
@@ -229,6 +229,10 @@ function conversationToNodes(
     }
 
     const msgHash = hashContent(textContent + msgId);
+    const author = msg.author as { role?: string; name?: string } | undefined;
+    const metadata = msg.metadata as Record<string, unknown> | undefined;
+    const createTime = msg.create_time as number | undefined;
+    const updateTime = msg.update_time as number | undefined;
 
     const msgNode: ImportedNode = {
       id: msgId,
@@ -237,18 +241,18 @@ function conversationToNodes(
       content: textContent,
       format: 'markdown',
       sourceType: `${sourceType}-message`,
-      sourceCreatedAt: msg.create_time ? new Date(msg.create_time * 1000) : undefined,
-      sourceUpdatedAt: msg.update_time ? new Date(msg.update_time * 1000) : undefined,
+      sourceCreatedAt: createTime ? new Date(createTime * 1000) : undefined,
+      sourceUpdatedAt: updateTime ? new Date(updateTime * 1000) : undefined,
       author: {
-        role: msg.author?.role as 'user' | 'assistant' | 'system' | 'tool',
-        name: msg.author?.name,
+        role: (author?.role as 'user' | 'assistant' | 'system' | 'tool') || 'user',
+        name: author?.name,
       },
       parentUri: convUri,
       threadRootUri: convUri,
       position,
       metadata: {
         status: msg.status,
-        modelSlug: msg.metadata?.model_slug,
+        modelSlug: metadata?.model_slug,
         endTurn: msg.end_turn,
         weight: msg.weight,
       },
