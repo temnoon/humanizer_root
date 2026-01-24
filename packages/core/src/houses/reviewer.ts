@@ -171,6 +171,52 @@ interface SignoffRequestPayload {
   payload?: Record<string, unknown>;
 }
 
+/**
+ * Request to the Builder to revise based on review feedback
+ */
+export interface BuilderRevisionRequest {
+  chapterId: string;
+  /** Focus areas derived from review issues */
+  focusAreas: Array<'voice' | 'pacing' | 'clarity' | 'transitions' | 'humanization' | 'structure'>;
+  /** Specific issues to address with suggested fixes */
+  issuesWithFixes: Array<{
+    type: ReviewIssue['type'];
+    description: string;
+    location: string;
+    suggestedFix?: string;
+  }>;
+  /** Passages that need voice transformation */
+  passagesForRewrite?: Array<{
+    location: string;
+    voiceIssues: string[];
+  }>;
+  /** Iteration count to prevent infinite loops */
+  iterationCount: number;
+  /** Maximum allowed iterations */
+  maxIterations: number;
+  /** Persona reference for voice consistency */
+  personaRef?: string;
+}
+
+/**
+ * Response from Builder after revision
+ */
+export interface BuilderRevisionResponse {
+  success: boolean;
+  chapterId: string;
+  newVersion: number;
+  changesApplied: string[];
+  remainingIssues?: string[];
+}
+
+interface RequestRevisionRequest {
+  chapterId: string;
+  review: ChapterReview;
+  personaRef?: string;
+  maxIterations?: number;
+  currentIteration?: number;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // AI PATTERN DETECTION
 // ═══════════════════════════════════════════════════════════════════
@@ -206,6 +252,7 @@ export class ReviewerAgent extends AgentBase {
     'check-citations',
     'verify-facts',
     'provide-signoff',
+    'request-revision',
   ];
 
   private configManager: ConfigManager;
@@ -262,6 +309,9 @@ export class ReviewerAgent extends AgentBase {
 
       case 'provide-signoff':
         return this.provideSignoff(message.payload as ProvideSignoffRequest);
+
+      case 'request-revision':
+        return this.requestBuilderRevision(message.payload as RequestRevisionRequest);
 
       case 'review-signoff':
         // Handle signoff requests from orchestrator
@@ -715,6 +765,182 @@ Respond with JSON: { score: 0-1, issues: [{ severity, location, description }] }
       vote: 'abstain',
       reason: `Change type "${changeType}" not within Reviewer's scope`,
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // REVISION FEEDBACK LOOP
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Request Builder to revise based on review feedback
+   *
+   * This is the key method for the Reviewer→Builder feedback loop:
+   * 1. Translates review issues into actionable focus areas
+   * 2. Identifies passages needing voice transformation
+   * 3. Sends revision request to Builder
+   * 4. Optionally triggers re-review after revision
+   */
+  private async requestBuilderRevision(
+    request: RequestRevisionRequest
+  ): Promise<BuilderRevisionRequest | { skipped: true; reason: string }> {
+    const {
+      chapterId,
+      review,
+      personaRef,
+      maxIterations = 3,
+      currentIteration = 0,
+    } = request;
+
+    // Check iteration limit
+    if (currentIteration >= maxIterations) {
+      this.log('warn', `Max revision iterations (${maxIterations}) reached for chapter ${chapterId}`);
+      return {
+        skipped: true,
+        reason: `Maximum revision iterations reached (${maxIterations})`,
+      };
+    }
+
+    // Only request revision if verdict is 'revise' (not 'approve' or 'reject')
+    if (review.verdict === 'approve') {
+      return {
+        skipped: true,
+        reason: 'Chapter approved, no revision needed',
+      };
+    }
+
+    if (review.verdict === 'reject') {
+      return {
+        skipped: true,
+        reason: 'Chapter rejected, requires major rework beyond simple revision',
+      };
+    }
+
+    // Translate issues to focus areas
+    const focusAreas = this.translateIssuesToFocusAreas(review.issues);
+
+    // Collect issues with suggested fixes
+    const issuesWithFixes = review.issues
+      .filter(issue => issue.severity === 'major' || issue.severity === 'blocking')
+      .map(issue => ({
+        type: issue.type,
+        description: issue.description,
+        location: issue.location,
+        suggestedFix: issue.suggestedFix,
+      }));
+
+    // Identify passages needing voice transformation
+    const passagesForRewrite = this.identifyPassagesForRewrite(review.issues);
+
+    const revisionRequest: BuilderRevisionRequest = {
+      chapterId,
+      focusAreas,
+      issuesWithFixes,
+      passagesForRewrite: passagesForRewrite.length > 0 ? passagesForRewrite : undefined,
+      iterationCount: currentIteration + 1,
+      maxIterations,
+      personaRef,
+    };
+
+    // Log the feedback request
+    this.log('info', `Requesting revision for chapter ${chapterId} (iteration ${currentIteration + 1}/${maxIterations})`);
+    this.log('debug', `Focus areas: ${focusAreas.join(', ')}`);
+    this.log('debug', `Issues to fix: ${issuesWithFixes.length}`);
+
+    // Send to Builder via message bus
+    try {
+      const response = await this.bus.request('builder', {
+        type: 'revise-from-feedback',
+        payload: revisionRequest,
+      });
+
+      if (response.success) {
+        const revisionResponse = response.data as BuilderRevisionResponse;
+        this.log('info', `Builder revision complete: ${revisionResponse.changesApplied.length} changes applied`);
+
+        // Add intention to re-review after revision
+        this.addIntention({
+          type: 'review',
+          priority: 0.9,
+          reason: `Re-review after revision iteration ${currentIteration + 1}`,
+          targetId: chapterId,
+          context: {
+            iterationCount: currentIteration + 1,
+            previousIssueCount: review.issues.length,
+          },
+        });
+      }
+
+      return revisionRequest;
+    } catch (error) {
+      this.log('error', `Failed to send revision request to Builder: ${error}`);
+      // Still return the request so caller knows what was attempted
+      return revisionRequest;
+    }
+  }
+
+  /**
+   * Translate review issues into Builder focus areas
+   */
+  private translateIssuesToFocusAreas(
+    issues: ReviewIssue[]
+  ): BuilderRevisionRequest['focusAreas'] {
+    const focusSet = new Set<BuilderRevisionRequest['focusAreas'][number]>();
+
+    for (const issue of issues) {
+      switch (issue.type) {
+        case 'style':
+          focusSet.add('voice');
+          break;
+        case 'structure':
+          focusSet.add('structure');
+          focusSet.add('transitions');
+          break;
+        case 'humanization':
+          focusSet.add('humanization');
+          focusSet.add('voice');
+          break;
+        case 'content':
+          focusSet.add('clarity');
+          break;
+        case 'citation':
+          // No direct Builder focus area for citations
+          break;
+        case 'factual':
+          focusSet.add('clarity');
+          break;
+      }
+    }
+
+    // Ensure at least one focus area
+    if (focusSet.size === 0) {
+      focusSet.add('voice');
+    }
+
+    return Array.from(focusSet);
+  }
+
+  /**
+   * Identify passages that need voice transformation
+   */
+  private identifyPassagesForRewrite(
+    issues: ReviewIssue[]
+  ): Array<{ location: string; voiceIssues: string[] }> {
+    const passageMap = new Map<string, string[]>();
+
+    for (const issue of issues) {
+      if (issue.type === 'style' || issue.type === 'humanization') {
+        const location = issue.location;
+        if (!passageMap.has(location)) {
+          passageMap.set(location, []);
+        }
+        passageMap.get(location)!.push(issue.description);
+      }
+    }
+
+    return Array.from(passageMap.entries()).map(([location, voiceIssues]) => ({
+      location,
+      voiceIssues,
+    }));
   }
 
   // ─────────────────────────────────────────────────────────────────

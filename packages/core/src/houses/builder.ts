@@ -165,6 +165,83 @@ interface SuggestImprovementsRequest {
   content: string;
 }
 
+interface RewriteForPersonaRequest {
+  /** Text to rewrite */
+  text: string;
+  /** Persona profile with voice traits and style guide */
+  persona: PersonaProfileForRewrite;
+  /** Original source type for context */
+  sourceType?: string;
+  /** Detected voice issues to address */
+  voiceIssues?: string[];
+}
+
+/**
+ * Minimal persona profile for rewriting
+ * Can be full PersonaProfile or subset for efficiency
+ */
+interface PersonaProfileForRewrite {
+  name: string;
+  description?: string;
+  voiceTraits: string[];
+  toneMarkers: string[];
+  formalityRange: [number, number];
+  styleGuide: {
+    forbiddenPhrases: string[];
+    preferredPatterns: string[];
+    useContractions: boolean;
+    useRhetoricalQuestions: boolean;
+  };
+  referenceExamples?: string[];
+}
+
+interface RewriteResult {
+  original: string;
+  rewritten: string;
+  changesApplied: string[];
+  confidenceScore: number;
+  remainingIssues?: string[];
+}
+
+interface BatchRewriteRequest {
+  passages: Array<{
+    id: string;
+    text: string;
+    sourceType?: string;
+    voiceIssues?: string[];
+  }>;
+  persona: PersonaProfileForRewrite;
+}
+
+/**
+ * Revision request from Reviewer feedback loop
+ */
+interface ReviseFromFeedbackRequest {
+  chapterId: string;
+  focusAreas: Array<'voice' | 'pacing' | 'clarity' | 'transitions' | 'humanization' | 'structure'>;
+  issuesWithFixes: Array<{
+    type: string;
+    description: string;
+    location: string;
+    suggestedFix?: string;
+  }>;
+  passagesForRewrite?: Array<{
+    location: string;
+    voiceIssues: string[];
+  }>;
+  iterationCount: number;
+  maxIterations: number;
+  personaRef?: string;
+}
+
+interface RevisionResponse {
+  success: boolean;
+  chapterId: string;
+  newVersion: number;
+  changesApplied: string[];
+  remainingIssues?: string[];
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // BUILDER AGENT
 // ═══════════════════════════════════════════════════════════════════
@@ -180,6 +257,9 @@ export class BuilderAgent extends AgentBase {
     'analyze-structure',
     'revise-draft',
     'suggest-improvements',
+    'rewrite-for-persona',
+    'batch-rewrite-for-persona',
+    'revise-from-feedback',
   ];
 
   private configManager: ConfigManager;
@@ -236,6 +316,15 @@ export class BuilderAgent extends AgentBase {
 
       case 'suggest-improvements':
         return this.suggestImprovements(message.payload as SuggestImprovementsRequest);
+
+      case 'rewrite-for-persona':
+        return this.rewriteForPersona(message.payload as RewriteForPersonaRequest);
+
+      case 'batch-rewrite-for-persona':
+        return this.batchRewriteForPersona(message.payload as BatchRewriteRequest);
+
+      case 'revise-from-feedback':
+        return this.reviseFromFeedback(message.payload as ReviseFromFeedbackRequest);
 
       case 'get-intentions':
         return this.getIntentions();
@@ -643,6 +732,576 @@ Respond with JSON: { suggestions: [{ type, location, issue, fix }] }`,
       issue: s.issue,
       fix: s.fix,
     }));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // PERSONA-CONSISTENT REWRITING
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Rewrite text to match a persona's voice and style
+   *
+   * This is the key method for persona-consistent book creation:
+   * - Removes forbidden phrases
+   * - Applies preferred patterns naturally
+   * - Matches formality level
+   * - Preserves core meaning and insights
+   */
+  private async rewriteForPersona(request: RewriteForPersonaRequest): Promise<RewriteResult> {
+    const { text, persona, sourceType, voiceIssues } = request;
+
+    // Build the system prompt with persona details
+    const systemPrompt = this.buildPersonaSystemPrompt(persona);
+
+    // Build the user prompt
+    const userPrompt = this.buildRewritePrompt(text, persona, sourceType, voiceIssues);
+
+    // Call AI with 'humanizer' capability if available, otherwise 'creative'
+    let rewritten: string;
+    try {
+      rewritten = await this.callAI('humanizer', userPrompt, { systemPrompt });
+    } catch (error) {
+      // Fallback to 'creative' capability if 'humanizer' not available
+      this.log('debug', 'Humanizer capability not available, using creative');
+      rewritten = await this.callAI('creative', userPrompt, { systemPrompt });
+    }
+
+    // Analyze what changes were applied
+    const changesApplied = this.detectChanges(text, rewritten, persona);
+
+    // Check for remaining issues
+    const remainingIssues = this.checkForbiddenPhrases(rewritten, persona.styleGuide.forbiddenPhrases);
+
+    // Calculate confidence based on changes and remaining issues
+    const confidenceScore = this.calculateRewriteConfidence(changesApplied, remainingIssues);
+
+    return {
+      original: text,
+      rewritten: rewritten.trim(),
+      changesApplied,
+      confidenceScore,
+      remainingIssues: remainingIssues.length > 0 ? remainingIssues : undefined,
+    };
+  }
+
+  /**
+   * Batch rewrite multiple passages for persona consistency
+   *
+   * More efficient than individual calls for large passage sets.
+   * Maintains consistent voice across all passages.
+   */
+  private async batchRewriteForPersona(
+    request: BatchRewriteRequest
+  ): Promise<Map<string, RewriteResult>> {
+    const { passages, persona } = request;
+    const results = new Map<string, RewriteResult>();
+
+    // Process passages in parallel with limited concurrency
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < passages.length; i += BATCH_SIZE) {
+      const batch = passages.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(
+        batch.map(async (passage) => {
+          const result = await this.rewriteForPersona({
+            text: passage.text,
+            persona,
+            sourceType: passage.sourceType,
+            voiceIssues: passage.voiceIssues,
+          });
+          return { id: passage.id, result };
+        })
+      );
+
+      for (const { id, result } of batchResults) {
+        results.set(id, result);
+      }
+
+      // Small delay between batches to avoid overwhelming the model
+      if (i + BATCH_SIZE < passages.length) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Build system prompt that embodies the persona
+   */
+  private buildPersonaSystemPrompt(persona: PersonaProfileForRewrite): string {
+    const parts: string[] = [
+      `You are a skilled writer who transforms text to match a specific voice and persona.`,
+      ``,
+      `TARGET PERSONA: ${persona.name}`,
+    ];
+
+    if (persona.description) {
+      parts.push(persona.description);
+    }
+
+    parts.push(``);
+    parts.push(`VOICE TRAITS: ${persona.voiceTraits.join(', ')}`);
+    parts.push(`TONE: ${persona.toneMarkers.join(', ')}`);
+    parts.push(`FORMALITY: ${persona.formalityRange[0]} to ${persona.formalityRange[1]} (0=casual, 1=formal)`);
+    parts.push(``);
+    parts.push(`STYLE REQUIREMENTS:`);
+    parts.push(`- Use contractions: ${persona.styleGuide.useContractions ? 'Yes' : 'No'}`);
+    parts.push(`- Use rhetorical questions: ${persona.styleGuide.useRhetoricalQuestions ? 'Yes' : 'No'}`);
+    parts.push(``);
+
+    if (persona.styleGuide.forbiddenPhrases.length > 0) {
+      parts.push(`FORBIDDEN PHRASES (NEVER use these):`);
+      for (const phrase of persona.styleGuide.forbiddenPhrases.slice(0, 15)) {
+        parts.push(`- "${phrase}"`);
+      }
+      parts.push(``);
+    }
+
+    if (persona.styleGuide.preferredPatterns.length > 0) {
+      parts.push(`PREFERRED PATTERNS (use these naturally when appropriate):`);
+      for (const pattern of persona.styleGuide.preferredPatterns.slice(0, 10)) {
+        parts.push(`- "${pattern}"`);
+      }
+      parts.push(``);
+    }
+
+    if (persona.referenceExamples && persona.referenceExamples.length > 0) {
+      parts.push(`REFERENCE EXAMPLES of the target voice:`);
+      for (let i = 0; i < Math.min(3, persona.referenceExamples.length); i++) {
+        parts.push(`Example ${i + 1}: "${persona.referenceExamples[i]}"`);
+        parts.push(``);
+      }
+    }
+
+    parts.push(`YOUR TASK:`);
+    parts.push(`Rewrite the given text to match this persona's voice while preserving the core meaning.`);
+    parts.push(`Make it sound like the same person who wrote the reference examples.`);
+    parts.push(`DO NOT add new ideas - only transform the voice and style.`);
+    parts.push(`Output ONLY the rewritten text, nothing else.`);
+
+    return parts.join('\n');
+  }
+
+  /**
+   * Build the user prompt for rewriting
+   */
+  private buildRewritePrompt(
+    text: string,
+    persona: PersonaProfileForRewrite,
+    sourceType?: string,
+    voiceIssues?: string[]
+  ): string {
+    const parts: string[] = [`Original passage to rewrite:`];
+    parts.push(``);
+    parts.push(`"${text}"`);
+
+    if (sourceType) {
+      parts.push(``);
+      parts.push(`Source: ${sourceType}`);
+    }
+
+    if (voiceIssues && voiceIssues.length > 0) {
+      parts.push(``);
+      parts.push(`DETECTED ISSUES TO FIX:`);
+      for (const issue of voiceIssues) {
+        parts.push(`- ${issue}`);
+      }
+    }
+
+    parts.push(``);
+    parts.push(`Rewrite this in the ${persona.name} voice:`);
+
+    return parts.join('\n');
+  }
+
+  /**
+   * Detect what changes were made during rewriting
+   */
+  private detectChanges(
+    original: string,
+    rewritten: string,
+    persona: PersonaProfileForRewrite
+  ): string[] {
+    const changes: string[] = [];
+    const originalLower = original.toLowerCase();
+    const rewrittenLower = rewritten.toLowerCase();
+
+    // Check forbidden phrases removed
+    for (const phrase of persona.styleGuide.forbiddenPhrases) {
+      if (originalLower.includes(phrase.toLowerCase()) &&
+          !rewrittenLower.includes(phrase.toLowerCase())) {
+        changes.push(`Removed: "${phrase}"`);
+      }
+    }
+
+    // Check preferred patterns added
+    for (const pattern of persona.styleGuide.preferredPatterns) {
+      const basePattern = pattern.replace('...', '').toLowerCase().trim();
+      if (!originalLower.includes(basePattern) &&
+          rewrittenLower.includes(basePattern)) {
+        changes.push(`Added pattern: "${pattern}"`);
+      }
+    }
+
+    // Check contractions
+    if (persona.styleGuide.useContractions) {
+      const contractionPairs = [
+        ["i am", "i'm"], ["you are", "you're"], ["we are", "we're"],
+        ["they are", "they're"], ["it is", "it's"], ["do not", "don't"],
+        ["does not", "doesn't"], ["cannot", "can't"], ["will not", "won't"],
+      ];
+      for (const [expanded, contracted] of contractionPairs) {
+        if (originalLower.includes(expanded) && rewrittenLower.includes(contracted)) {
+          changes.push(`Added contraction: "${contracted}"`);
+          break; // Just note one
+        }
+      }
+    }
+
+    // Check rhetorical questions
+    if (persona.styleGuide.useRhetoricalQuestions) {
+      const originalQuestions = (original.match(/\?/g) || []).length;
+      const rewrittenQuestions = (rewritten.match(/\?/g) || []).length;
+      if (rewrittenQuestions > originalQuestions) {
+        changes.push(`Added rhetorical question`);
+      }
+    }
+
+    return changes;
+  }
+
+  /**
+   * Check for forbidden phrases that remain in text
+   */
+  private checkForbiddenPhrases(text: string, forbiddenPhrases: string[]): string[] {
+    const textLower = text.toLowerCase();
+    const remaining: string[] = [];
+
+    for (const phrase of forbiddenPhrases) {
+      if (textLower.includes(phrase.toLowerCase())) {
+        remaining.push(phrase);
+      }
+    }
+
+    return remaining;
+  }
+
+  /**
+   * Calculate confidence score for rewrite quality
+   */
+  private calculateRewriteConfidence(
+    changesApplied: string[],
+    remainingIssues: string[]
+  ): number {
+    // Base score
+    let score = 0.5;
+
+    // Bonus for changes applied
+    score += Math.min(0.3, changesApplied.length * 0.05);
+
+    // Penalty for remaining issues
+    score -= Math.min(0.3, remainingIssues.length * 0.1);
+
+    return Math.max(0, Math.min(1, score));
+  }
+
+  // ─────────────────────────────────────────────────────────────────
+  // REVISION FROM REVIEWER FEEDBACK
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Revise a chapter based on Reviewer feedback
+   *
+   * This is the Builder's response in the feedback loop:
+   * 1. Receives specific issues to address
+   * 2. Applies focused revisions based on focus areas
+   * 3. Uses rewriteForPersona for voice/humanization issues
+   * 4. Reports back what was changed
+   */
+  private async reviseFromFeedback(request: ReviseFromFeedbackRequest): Promise<RevisionResponse> {
+    const {
+      chapterId,
+      focusAreas,
+      issuesWithFixes,
+      passagesForRewrite,
+      iterationCount,
+      maxIterations,
+      personaRef,
+    } = request;
+
+    this.log('info', `Revising chapter ${chapterId} from Reviewer feedback (iteration ${iterationCount}/${maxIterations})`);
+    this.log('debug', `Focus areas: ${focusAreas.join(', ')}`);
+    this.log('debug', `Issues to address: ${issuesWithFixes.length}`);
+
+    // Get current draft
+    const history = this.draftHistory.get(chapterId);
+    if (!history || history.length === 0) {
+      return {
+        success: false,
+        chapterId,
+        newVersion: 0,
+        changesApplied: [],
+        remainingIssues: ['No draft found for chapter'],
+      };
+    }
+
+    const currentDraft = history[history.length - 1];
+    const changesApplied: string[] = [];
+    let revisedContent = currentDraft.content;
+
+    // Step 1: Address specific issues with suggested fixes
+    for (const issue of issuesWithFixes) {
+      if (issue.suggestedFix) {
+        // Try to apply the suggested fix
+        const fixApplied = await this.applyIssueFix(
+          revisedContent,
+          issue.location,
+          issue.description,
+          issue.suggestedFix
+        );
+        if (fixApplied.modified) {
+          revisedContent = fixApplied.content;
+          changesApplied.push(`Fixed: ${issue.description.substring(0, 50)}...`);
+        }
+      }
+    }
+
+    // Step 2: Handle passages needing voice transformation
+    if (passagesForRewrite && passagesForRewrite.length > 0 && personaRef) {
+      // Build a minimal persona for rewriting
+      const minimalPersona = await this.buildMinimalPersonaFromRef(personaRef);
+
+      if (minimalPersona) {
+        for (const passage of passagesForRewrite) {
+          // Extract the passage text at the location
+          const passageText = this.extractTextAtLocation(revisedContent, passage.location);
+          if (passageText) {
+            const rewriteResult = await this.rewriteForPersona({
+              text: passageText,
+              persona: minimalPersona,
+              voiceIssues: passage.voiceIssues,
+            });
+
+            if (rewriteResult.confidenceScore > 0.5) {
+              revisedContent = revisedContent.replace(passageText, rewriteResult.rewritten);
+              changesApplied.push(...rewriteResult.changesApplied);
+            }
+          }
+        }
+      }
+    }
+
+    // Step 3: General revision based on focus areas
+    if (focusAreas.length > 0) {
+      const generalRevision = await this.callAI('creative', revisedContent, {
+        systemPrompt: this.buildFocusedRevisionPrompt(focusAreas, issuesWithFixes, personaRef),
+      });
+
+      // Only use the revision if it's substantially different and not empty
+      if (generalRevision.trim().length > revisedContent.length * 0.5) {
+        revisedContent = generalRevision;
+        changesApplied.push(`General revision focusing on: ${focusAreas.join(', ')}`);
+      }
+    }
+
+    // Create the revised draft
+    const revisedDraft: ChapterDraft = {
+      ...currentDraft,
+      content: revisedContent,
+      wordCount: revisedContent.split(/\s+/).length,
+      version: currentDraft.version + 1,
+      styleAnalysis: await this.analyzeStyle(revisedContent, personaRef),
+    };
+
+    history.push(revisedDraft);
+
+    // Check for remaining issues (simple check)
+    const remainingIssues: string[] = [];
+    for (const issue of issuesWithFixes) {
+      // Very basic check - see if the issue description keywords are still present
+      const keywords = issue.description.toLowerCase().split(/\s+/).slice(0, 3);
+      const stillPresent = keywords.some(kw =>
+        revisedContent.toLowerCase().includes(kw) && kw.length > 4
+      );
+      if (stillPresent) {
+        remainingIssues.push(`May not be fully resolved: ${issue.description.substring(0, 50)}...`);
+      }
+    }
+
+    this.log('info', `Revision complete: ${changesApplied.length} changes, ${remainingIssues.length} potentially remaining`);
+
+    return {
+      success: true,
+      chapterId,
+      newVersion: revisedDraft.version,
+      changesApplied,
+      remainingIssues: remainingIssues.length > 0 ? remainingIssues : undefined,
+    };
+  }
+
+  /**
+   * Apply a specific fix to content at a location
+   */
+  private async applyIssueFix(
+    content: string,
+    location: string,
+    description: string,
+    suggestedFix: string
+  ): Promise<{ modified: boolean; content: string }> {
+    // Use AI to apply the fix contextually
+    const prompt = `You need to fix an issue in this text.
+
+ISSUE: ${description}
+LOCATION: ${location}
+SUGGESTED FIX: ${suggestedFix}
+
+TEXT TO FIX:
+${content}
+
+Apply the fix and output the entire corrected text. Make minimal changes - only fix the specific issue.`;
+
+    try {
+      const fixed = await this.callAI('creative', prompt, {
+        systemPrompt: 'You make precise, minimal edits to fix specific issues. Output only the corrected text.',
+      });
+
+      // Verify the fix is reasonable (not empty, not too different)
+      if (fixed.trim().length > content.length * 0.5 && fixed.trim().length < content.length * 1.5) {
+        return { modified: true, content: fixed };
+      }
+    } catch (error) {
+      this.log('debug', `Failed to apply fix: ${error}`);
+    }
+
+    return { modified: false, content };
+  }
+
+  /**
+   * Build a minimal persona from a persona reference
+   */
+  private async buildMinimalPersonaFromRef(personaRef: string): Promise<PersonaProfileForRewrite | null> {
+    // Try to get persona from store via bus
+    try {
+      const response = await this.bus.request('aui-service', {
+        type: 'get-persona-profile',
+        payload: { name: personaRef },
+      });
+
+      if (response.success && response.data) {
+        const profile = response.data as {
+          name: string;
+          description?: string;
+          voiceTraits: string[];
+          toneMarkers: string[];
+          formalityRange: [number, number];
+          styleGuide: {
+            forbiddenPhrases: string[];
+            preferredPatterns: string[];
+            useContractions: boolean;
+            useRhetoricalQuestions: boolean;
+          };
+          referenceExamples?: string[];
+        };
+        return profile;
+      }
+    } catch (error) {
+      this.log('debug', `Could not fetch persona profile: ${error}`);
+    }
+
+    // Fallback: create a basic persona from the reference
+    return {
+      name: personaRef,
+      voiceTraits: ['consistent', 'clear'],
+      toneMarkers: ['appropriate'],
+      formalityRange: [0.3, 0.7],
+      styleGuide: {
+        forbiddenPhrases: [
+          'delve into',
+          'leverage',
+          'utilize',
+          'in conclusion',
+          'it is important to note',
+        ],
+        preferredPatterns: [],
+        useContractions: true,
+        useRhetoricalQuestions: false,
+      },
+    };
+  }
+
+  /**
+   * Extract text at a specified location
+   */
+  private extractTextAtLocation(content: string, location: string): string | null {
+    // Parse location like "Paragraph 3" or "Section 2"
+    const paragraphMatch = location.match(/paragraph\s*(\d+)/i);
+    if (paragraphMatch) {
+      const paragraphNum = parseInt(paragraphMatch[1], 10);
+      const paragraphs = content.split(/\n\n+/);
+      if (paragraphNum > 0 && paragraphNum <= paragraphs.length) {
+        return paragraphs[paragraphNum - 1];
+      }
+    }
+
+    // Fallback: return first substantial paragraph
+    const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 50);
+    return paragraphs[0] || null;
+  }
+
+  /**
+   * Build revision prompt based on focus areas
+   */
+  private buildFocusedRevisionPrompt(
+    focusAreas: ReviseFromFeedbackRequest['focusAreas'],
+    issues: ReviseFromFeedbackRequest['issuesWithFixes'],
+    personaRef?: string
+  ): string {
+    const parts: string[] = [`Revise this chapter text. Focus specifically on:`];
+
+    for (const area of focusAreas) {
+      switch (area) {
+        case 'voice':
+          parts.push('- Voice: Ensure consistent, authentic voice throughout');
+          break;
+        case 'pacing':
+          parts.push('- Pacing: Improve rhythm and flow between sections');
+          break;
+        case 'clarity':
+          parts.push('- Clarity: Make ideas clearer and more accessible');
+          break;
+        case 'transitions':
+          parts.push('- Transitions: Smooth connections between paragraphs and sections');
+          break;
+        case 'humanization':
+          parts.push('- Humanization: Remove AI-like patterns, add natural variation');
+          break;
+        case 'structure':
+          parts.push('- Structure: Improve organization and logical flow');
+          break;
+      }
+    }
+
+    if (issues.length > 0) {
+      parts.push('');
+      parts.push('Specific issues to address:');
+      for (const issue of issues.slice(0, 5)) {
+        parts.push(`- ${issue.description}`);
+        if (issue.suggestedFix) {
+          parts.push(`  Fix: ${issue.suggestedFix}`);
+        }
+      }
+    }
+
+    if (personaRef) {
+      parts.push('');
+      parts.push(`Maintain the voice of: ${personaRef}`);
+    }
+
+    parts.push('');
+    parts.push('Output only the revised chapter text. Preserve core meaning and structure.');
+
+    return parts.join('\n');
   }
 
   // ─────────────────────────────────────────────────────────────────

@@ -70,6 +70,14 @@ import {
   UPDATE_AUI_ARTIFACT_DOWNLOAD,
   DELETE_AUI_ARTIFACT,
   CLEANUP_EXPIRED_ARTIFACTS,
+  INSERT_AUI_PERSONA_PROFILE,
+  GET_AUI_PERSONA_PROFILE,
+  GET_AUI_PERSONA_PROFILE_BY_NAME,
+  GET_AUI_DEFAULT_PERSONA_PROFILE,
+  UPDATE_AUI_PERSONA_PROFILE,
+  DELETE_AUI_PERSONA_PROFILE,
+  LIST_AUI_PERSONA_PROFILES,
+  CLEAR_DEFAULT_PERSONA_PROFILE,
 } from './schema-aui.js';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -203,6 +211,24 @@ interface DbArtifactRow {
   last_downloaded_at: Date | null;
 }
 
+interface DbPersonaProfileRow {
+  id: string;
+  user_id: string | null;
+  name: string;
+  description: string | null;
+  voice_traits: string[];
+  tone_markers: string[];
+  formality_min: number;
+  formality_max: number;
+  style_guide: StyleGuide;
+  reference_examples: string[];
+  voice_fingerprint: VoiceFingerprint | null;
+  is_default: boolean;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+  updated_at: Date;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // ARTIFACT TYPES
 // ═══════════════════════════════════════════════════════════════════
@@ -236,6 +262,92 @@ export interface CreateArtifactOptions {
   sourceId?: string;
   metadata?: Record<string, unknown>;
   expiresAt?: Date;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PERSONA PROFILE TYPES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Style guide for persona-consistent writing
+ */
+export interface StyleGuide {
+  /** Phrases that should never appear in generated text */
+  forbiddenPhrases: string[];
+  /** Preferred patterns to use naturally */
+  preferredPatterns: string[];
+  /** Sentence variety level */
+  sentenceVariety: 'low' | 'medium' | 'high';
+  /** Paragraph length style */
+  paragraphStyle: 'short' | 'medium' | 'long';
+  /** Whether to use contractions */
+  useContractions: boolean;
+  /** Whether to use rhetorical questions */
+  useRhetoricalQuestions: boolean;
+}
+
+/**
+ * Quantitative voice fingerprint extracted from reference examples
+ */
+export interface VoiceFingerprint {
+  /** Average sentence length in words */
+  avgSentenceLength: number;
+  /** Sentence length variance */
+  sentenceLengthVariance: number;
+  /** Contraction frequency (0-1) */
+  contractionFrequency: number;
+  /** Question frequency (0-1) */
+  questionFrequency: number;
+  /** First person frequency (0-1) */
+  firstPersonFrequency: number;
+  /** Common n-grams with frequency */
+  commonPhrases: Array<{ phrase: string; frequency: number }>;
+  /** Vocabulary richness score (0-1) */
+  vocabularyRichness: number;
+  /** Embedding of combined reference examples */
+  referenceEmbedding?: number[];
+}
+
+/**
+ * Persona profile for voice-consistent book creation
+ */
+export interface PersonaProfile {
+  id: string;
+  userId?: string;
+  name: string;
+  description?: string;
+  /** Voice characteristics */
+  voiceTraits: string[];
+  /** Tone markers */
+  toneMarkers: string[];
+  /** Formality range (0=casual, 1=formal) */
+  formalityRange: [number, number];
+  /** Writing style guide */
+  styleGuide: StyleGuide;
+  /** Reference examples demonstrating the voice */
+  referenceExamples: string[];
+  /** Quantitative voice fingerprint */
+  voiceFingerprint?: VoiceFingerprint;
+  /** Whether this is the user's default persona */
+  isDefault: boolean;
+  /** Additional metadata */
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreatePersonaProfileOptions {
+  userId?: string;
+  name: string;
+  description?: string;
+  voiceTraits?: string[];
+  toneMarkers?: string[];
+  formalityRange?: [number, number];
+  styleGuide?: Partial<StyleGuide>;
+  referenceExamples?: string[];
+  voiceFingerprint?: VoiceFingerprint;
+  isDefault?: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1115,6 +1227,160 @@ export class AuiPostgresStore {
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // PERSONA PROFILES
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Create a persona profile
+   */
+  async createPersonaProfile(options: CreatePersonaProfileOptions): Promise<PersonaProfile> {
+    const now = new Date();
+    const id = randomUUID();
+
+    const defaultStyleGuide: StyleGuide = {
+      forbiddenPhrases: [],
+      preferredPatterns: [],
+      sentenceVariety: 'medium',
+      paragraphStyle: 'medium',
+      useContractions: true,
+      useRhetoricalQuestions: false,
+    };
+
+    const styleGuide = {
+      ...defaultStyleGuide,
+      ...options.styleGuide,
+    };
+
+    const formalityRange = options.formalityRange ?? [0.3, 0.7];
+
+    // If setting as default, clear existing default
+    if (options.isDefault && options.userId) {
+      await this.pool.query(CLEAR_DEFAULT_PERSONA_PROFILE, [options.userId]);
+    }
+
+    const result = await this.pool.query(INSERT_AUI_PERSONA_PROFILE, [
+      id,
+      options.userId ?? null,
+      options.name,
+      options.description ?? null,
+      options.voiceTraits ?? [],
+      options.toneMarkers ?? [],
+      formalityRange[0],
+      formalityRange[1],
+      JSON.stringify(styleGuide),
+      options.referenceExamples ?? [],
+      options.voiceFingerprint ? JSON.stringify(options.voiceFingerprint) : null,
+      options.isDefault ?? false,
+      JSON.stringify(options.metadata ?? {}),
+      now,
+      now,
+    ]);
+
+    return this.rowToPersonaProfile(result.rows[0] as DbPersonaProfileRow);
+  }
+
+  /**
+   * Get a persona profile by ID
+   */
+  async getPersonaProfile(id: string): Promise<PersonaProfile | undefined> {
+    const result = await this.pool.query(GET_AUI_PERSONA_PROFILE, [id]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToPersonaProfile(result.rows[0] as DbPersonaProfileRow);
+  }
+
+  /**
+   * Get a persona profile by user ID and name
+   */
+  async getPersonaProfileByName(
+    userId: string,
+    name: string
+  ): Promise<PersonaProfile | undefined> {
+    const result = await this.pool.query(GET_AUI_PERSONA_PROFILE_BY_NAME, [userId, name]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToPersonaProfile(result.rows[0] as DbPersonaProfileRow);
+  }
+
+  /**
+   * Get the default persona profile for a user
+   */
+  async getDefaultPersonaProfile(userId: string): Promise<PersonaProfile | undefined> {
+    const result = await this.pool.query(GET_AUI_DEFAULT_PERSONA_PROFILE, [userId]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToPersonaProfile(result.rows[0] as DbPersonaProfileRow);
+  }
+
+  /**
+   * Update a persona profile
+   */
+  async updatePersonaProfile(
+    id: string,
+    update: Partial<{
+      name: string;
+      description: string;
+      voiceTraits: string[];
+      toneMarkers: string[];
+      formalityMin: number;
+      formalityMax: number;
+      styleGuide: StyleGuide;
+      referenceExamples: string[];
+      voiceFingerprint: VoiceFingerprint;
+      isDefault: boolean;
+      metadata: Record<string, unknown>;
+    }>
+  ): Promise<PersonaProfile | undefined> {
+    // If setting as default, get the profile first to find userId
+    if (update.isDefault) {
+      const existing = await this.getPersonaProfile(id);
+      if (existing?.userId) {
+        await this.pool.query(CLEAR_DEFAULT_PERSONA_PROFILE, [existing.userId]);
+      }
+    }
+
+    const result = await this.pool.query(UPDATE_AUI_PERSONA_PROFILE, [
+      id,
+      update.name ?? null,
+      update.description ?? null,
+      update.voiceTraits ?? null,
+      update.toneMarkers ?? null,
+      update.formalityMin ?? null,
+      update.formalityMax ?? null,
+      update.styleGuide ? JSON.stringify(update.styleGuide) : null,
+      update.referenceExamples ?? null,
+      update.voiceFingerprint ? JSON.stringify(update.voiceFingerprint) : null,
+      update.isDefault ?? null,
+      update.metadata ? JSON.stringify(update.metadata) : null,
+    ]);
+
+    if (result.rows.length === 0) return undefined;
+    return this.rowToPersonaProfile(result.rows[0] as DbPersonaProfileRow);
+  }
+
+  /**
+   * Delete a persona profile
+   */
+  async deletePersonaProfile(id: string): Promise<boolean> {
+    const result = await this.pool.query(DELETE_AUI_PERSONA_PROFILE, [id]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * List persona profiles
+   */
+  async listPersonaProfiles(options?: {
+    userId?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<PersonaProfile[]> {
+    const result = await this.pool.query(LIST_AUI_PERSONA_PROFILES, [
+      options?.userId ?? null,
+      options?.limit ?? 100,
+      options?.offset ?? 0,
+    ]);
+
+    return result.rows.map((row) => this.rowToPersonaProfile(row as DbPersonaProfileRow));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // CLEANUP
   // ═══════════════════════════════════════════════════════════════════
 
@@ -1308,6 +1574,32 @@ export class AuiPostgresStore {
       expiresAt: row.expires_at ?? undefined,
       downloadCount: row.download_count,
       lastDownloadedAt: row.last_downloaded_at ?? undefined,
+    };
+  }
+
+  private rowToPersonaProfile(row: DbPersonaProfileRow): PersonaProfile {
+    return {
+      id: row.id,
+      userId: row.user_id ?? undefined,
+      name: row.name,
+      description: row.description ?? undefined,
+      voiceTraits: row.voice_traits ?? [],
+      toneMarkers: row.tone_markers ?? [],
+      formalityRange: [row.formality_min, row.formality_max],
+      styleGuide: row.style_guide ?? {
+        forbiddenPhrases: [],
+        preferredPatterns: [],
+        sentenceVariety: 'medium',
+        paragraphStyle: 'medium',
+        useContractions: true,
+        useRhetoricalQuestions: false,
+      },
+      referenceExamples: row.reference_examples ?? [],
+      voiceFingerprint: row.voice_fingerprint ?? undefined,
+      isDefault: row.is_default,
+      metadata: row.metadata ?? {},
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     };
   }
 }

@@ -183,6 +183,38 @@ CREATE TABLE IF NOT EXISTS aui_clusters (
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// PERSONA PROFILE TABLE
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Persona profiles table - stores voice and style configurations for books
+ *
+ * Used for persona-consistent book creation pipeline:
+ * - Voice traits and tone markers for voice transformation
+ * - Style guide with forbidden/preferred phrases
+ * - Reference examples for voice fingerprinting
+ */
+export const CREATE_AUI_PERSONA_PROFILES_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_persona_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT,
+  name TEXT NOT NULL,
+  description TEXT,
+  voice_traits TEXT[] DEFAULT '{}',
+  tone_markers TEXT[] DEFAULT '{}',
+  formality_min REAL DEFAULT 0.3,
+  formality_max REAL DEFAULT 0.7,
+  style_guide JSONB DEFAULT '{}',
+  reference_examples TEXT[] DEFAULT '{}',
+  voice_fingerprint JSONB,
+  is_default BOOLEAN NOT NULL DEFAULT FALSE,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+// ═══════════════════════════════════════════════════════════════════
 // ARTIFACT TABLE
 // ═══════════════════════════════════════════════════════════════════
 
@@ -263,6 +295,12 @@ CREATE INDEX IF NOT EXISTS idx_aui_artifacts_type ON aui_artifacts(artifact_type
 CREATE INDEX IF NOT EXISTS idx_aui_artifacts_source ON aui_artifacts(source_type, source_id);
 CREATE INDEX IF NOT EXISTS idx_aui_artifacts_expires ON aui_artifacts(expires_at);
 CREATE INDEX IF NOT EXISTS idx_aui_artifacts_created ON aui_artifacts(created_at DESC);
+
+-- Persona profiles indexes
+CREATE INDEX IF NOT EXISTS idx_aui_personas_user ON aui_persona_profiles(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_personas_name ON aui_persona_profiles(user_id, name);
+CREATE INDEX IF NOT EXISTS idx_aui_personas_default ON aui_persona_profiles(user_id, is_default) WHERE is_default = TRUE;
+CREATE INDEX IF NOT EXISTS idx_aui_personas_updated ON aui_persona_profiles(updated_at DESC);
 `;
 
 /**
@@ -307,6 +345,9 @@ export async function runAuiMigration(
 
   // Create artifacts table
   await client.query(CREATE_AUI_ARTIFACTS_TABLE);
+
+  // Create persona profiles table
+  await client.query(CREATE_AUI_PERSONA_PROFILES_TABLE);
 
   // Create indexes
   await client.query(CREATE_AUI_INDEXES);
@@ -609,4 +650,48 @@ export const DELETE_AUI_ARTIFACT = `DELETE FROM aui_artifacts WHERE id = $1`;
 
 export const CLEANUP_EXPIRED_ARTIFACTS = `
 DELETE FROM aui_artifacts WHERE expires_at IS NOT NULL AND expires_at < NOW()
+`;
+
+// Persona Profiles
+export const INSERT_AUI_PERSONA_PROFILE = `
+INSERT INTO aui_persona_profiles (id, user_id, name, description, voice_traits, tone_markers, formality_min, formality_max, style_guide, reference_examples, voice_fingerprint, is_default, metadata, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+RETURNING *
+`;
+
+export const GET_AUI_PERSONA_PROFILE = `SELECT * FROM aui_persona_profiles WHERE id = $1`;
+
+export const GET_AUI_PERSONA_PROFILE_BY_NAME = `SELECT * FROM aui_persona_profiles WHERE user_id = $1 AND name = $2`;
+
+export const GET_AUI_DEFAULT_PERSONA_PROFILE = `SELECT * FROM aui_persona_profiles WHERE user_id = $1 AND is_default = TRUE LIMIT 1`;
+
+export const UPDATE_AUI_PERSONA_PROFILE = `
+UPDATE aui_persona_profiles SET
+  name = COALESCE($2, name),
+  description = COALESCE($3, description),
+  voice_traits = COALESCE($4, voice_traits),
+  tone_markers = COALESCE($5, tone_markers),
+  formality_min = COALESCE($6, formality_min),
+  formality_max = COALESCE($7, formality_max),
+  style_guide = COALESCE($8, style_guide),
+  reference_examples = COALESCE($9, reference_examples),
+  voice_fingerprint = COALESCE($10, voice_fingerprint),
+  is_default = COALESCE($11, is_default),
+  metadata = COALESCE($12, metadata),
+  updated_at = NOW()
+WHERE id = $1
+RETURNING *
+`;
+
+export const DELETE_AUI_PERSONA_PROFILE = `DELETE FROM aui_persona_profiles WHERE id = $1`;
+
+export const LIST_AUI_PERSONA_PROFILES = `
+SELECT * FROM aui_persona_profiles
+WHERE ($1::text IS NULL OR user_id = $1)
+ORDER BY is_default DESC, updated_at DESC
+LIMIT $2 OFFSET $3
+`;
+
+export const CLEAR_DEFAULT_PERSONA_PROFILE = `
+UPDATE aui_persona_profiles SET is_default = FALSE WHERE user_id = $1 AND is_default = TRUE
 `;
