@@ -24,6 +24,12 @@
 export * from './types.js';
 
 // ═══════════════════════════════════════════════════════════════════
+// PARSERS - Archive Parsing Infrastructure
+// ═══════════════════════════════════════════════════════════════════
+// Full parser module for narrative-studio compatible archive import
+export * as parsers from './parsers/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
 // STORAGE (backward-compatible exports, prefer ../storage/index.js)
 // ═══════════════════════════════════════════════════════════════════
 export {
