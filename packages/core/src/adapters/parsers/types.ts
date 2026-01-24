@@ -7,7 +7,16 @@
  * Ported from narrative-studio with 7-strategy media matching.
  */
 
-export type ExportFormat = 'openai' | 'claude' | 'facebook' | 'chrome-plugin' | 'unknown';
+export type ExportFormat =
+  | 'openai'
+  | 'claude'
+  | 'facebook'
+  | 'chrome-plugin'
+  | 'reddit'
+  | 'twitter'
+  | 'instagram'
+  | 'substack'
+  | 'unknown';
 
 export type ContentType = 'text' | 'code' | 'execution_output' | 'image' | 'multimodal_text';
 
@@ -92,6 +101,32 @@ export interface Conversation {
     is_still_participant?: boolean;
     thread_type?: string;
     message_count?: number;
+  };
+  _reddit_metadata?: {
+    subreddit?: string;
+    permalink?: string;
+    gildings?: number;
+    post_count?: number;
+    comment_count?: number;
+  };
+  _twitter_metadata?: {
+    username?: string;
+    tweet_count?: number;
+    reply_count?: number;
+    retweet_count?: number;
+    dm_count?: number;
+  };
+  _instagram_metadata?: {
+    username?: string;
+    post_count?: number;
+    comment_count?: number;
+    message_count?: number;
+  };
+  _substack_metadata?: {
+    publication_name?: string;
+    post_count?: number;
+    email_sent_at?: string;
+    audience?: string;
   };
 }
 

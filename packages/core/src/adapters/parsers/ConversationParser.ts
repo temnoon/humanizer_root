@@ -12,6 +12,10 @@ import { OpenAIParser } from './OpenAIParser.js';
 import { ClaudeParser } from './ClaudeParser.js';
 import { FacebookParser } from './FacebookParser.js';
 import { BrowserPluginParser } from './BrowserPluginParser.js';
+import { RedditParser } from './RedditParser.js';
+import { TwitterParser } from './TwitterParser.js';
+import { InstagramParser } from './InstagramParser.js';
+import { SubstackParser } from './SubstackParser.js';
 import { ComprehensiveMediaIndexer } from './ComprehensiveMediaIndexer.js';
 import { ComprehensiveMediaMatcher } from './ComprehensiveMediaMatcher.js';
 import type { ParsedArchive, Conversation, ExportFormat, MediaFile } from './types.js';
@@ -22,6 +26,10 @@ export class ConversationParser {
   private claudeParser: ClaudeParser;
   private facebookParser: FacebookParser;
   private browserPluginParser: BrowserPluginParser;
+  private redditParser: RedditParser;
+  private twitterParser: TwitterParser;
+  private instagramParser: InstagramParser;
+  private substackParser: SubstackParser;
   private mediaIndexer: ComprehensiveMediaIndexer;
   private mediaMatcher: ComprehensiveMediaMatcher;
   private verbose: boolean;
@@ -32,6 +40,10 @@ export class ConversationParser {
     this.claudeParser = new ClaudeParser();
     this.facebookParser = new FacebookParser();
     this.browserPluginParser = new BrowserPluginParser(verbose);
+    this.redditParser = new RedditParser();
+    this.twitterParser = new TwitterParser();
+    this.instagramParser = new InstagramParser();
+    this.substackParser = new SubstackParser();
     this.mediaIndexer = new ComprehensiveMediaIndexer(verbose);
     this.mediaMatcher = new ComprehensiveMediaMatcher(verbose);
   }
@@ -141,7 +153,8 @@ export class ConversationParser {
   }
 
   /**
-   * Detect export format (OpenAI, Claude, Facebook, or Chrome Plugin)
+   * Detect export format
+   * Supports: OpenAI, Claude, Facebook, Chrome Plugin, Reddit, Twitter, Instagram, Substack
    */
   private async detectFormat(extractedDir: string): Promise<ExportFormat> {
     // Check for browser plugin format first (single conversation exports)
@@ -150,7 +163,31 @@ export class ConversationParser {
       return 'chrome-plugin';
     }
 
-    // Check for Facebook format (most specific directory structure)
+    // Check for Twitter/X format (specific data/tweets.js structure)
+    const isTwitter = await TwitterParser.detectFormat(extractedDir);
+    if (isTwitter) {
+      return 'twitter';
+    }
+
+    // Check for Reddit format (CSV files with specific headers)
+    const isReddit = await RedditParser.detectFormat(extractedDir);
+    if (isReddit) {
+      return 'reddit';
+    }
+
+    // Check for Substack format (posts.csv with specific columns)
+    const isSubstack = await SubstackParser.detectFormat(extractedDir);
+    if (isSubstack) {
+      return 'substack';
+    }
+
+    // Check for Instagram format (your_instagram_activity directory)
+    const isInstagram = await InstagramParser.detectFormat(extractedDir);
+    if (isInstagram) {
+      return 'instagram';
+    }
+
+    // Check for Facebook format (messages/inbox structure)
     const isFacebook = await FacebookParser.detectFormat(extractedDir);
     if (isFacebook) {
       return 'facebook';
@@ -192,6 +229,18 @@ export class ConversationParser {
 
       case 'openai':
         return await this.openAIParser.parseConversations(extractedDir);
+
+      case 'reddit':
+        return await this.redditParser.parseConversations(extractedDir);
+
+      case 'twitter':
+        return await this.twitterParser.parseConversations(extractedDir);
+
+      case 'instagram':
+        return await this.instagramParser.parseConversations(extractedDir);
+
+      case 'substack':
+        return await this.substackParser.parseConversations(extractedDir);
 
       default:
         throw new Error(`Unsupported export format: ${format}`);

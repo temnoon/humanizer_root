@@ -445,6 +445,14 @@ function formatToAdapter(format: ExportFormat): string {
       return 'facebook';
     case 'chrome-plugin':
       return 'browser-plugin';
+    case 'reddit':
+      return 'reddit';
+    case 'twitter':
+      return 'twitter';
+    case 'instagram':
+      return 'instagram';
+    case 'substack':
+      return 'substack';
     default:
       return format;
   }
@@ -459,6 +467,11 @@ function formatToSourceType(format: ExportFormat, conversation?: { _source?: str
     return conversation._source; // e.g., 'plugin-chatgpt', 'plugin-claude', 'plugin-gemini'
   }
 
+  // Check for specific source override
+  if (conversation?._source) {
+    return conversation._source;
+  }
+
   switch (format) {
     case 'openai':
       return 'chatgpt';
@@ -468,6 +481,14 @@ function formatToSourceType(format: ExportFormat, conversation?: { _source?: str
       return 'facebook';
     case 'chrome-plugin':
       return 'plugin';
+    case 'reddit':
+      return 'reddit';
+    case 'twitter':
+      return 'twitter';
+    case 'instagram':
+      return 'instagram';
+    case 'substack':
+      return 'substack';
     default:
       return format;
   }

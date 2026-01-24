@@ -2,11 +2,11 @@
  * Archive Parser Module
  *
  * Exports all parser components for conversation archive import.
- * Supports OpenAI, Claude, and Facebook export formats.
+ * Supports OpenAI, Claude, Facebook, Reddit, Twitter, Instagram, Substack exports.
  *
  * Key exports:
  * - ConversationParser: Main orchestrator for parsing archives
- * - OpenAIParser, ClaudeParser, FacebookParser: Format-specific parsers
+ * - OpenAIParser, ClaudeParser, FacebookParser, etc: Format-specific parsers
  * - ComprehensiveMediaIndexer: Builds multiple indices for media files
  * - ComprehensiveMediaMatcher: 7-strategy media matching algorithm
  * - MediaReferenceExtractor: Extracts all media references from conversations
@@ -20,6 +20,10 @@ export { OpenAIParser } from './OpenAIParser.js';
 export { ClaudeParser } from './ClaudeParser.js';
 export { FacebookParser } from './FacebookParser.js';
 export { BrowserPluginParser } from './BrowserPluginParser.js';
+export { RedditParser } from './RedditParser.js';
+export { TwitterParser } from './TwitterParser.js';
+export { InstagramParser } from './InstagramParser.js';
+export { SubstackParser } from './SubstackParser.js';
 
 // Media indexing and matching
 export { ComprehensiveMediaIndexer } from './ComprehensiveMediaIndexer.js';
