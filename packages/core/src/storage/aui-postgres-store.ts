@@ -78,6 +78,14 @@ import {
   DELETE_AUI_PERSONA_PROFILE,
   LIST_AUI_PERSONA_PROFILES,
   CLEAR_DEFAULT_PERSONA_PROFILE,
+  INSERT_AUI_STYLE_PROFILE,
+  GET_AUI_STYLE_PROFILE,
+  GET_AUI_STYLE_PROFILE_BY_NAME,
+  GET_AUI_DEFAULT_STYLE_PROFILE,
+  UPDATE_AUI_STYLE_PROFILE,
+  DELETE_AUI_STYLE_PROFILE,
+  LIST_AUI_STYLE_PROFILES,
+  CLEAR_DEFAULT_STYLE_PROFILE,
 } from './schema-aui.js';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -229,6 +237,25 @@ interface DbPersonaProfileRow {
   updated_at: Date;
 }
 
+interface DbStyleProfileRow {
+  id: string;
+  persona_id: string;
+  name: string;
+  description: string | null;
+  context: string | null;
+  forbidden_phrases: string[];
+  preferred_patterns: string[];
+  sentence_variety: 'low' | 'medium' | 'high';
+  paragraph_style: 'short' | 'medium' | 'long';
+  use_contractions: boolean;
+  use_rhetorical_questions: boolean;
+  formality_level: number;
+  is_default: boolean;
+  metadata: Record<string, unknown>;
+  created_at: Date;
+  updated_at: Date;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // ARTIFACT TYPES
 // ═══════════════════════════════════════════════════════════════════
@@ -346,6 +373,55 @@ export interface CreatePersonaProfileOptions {
   styleGuide?: Partial<StyleGuide>;
   referenceExamples?: string[];
   voiceFingerprint?: VoiceFingerprint;
+  isDefault?: boolean;
+  metadata?: Record<string, unknown>;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// STYLE PROFILE TYPES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Style profile for context-specific writing styles
+ *
+ * Enables persona -> many styles relationship:
+ * - One persona can have multiple styles (Academic, Casual, Newsletter, etc.)
+ * - Each style has its own forbidden phrases, formality level, etc.
+ */
+export interface StyleProfile {
+  id: string;
+  personaId: string;
+  name: string;
+  description?: string;
+  /** When to use this style (e.g., "Use for academic papers") */
+  context?: string;
+  forbiddenPhrases: string[];
+  preferredPatterns: string[];
+  sentenceVariety: 'low' | 'medium' | 'high';
+  paragraphStyle: 'short' | 'medium' | 'long';
+  useContractions: boolean;
+  useRhetoricalQuestions: boolean;
+  /** Formality level (0=casual, 1=formal) */
+  formalityLevel: number;
+  /** Whether this is the default style for the persona */
+  isDefault: boolean;
+  metadata: Record<string, unknown>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateStyleProfileOptions {
+  personaId: string;
+  name: string;
+  description?: string;
+  context?: string;
+  forbiddenPhrases?: string[];
+  preferredPatterns?: string[];
+  sentenceVariety?: 'low' | 'medium' | 'high';
+  paragraphStyle?: 'short' | 'medium' | 'long';
+  useContractions?: boolean;
+  useRhetoricalQuestions?: boolean;
+  formalityLevel?: number;
   isDefault?: boolean;
   metadata?: Record<string, unknown>;
 }
@@ -1381,6 +1457,138 @@ export class AuiPostgresStore {
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // STYLE PROFILES
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Create a style profile for a persona
+   */
+  async createStyleProfile(options: CreateStyleProfileOptions): Promise<StyleProfile> {
+    const now = new Date();
+    const id = randomUUID();
+
+    // If setting as default, clear existing default for this persona
+    if (options.isDefault) {
+      await this.pool.query(CLEAR_DEFAULT_STYLE_PROFILE, [options.personaId]);
+    }
+
+    const result = await this.pool.query(INSERT_AUI_STYLE_PROFILE, [
+      id,
+      options.personaId,
+      options.name,
+      options.description ?? null,
+      options.context ?? null,
+      options.forbiddenPhrases ?? [],
+      options.preferredPatterns ?? [],
+      options.sentenceVariety ?? 'medium',
+      options.paragraphStyle ?? 'medium',
+      options.useContractions ?? true,
+      options.useRhetoricalQuestions ?? false,
+      options.formalityLevel ?? 0.5,
+      options.isDefault ?? false,
+      JSON.stringify(options.metadata ?? {}),
+      now,
+      now,
+    ]);
+
+    return this.rowToStyleProfile(result.rows[0] as DbStyleProfileRow);
+  }
+
+  /**
+   * Get a style profile by ID
+   */
+  async getStyleProfile(id: string): Promise<StyleProfile | undefined> {
+    const result = await this.pool.query(GET_AUI_STYLE_PROFILE, [id]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToStyleProfile(result.rows[0] as DbStyleProfileRow);
+  }
+
+  /**
+   * Get a style profile by persona ID and name
+   */
+  async getStyleProfileByName(
+    personaId: string,
+    name: string
+  ): Promise<StyleProfile | undefined> {
+    const result = await this.pool.query(GET_AUI_STYLE_PROFILE_BY_NAME, [personaId, name]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToStyleProfile(result.rows[0] as DbStyleProfileRow);
+  }
+
+  /**
+   * Get the default style profile for a persona
+   */
+  async getDefaultStyleProfile(personaId: string): Promise<StyleProfile | undefined> {
+    const result = await this.pool.query(GET_AUI_DEFAULT_STYLE_PROFILE, [personaId]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToStyleProfile(result.rows[0] as DbStyleProfileRow);
+  }
+
+  /**
+   * Update a style profile
+   */
+  async updateStyleProfile(
+    id: string,
+    update: Partial<{
+      name: string;
+      description: string;
+      context: string;
+      forbiddenPhrases: string[];
+      preferredPatterns: string[];
+      sentenceVariety: 'low' | 'medium' | 'high';
+      paragraphStyle: 'short' | 'medium' | 'long';
+      useContractions: boolean;
+      useRhetoricalQuestions: boolean;
+      formalityLevel: number;
+      isDefault: boolean;
+      metadata: Record<string, unknown>;
+    }>
+  ): Promise<StyleProfile | undefined> {
+    // If setting as default, get the style first to find personaId
+    if (update.isDefault) {
+      const existing = await this.getStyleProfile(id);
+      if (existing) {
+        await this.pool.query(CLEAR_DEFAULT_STYLE_PROFILE, [existing.personaId]);
+      }
+    }
+
+    const result = await this.pool.query(UPDATE_AUI_STYLE_PROFILE, [
+      id,
+      update.name ?? null,
+      update.description ?? null,
+      update.context ?? null,
+      update.forbiddenPhrases ?? null,
+      update.preferredPatterns ?? null,
+      update.sentenceVariety ?? null,
+      update.paragraphStyle ?? null,
+      update.useContractions ?? null,
+      update.useRhetoricalQuestions ?? null,
+      update.formalityLevel ?? null,
+      update.isDefault ?? null,
+      update.metadata ? JSON.stringify(update.metadata) : null,
+    ]);
+
+    if (result.rows.length === 0) return undefined;
+    return this.rowToStyleProfile(result.rows[0] as DbStyleProfileRow);
+  }
+
+  /**
+   * Delete a style profile
+   */
+  async deleteStyleProfile(id: string): Promise<boolean> {
+    const result = await this.pool.query(DELETE_AUI_STYLE_PROFILE, [id]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * List style profiles for a persona
+   */
+  async listStyleProfiles(personaId: string): Promise<StyleProfile[]> {
+    const result = await this.pool.query(LIST_AUI_STYLE_PROFILES, [personaId]);
+    return result.rows.map((row) => this.rowToStyleProfile(row as DbStyleProfileRow));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // CLEANUP
   // ═══════════════════════════════════════════════════════════════════
 
@@ -1596,6 +1804,27 @@ export class AuiPostgresStore {
       },
       referenceExamples: row.reference_examples ?? [],
       voiceFingerprint: row.voice_fingerprint ?? undefined,
+      isDefault: row.is_default,
+      metadata: row.metadata ?? {},
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
+  }
+
+  private rowToStyleProfile(row: DbStyleProfileRow): StyleProfile {
+    return {
+      id: row.id,
+      personaId: row.persona_id,
+      name: row.name,
+      description: row.description ?? undefined,
+      context: row.context ?? undefined,
+      forbiddenPhrases: row.forbidden_phrases ?? [],
+      preferredPatterns: row.preferred_patterns ?? [],
+      sentenceVariety: row.sentence_variety ?? 'medium',
+      paragraphStyle: row.paragraph_style ?? 'medium',
+      useContractions: row.use_contractions ?? true,
+      useRhetoricalQuestions: row.use_rhetorical_questions ?? false,
+      formalityLevel: row.formality_level ?? 0.5,
       isDefault: row.is_default,
       metadata: row.metadata ?? {},
       createdAt: row.created_at,

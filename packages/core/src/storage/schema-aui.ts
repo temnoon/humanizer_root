@@ -215,6 +215,40 @@ CREATE TABLE IF NOT EXISTS aui_persona_profiles (
 `;
 
 // ═══════════════════════════════════════════════════════════════════
+// STYLE PROFILE TABLE
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Style profiles table - context-specific writing styles for personas
+ *
+ * Enables persona -> many styles relationship:
+ * - One persona can have multiple styles (Academic, Casual, Newsletter, etc.)
+ * - Each style has its own forbidden phrases, formality level, etc.
+ * - Supports context-based style selection
+ */
+export const CREATE_AUI_STYLE_PROFILES_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_style_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  persona_id UUID NOT NULL REFERENCES aui_persona_profiles(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  description TEXT,
+  context TEXT,
+  forbidden_phrases TEXT[] DEFAULT '{}',
+  preferred_patterns TEXT[] DEFAULT '{}',
+  sentence_variety TEXT DEFAULT 'medium' CHECK (sentence_variety IN ('low', 'medium', 'high')),
+  paragraph_style TEXT DEFAULT 'medium' CHECK (paragraph_style IN ('short', 'medium', 'long')),
+  use_contractions BOOLEAN DEFAULT TRUE,
+  use_rhetorical_questions BOOLEAN DEFAULT FALSE,
+  formality_level REAL DEFAULT 0.5 CHECK (formality_level >= 0 AND formality_level <= 1),
+  is_default BOOLEAN DEFAULT FALSE,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(persona_id, name)
+);
+`;
+
+// ═══════════════════════════════════════════════════════════════════
 // ARTIFACT TABLE
 // ═══════════════════════════════════════════════════════════════════
 
@@ -301,6 +335,12 @@ CREATE INDEX IF NOT EXISTS idx_aui_personas_user ON aui_persona_profiles(user_id
 CREATE INDEX IF NOT EXISTS idx_aui_personas_name ON aui_persona_profiles(user_id, name);
 CREATE INDEX IF NOT EXISTS idx_aui_personas_default ON aui_persona_profiles(user_id, is_default) WHERE is_default = TRUE;
 CREATE INDEX IF NOT EXISTS idx_aui_personas_updated ON aui_persona_profiles(updated_at DESC);
+
+-- Style profiles indexes
+CREATE INDEX IF NOT EXISTS idx_aui_styles_persona ON aui_style_profiles(persona_id);
+CREATE INDEX IF NOT EXISTS idx_aui_styles_name ON aui_style_profiles(persona_id, name);
+CREATE INDEX IF NOT EXISTS idx_aui_styles_default ON aui_style_profiles(persona_id, is_default) WHERE is_default = TRUE;
+CREATE INDEX IF NOT EXISTS idx_aui_styles_updated ON aui_style_profiles(updated_at DESC);
 `;
 
 /**
@@ -348,6 +388,9 @@ export async function runAuiMigration(
 
   // Create persona profiles table
   await client.query(CREATE_AUI_PERSONA_PROFILES_TABLE);
+
+  // Create style profiles table
+  await client.query(CREATE_AUI_STYLE_PROFILES_TABLE);
 
   // Create indexes
   await client.query(CREATE_AUI_INDEXES);
@@ -694,4 +737,48 @@ LIMIT $2 OFFSET $3
 
 export const CLEAR_DEFAULT_PERSONA_PROFILE = `
 UPDATE aui_persona_profiles SET is_default = FALSE WHERE user_id = $1 AND is_default = TRUE
+`;
+
+// Style Profiles
+export const INSERT_AUI_STYLE_PROFILE = `
+INSERT INTO aui_style_profiles (id, persona_id, name, description, context, forbidden_phrases, preferred_patterns, sentence_variety, paragraph_style, use_contractions, use_rhetorical_questions, formality_level, is_default, metadata, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+RETURNING *
+`;
+
+export const GET_AUI_STYLE_PROFILE = `SELECT * FROM aui_style_profiles WHERE id = $1`;
+
+export const GET_AUI_STYLE_PROFILE_BY_NAME = `SELECT * FROM aui_style_profiles WHERE persona_id = $1 AND name = $2`;
+
+export const GET_AUI_DEFAULT_STYLE_PROFILE = `SELECT * FROM aui_style_profiles WHERE persona_id = $1 AND is_default = TRUE LIMIT 1`;
+
+export const UPDATE_AUI_STYLE_PROFILE = `
+UPDATE aui_style_profiles SET
+  name = COALESCE($2, name),
+  description = COALESCE($3, description),
+  context = COALESCE($4, context),
+  forbidden_phrases = COALESCE($5, forbidden_phrases),
+  preferred_patterns = COALESCE($6, preferred_patterns),
+  sentence_variety = COALESCE($7, sentence_variety),
+  paragraph_style = COALESCE($8, paragraph_style),
+  use_contractions = COALESCE($9, use_contractions),
+  use_rhetorical_questions = COALESCE($10, use_rhetorical_questions),
+  formality_level = COALESCE($11, formality_level),
+  is_default = COALESCE($12, is_default),
+  metadata = COALESCE($13, metadata),
+  updated_at = NOW()
+WHERE id = $1
+RETURNING *
+`;
+
+export const DELETE_AUI_STYLE_PROFILE = `DELETE FROM aui_style_profiles WHERE id = $1`;
+
+export const LIST_AUI_STYLE_PROFILES = `
+SELECT * FROM aui_style_profiles
+WHERE persona_id = $1
+ORDER BY is_default DESC, updated_at DESC
+`;
+
+export const CLEAR_DEFAULT_STYLE_PROFILE = `
+UPDATE aui_style_profiles SET is_default = FALSE WHERE persona_id = $1 AND is_default = TRUE
 `;

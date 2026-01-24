@@ -22,7 +22,7 @@ import type { Pool, PoolClient } from 'pg';
 // ═══════════════════════════════════════════════════════════════════
 
 /** Current schema version */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 // ═══════════════════════════════════════════════════════════════════
 // EXTENSION SETUP
@@ -499,8 +499,28 @@ async function runMigrations(
     );
   }
 
+  // Migration to version 4: Add style profiles table for persona -> styles relationship
+  if (fromVersion < 4) {
+    const { CREATE_AUI_STYLE_PROFILES_TABLE } = await import('./schema-aui.js');
+    await client.query(CREATE_AUI_STYLE_PROFILES_TABLE);
+
+    // Add style profile indexes
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_aui_styles_persona ON aui_style_profiles(persona_id);
+      CREATE INDEX IF NOT EXISTS idx_aui_styles_name ON aui_style_profiles(persona_id, name);
+      CREATE INDEX IF NOT EXISTS idx_aui_styles_default ON aui_style_profiles(persona_id, is_default) WHERE is_default = TRUE;
+      CREATE INDEX IF NOT EXISTS idx_aui_styles_updated ON aui_style_profiles(updated_at DESC);
+    `);
+
+    // Update schema version to 4
+    await client.query(
+      "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      [SCHEMA_VERSION.toString()]
+    );
+  }
+
   // Future migrations would go here:
-  // if (fromVersion < 4) { ... }
+  // if (fromVersion < 5) { ... }
 }
 
 // ═══════════════════════════════════════════════════════════════════

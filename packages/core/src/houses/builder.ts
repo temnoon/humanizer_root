@@ -201,6 +201,17 @@ interface RewriteResult {
   changesApplied: string[];
   confidenceScore: number;
   remainingIssues?: string[];
+  passCount?: number;
+}
+
+/**
+ * Options for multi-pass rewriting to eliminate forbidden phrases
+ */
+interface MultiPassRewriteOptions {
+  /** Maximum number of rewrite passes (default: 3) */
+  maxPasses?: number;
+  /** Stop early if no remaining issues (default: true) */
+  stopOnClean?: boolean;
 }
 
 interface BatchRewriteRequest {
@@ -750,8 +761,15 @@ Respond with JSON: { suggestions: [{ type, location, issue, fix }] }`,
   private async rewriteForPersona(request: RewriteForPersonaRequest): Promise<RewriteResult> {
     const { text, persona, sourceType, voiceIssues } = request;
 
-    // Build the system prompt with persona details
-    const systemPrompt = this.buildPersonaSystemPrompt(persona);
+    // Determine if voiceIssues contains leaked forbidden phrases (for stronger enforcement)
+    const leakedPhrases = voiceIssues?.filter(issue =>
+      persona.styleGuide.forbiddenPhrases.some(fp =>
+        issue.toLowerCase().includes(fp.toLowerCase()) || fp.toLowerCase().includes(issue.toLowerCase())
+      )
+    );
+
+    // Build the system prompt with persona details (pass leaked phrases for stronger enforcement)
+    const systemPrompt = this.buildPersonaSystemPrompt(persona, leakedPhrases && leakedPhrases.length > 0 ? leakedPhrases : undefined);
 
     // Build the user prompt
     const userPrompt = this.buildRewritePrompt(text, persona, sourceType, voiceIssues);
@@ -785,13 +803,87 @@ Respond with JSON: { suggestions: [{ type, location, issue, fix }] }`,
   }
 
   /**
+   * Multi-pass rewrite that iterates until forbidden phrases are eliminated
+   *
+   * This wraps rewriteForPersona with retry logic:
+   * - If first pass has remaining issues (leaked phrases), retry
+   * - Each subsequent pass explicitly targets the leaked phrases
+   * - Stops when clean or max passes reached
+   */
+  private async rewriteForPersonaWithRetry(
+    request: RewriteForPersonaRequest,
+    options?: MultiPassRewriteOptions
+  ): Promise<RewriteResult> {
+    const maxPasses = options?.maxPasses ?? 3;
+    const stopOnClean = options?.stopOnClean ?? true;
+
+    let currentText = request.text;
+    let allChangesApplied: string[] = [];
+    let passCount = 0;
+    let leakedPhrases: string[] = request.voiceIssues ?? [];
+    let lastResult: RewriteResult | null = null;
+
+    while (passCount < maxPasses) {
+      passCount++;
+
+      // On subsequent passes, explicitly target leaked phrases
+      const passRequest: RewriteForPersonaRequest = {
+        ...request,
+        text: currentText,
+        voiceIssues: passCount > 1 ? leakedPhrases : request.voiceIssues,
+      };
+
+      const result = await this.rewriteForPersona(passRequest);
+      lastResult = result;
+
+      // Accumulate changes
+      allChangesApplied.push(...result.changesApplied);
+
+      // Check for remaining issues
+      if (!result.remainingIssues?.length) {
+        // Clean - no leaks!
+        this.log('debug', `Multi-pass rewrite complete after ${passCount} pass(es) - all phrases removed`);
+        return {
+          ...result,
+          changesApplied: allChangesApplied,
+          passCount,
+        };
+      }
+
+      // Still have leaks - prepare for next pass
+      leakedPhrases = result.remainingIssues;
+      currentText = result.rewritten;
+
+      this.log('debug', `Pass ${passCount}: ${leakedPhrases.length} forbidden phrases remain: ${leakedPhrases.join(', ')}`);
+
+      if (stopOnClean && leakedPhrases.length === 0) {
+        break;
+      }
+    }
+
+    // Max passes reached - return best result with warning
+    this.log('warn', `Multi-pass rewrite: max ${maxPasses} passes reached with ${leakedPhrases.length} phrases remaining`);
+
+    return {
+      original: request.text,
+      rewritten: lastResult?.rewritten ?? currentText,
+      changesApplied: allChangesApplied,
+      confidenceScore: lastResult?.confidenceScore ?? 0.3,
+      remainingIssues: leakedPhrases.length > 0 ? leakedPhrases : undefined,
+      passCount,
+    };
+  }
+
+  /**
    * Batch rewrite multiple passages for persona consistency
    *
+   * Uses multi-pass rewriting to ensure forbidden phrases are eliminated.
    * More efficient than individual calls for large passage sets.
    * Maintains consistent voice across all passages.
    */
   private async batchRewriteForPersona(
-    request: BatchRewriteRequest
+    request: BatchRewriteRequest,
+    retryOptions?: MultiPassRewriteOptions
   ): Promise<Map<string, RewriteResult>> {
     const { passages, persona } = request;
     const results = new Map<string, RewriteResult>();
@@ -803,12 +895,13 @@ Respond with JSON: { suggestions: [{ type, location, issue, fix }] }`,
 
       const batchResults = await Promise.all(
         batch.map(async (passage) => {
-          const result = await this.rewriteForPersona({
+          // Use multi-pass rewriting to eliminate forbidden phrases
+          const result = await this.rewriteForPersonaWithRetry({
             text: passage.text,
             persona,
             sourceType: passage.sourceType,
             voiceIssues: passage.voiceIssues,
-          });
+          }, retryOptions);
           return { id: passage.id, result };
         })
       );
@@ -828,8 +921,14 @@ Respond with JSON: { suggestions: [{ type, location, issue, fix }] }`,
 
   /**
    * Build system prompt that embodies the persona
+   *
+   * @param persona - The persona profile to use
+   * @param leakedPhrases - Optional: phrases that leaked through a previous pass (triggers stronger enforcement)
    */
-  private buildPersonaSystemPrompt(persona: PersonaProfileForRewrite): string {
+  private buildPersonaSystemPrompt(
+    persona: PersonaProfileForRewrite,
+    leakedPhrases?: string[]
+  ): string {
     const parts: string[] = [
       `You are a skilled writer who transforms text to match a specific voice and persona.`,
       ``,
@@ -850,7 +949,24 @@ Respond with JSON: { suggestions: [{ type, location, issue, fix }] }`,
     parts.push(`- Use rhetorical questions: ${persona.styleGuide.useRhetoricalQuestions ? 'Yes' : 'No'}`);
     parts.push(``);
 
-    if (persona.styleGuide.forbiddenPhrases.length > 0) {
+    // CRITICAL REMOVAL SECTION - stronger when there are leaked phrases
+    if (leakedPhrases && leakedPhrases.length > 0) {
+      parts.push(`═══════════════════════════════════════════════════════════════════`);
+      parts.push(`⚠️ CRITICAL REMOVAL REQUIRED ⚠️`);
+      parts.push(`═══════════════════════════════════════════════════════════════════`);
+      parts.push(``);
+      parts.push(`The following phrases LEAKED through a previous rewrite and MUST be eliminated:`);
+      for (const phrase of leakedPhrases) {
+        parts.push(`   ❌ "${phrase}" → MUST BE REMOVED OR REPLACED`);
+      }
+      parts.push(``);
+      parts.push(`You MUST NOT use these phrases under ANY circumstances.`);
+      parts.push(`Find alternative ways to express the same meaning.`);
+      parts.push(`This is NON-NEGOTIABLE - your output will be rejected if any of these phrases appear.`);
+      parts.push(``);
+      parts.push(`═══════════════════════════════════════════════════════════════════`);
+      parts.push(``);
+    } else if (persona.styleGuide.forbiddenPhrases.length > 0) {
       parts.push(`FORBIDDEN PHRASES (NEVER use these):`);
       for (const phrase of persona.styleGuide.forbiddenPhrases.slice(0, 15)) {
         parts.push(`- "${phrase}"`);
@@ -878,6 +994,9 @@ Respond with JSON: { suggestions: [{ type, location, issue, fix }] }`,
     parts.push(`Rewrite the given text to match this persona's voice while preserving the core meaning.`);
     parts.push(`Make it sound like the same person who wrote the reference examples.`);
     parts.push(`DO NOT add new ideas - only transform the voice and style.`);
+    if (leakedPhrases && leakedPhrases.length > 0) {
+      parts.push(`ENSURE all forbidden phrases are eliminated - no exceptions.`);
+    }
     parts.push(`Output ONLY the rewritten text, nothing else.`);
 
     return parts.join('\n');
