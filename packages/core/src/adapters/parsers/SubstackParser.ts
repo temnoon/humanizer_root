@@ -435,7 +435,8 @@ export class SubstackParser {
           firstLine.includes('is_published') &&
           firstLine.includes('audience')
         );
-      } catch {
+      } catch (error) {
+        console.debug('[SubstackParser] Error detecting format:', error);
         return false;
       }
     }

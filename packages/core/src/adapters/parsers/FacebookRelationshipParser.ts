@@ -124,8 +124,8 @@ export class FacebookRelationshipParser {
           });
         }
         console.log(`  Removed friends: ${removed.length}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -144,8 +144,8 @@ export class FacebookRelationshipParser {
           });
         }
         console.log(`  Sent requests: ${sentRequests.length}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -164,8 +164,8 @@ export class FacebookRelationshipParser {
           });
         }
         console.log(`  Rejected requests: ${rejectedRequests.length}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -232,8 +232,8 @@ export class FacebookRelationshipParser {
           }
         }
         console.log(`  Advertisers (activity): ${advertisers.size}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -284,8 +284,8 @@ export class FacebookRelationshipParser {
           interactedCount++;
         }
         console.log(`  Advertisers (interacted): ${interactedCount}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -353,8 +353,8 @@ export class FacebookRelationshipParser {
           totalLiked++;
         }
         console.log(`  Pages liked: ${likedPages.length}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -387,8 +387,8 @@ export class FacebookRelationshipParser {
           totalFollowed++;
         }
         console.log(`  Pages followed: ${followedPages.length}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -420,8 +420,8 @@ export class FacebookRelationshipParser {
           totalUnfollowed++;
         }
         console.log(`  Pages unfollowed: ${unfollowedPages.length}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -491,8 +491,8 @@ export class FacebookRelationshipParser {
             title: reaction.title,
           });
         }
-      } catch {
-        // ignore individual file errors
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Failed to parse reaction file:', error);
       }
     }
 
@@ -586,8 +586,8 @@ export class FacebookRelationshipParser {
         }
 
         console.log(`  Group posts: ${posts.length}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -635,8 +635,8 @@ export class FacebookRelationshipParser {
         }
 
         console.log(`  Group comments: ${comments.length}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -668,8 +668,8 @@ export class FacebookRelationshipParser {
         }
 
         console.log(`  Group memberships: ${rawMemberships.length}`);
-      } catch {
-        // ignore
+      } catch (error) {
+        console.debug('[FacebookRelationshipParser] Parse error:', error);
       }
     }
 
@@ -805,7 +805,8 @@ export class FacebookRelationshipParser {
       const parsed = JSON.parse(`"${text.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')}"`);
       const bytes = new Uint8Array([...parsed].map(c => c.charCodeAt(0)));
       return new TextDecoder('utf-8').decode(bytes);
-    } catch {
+    } catch (error) {
+      console.debug('[FacebookRelationshipParser] Unicode decode fallback:', error);
       return text
         .replace(/\\u00([0-9a-f]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
     }

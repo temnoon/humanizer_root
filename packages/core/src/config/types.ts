@@ -26,7 +26,8 @@ export type ConfigCategory =
   | 'labels'         // UI strings (i18n ready)
   | 'features'       // Feature flags
   | 'secrets'        // Encrypted sensitive values
-  | 'agents';        // Agent-specific configuration
+  | 'agents'         // Agent-specific configuration
+  | 'aui';           // AUI-specific configuration
 
 /**
  * Value types for configuration entries

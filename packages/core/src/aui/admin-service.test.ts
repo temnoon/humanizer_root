@@ -206,7 +206,7 @@ describe('AdminService', () => {
         id: 'new-prompt',
         name: 'New Prompt',
         template: 'New template',
-        variables: [],
+        requiredVariables: [],
       });
 
       expect(mockConfig.savePrompt).toHaveBeenCalled();

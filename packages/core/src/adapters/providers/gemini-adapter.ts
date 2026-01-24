@@ -112,8 +112,8 @@ export class GeminiAdapter extends BaseAdapter {
               };
             }
           }
-        } catch {
-          // Invalid JSON, not a Gemini export
+        } catch (error) {
+          console.debug('[GeminiAdapter] Invalid JSON in conversation.json:', error);
         }
       }
 
@@ -131,8 +131,8 @@ export class GeminiAdapter extends BaseAdapter {
               if (conv.source === 'Gemini' || (conv.messages && conv.messages[0]?.role)) {
                 geminiLikeFolders.push(entry);
               }
-            } catch {
-              // Continue checking other folders
+            } catch (error) {
+              console.debug('[GeminiAdapter] Failed to parse folder conversation:', error);
             }
           }
         }
@@ -160,8 +160,8 @@ export class GeminiAdapter extends BaseAdapter {
               reason: 'File is a Gemini conversation.json',
             };
           }
-        } catch {
-          // Invalid JSON
+        } catch (error) {
+          console.debug('[GeminiAdapter] Invalid JSON in file:', error);
         }
       }
 
@@ -259,8 +259,8 @@ export class GeminiAdapter extends BaseAdapter {
                 if (!latestDate || date > latestDate) latestDate = date;
               }
             }
-          } catch {
-            // Continue with other folders
+          } catch (error) {
+            console.debug('[GeminiAdapter] Failed to parse bulk conversation:', error);
           }
         }
       }
@@ -283,8 +283,8 @@ export class GeminiAdapter extends BaseAdapter {
               if (!latestDate || date > latestDate) latestDate = date;
             }
           }
-        } catch {
-          // Ignore
+        } catch (error) {
+          console.debug('[GeminiAdapter] Failed to parse single conversation:', error);
         }
       }
     }

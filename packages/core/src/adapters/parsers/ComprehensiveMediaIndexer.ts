@@ -162,7 +162,8 @@ export class ComprehensiveMediaIndexer {
         try {
           const stats = fs.statSync(filepath);
           fileSize = stats.size;
-        } catch {
+        } catch (error) {
+          console.debug('[ComprehensiveMediaIndexer] Error getting file stats:', error);
           return;
         }
 

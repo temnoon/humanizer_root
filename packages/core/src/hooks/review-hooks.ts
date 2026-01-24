@@ -205,12 +205,12 @@ export class ReviewHooksManager {
     // Load configuration
     await this.loadConfig();
 
-    // Get agent instances
-    this.agents.set('architect', getArchitectAgent() as unknown as DevelopmentAgentBase);
-    this.agents.set('stylist', getStylistAgent() as unknown as DevelopmentAgentBase);
-    this.agents.set('security', getSecurityAgent() as unknown as DevelopmentAgentBase);
-    this.agents.set('accessibility', getAccessibilityAgent() as unknown as DevelopmentAgentBase);
-    this.agents.set('data', getDataAgent() as unknown as DevelopmentAgentBase);
+    // Get agent instances - all extend DevelopmentAgentBase
+    this.agents.set('architect', getArchitectAgent());
+    this.agents.set('stylist', getStylistAgent());
+    this.agents.set('security', getSecurityAgent());
+    this.agents.set('accessibility', getAccessibilityAgent());
+    this.agents.set('data', getDataAgent());
 
     // Subscribe to development events
     this.subscribeToEvents();

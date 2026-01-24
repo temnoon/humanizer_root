@@ -303,8 +303,8 @@ export class InstagramAdapter extends BaseAdapter {
             email: userData.Email?.value,
           };
         }
-      } catch {
-        // Ignore profile parsing errors
+      } catch (error) {
+        console.debug('[InstagramAdapter] Failed to parse profile:', error);
       }
     }
 
@@ -320,8 +320,8 @@ export class InstagramAdapter extends BaseAdapter {
         const comments = await this.readJson<InstagramComment[]>(commentsPath);
         estimatedCount += comments.length;
         contentTypes.add('instagram-comment');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[InstagramAdapter] Failed to parse comments:', error);
       }
     }
 
@@ -334,8 +334,8 @@ export class InstagramAdapter extends BaseAdapter {
         estimatedCount += threads.length * 30;
         contentTypes.add('instagram-message');
         contentTypes.add('instagram-conversation');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[InstagramAdapter] Failed to read inbox:', error);
       }
     }
 
@@ -346,8 +346,8 @@ export class InstagramAdapter extends BaseAdapter {
         const posts = await this.readDir(postsDir);
         estimatedCount += posts.length;
         contentTypes.add('instagram-post');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[InstagramAdapter] Failed to read posts:', error);
       }
     }
 

@@ -90,7 +90,8 @@ export function getInstalledVersions(): string[] {
       .filter((entry) => entry.isDirectory() && /^\d+/.test(entry.name))
       .map((entry) => entry.name)
       .sort((a, b) => parseInt(b) - parseInt(a)); // Latest first
-  } catch {
+  } catch (error) {
+    console.debug('[postgres-detection] Error reading Postgres versions:', error);
     return [];
   }
 }
@@ -186,7 +187,8 @@ export async function checkDatabaseExists(
     
     await pool.end();
     return result.rows.length > 0;
-  } catch {
+  } catch (error) {
+    console.debug('[postgres-detection] Database check failed:', error);
     await pool.end().catch(() => {});
     return false;
   }
@@ -216,7 +218,8 @@ export async function checkPgvectorAvailable(
     
     await pool.end();
     return result.rows.length > 0;
-  } catch {
+  } catch (error) {
+    console.debug('[postgres-detection] pgvector check failed:', error);
     await pool.end().catch(() => {});
     return false;
   }

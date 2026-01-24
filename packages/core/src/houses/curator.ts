@@ -755,7 +755,8 @@ Respond with JSON array:
         return JSON.parse(jsonMatch[0]);
       }
       return {};
-    } catch {
+    } catch (error) {
+      console.debug('[Curator] JSON parse error:', error);
       return {};
     }
   }
@@ -777,8 +778,8 @@ Respond with JSON array:
           return this.cosineSimilarity(data.embeddings[0], data.embeddings[1]);
         }
       }
-    } catch {
-      // Fallback to simple text similarity
+    } catch (error) {
+      console.debug('[Curator] Embedding similarity failed:', error);
     }
 
     // Fallback: simple Jaccard similarity

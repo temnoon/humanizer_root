@@ -420,7 +420,8 @@ export class FacebookParser {
       const hasTimestampMs = data.messages?.[0]?.timestamp_ms !== undefined;
 
       return hasParticipants && hasMessages && hasTimestampMs;
-    } catch {
+    } catch (error) {
+      console.debug('[FacebookParser] Error checking format:', error);
       return false;
     }
   }

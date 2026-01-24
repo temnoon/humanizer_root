@@ -356,8 +356,8 @@ export class FacebookAdapter extends BaseAdapter {
             accountInfo.email = profile.profile_v2.emails.emails[0];
           }
         }
-      } catch {
-        // Ignore profile parsing errors
+      } catch (error) {
+        console.debug('[FacebookAdapter] Failed to parse profile:', error);
       }
     }
 
@@ -379,8 +379,8 @@ export class FacebookAdapter extends BaseAdapter {
                 if (!latestDate || date > latestDate) latestDate = date;
               }
             }
-          } catch {
-            // Continue with other files
+          } catch (error) {
+            console.debug('[FacebookAdapter] Failed to parse post file:', error);
           }
         }
       }
@@ -398,8 +398,8 @@ export class FacebookAdapter extends BaseAdapter {
         const data = await this.readJson<{ comments_v2: FacebookComment[] }>(commentsPath);
         estimatedCount += data.comments_v2?.length || 0;
         contentTypes.add('facebook-comment');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[FacebookAdapter] Failed to parse comments:', error);
       }
     }
 
@@ -412,8 +412,8 @@ export class FacebookAdapter extends BaseAdapter {
         estimatedCount += threads.length * 50;
         contentTypes.add('facebook-message');
         contentTypes.add('facebook-conversation');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[FacebookAdapter] Failed to read inbox:', error);
       }
     }
 

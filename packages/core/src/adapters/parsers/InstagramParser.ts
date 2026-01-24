@@ -156,8 +156,8 @@ export class InstagramParser {
             this.username = data.profile_user[0].string_map_data.Username.value;
             return;
           }
-        } catch {
-          // Continue to next file
+        } catch (error) {
+          console.debug('[InstagramParser] Error parsing profile file:', error);
         }
       }
     }
@@ -655,7 +655,8 @@ export class InstagramParser {
       return text.replace(/\\u00([0-9a-f]{2})/gi, (match, hex) => {
         return String.fromCharCode(parseInt(hex, 16));
       });
-    } catch {
+    } catch (error) {
+      console.debug('[InstagramParser] Error fixing encoding:', error);
       return text;
     }
   }

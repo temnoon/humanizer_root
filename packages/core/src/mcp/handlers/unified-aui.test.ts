@@ -41,6 +41,24 @@ import { resetBufferManager } from '../../aui/buffer-manager.js';
 import { resetAdminService } from '../../aui/admin-service.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TEST HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface McpResult {
+  content: Array<{ text?: string }>;
+  isError?: boolean;
+}
+
+/**
+ * Safely parse MCP result JSON
+ */
+function parseResult<T = Record<string, unknown>>(result: McpResult): T {
+  const text = result.content[0]?.text;
+  if (!text) throw new Error('No content in MCP result');
+  return JSON.parse(text) as T;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MOCK CONFIG MANAGER
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -106,7 +124,7 @@ describe('Unified AUI MCP Handlers', () => {
       const result = await handleSessionCreate({ name: 'Test Session' });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.sessionId).toBeDefined();
       expect(data.createdAt).toBeDefined();
     });
@@ -118,20 +136,20 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.sessionId).toBeDefined();
     });
 
     it('gets a session by ID', async () => {
       // Create first
       const createResult = await handleSessionCreate({ name: 'Get Me' });
-      const { sessionId } = JSON.parse(createResult.content[0].text);
+      const { sessionId } = parseResult<{ sessionId: string }>(createResult);
 
       // Get it
       const result = await handleSessionGet({ sessionId });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.id).toBe(sessionId);
     });
 
@@ -139,7 +157,7 @@ describe('Unified AUI MCP Handlers', () => {
       const result = await handleSessionGet({ sessionId: 'nonexistent' });
 
       expect(result.isError).toBe(true);
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.error).toContain('not found');
     });
 
@@ -150,19 +168,19 @@ describe('Unified AUI MCP Handlers', () => {
       const result = await handleSessionList();
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.count).toBe(2);
       expect(data.sessions).toHaveLength(2);
     });
 
     it('deletes a session', async () => {
       const createResult = await handleSessionCreate({ name: 'Delete Me' });
-      const { sessionId } = JSON.parse(createResult.content[0].text);
+      const { sessionId } = parseResult<{ sessionId: string }>(createResult);
 
       const result = await handleSessionDelete({ sessionId });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.success).toBe(true);
 
       // Verify deleted
@@ -180,7 +198,7 @@ describe('Unified AUI MCP Handlers', () => {
 
     beforeEach(async () => {
       const result = await handleSessionCreate({ name: 'Buffer Test' });
-      sessionId = JSON.parse(result.content[0].text).sessionId;
+      sessionId = parseResult<{ sessionId: string }>(result).sessionId;
     });
 
     it('creates a buffer', async () => {
@@ -191,7 +209,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.name).toBe('testBuffer');
       expect(data.itemCount).toBe(1);
     });
@@ -203,7 +221,7 @@ describe('Unified AUI MCP Handlers', () => {
       const result = await handleBufferList({ sessionId });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.buffers).toHaveLength(2);
     });
 
@@ -217,7 +235,7 @@ describe('Unified AUI MCP Handlers', () => {
       const result = await handleBufferGet({ sessionId, name: 'getTest' });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       // Handler returns 'items' not 'content'
       expect(data.items).toHaveLength(3);
     });
@@ -232,7 +250,7 @@ describe('Unified AUI MCP Handlers', () => {
       const result = await handleBufferGet({ sessionId, name: 'limitTest', limit: 2 });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       // Handler returns 'items' not 'content'
       expect(data.items).toHaveLength(2);
       expect(data.total).toBe(5);
@@ -248,7 +266,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.itemCount).toBe(1);
       expect(data.success).toBe(true);
     });
@@ -267,7 +285,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       // Handler returns 'itemCount' (total) and 'appended' (count added)
       expect(data.itemCount).toBe(3);
       expect(data.appended).toBe(2);
@@ -288,7 +306,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.versionId).toBeDefined();
       expect(data.message).toBe('Added item');
     });
@@ -303,7 +321,7 @@ describe('Unified AUI MCP Handlers', () => {
       const result = await handleBufferHistory({ sessionId, name: 'historyTest' });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult<{ history: unknown[] }>(result);
       expect(data.history.length).toBe(3); // Initial + 2 commits
     });
 
@@ -325,7 +343,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.message).toBe('Added 2');
     });
   });
@@ -339,7 +357,7 @@ describe('Unified AUI MCP Handlers', () => {
 
     beforeEach(async () => {
       const result = await handleSessionCreate({ name: 'Branch Test' });
-      sessionId = JSON.parse(result.content[0].text).sessionId;
+      sessionId = parseResult<{ sessionId: string }>(result).sessionId;
       await handleBufferCreate({ sessionId, name: 'branchBuffer' });
     });
 
@@ -351,7 +369,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.branch).toBe('feature');
     });
 
@@ -368,7 +386,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.branches).toHaveLength(2); // main + feature
     });
 
@@ -386,7 +404,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.success).toBe(true);
       expect(data.branch).toBe('feature');
     });
@@ -430,7 +448,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.success).toBe(true);
     });
 
@@ -445,7 +463,7 @@ describe('Unified AUI MCP Handlers', () => {
         name: 'branchBuffer',
         message: 'First',
       });
-      const v1 = JSON.parse(commit1.content[0].text).versionId;
+      const v1 = parseResult<{ versionId: string }>(commit1).versionId;
 
       await handleBufferAppend({
         sessionId,
@@ -457,7 +475,7 @@ describe('Unified AUI MCP Handlers', () => {
         name: 'branchBuffer',
         message: 'Second',
       });
-      const v2 = JSON.parse(commit2.content[0].text).versionId;
+      const v2 = parseResult<{ versionId: string }>(commit2).versionId;
 
       const result = await handleBufferDiff({
         sessionId,
@@ -467,7 +485,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       // Handler returns counts, not arrays
       expect(data.added).toBe(1);
     });
@@ -487,7 +505,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.value).toBe(25);
     });
 
@@ -495,12 +513,12 @@ describe('Unified AUI MCP Handlers', () => {
       const result = await handleAdminConfigSet({
         category: 'aui',
         key: 'temperature',
-        value: 0.5,
+        value: '0.5', // JSON string
         reason: 'Testing',
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.success).toBe(true);
     });
 
@@ -508,16 +526,16 @@ describe('Unified AUI MCP Handlers', () => {
       const result = await handleAdminTierList();
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult<{ tiers: Array<{ id: string }> }>(result);
       expect(data.tiers.length).toBeGreaterThan(0);
-      expect(data.tiers.some((t: any) => t.id === 'free')).toBe(true);
+      expect(data.tiers.some((t) => t.id === 'free')).toBe(true);
     });
 
     it('gets tier details', async () => {
       const result = await handleAdminTierGet({ tierId: 'free' });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.id).toBe('free');
       expect(data.limits).toBeDefined();
     });
@@ -529,7 +547,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.userId).toBe('test-user');
     });
 
@@ -539,7 +557,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBeFalsy();
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.totalRequests).toBeDefined();
       expect(data.totalCostCents).toBeDefined();
     });
@@ -552,7 +570,7 @@ describe('Unified AUI MCP Handlers', () => {
   describe('Error Handling', () => {
     it('returns error for buffer operations on non-existent buffer', async () => {
       const createResult = await handleSessionCreate({ name: 'Error Test' });
-      const sessionId = JSON.parse(createResult.content[0].text).sessionId;
+      const sessionId = parseResult<{ sessionId: string }>(createResult).sessionId;
 
       const result = await handleBufferGet({
         sessionId,
@@ -560,13 +578,13 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBe(true);
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.error).toContain('not found');
     });
 
     it('returns error for commit with no changes', async () => {
       const createResult = await handleSessionCreate({ name: 'No Changes' });
-      const sessionId = JSON.parse(createResult.content[0].text).sessionId;
+      const sessionId = parseResult<{ sessionId: string }>(createResult).sessionId;
       await handleBufferCreate({ sessionId, name: 'noChanges' });
 
       const result = await handleBufferCommit({
@@ -576,13 +594,13 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBe(true);
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.error).toContain('Nothing to commit');
     });
 
     it('returns error when switching branch with uncommitted changes', async () => {
       const createResult = await handleSessionCreate({ name: 'Dirty Switch' });
-      const sessionId = JSON.parse(createResult.content[0].text).sessionId;
+      const sessionId = parseResult<{ sessionId: string }>(createResult).sessionId;
       await handleBufferCreate({ sessionId, name: 'dirtyBuffer' });
       await handleBufferBranchCreate({
         sessionId,
@@ -604,7 +622,7 @@ describe('Unified AUI MCP Handlers', () => {
       });
 
       expect(result.isError).toBe(true);
-      const data = JSON.parse(result.content[0].text);
+      const data = parseResult(result);
       expect(data.error).toContain('uncommitted');
     });
   });

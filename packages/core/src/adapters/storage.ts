@@ -285,7 +285,8 @@ export class ImportService {
               linksCreated += result.value.links.length;
             }
           }
-        } catch {
+        } catch (error) {
+          console.debug('[ImportStorage] Failed to store node:', error);
           nodesFailed++;
         }
 
@@ -307,7 +308,7 @@ export class ImportService {
         nodesSkipped,
         nodesFailed,
         linksCreated,
-        stats: stats as unknown as Record<string, unknown> | undefined,
+        stats: stats ? { ...stats } : undefined,
       });
 
       return (await this.storage.getJob(job.id)) as ImportJob;

@@ -404,7 +404,8 @@ export abstract class DevelopmentAgentBase extends AgentBase {
       }
 
       return null;
-    } catch {
+    } catch (error) {
+      console.debug('[DevelopmentAgentBase] JSON parse error:', error);
       return null;
     }
   }

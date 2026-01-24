@@ -82,8 +82,8 @@ async function getCli(): Promise<InstanceType<typeof import('@humanizer/npe').Bq
         semanticThreshold: 0.5,
       });
       storageConnected = true;
-    } catch {
-      // Store not initialized - continue without archive access
+    } catch (error) {
+      console.debug('[AUI] Store not initialized:', error);
       storageConnected = false;
     }
 

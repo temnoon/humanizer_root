@@ -493,8 +493,8 @@ Respond with JSON: {
       if (response.success && response.data) {
         detectionResult = response.data as { score?: number };
       }
-    } catch {
-      // Detection service unavailable
+    } catch (error) {
+      console.debug('[Reviewer] Detection service unavailable:', error);
     }
 
     const aiScore = detectionResult.score ?? 0.5;
@@ -757,7 +757,8 @@ Respond with JSON: { score: 0-1, issues: [{ severity, location, description }] }
       const match = text.match(/\{[\s\S]*\}/);
       if (match) return JSON.parse(match[0]);
       return {};
-    } catch {
+    } catch (error) {
+      console.debug('[Reviewer] JSON parse error:', error);
       return {};
     }
   }

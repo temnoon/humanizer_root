@@ -412,8 +412,8 @@ export class TwitterParser {
       matchingFiles.forEach((f) => {
         mediaFiles.push(path.join(mediaDir, f));
       });
-    } catch {
-      // Ignore errors reading media directory
+    } catch (error) {
+      console.debug('[TwitterParser] Error reading media directory:', error);
     }
 
     return mediaFiles;
@@ -453,7 +453,8 @@ export class TwitterParser {
       try {
         const content = fs.readFileSync(path.join(dataDir, 'tweets.js'), 'utf-8');
         return content.startsWith('window.YTD.tweets');
-      } catch {
+      } catch (error) {
+        console.debug('[TwitterParser] Error detecting format:', error);
         return false;
       }
     }

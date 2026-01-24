@@ -155,7 +155,8 @@ export class VimalakirtiBoundary {
         confidence: Math.min(1, Math.max(0, parsed.confidence || 0.5)),
         reasoning: parsed.reasoning || '',
       };
-    } catch {
+    } catch (error) {
+      console.debug('[Vimalakirti] JSON parse error in assessInquiryLevel:', error);
       // Default to information-seeking if parsing fails
       return {
         level: 'information',
@@ -188,7 +189,8 @@ export class VimalakirtiBoundary {
         severity: this.normalizeSeverity(parsed.severity),
         suggestedResource: parsed.suggestedResource,
       };
-    } catch {
+    } catch (error) {
+      console.debug('[Vimalakirti] JSON parse error in checkProfessionalDistance:', error);
       // Default to no redirect if parsing fails
       return {
         needsRedirect: false,
@@ -223,7 +225,8 @@ export class VimalakirtiBoundary {
         shouldProceed: parsed.shouldProceed !== false,
         redirectMessage: parsed.redirectMessage,
       };
-    } catch {
+    } catch (error) {
+      console.debug('[Vimalakirti] JSON parse error in checkShadowPatterns:', error);
       // Default to no shadow patterns if parsing fails
       return {
         hasShadowPatterns: false,

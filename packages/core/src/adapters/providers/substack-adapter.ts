@@ -237,8 +237,8 @@ export class SubstackAdapter extends BaseAdapter {
           name: settings.author_name || settings.name,
           handle: settings.subdomain,
         };
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[SubstackAdapter] Failed to parse settings.json:', error);
       }
     }
 

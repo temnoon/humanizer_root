@@ -26,6 +26,7 @@ import {
   INSERT_LINK,
   INSERT_JOB,
   VECTOR_SEARCH,
+  GET_RANDOM_EMBEDDED_NODES,
   FTS_SEARCH,
   GET_NODE_BY_ID,
   GET_NODE_BY_URI,
@@ -491,7 +492,8 @@ export class PostgresContentStore {
 
           await client.query(UPDATE_EMBEDDING, [vectorSql, model, now, textHash, nodeId]);
           result.stored++;
-        } catch {
+        } catch (error) {
+          console.debug('[PostgresContentStore] Failed to store embedding:', error);
           result.failed++;
         }
       }
@@ -522,7 +524,13 @@ export class PostgresContentStore {
       return undefined;
     }
 
-    return fromSql(result.rows[0].embedding);
+    const embedding = result.rows[0].embedding;
+    // When pgvector types are registered, embedding is already a number[]
+    // Only call fromSql if it's still a string
+    if (Array.isArray(embedding)) {
+      return embedding;
+    }
+    return fromSql(embedding);
   }
 
   /**
@@ -548,6 +556,17 @@ export class PostgresContentStore {
 
     const result = await this.pool!.query(GET_NODES_NEEDING_EMBEDDINGS, [limit]);
     return result.rows.map((row: DbRow) => this.rowToNode(row));
+  }
+
+  /**
+   * Get random nodes that have embeddings (for clustering seed selection).
+   * Returns node IDs only for efficiency - use getNode() to fetch full data.
+   */
+  async getRandomEmbeddedNodeIds(limit: number): Promise<string[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_RANDOM_EMBEDDED_NODES, [limit]);
+    return result.rows.map((row: { id: string }) => row.id);
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -847,7 +866,8 @@ export class PostgresContentStore {
     try {
       await this.pool!.query('SELECT 1');
       return true;
-    } catch {
+    } catch (error) {
+      console.debug('[PostgresContentStore] Health check failed:', error);
       return false;
     }
   }

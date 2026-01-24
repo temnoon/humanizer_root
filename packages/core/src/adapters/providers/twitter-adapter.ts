@@ -350,8 +350,8 @@ export class TwitterAdapter extends BaseAdapter {
             email: acc.email,
           };
         }
-      } catch {
-        // Ignore account parsing errors
+      } catch (error) {
+        console.debug('[TwitterAdapter] Failed to parse account:', error);
       }
     }
 
@@ -370,8 +370,8 @@ export class TwitterAdapter extends BaseAdapter {
             if (!latestDate || date > latestDate) latestDate = date;
           }
         }
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[TwitterAdapter] Failed to parse tweets:', error);
       }
     }
 
@@ -384,8 +384,8 @@ export class TwitterAdapter extends BaseAdapter {
           estimatedCount += conv.dmConversation.messages.length;
         }
         contentTypes.add('twitter-dm');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[TwitterAdapter] Failed to parse DMs:', error);
       }
     }
 
@@ -396,8 +396,8 @@ export class TwitterAdapter extends BaseAdapter {
         const likes = await this.parseTwitterJs<TwitterLikeWrapper[]>(likePath);
         estimatedCount += likes.length;
         contentTypes.add('twitter-like');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[TwitterAdapter] Failed to parse likes:', error);
       }
     }
 

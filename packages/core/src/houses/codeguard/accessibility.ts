@@ -1300,7 +1300,8 @@ export class AccessibilityAgent extends DevelopmentAgentBase {
       const darker = Math.min(fgLum, bgLum);
 
       return (lighter + 0.05) / (darker + 0.05);
-    } catch {
+    } catch (error) {
+      console.debug('[Accessibility] Contrast calculation error:', error);
       // If we can't calculate, assume it passes
       return 21;
     }

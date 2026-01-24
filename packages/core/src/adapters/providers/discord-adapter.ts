@@ -226,8 +226,8 @@ export class DiscordAdapter extends BaseAdapter {
             : user.username,
           email: user.email,
         };
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[DiscordAdapter] Failed to parse user.json:', error);
       }
     }
 
@@ -293,8 +293,8 @@ export class DiscordAdapter extends BaseAdapter {
     if (await this.fileExists(channelJsonPath)) {
       try {
         channel = await this.readJson<DiscordChannel>(channelJsonPath);
-      } catch {
-        // Continue without metadata
+      } catch (error) {
+        console.debug('[DiscordAdapter] Failed to parse channel.json:', error);
       }
     }
 

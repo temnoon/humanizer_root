@@ -205,8 +205,8 @@ export class ClaudeAdapter extends BaseAdapter {
             name: user.full_name,
           };
         }
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[ClaudeAdapter] Failed to parse users.json:', error);
       }
     }
 

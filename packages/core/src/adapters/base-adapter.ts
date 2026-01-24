@@ -236,7 +236,8 @@ export abstract class BaseAdapter implements ContentAdapter {
     try {
       await fs.access(path);
       return true;
-    } catch {
+    } catch (error) {
+      console.debug('[BaseAdapter] File does not exist:', error);
       return false;
     }
   }
@@ -275,7 +276,8 @@ export abstract class BaseAdapter implements ContentAdapter {
     try {
       const stat = await fs.stat(path);
       return stat.isDirectory();
-    } catch {
+    } catch (error) {
+      console.debug('[BaseAdapter] Path is not a directory:', error);
       return false;
     }
   }
@@ -353,7 +355,8 @@ export abstract class BaseAdapter implements ContentAdapter {
       // Check if it's valid UTF-8 that was double-encoded
       const decoded = decodeURIComponent(escape(bytes));
       return decoded;
-    } catch {
+    } catch (error) {
+      console.debug('[BaseAdapter] Unicode decode fallback:', error);
       // If that fails, just return the original
       return text;
     }

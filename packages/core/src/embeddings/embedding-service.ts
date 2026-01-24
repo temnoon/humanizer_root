@@ -14,7 +14,7 @@
 import type { Embedder, Summarizer, PyramidBuildResult } from '../pyramid/types.js';
 import { PyramidBuilder, initPyramidBuilder } from '../pyramid/builder.js';
 import { MIN_WORDS_FOR_PYRAMID } from '../pyramid/constants.js';
-import { countWords } from '../chunking/index.js';
+import { countWords, ChunkingService, MAX_CHUNK_CHARS } from '../chunking/index.js';
 import type { StoredNode } from '../storage/types.js';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -99,7 +99,8 @@ export class EmbeddingService {
         signal: AbortSignal.timeout(5000),
       });
       return response.ok;
-    } catch {
+    } catch (error) {
+      console.debug('[EmbeddingService] Ollama not available:', error);
       return false;
     }
   }
@@ -312,7 +313,14 @@ export class EmbeddingService {
   }
 
   /**
-   * Embed existing nodes from database
+   * Embed existing nodes from database.
+   *
+   * Long texts are chunked using the ChunkingService to fit within
+   * embedding model context limits. Uses cascade strategies:
+   * conversation → paragraph → sentence → clause → hard.
+   *
+   * For multi-chunk content, embeds the first chunk (use processContent
+   * for full pyramid with all chunks).
    *
    * @param nodes - Nodes to embed
    * @returns Array of {nodeId, embedding} for storage
@@ -333,8 +341,43 @@ export class EmbeddingService {
       console.log(`  Embedding ${needsEmbedding.length} nodes...`);
     }
 
-    // Extract texts and embed in batch
-    const texts = needsEmbedding.map((n) => n.text);
+    // Use ChunkingService with target chars safe for embedding model
+    // nomic-embed-text has 2048 token context, ~4 chars/token average = 8192 chars max
+    // Use conservative limit of 4000 chars to account for tokenization variance
+    const SAFE_CHARS = 4000;
+    const chunker = new ChunkingService({
+      targetChunkChars: 3000, // Target well under the limit
+      maxChunkChars: SAFE_CHARS,    // Hard limit
+      preserveParagraphs: true,
+      preserveSentences: true,
+    });
+
+    // Extract texts, chunking long content
+    const texts = needsEmbedding.map((n) => {
+      const text = n.text || '';
+      if (text.length <= SAFE_CHARS) {
+        return text;
+      }
+
+      // Use chunking cascade for long texts
+      const result = chunker.chunk({
+        content: text,
+        parentId: n.id,
+        format: 'markdown', // Preserves structure better
+      });
+
+      // Use first chunk for embedding
+      // (Full pyramid with all chunks via processContent)
+      if (result.chunks.length > 0) {
+        if (this.config.verbose) {
+          console.log(`  Chunked ${text.length} chars into ${result.chunks.length} chunks, using first`);
+        }
+        return result.chunks[0].text;
+      }
+
+      return text.substring(0, SAFE_CHARS); // Fallback truncation
+    });
+
     const batchResult = await this.embedBatch(texts);
 
     // Pair node IDs with embeddings

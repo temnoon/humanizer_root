@@ -96,7 +96,8 @@ export class ConnectionManager {
       const pool = await this.getPool();
       await pool.query('SELECT 1');
       return true;
-    } catch {
+    } catch (error) {
+      console.debug('[ConnectionManager] Health check failed:', error);
       return false;
     }
   }

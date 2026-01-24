@@ -418,27 +418,42 @@ export class StubBooksStore implements BooksStoreInterface {
     return this.available;
   }
 
-  async searchByEmbedding(): Promise<Array<{ node: BookNode; score: number }>> {
+  async searchByEmbedding(
+    _embedding: number[],
+    _options?: {
+      limit?: number;
+      threshold?: number;
+      bookId?: string;
+      hierarchyLevel?: number;
+    }
+  ): Promise<Array<{ node: BookNode; score: number }>> {
     return [];
   }
 
-  async searchByKeyword(): Promise<Array<{ node: BookNode; score: number }>> {
+  async searchByKeyword(
+    _query: string,
+    _options?: {
+      limit?: number;
+      bookId?: string;
+      hierarchyLevel?: number;
+    }
+  ): Promise<Array<{ node: BookNode; score: number }>> {
     return [];
   }
 
-  async getNode(): Promise<BookNode | undefined> {
+  async getNode(_id: string): Promise<BookNode | undefined> {
     return undefined;
   }
 
-  async getNodes(): Promise<BookNode[]> {
+  async getNodes(_ids: string[]): Promise<BookNode[]> {
     return [];
   }
 
-  async getEmbedding(): Promise<number[] | undefined> {
+  async getEmbedding(_nodeId: string): Promise<number[] | undefined> {
     return undefined;
   }
 
-  async getEmbeddings(): Promise<Map<string, number[]>> {
+  async getEmbeddings(_nodeIds: string[]): Promise<Map<string, number[]>> {
     return new Map();
   }
 }

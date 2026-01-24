@@ -491,7 +491,8 @@ export class RedditParser {
         const content = fs.readFileSync(path.join(extractedDir, 'posts.csv'), 'utf-8');
         const firstLine = content.split('\n')[0];
         return firstLine.includes('subreddit') && firstLine.includes('gildings');
-      } catch {
+      } catch (error) {
+        console.debug('[RedditParser] Error detecting format:', error);
         return false;
       }
     }

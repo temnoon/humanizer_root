@@ -236,8 +236,8 @@ export class LinkedInAdapter extends BaseAdapter {
             name: `${profile['First Name']} ${profile['Last Name']}`.trim(),
           };
         }
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[LinkedInAdapter] Failed to parse profile:', error);
       }
     }
 
@@ -249,8 +249,8 @@ export class LinkedInAdapter extends BaseAdapter {
         const connections = this.parseCsv<LinkedInConnection>(content);
         estimatedCount += connections.length;
         if (connections.length > 0) contentTypes.add('linkedin-connection');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[LinkedInAdapter] Failed to parse connections:', error);
       }
     }
 
@@ -262,8 +262,8 @@ export class LinkedInAdapter extends BaseAdapter {
         const messages = this.parseCsv<LinkedInMessage>(content);
         estimatedCount += messages.length;
         if (messages.length > 0) contentTypes.add('linkedin-message');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[LinkedInAdapter] Failed to parse messages:', error);
       }
     }
 
@@ -275,8 +275,8 @@ export class LinkedInAdapter extends BaseAdapter {
         const shares = this.parseCsv<LinkedInShare>(content);
         estimatedCount += shares.length;
         if (shares.length > 0) contentTypes.add('linkedin-post');
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug('[LinkedInAdapter] Failed to parse shares:', error);
       }
     }
 

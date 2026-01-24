@@ -724,7 +724,8 @@ Respond with JSON: { voiceConsistency, formalityLevel, emotionalTone, readabilit
       const match = text.match(/\{[\s\S]*\}/);
       if (match) return JSON.parse(match[0]);
       return {};
-    } catch {
+    } catch (error) {
+      console.debug('[Builder] JSON parse error:', error);
       return {};
     }
   }

@@ -631,8 +631,8 @@ export class HarvesterAgent extends AgentBase {
       if (response.success && response.data) {
         return ((response.data as { output: string }).output || 'Discovered Theme').trim();
       }
-    } catch {
-      // Fallback
+    } catch (error) {
+      console.debug('[Harvester] Theme generation failed:', error);
     }
 
     return 'Discovered Theme';

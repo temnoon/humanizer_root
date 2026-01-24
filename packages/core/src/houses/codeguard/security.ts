@@ -836,8 +836,8 @@ export class SecurityAgent extends DevelopmentAgentBase {
           }
         }
       }
-    } catch {
-      this.log('warn', 'Failed to parse package.json');
+    } catch (error) {
+      this.log('warn', `Failed to parse package.json: ${error}`);
     }
 
     return vulnerabilities;

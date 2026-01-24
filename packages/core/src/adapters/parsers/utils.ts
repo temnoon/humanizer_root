@@ -45,7 +45,8 @@ export async function extractZip(zipPath: string, outputDir: string): Promise<vo
           if (files.length === 0) {
             throw new Error('Extraction produced no files');
           }
-        } catch {
+        } catch (error) {
+          console.debug('[utils] unzip fallback failed:', error);
           throw new Error(
             `ZIP extraction failed (${fileSizeGB.toFixed(1)}GB file). ` +
             `Try extracting manually with Archive Utility first.`
@@ -200,7 +201,8 @@ export function getFileSize(filePath: string): number {
   try {
     const stats = fs.statSync(filePath);
     return stats.size;
-  } catch {
+  } catch (error) {
+    console.debug('[utils] Error getting file size:', error);
     return 0;
   }
 }
