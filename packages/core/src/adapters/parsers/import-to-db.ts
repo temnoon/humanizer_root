@@ -20,7 +20,12 @@ import {
   getContentStore,
   closeContentStore,
 } from '../../storage/postgres-content-store.js';
-import type { ImportJob } from '../../storage/types.js';
+import type { ImportJob, StoredNode } from '../../storage/types.js';
+import {
+  getEmbeddingService,
+  initEmbeddingService,
+  type EmbeddingServiceConfig,
+} from '../../embeddings/index.js';
 
 /**
  * Import result statistics
@@ -44,6 +49,14 @@ export interface ImportResult {
     groupsImported: number;
     groupContentImported: number;
   };
+  // Embedding stats
+  embeddings?: {
+    nodesEmbedded: number;
+    pyramidsBuilt: number;
+    embeddingModel: string;
+    embeddingDurationMs: number;
+    ollamaAvailable: boolean;
+  };
 }
 
 /**
@@ -55,9 +68,13 @@ export async function importArchiveToDb(
     verbose?: boolean;
     batchSize?: number;
     skipExisting?: boolean;
+    /** Generate embeddings using Ollama (default: true) */
+    generateEmbeddings?: boolean;
+    /** Embedding service configuration */
+    embeddingConfig?: EmbeddingServiceConfig;
   } = {}
 ): Promise<ImportResult> {
-  const { verbose = false, batchSize = 100, skipExisting = true } = options;
+  const { verbose = false, batchSize = 100, skipExisting = true, generateEmbeddings = true, embeddingConfig } = options;
   const archiveWithRels = archive as ParsedArchiveWithRelationships;
   const startTime = Date.now();
 
@@ -150,6 +167,58 @@ export async function importArchiveToDb(
       log(`  Group content: ${relationshipStats.groupContentImported}`);
     }
 
+    // Generate embeddings if enabled
+    let embeddingStats: ImportResult['embeddings'] | undefined;
+    if (generateEmbeddings && messagesImported > 0) {
+      log('\nGenerating embeddings...');
+      const embeddingStartTime = Date.now();
+
+      // Initialize embedding service
+      const embedService = embeddingConfig
+        ? initEmbeddingService({ ...embeddingConfig, verbose })
+        : getEmbeddingService({ verbose });
+
+      // Check Ollama availability
+      const ollamaAvailable = await embedService.isAvailable();
+      if (!ollamaAvailable) {
+        log('  ⚠ Ollama not available, skipping embeddings');
+        embeddingStats = {
+          nodesEmbedded: 0,
+          pyramidsBuilt: 0,
+          embeddingModel: embedService.getEmbedModel(),
+          embeddingDurationMs: 0,
+          ollamaAvailable: false,
+        };
+      } else {
+        // Get all nodes that need embedding
+        const nodesResult = await store.queryNodes({
+          importJobId: job.id,
+          limit: 10000,
+        });
+
+        let nodesEmbedded = 0;
+        let pyramidsBuilt = 0;
+
+        // Embed nodes in batches
+        const embeddingItems = await embedService.embedNodes(nodesResult.nodes);
+        if (embeddingItems.length > 0) {
+          const result = await store.storeEmbeddings(embeddingItems, embedService.getEmbedModel());
+          nodesEmbedded = result.stored;
+          log(`  Embedded ${nodesEmbedded} nodes`);
+        }
+
+        embeddingStats = {
+          nodesEmbedded,
+          pyramidsBuilt,
+          embeddingModel: embedService.getEmbedModel(),
+          embeddingDurationMs: Date.now() - embeddingStartTime,
+          ollamaAvailable: true,
+        };
+
+        log(`  ✓ Embeddings complete (${nodesEmbedded} nodes, ${(embeddingStats.embeddingDurationMs / 1000).toFixed(1)}s)`);
+      }
+    }
+
     // Final update
     await store.updateJob(job.id, {
       status: 'completed',
@@ -176,6 +245,9 @@ export async function importArchiveToDb(
     if (relationshipStats) {
       log(`  Relationships: ${relationshipStats.friendsImported} friends, ${relationshipStats.advertisersImported} advertisers, ${relationshipStats.reactionsImported} reactions`);
     }
+    if (embeddingStats) {
+      log(`  Embeddings: ${embeddingStats.nodesEmbedded} nodes (${embeddingStats.ollamaAvailable ? 'Ollama OK' : 'Ollama unavailable'})`);
+    }
 
     return {
       jobId: job.id,
@@ -187,6 +259,7 @@ export async function importArchiveToDb(
       mediaRefsLinked,
       durationMs,
       relationships: relationshipStats,
+      embeddings: embeddingStats,
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);

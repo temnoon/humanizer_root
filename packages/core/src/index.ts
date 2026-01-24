@@ -119,3 +119,8 @@ export * from './clustering/index.js';
 // INTEGRATION - Agent-to-infrastructure wiring
 // ═══════════════════════════════════════════════════════════════════
 export * from './integration/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// EMBEDDINGS - 3-level embedding service (L0, L1, Apex)
+// ═══════════════════════════════════════════════════════════════════
+export * from './embeddings/index.js';
