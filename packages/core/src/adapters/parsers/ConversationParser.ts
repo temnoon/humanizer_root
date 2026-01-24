@@ -11,6 +11,7 @@ import * as path from 'path';
 import { OpenAIParser } from './OpenAIParser.js';
 import { ClaudeParser } from './ClaudeParser.js';
 import { FacebookParser } from './FacebookParser.js';
+import { FacebookRelationshipParser } from './FacebookRelationshipParser.js';
 import { BrowserPluginParser } from './BrowserPluginParser.js';
 import { RedditParser } from './RedditParser.js';
 import { TwitterParser } from './TwitterParser.js';
@@ -18,13 +19,14 @@ import { InstagramParser } from './InstagramParser.js';
 import { SubstackParser } from './SubstackParser.js';
 import { ComprehensiveMediaIndexer } from './ComprehensiveMediaIndexer.js';
 import { ComprehensiveMediaMatcher } from './ComprehensiveMediaMatcher.js';
-import type { ParsedArchive, Conversation, ExportFormat, MediaFile } from './types.js';
+import type { ParsedArchive, ParsedArchiveWithRelationships, Conversation, ExportFormat, MediaFile } from './types.js';
 import { extractZip, ensureDir, generateId } from './utils.js';
 
 export class ConversationParser {
   private openAIParser: OpenAIParser;
   private claudeParser: ClaudeParser;
   private facebookParser: FacebookParser;
+  private facebookRelationshipParser: FacebookRelationshipParser;
   private browserPluginParser: BrowserPluginParser;
   private redditParser: RedditParser;
   private twitterParser: TwitterParser;
@@ -39,6 +41,7 @@ export class ConversationParser {
     this.openAIParser = new OpenAIParser();
     this.claudeParser = new ClaudeParser();
     this.facebookParser = new FacebookParser();
+    this.facebookRelationshipParser = new FacebookRelationshipParser();
     this.browserPluginParser = new BrowserPluginParser(verbose);
     this.redditParser = new RedditParser();
     this.twitterParser = new TwitterParser();
@@ -53,12 +56,15 @@ export class ConversationParser {
    * @param archivePath - Path to ZIP file or extracted directory
    * @param workDir - Optional working directory for extraction
    * @param additionalMediaSourceDirs - Optional additional directories to search for media
+   * @param options - Optional parsing options
    */
   async parseArchive(
     archivePath: string,
     workDir?: string,
-    additionalMediaSourceDirs?: string[]
-  ): Promise<ParsedArchive> {
+    additionalMediaSourceDirs?: string[],
+    options: { parseRelationships?: boolean } = {}
+  ): Promise<ParsedArchiveWithRelationships> {
+    const { parseRelationships = true } = options;
     console.log(`\n=== Parsing Archive: ${path.basename(archivePath)} ===\n`);
 
     // Check if input is a directory or ZIP file
@@ -130,7 +136,7 @@ export class ConversationParser {
       // Step 7: Calculate statistics
       const stats = this.calculateStats(conversationsWithMedia);
 
-      const result: ParsedArchive = {
+      const result: ParsedArchiveWithRelationships = {
         conversations: conversationsWithMedia,
         mediaFiles,
         format,
@@ -138,11 +144,24 @@ export class ConversationParser {
         stats,
       };
 
+      // Step 8: Parse relationship data for Facebook exports
+      if (parseRelationships && format === 'facebook') {
+        console.log('\nStep 6: Parsing relationship data (social graph)...');
+        if (FacebookRelationshipParser.hasRelationshipData(tempDir)) {
+          result.relationships = await this.facebookRelationshipParser.parseAll(tempDir);
+        } else {
+          console.log('  No relationship data found in export');
+        }
+      }
+
       console.log('\n=== Parsing Complete ===');
       console.log(`  Conversations: ${stats.totalConversations}`);
       console.log(`  Messages: ${stats.totalMessages}`);
       console.log(`  Media files: ${stats.totalMediaFiles}`);
       console.log(`  Parse errors: ${stats.parseErrors}`);
+      if (result.relationships) {
+        console.log(`  Relationships: ${result.relationships.friends.stats.totalFriends} friends, ${result.relationships.advertisers.stats.total} advertisers, ${result.relationships.reactions.stats.total} reactions`);
+      }
       console.log('');
 
       return result;
