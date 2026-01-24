@@ -19,6 +19,7 @@ export { ConversationParser } from './ConversationParser.js';
 export { OpenAIParser } from './OpenAIParser.js';
 export { ClaudeParser } from './ClaudeParser.js';
 export { FacebookParser } from './FacebookParser.js';
+export { FacebookRelationshipParser } from './FacebookRelationshipParser.js';
 export { BrowserPluginParser } from './BrowserPluginParser.js';
 export { RedditParser } from './RedditParser.js';
 export { TwitterParser } from './TwitterParser.js';
@@ -57,6 +58,7 @@ export type {
   MediaFile,
   FileIndices,
   ParsedArchive,
+  ParsedArchiveWithRelationships,
   ImportJob,
   ImportPreview,
   ImportConflict,
@@ -66,6 +68,15 @@ export type {
   ClaudeChatMessage,
   MatchStrategy,
   MatchStats,
+  // Relationship types
+  ParsedFriend,
+  ParsedAdvertiser,
+  ParsedPage,
+  ParsedReaction,
+  ParsedGroup,
+  ParsedGroupPost,
+  ParsedGroupComment,
+  RelationshipData,
 } from './types.js';
 
 // Database import
