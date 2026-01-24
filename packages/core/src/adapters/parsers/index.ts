@@ -63,6 +63,10 @@ export type {
   MatchStats,
 } from './types.js';
 
+// Database import
+export { importArchiveToDb, runImportCli } from './import-to-db.js';
+export type { ImportResult } from './import-to-db.js';
+
 // Utility functions
 export {
   extractZip,
