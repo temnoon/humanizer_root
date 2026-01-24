@@ -3,7 +3,11 @@
  *
  * Parses Instagram GDPR data export (JSON format)
  * Supports: posts, comments, messages/inbox
- * Structure similar to Facebook but with different paths
+ *
+ * Structure:
+ * - Posts: One conversation per post (natural content unit)
+ * - Comments: Grouped by media owner (your comments on same person's posts)
+ * - DMs: Grouped by conversation thread
  */
 
 import * as path from 'path';
@@ -94,10 +98,11 @@ export class InstagramParser {
     // Get username from personal_information if available
     await this.loadUsername(extractedDir);
 
-    // Parse posts
-    const postsConv = await this.parsePosts(activityDir, extractedDir);
-    if (postsConv) {
-      conversations.push(postsConv);
+    // Parse posts - one conversation per post
+    const postConversations = await this.parsePosts(activityDir, extractedDir);
+    conversations.push(...postConversations);
+    if (postConversations.length > 0) {
+      console.log(`Parsed ${postConversations.length} Instagram posts`);
     }
 
     // Parse comments
@@ -159,18 +164,18 @@ export class InstagramParser {
   }
 
   /**
-   * Parse posts into a single conversation
+   * Parse posts - one conversation per post
    */
   private async parsePosts(
     activityDir: string,
     extractedDir: string
-  ): Promise<Conversation | null> {
+  ): Promise<Conversation[]> {
     const mediaDir = path.join(activityDir, 'media');
-    if (!fs.existsSync(mediaDir)) return null;
+    if (!fs.existsSync(mediaDir)) return [];
 
     // Find posts JSON files
     const postsFiles = findFiles(mediaDir, /posts_\d+\.json$/i);
-    if (postsFiles.length === 0) return null;
+    if (postsFiles.length === 0) return [];
 
     const allPosts: InstagramPost[] = [];
 
@@ -181,34 +186,117 @@ export class InstagramParser {
       }
     }
 
-    if (allPosts.length === 0) return null;
+    if (allPosts.length === 0) return [];
 
     // Sort by timestamp
     const sorted = allPosts.sort((a, b) => a.creation_timestamp - b.creation_timestamp);
 
-    const conversationId = `instagram_posts_${this.username || 'user'}`;
-    const mapping = this.buildPostMapping(sorted, conversationId, extractedDir);
+    const conversations: Conversation[] = [];
 
-    const timestamps = sorted.map((p) => p.creation_timestamp);
+    for (let index = 0; index < sorted.length; index++) {
+      const post = sorted[index];
+      const timestamp = post.creation_timestamp;
+      const conversationId = `instagram_post_${timestamp}_${index}`;
 
-    console.log(`Parsed ${sorted.length} Instagram posts`);
+      // Build mapping with single message (the post)
+      const mapping: ConversationMapping = {};
+      const rootId = `${conversationId}_root`;
+      const postNodeId = `${conversationId}_content`;
 
-    return {
-      conversation_id: conversationId,
-      title: `Instagram Posts - ${this.username || 'My Posts'}`,
-      create_time: Math.min(...timestamps),
-      update_time: Math.max(...timestamps),
-      mapping,
-      moderation_results: [],
-      _source: 'instagram',
-      _import_date: new Date().toISOString(),
-      _original_id: conversationId,
-      _media_files: this.extractPostMediaFiles(sorted, extractedDir),
-      _instagram_metadata: {
-        username: this.username,
-        post_count: sorted.length,
-      },
-    };
+      mapping[rootId] = {
+        id: rootId,
+        message: undefined,
+        parent: undefined,
+        children: [postNodeId],
+      };
+
+      // Build content
+      const parts: string[] = [];
+      if (post.title) {
+        parts.push(this.fixInstagramEncoding(post.title));
+      }
+      if (post.media && post.media.length > 0) {
+        parts.push(`[${post.media.length} media file(s)]`);
+      }
+
+      // Build attachments
+      const attachments: MessageAttachment[] = [];
+      if (post.media) {
+        post.media.forEach((m, idx) => {
+          const ext = path.extname(m.uri).toLowerCase();
+          const isVideo = ['.mp4', '.mov', '.avi'].includes(ext);
+          attachments.push({
+            id: `media_${idx}`,
+            name: path.basename(m.uri),
+            mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
+          });
+        });
+      }
+
+      const message: Message = {
+        id: postNodeId,
+        author: {
+          role: 'user',
+          name: this.username || 'self',
+        },
+        create_time: timestamp,
+        content: {
+          content_type: 'text',
+          parts: parts.length > 0 ? parts : ['[No caption]'],
+        },
+        status: 'finished_successfully',
+        metadata: {
+          attachments: attachments.length > 0 ? attachments : undefined,
+          post_index: index,
+        },
+      };
+
+      mapping[postNodeId] = {
+        id: postNodeId,
+        message,
+        parent: rootId,
+        children: [],
+      };
+
+      // Generate title from caption or date
+      let title = post.title ? this.fixInstagramEncoding(post.title).slice(0, 60) : '';
+      if (!title) {
+        title = `Post from ${new Date(timestamp * 1000).toLocaleDateString()}`;
+      } else if (title.length < (post.title?.length || 0)) {
+        title += '...';
+      }
+
+      // Extract media files for this post
+      const mediaFiles: string[] = [];
+      if (post.media) {
+        for (const m of post.media) {
+          const mediaPath = path.join(extractedDir, m.uri);
+          if (fs.existsSync(mediaPath)) {
+            mediaFiles.push(mediaPath);
+          }
+        }
+      }
+
+      conversations.push({
+        conversation_id: conversationId,
+        title,
+        create_time: timestamp,
+        update_time: timestamp,
+        mapping,
+        moderation_results: [],
+        _source: 'instagram',
+        _import_date: new Date().toISOString(),
+        _original_id: conversationId,
+        _media_files: mediaFiles.length > 0 ? mediaFiles : undefined,
+        _instagram_metadata: {
+          username: this.username,
+          post_count: 1,
+          media_count: post.media?.length || 0,
+        },
+      });
+    }
+
+    return conversations;
   }
 
   /**
@@ -343,85 +431,6 @@ export class InstagramParser {
         message_count: thread.messages.length,
       },
     };
-  }
-
-  /**
-   * Build mapping from posts
-   */
-  private buildPostMapping(
-    posts: InstagramPost[],
-    conversationId: string,
-    extractedDir: string
-  ): ConversationMapping {
-    const mapping: ConversationMapping = {};
-
-    const rootId = `${conversationId}_root`;
-    mapping[rootId] = {
-      id: rootId,
-      message: undefined,
-      parent: undefined,
-      children: posts.length > 0 ? [`${conversationId}_post_0`] : [],
-    };
-
-    posts.forEach((post, index) => {
-      const nodeId = `${conversationId}_post_${index}`;
-      const prevNodeId = index === 0 ? rootId : `${conversationId}_post_${index - 1}`;
-      const nextNodeId =
-        index < posts.length - 1 ? `${conversationId}_post_${index + 1}` : undefined;
-
-      const author: MessageAuthor = {
-        role: 'user',
-        name: this.username || 'self',
-      };
-
-      // Build content
-      const parts: string[] = [];
-      if (post.title) {
-        parts.push(post.title);
-      }
-      if (post.media && post.media.length > 0) {
-        parts.push(`[${post.media.length} media file(s)]`);
-      }
-
-      const content: MessageContent = {
-        content_type: 'text',
-        parts: parts.length > 0 ? parts : ['[No caption]'],
-      };
-
-      // Build attachments
-      const attachments: MessageAttachment[] = [];
-      if (post.media) {
-        post.media.forEach((m, idx) => {
-          const ext = path.extname(m.uri).toLowerCase();
-          const isVideo = ['.mp4', '.mov', '.avi'].includes(ext);
-          attachments.push({
-            id: `media_${idx}`,
-            name: path.basename(m.uri),
-            mimeType: isVideo ? 'video/mp4' : 'image/jpeg',
-          });
-        });
-      }
-
-      const message: Message = {
-        id: nodeId,
-        author,
-        create_time: post.creation_timestamp,
-        content,
-        status: 'finished_successfully',
-        metadata: {
-          attachments: attachments.length > 0 ? attachments : undefined,
-        },
-      };
-
-      mapping[nodeId] = {
-        id: nodeId,
-        message,
-        parent: prevNodeId,
-        children: nextNodeId ? [nextNodeId] : [],
-      };
-    });
-
-    return mapping;
   }
 
   /**
@@ -586,26 +595,6 @@ export class InstagramParser {
     }
 
     return 'Instagram Conversation';
-  }
-
-  /**
-   * Extract media files from posts
-   */
-  private extractPostMediaFiles(posts: InstagramPost[], extractedDir: string): string[] {
-    const mediaFiles: string[] = [];
-
-    for (const post of posts) {
-      if (post.media) {
-        for (const m of post.media) {
-          const mediaPath = path.join(extractedDir, m.uri);
-          if (fs.existsSync(mediaPath)) {
-            mediaFiles.push(mediaPath);
-          }
-        }
-      }
-    }
-
-    return mediaFiles;
   }
 
   /**

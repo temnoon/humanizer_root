@@ -121,6 +121,7 @@ export interface Conversation {
     post_count?: number;
     comment_count?: number;
     message_count?: number;
+    media_count?: number;
   };
   _substack_metadata?: {
     publication_name?: string;
