@@ -3,10 +3,17 @@
  *
  * Converts parsed Conversations from the parser into ImportedNode format
  * and stores them in the PostgreSQL content_nodes table.
+ * Also stores relationship data (friends, advertisers, etc.) for Facebook exports.
  */
 
 import * as crypto from 'crypto';
-import type { Conversation, ParsedArchive, ExportFormat } from './types.js';
+import type {
+  Conversation,
+  ParsedArchive,
+  ParsedArchiveWithRelationships,
+  ExportFormat,
+  RelationshipData,
+} from './types.js';
 import type { ImportedNode, MediaReference, ContentLink } from '../types.js';
 import {
   initContentStore,
@@ -28,13 +35,22 @@ export interface ImportResult {
   mediaRefsLinked: number;
   durationMs: number;
   error?: string;
+  // Relationship import stats
+  relationships?: {
+    friendsImported: number;
+    advertisersImported: number;
+    pagesImported: number;
+    reactionsImported: number;
+    groupsImported: number;
+    groupContentImported: number;
+  };
 }
 
 /**
  * Convert a parsed archive to ImportedNodes and store in database
  */
 export async function importArchiveToDb(
-  archive: ParsedArchive,
+  archive: ParsedArchive | ParsedArchiveWithRelationships,
   options: {
     verbose?: boolean;
     batchSize?: number;
@@ -42,6 +58,7 @@ export async function importArchiveToDb(
   } = {}
 ): Promise<ImportResult> {
   const { verbose = false, batchSize = 100, skipExisting = true } = options;
+  const archiveWithRels = archive as ParsedArchiveWithRelationships;
   const startTime = Date.now();
 
   const log = (msg: string) => {
@@ -116,6 +133,23 @@ export async function importArchiveToDb(
       }
     }
 
+    // Import relationship data if present
+    let relationshipStats: ImportResult['relationships'] | undefined;
+    if (archiveWithRels.relationships) {
+      log('\nImporting relationship data...');
+      relationshipStats = await importRelationships(
+        archiveWithRels.relationships,
+        job.id,
+        verbose
+      );
+      log(`  Friends: ${relationshipStats.friendsImported}`);
+      log(`  Advertisers: ${relationshipStats.advertisersImported}`);
+      log(`  Pages: ${relationshipStats.pagesImported}`);
+      log(`  Reactions: ${relationshipStats.reactionsImported}`);
+      log(`  Groups: ${relationshipStats.groupsImported}`);
+      log(`  Group content: ${relationshipStats.groupContentImported}`);
+    }
+
     // Final update
     await store.updateJob(job.id, {
       status: 'completed',
@@ -127,6 +161,7 @@ export async function importArchiveToDb(
         conversationsProcessed,
         mediaRefsLinked,
         format: archive.format,
+        relationships: relationshipStats,
       },
     });
 
@@ -138,6 +173,9 @@ export async function importArchiveToDb(
     log(`  Messages skipped: ${messagesSkipped}`);
     log(`  Messages failed: ${messagesFailed}`);
     log(`  Media refs: ${mediaRefsLinked}`);
+    if (relationshipStats) {
+      log(`  Relationships: ${relationshipStats.friendsImported} friends, ${relationshipStats.advertisersImported} advertisers, ${relationshipStats.reactionsImported} reactions`);
+    }
 
     return {
       jobId: job.id,
@@ -148,6 +186,7 @@ export async function importArchiveToDb(
       messagesFailed,
       mediaRefsLinked,
       durationMs,
+      relationships: relationshipStats,
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
@@ -513,6 +552,242 @@ function mimeToMediaType(
  */
 function hashContent(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex');
+}
+
+/**
+ * Import relationship data to database
+ */
+async function importRelationships(
+  relationships: RelationshipData,
+  jobId: string,
+  verbose: boolean
+): Promise<NonNullable<ImportResult['relationships']>> {
+  const store = getContentStore();
+  const pool = (store as any).pool;
+
+  if (!pool) {
+    throw new Error('Database pool not available');
+  }
+
+  let friendsImported = 0;
+  let advertisersImported = 0;
+  let pagesImported = 0;
+  let reactionsImported = 0;
+  let groupsImported = 0;
+  let groupContentImported = 0;
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Import friends
+    for (const friend of relationships.friends.friends) {
+      await client.query(
+        `INSERT INTO fb_friends (id, import_job_id, name, friendship_date, status, removed_date)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           name = EXCLUDED.name,
+           friendship_date = COALESCE(EXCLUDED.friendship_date, fb_friends.friendship_date),
+           status = EXCLUDED.status`,
+        [
+          friend.id,
+          jobId,
+          friend.name,
+          friend.friendshipDate > 0 ? new Date(friend.friendshipDate * 1000) : null,
+          friend.status,
+          friend.removedDate ? new Date(friend.removedDate * 1000) : null,
+        ]
+      );
+      friendsImported++;
+    }
+
+    // Import removed friends
+    for (const friend of relationships.friends.removed) {
+      await client.query(
+        `INSERT INTO fb_friends (id, import_job_id, name, friendship_date, status, removed_date)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id) DO UPDATE SET
+           status = EXCLUDED.status,
+           removed_date = COALESCE(EXCLUDED.removed_date, fb_friends.removed_date)`,
+        [
+          friend.id,
+          jobId,
+          friend.name,
+          null,
+          'removed',
+          friend.removedDate ? new Date(friend.removedDate * 1000) : null,
+        ]
+      );
+      friendsImported++;
+    }
+
+    // Import advertisers
+    for (const advertiser of relationships.advertisers.advertisers) {
+      await client.query(
+        `INSERT INTO fb_advertisers (id, import_job_id, name, targeting_type, interaction_count, first_seen, last_seen, is_data_broker)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         ON CONFLICT (id) DO UPDATE SET
+           interaction_count = fb_advertisers.interaction_count + EXCLUDED.interaction_count,
+           first_seen = LEAST(fb_advertisers.first_seen, EXCLUDED.first_seen),
+           last_seen = GREATEST(fb_advertisers.last_seen, EXCLUDED.last_seen)`,
+        [
+          advertiser.id,
+          jobId,
+          advertiser.name,
+          advertiser.targetingType,
+          advertiser.interactionCount,
+          advertiser.firstSeen ? new Date(advertiser.firstSeen * 1000) : null,
+          advertiser.lastSeen ? new Date(advertiser.lastSeen * 1000) : null,
+          advertiser.isDataBroker,
+        ]
+      );
+      advertisersImported++;
+    }
+
+    // Import pages
+    for (const page of relationships.pages.pages) {
+      await client.query(
+        `INSERT INTO fb_pages (id, import_job_id, name, facebook_id, url, is_liked, liked_at, is_following, followed_at, unfollowed_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ON CONFLICT (id) DO UPDATE SET
+           is_liked = EXCLUDED.is_liked OR fb_pages.is_liked,
+           liked_at = COALESCE(EXCLUDED.liked_at, fb_pages.liked_at),
+           is_following = EXCLUDED.is_following OR fb_pages.is_following,
+           followed_at = COALESCE(EXCLUDED.followed_at, fb_pages.followed_at),
+           unfollowed_at = COALESCE(EXCLUDED.unfollowed_at, fb_pages.unfollowed_at)`,
+        [
+          page.id,
+          jobId,
+          page.name,
+          page.facebookId || null,
+          page.url || null,
+          page.isLiked,
+          page.likedAt ? new Date(page.likedAt * 1000) : null,
+          page.isFollowing,
+          page.followedAt ? new Date(page.followedAt * 1000) : null,
+          page.unfollowedAt ? new Date(page.unfollowedAt * 1000) : null,
+        ]
+      );
+      pagesImported++;
+    }
+
+    // Import reactions (batch for performance)
+    const reactionBatchSize = 1000;
+    for (let i = 0; i < relationships.reactions.reactions.length; i += reactionBatchSize) {
+      const batch = relationships.reactions.reactions.slice(i, i + reactionBatchSize);
+
+      for (const reaction of batch) {
+        await client.query(
+          `INSERT INTO fb_reactions (id, import_job_id, reaction_type, reactor_name, target_type, target_author, title, reacted_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           ON CONFLICT (id) DO NOTHING`,
+          [
+            reaction.id,
+            jobId,
+            reaction.reactionType,
+            reaction.reactorName,
+            reaction.targetType,
+            reaction.targetAuthor || null,
+            reaction.title || null,
+            new Date(reaction.createdAt * 1000),
+          ]
+        );
+        reactionsImported++;
+      }
+
+      if (verbose && i > 0 && i % 10000 === 0) {
+        console.log(`    Imported ${i}/${relationships.reactions.reactions.length} reactions...`);
+      }
+    }
+
+    // Import groups
+    for (const group of relationships.groups.groups) {
+      await client.query(
+        `INSERT INTO fb_groups (id, import_job_id, name, joined_at, post_count, comment_count, last_activity)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (id) DO UPDATE SET
+           joined_at = COALESCE(EXCLUDED.joined_at, fb_groups.joined_at),
+           post_count = EXCLUDED.post_count,
+           comment_count = EXCLUDED.comment_count,
+           last_activity = GREATEST(fb_groups.last_activity, EXCLUDED.last_activity)`,
+        [
+          group.id,
+          jobId,
+          group.name,
+          group.joinedAt ? new Date(group.joinedAt * 1000) : null,
+          group.postCount,
+          group.commentCount,
+          group.lastActivity ? new Date(group.lastActivity * 1000) : null,
+        ]
+      );
+      groupsImported++;
+    }
+
+    // Import group posts
+    for (const post of relationships.groups.posts) {
+      const groupId = `fb_group_${post.groupName.toLowerCase().replace(/[^a-z0-9]+/g, '_').substring(0, 40)}`;
+      await client.query(
+        `INSERT INTO fb_group_content (id, import_job_id, group_id, content_type, text, author, original_post_author, external_urls, has_attachments, title, posted_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          post.id,
+          jobId,
+          groupId,
+          'post',
+          post.text,
+          null, // author is self for posts
+          null,
+          JSON.stringify(post.externalUrls),
+          post.hasAttachments,
+          post.title,
+          new Date(post.timestamp * 1000),
+        ]
+      );
+      groupContentImported++;
+    }
+
+    // Import group comments
+    for (const comment of relationships.groups.comments) {
+      const groupId = `fb_group_${comment.groupName.toLowerCase().replace(/[^a-z0-9]+/g, '_').substring(0, 40)}`;
+      await client.query(
+        `INSERT INTO fb_group_content (id, import_job_id, group_id, content_type, text, author, original_post_author, external_urls, has_attachments, title, posted_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (id) DO NOTHING`,
+        [
+          comment.id,
+          jobId,
+          groupId,
+          'comment',
+          comment.text,
+          comment.author,
+          comment.originalPostAuthor,
+          '[]',
+          false,
+          comment.title,
+          new Date(comment.timestamp * 1000),
+        ]
+      );
+      groupContentImported++;
+    }
+
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return {
+    friendsImported,
+    advertisersImported,
+    pagesImported,
+    reactionsImported,
+    groupsImported,
+    groupContentImported,
+  };
 }
 
 /**
