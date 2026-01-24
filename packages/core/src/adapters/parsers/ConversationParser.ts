@@ -11,6 +11,7 @@ import * as path from 'path';
 import { OpenAIParser } from './OpenAIParser.js';
 import { ClaudeParser } from './ClaudeParser.js';
 import { FacebookParser } from './FacebookParser.js';
+import { BrowserPluginParser } from './BrowserPluginParser.js';
 import { ComprehensiveMediaIndexer } from './ComprehensiveMediaIndexer.js';
 import { ComprehensiveMediaMatcher } from './ComprehensiveMediaMatcher.js';
 import type { ParsedArchive, Conversation, ExportFormat, MediaFile } from './types.js';
@@ -20,6 +21,7 @@ export class ConversationParser {
   private openAIParser: OpenAIParser;
   private claudeParser: ClaudeParser;
   private facebookParser: FacebookParser;
+  private browserPluginParser: BrowserPluginParser;
   private mediaIndexer: ComprehensiveMediaIndexer;
   private mediaMatcher: ComprehensiveMediaMatcher;
   private verbose: boolean;
@@ -29,6 +31,7 @@ export class ConversationParser {
     this.openAIParser = new OpenAIParser();
     this.claudeParser = new ClaudeParser();
     this.facebookParser = new FacebookParser();
+    this.browserPluginParser = new BrowserPluginParser(verbose);
     this.mediaIndexer = new ComprehensiveMediaIndexer(verbose);
     this.mediaMatcher = new ComprehensiveMediaMatcher(verbose);
   }
@@ -138,10 +141,16 @@ export class ConversationParser {
   }
 
   /**
-   * Detect export format (OpenAI, Claude, or Facebook)
+   * Detect export format (OpenAI, Claude, Facebook, or Chrome Plugin)
    */
   private async detectFormat(extractedDir: string): Promise<ExportFormat> {
-    // Check for Facebook format first (most specific directory structure)
+    // Check for browser plugin format first (single conversation exports)
+    const pluginFormat = await BrowserPluginParser.detectFormat(extractedDir);
+    if (pluginFormat) {
+      return 'chrome-plugin';
+    }
+
+    // Check for Facebook format (most specific directory structure)
     const isFacebook = await FacebookParser.detectFormat(extractedDir);
     if (isFacebook) {
       return 'facebook';
@@ -170,6 +179,11 @@ export class ConversationParser {
     format: ExportFormat
   ): Promise<Conversation[]> {
     switch (format) {
+      case 'chrome-plugin': {
+        const conversation = await this.browserPluginParser.parseConversation(extractedDir);
+        return conversation ? [conversation] : [];
+      }
+
       case 'facebook':
         return await this.facebookParser.parseConversations(extractedDir);
 

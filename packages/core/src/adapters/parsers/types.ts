@@ -73,8 +73,8 @@ export interface ConversationMapping {
 export interface Conversation {
   conversation_id: string;
   title: string;
-  create_time: number;
-  update_time: number;
+  create_time?: number;
+  update_time?: number;
   mapping: ConversationMapping;
   moderation_results: unknown[];
   current_node?: string;
@@ -84,7 +84,7 @@ export interface Conversation {
 
   // Extended metadata (added by parser)
   _media_files?: string[];
-  _source?: ExportFormat;
+  _source?: string; // e.g., 'openai', 'claude', 'plugin-chatgpt', 'plugin-claude', 'plugin-gemini'
   _import_date?: string;
   _original_id?: string;
   _facebook_metadata?: {

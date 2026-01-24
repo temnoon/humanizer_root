@@ -19,6 +19,7 @@ export { ConversationParser } from './ConversationParser.js';
 export { OpenAIParser } from './OpenAIParser.js';
 export { ClaudeParser } from './ClaudeParser.js';
 export { FacebookParser } from './FacebookParser.js';
+export { BrowserPluginParser } from './BrowserPluginParser.js';
 
 // Media indexing and matching
 export { ComprehensiveMediaIndexer } from './ComprehensiveMediaIndexer.js';

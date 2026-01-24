@@ -180,7 +180,7 @@ function conversationToNodes(
   format: ExportFormat
 ): ImportedNode[] {
   const nodes: ImportedNode[] = [];
-  const sourceType = formatToSourceType(format);
+  const sourceType = formatToSourceType(format, conversation);
   const convId = conversation.conversation_id || conversation.id || 'unknown';
 
   // Create conversation root node
@@ -443,15 +443,22 @@ function formatToAdapter(format: ExportFormat): string {
       return 'claude';
     case 'facebook':
       return 'facebook';
+    case 'chrome-plugin':
+      return 'browser-plugin';
     default:
       return format;
   }
 }
 
 /**
- * Map format to source type
+ * Map format to source type (can be overridden by conversation._source)
  */
-function formatToSourceType(format: ExportFormat): string {
+function formatToSourceType(format: ExportFormat, conversation?: { _source?: string }): string {
+  // Check for specific plugin source type
+  if (conversation?._source?.startsWith('plugin-')) {
+    return conversation._source; // e.g., 'plugin-chatgpt', 'plugin-claude', 'plugin-gemini'
+  }
+
   switch (format) {
     case 'openai':
       return 'chatgpt';
@@ -459,6 +466,8 @@ function formatToSourceType(format: ExportFormat): string {
       return 'claude';
     case 'facebook':
       return 'facebook';
+    case 'chrome-plugin':
+      return 'plugin';
     default:
       return format;
   }
