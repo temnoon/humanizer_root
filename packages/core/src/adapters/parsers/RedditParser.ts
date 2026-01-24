@@ -3,6 +3,11 @@
  *
  * Parses Reddit GDPR data export (CSV format)
  * Supports: comments.csv, posts.csv, messages_archive.csv
+ *
+ * Structure:
+ * - Posts: One conversation per post (natural content unit)
+ * - Comments: Grouped by original post link (your comments on same thread)
+ * - Messages: Grouped by thread (DMs)
  */
 
 import * as path from 'path';
@@ -14,7 +19,6 @@ import type {
   MessageAuthor,
   MessageContent,
 } from './types.js';
-import { findFiles } from './utils.js';
 
 /**
  * Reddit comment from comments.csv
@@ -26,8 +30,8 @@ interface RedditComment {
   ip?: string;
   subreddit: string;
   gildings: string;
-  link: string;
-  parent?: string;
+  link: string;      // URL of the post being commented on
+  parent?: string;   // Parent comment ID if replying to another comment
   body: string;
   media?: string;
 }
@@ -69,28 +73,28 @@ export class RedditParser {
   async parseConversations(extractedDir: string): Promise<Conversation[]> {
     const conversations: Conversation[] = [];
 
-    // Parse posts grouped by subreddit
+    // Parse posts - one conversation per post
     const postsFile = path.join(extractedDir, 'posts.csv');
     if (fs.existsSync(postsFile)) {
-      const postConversations = await this.parsePostsBySubreddit(postsFile);
+      const postConversations = await this.parsePosts(postsFile);
       conversations.push(...postConversations);
-      console.log(`Parsed ${postConversations.length} Reddit post conversations`);
+      console.log(`Parsed ${postConversations.length} Reddit posts`);
     }
 
-    // Parse comments grouped by subreddit
+    // Parse comments - grouped by original post link
     const commentsFile = path.join(extractedDir, 'comments.csv');
     if (fs.existsSync(commentsFile)) {
-      const commentConversations = await this.parseCommentsBySubreddit(commentsFile);
+      const commentConversations = await this.parseCommentsByPost(commentsFile);
       conversations.push(...commentConversations);
-      console.log(`Parsed ${commentConversations.length} Reddit comment conversations`);
+      console.log(`Parsed ${commentConversations.length} Reddit comment threads`);
     }
 
-    // Parse messages grouped by thread
+    // Parse messages - grouped by thread
     const messagesFile = path.join(extractedDir, 'messages_archive.csv');
     if (fs.existsSync(messagesFile)) {
       const messageConversations = await this.parseMessagesByThread(messagesFile);
       conversations.push(...messageConversations);
-      console.log(`Parsed ${messageConversations.length} Reddit message conversations`);
+      console.log(`Parsed ${messageConversations.length} Reddit message threads`);
     }
 
     console.log(`Successfully parsed ${conversations.length} Reddit conversations total`);
@@ -98,45 +102,82 @@ export class RedditParser {
   }
 
   /**
-   * Parse posts grouped by subreddit
+   * Parse posts - one conversation per post
    */
-  private async parsePostsBySubreddit(postsFile: string): Promise<Conversation[]> {
+  private async parsePosts(postsFile: string): Promise<Conversation[]> {
     const posts = this.parseCSV<RedditPost>(postsFile);
-    const bySubreddit = new Map<string, RedditPost[]>();
-
-    for (const post of posts) {
-      const subreddit = post.subreddit || 'unknown';
-      if (!bySubreddit.has(subreddit)) {
-        bySubreddit.set(subreddit, []);
-      }
-      bySubreddit.get(subreddit)!.push(post);
-    }
-
     const conversations: Conversation[] = [];
 
-    for (const [subreddit, subredditPosts] of bySubreddit) {
-      const sorted = subredditPosts.sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
+    for (const post of posts) {
+      const conversationId = `reddit_post_${post.id}`;
+      const timestamp = new Date(post.date).getTime() / 1000;
 
-      const conversationId = `reddit_posts_r_${subreddit}`;
-      const mapping = this.buildPostMapping(sorted, conversationId);
+      // Build mapping with single message (the post)
+      const mapping: ConversationMapping = {};
+      const rootId = `${conversationId}_root`;
+      const postNodeId = `${conversationId}_content`;
 
-      const timestamps = sorted.map((p) => new Date(p.date).getTime() / 1000);
+      mapping[rootId] = {
+        id: rootId,
+        message: undefined,
+        parent: undefined,
+        children: [postNodeId],
+      };
+
+      // Build content with title and body
+      const parts: string[] = [];
+      if (post.title) {
+        parts.push(`## ${post.title}\n`);
+      }
+      if (post.body) {
+        parts.push(post.body);
+      }
+      if (post.url && post.url !== post.permalink && !post.url.startsWith('/r/')) {
+        parts.push(`\n\n[Link](${post.url})`);
+      }
+
+      const message: Message = {
+        id: postNodeId,
+        author: {
+          role: 'user',
+          name: 'self',
+        },
+        create_time: timestamp,
+        content: {
+          content_type: 'text',
+          parts: [parts.join('\n') || '[No content]'],
+        },
+        status: 'finished_successfully',
+        metadata: {
+          reddit_id: post.id,
+          subreddit: post.subreddit,
+          permalink: post.permalink,
+          gildings: parseInt(post.gildings) || 0,
+          external_url: post.url && post.url !== post.permalink ? post.url : undefined,
+        },
+      };
+
+      mapping[postNodeId] = {
+        id: postNodeId,
+        message,
+        parent: rootId,
+        children: [],
+      };
 
       conversations.push({
         conversation_id: conversationId,
-        title: `r/${subreddit} - Posts`,
-        create_time: Math.min(...timestamps),
-        update_time: Math.max(...timestamps),
+        title: post.title || 'Untitled Post',
+        create_time: timestamp,
+        update_time: timestamp,
         mapping,
         moderation_results: [],
         _source: 'reddit',
         _import_date: new Date().toISOString(),
-        _original_id: conversationId,
+        _original_id: post.id,
         _reddit_metadata: {
-          subreddit,
-          post_count: sorted.length,
+          subreddit: post.subreddit,
+          permalink: post.permalink,
+          gildings: parseInt(post.gildings) || 0,
         },
       });
     }
@@ -145,35 +186,48 @@ export class RedditParser {
   }
 
   /**
-   * Parse comments grouped by subreddit
+   * Parse comments - grouped by original post link
+   * Your comments on the same post become a single conversation
    */
-  private async parseCommentsBySubreddit(commentsFile: string): Promise<Conversation[]> {
+  private async parseCommentsByPost(commentsFile: string): Promise<Conversation[]> {
     const comments = this.parseCSV<RedditComment>(commentsFile);
-    const bySubreddit = new Map<string, RedditComment[]>();
+    const byPost = new Map<string, RedditComment[]>();
 
+    // Group by the post link (what you were commenting on)
     for (const comment of comments) {
-      const subreddit = comment.subreddit || 'unknown';
-      if (!bySubreddit.has(subreddit)) {
-        bySubreddit.set(subreddit, []);
+      const postLink = comment.link || 'unknown';
+      if (!byPost.has(postLink)) {
+        byPost.set(postLink, []);
       }
-      bySubreddit.get(subreddit)!.push(comment);
+      byPost.get(postLink)!.push(comment);
     }
 
     const conversations: Conversation[] = [];
 
-    for (const [subreddit, subredditComments] of bySubreddit) {
-      const sorted = subredditComments.sort(
+    for (const [postLink, postComments] of byPost) {
+      // Sort chronologically
+      const sorted = postComments.sort(
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       );
 
-      const conversationId = `reddit_comments_r_${subreddit}`;
-      const mapping = this.buildCommentMapping(sorted, conversationId);
+      // Extract post title from link if possible
+      // Link format: https://www.reddit.com/r/SubredditName/comments/xyz123/post_title_here/
+      const titleMatch = postLink.match(/\/comments\/[^\/]+\/([^\/]+)/);
+      const postTitle = titleMatch
+        ? titleMatch[1].replace(/_/g, ' ')
+        : 'Unknown Post';
+
+      const subreddit = sorted[0]?.subreddit || 'unknown';
+      const conversationId = `reddit_comments_${sorted[0]?.id || postLink.replace(/[^a-zA-Z0-9]/g, '_')}`;
 
       const timestamps = sorted.map((c) => new Date(c.date).getTime() / 1000);
 
+      // Build mapping - comments in chronological order
+      const mapping = this.buildCommentMapping(sorted, conversationId, postLink);
+
       conversations.push({
         conversation_id: conversationId,
-        title: `r/${subreddit} - Comments`,
+        title: `Comments on: ${postTitle}`,
         create_time: Math.min(...timestamps),
         update_time: Math.max(...timestamps),
         mapping,
@@ -183,6 +237,7 @@ export class RedditParser {
         _original_id: conversationId,
         _reddit_metadata: {
           subreddit,
+          permalink: postLink,
           comment_count: sorted.length,
         },
       });
@@ -214,7 +269,7 @@ export class RedditParser {
         (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
       );
 
-      const conversationId = `reddit_messages_${threadKey.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const conversationId = `reddit_dm_${threadKey.replace(/[^a-zA-Z0-9]/g, '_')}`;
       const mapping = this.buildMessageMapping(sorted, conversationId);
 
       const timestamps = sorted.map((m) => new Date(m.date).getTime() / 1000);
@@ -226,14 +281,14 @@ export class RedditParser {
 
       conversations.push({
         conversation_id: conversationId,
-        title: sorted[0]?.subject || 'Reddit Messages',
+        title: sorted[0]?.subject || 'Reddit DM',
         create_time: Math.min(...timestamps),
         update_time: Math.max(...timestamps),
         mapping,
         moderation_results: [],
         _source: 'reddit',
         _import_date: new Date().toISOString(),
-        _original_id: conversationId,
+        _original_id: threadKey,
         _reddit_metadata: {
           post_count: sorted.length,
         },
@@ -248,77 +303,12 @@ export class RedditParser {
   }
 
   /**
-   * Build conversation mapping from posts
-   */
-  private buildPostMapping(posts: RedditPost[], conversationId: string): ConversationMapping {
-    const mapping: ConversationMapping = {};
-
-    const rootId = `${conversationId}_root`;
-    mapping[rootId] = {
-      id: rootId,
-      message: undefined,
-      parent: undefined,
-      children: posts.length > 0 ? [`${conversationId}_post_0`] : [],
-    };
-
-    posts.forEach((post, index) => {
-      const nodeId = `${conversationId}_post_${index}`;
-      const prevNodeId = index === 0 ? rootId : `${conversationId}_post_${index - 1}`;
-      const nextNodeId =
-        index < posts.length - 1 ? `${conversationId}_post_${index + 1}` : undefined;
-
-      const author: MessageAuthor = {
-        role: 'user',
-        name: 'self',
-      };
-
-      // Build content with title and body
-      const parts: string[] = [];
-      if (post.title) {
-        parts.push(`## ${post.title}\n`);
-      }
-      if (post.body) {
-        parts.push(post.body);
-      }
-      if (post.url && post.url !== post.permalink) {
-        parts.push(`\n[Link](${post.url})`);
-      }
-
-      const content: MessageContent = {
-        content_type: 'text',
-        parts: [parts.join('\n')],
-      };
-
-      const message: Message = {
-        id: nodeId,
-        author,
-        create_time: new Date(post.date).getTime() / 1000,
-        content,
-        status: 'finished_successfully',
-        metadata: {
-          subreddit: post.subreddit,
-          permalink: post.permalink,
-          gildings: parseInt(post.gildings) || 0,
-        },
-      };
-
-      mapping[nodeId] = {
-        id: nodeId,
-        message,
-        parent: prevNodeId,
-        children: nextNodeId ? [nextNodeId] : [],
-      };
-    });
-
-    return mapping;
-  }
-
-  /**
-   * Build conversation mapping from comments
+   * Build conversation mapping from comments on a single post
    */
   private buildCommentMapping(
     comments: RedditComment[],
-    conversationId: string
+    conversationId: string,
+    postLink: string
   ): ConversationMapping {
     const mapping: ConversationMapping = {};
 
@@ -336,27 +326,24 @@ export class RedditParser {
       const nextNodeId =
         index < comments.length - 1 ? `${conversationId}_comment_${index + 1}` : undefined;
 
-      const author: MessageAuthor = {
-        role: 'user',
-        name: 'self',
-      };
-
-      const content: MessageContent = {
-        content_type: 'text',
-        parts: [comment.body || ''],
-      };
-
       const message: Message = {
         id: nodeId,
-        author,
+        author: {
+          role: 'user',
+          name: 'self',
+        },
         create_time: new Date(comment.date).getTime() / 1000,
-        content,
+        content: {
+          content_type: 'text',
+          parts: [comment.body || ''],
+        },
         status: 'finished_successfully',
         metadata: {
+          reddit_id: comment.id,
           subreddit: comment.subreddit,
           permalink: comment.permalink,
-          link: comment.link,
-          parent: comment.parent,
+          post_link: postLink,
+          parent_comment: comment.parent || undefined,
           gildings: parseInt(comment.gildings) || 0,
         },
       };
@@ -395,23 +382,20 @@ export class RedditParser {
       const nextNodeId =
         index < messages.length - 1 ? `${conversationId}_msg_${index + 1}` : undefined;
 
-      const author: MessageAuthor = {
-        role: 'user',
-        name: msg.from || 'unknown',
-      };
-
-      const content: MessageContent = {
-        content_type: 'text',
-        parts: [msg.body || ''],
-      };
-
       const message: Message = {
         id: nodeId,
-        author,
+        author: {
+          role: 'user',
+          name: msg.from || 'unknown',
+        },
         create_time: new Date(msg.date).getTime() / 1000,
-        content,
+        content: {
+          content_type: 'text',
+          parts: [msg.body || ''],
+        },
         status: 'finished_successfully',
         metadata: {
+          reddit_id: msg.id,
           to: msg.to,
           subject: msg.subject,
           permalink: msg.permalink,
@@ -439,7 +423,6 @@ export class RedditParser {
 
     if (lines.length < 2) return [];
 
-    // Parse header
     const headers = this.parseCSVLine(lines[0]);
     const results: T[] = [];
 
@@ -475,7 +458,7 @@ export class RedditParser {
       if (char === '"') {
         if (inQuotes && nextChar === '"') {
           current += '"';
-          i++; // Skip escaped quote
+          i++;
         } else {
           inQuotes = !inQuotes;
         }
@@ -495,18 +478,14 @@ export class RedditParser {
    * Detect if a directory contains Reddit export format
    */
   static async detectFormat(extractedDir: string): Promise<boolean> {
-    // Reddit exports have specific CSV files
     const hasComments = fs.existsSync(path.join(extractedDir, 'comments.csv'));
     const hasPosts = fs.existsSync(path.join(extractedDir, 'posts.csv'));
-    const hasMessages = fs.existsSync(path.join(extractedDir, 'messages_archive.csv'));
     const hasStatistics = fs.existsSync(path.join(extractedDir, 'statistics.csv'));
 
-    // Need at least posts or comments, and statistics file is unique to Reddit
     if ((hasComments || hasPosts) && hasStatistics) {
       return true;
     }
 
-    // Check for Reddit-specific headers in posts.csv
     if (hasPosts) {
       try {
         const content = fs.readFileSync(path.join(extractedDir, 'posts.csv'), 'utf-8');
