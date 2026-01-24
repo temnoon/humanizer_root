@@ -174,7 +174,23 @@ export {
   UnifiedAuiService,
   createUnifiedAuiService,
   initUnifiedAui,
+  initUnifiedAuiWithStorage,
   getUnifiedAui,
   resetUnifiedAui,
   type CreateUnifiedAuiOptions,
+  type InitUnifiedAuiWithStorageOptions,
 } from './unified-aui-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUI POSTGRES STORE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  AuiPostgresStore,
+  initAuiStore,
+  getAuiStore,
+  resetAuiStore,
+  type AuiPostgresStoreOptions,
+  type AuiArtifact,
+  type CreateArtifactOptions,
+} from '../storage/aui-postgres-store.js';

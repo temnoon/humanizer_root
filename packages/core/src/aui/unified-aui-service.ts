@@ -55,6 +55,7 @@ import { getSessionManager as getSearchSessionManager } from '../agentic-search/
 import type { ConfigManager, PromptTemplate } from '../config/types.js';
 import { AUI_DEFAULTS } from './constants.js';
 import type { StoredNode, SearchResult } from '../storage/types.js';
+import type { AuiPostgresStore, AuiArtifact, CreateArtifactOptions } from '../storage/aui-postgres-store.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SESSION MANAGER
@@ -183,6 +184,11 @@ export class UnifiedAuiService {
   private bqlExecutor: ((pipeline: string) => Promise<{ data?: unknown; error?: string }>) | null = null;
   private options: UnifiedAuiServiceOptions;
 
+  // Persistent storage
+  private store: AuiPostgresStore | null = null;
+  private booksStore: import('../storage/books-postgres-store.js').BooksPostgresStore | null = null;
+  private sessionCache: Map<string, UnifiedAuiSession> = new Map();
+
   constructor(options?: UnifiedAuiServiceOptions) {
     this.options = options ?? {};
     this.sessionManager = new AuiSessionManager({
@@ -224,6 +230,34 @@ export class UnifiedAuiService {
     this.bqlExecutor = executor;
   }
 
+  /**
+   * Set the persistent store (enables persistence across restarts).
+   */
+  setStore(store: AuiPostgresStore): void {
+    this.store = store;
+  }
+
+  /**
+   * Set the books store (enables book node storage and search).
+   */
+  setBooksStore(store: import('../storage/books-postgres-store.js').BooksPostgresStore): void {
+    this.booksStore = store;
+  }
+
+  /**
+   * Check if persistent storage is enabled.
+   */
+  hasStore(): boolean {
+    return this.store !== null;
+  }
+
+  /**
+   * Check if books store is available.
+   */
+  hasBooksStore(): boolean {
+    return this.booksStore !== null && this.booksStore.isAvailable();
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // SESSION MANAGEMENT
   // ═══════════════════════════════════════════════════════════════════════════
@@ -231,15 +265,71 @@ export class UnifiedAuiService {
   /**
    * Create a new AUI session.
    */
-  createSession(options?: { userId?: string; name?: string }): UnifiedAuiSession {
-    return this.sessionManager.create(options);
+  async createSession(options?: { userId?: string; name?: string }): Promise<UnifiedAuiSession> {
+    const session = this.sessionManager.create(options);
+
+    // Persist to store if available
+    if (this.store) {
+      try {
+        await this.store.createSession({
+          id: session.id,
+          userId: options?.userId,
+          name: options?.name,
+        });
+        this.sessionCache.set(session.id, session);
+      } catch (error) {
+        console.warn('Failed to persist session:', error);
+      }
+    }
+
+    return session;
   }
 
   /**
    * Get a session by ID.
+   * Checks in-memory cache first, then loads from store if available.
+   */
+  async getSessionAsync(id: string): Promise<UnifiedAuiSession | undefined> {
+    // Check in-memory first
+    let session = this.sessionManager.get(id);
+    if (session) {
+      return session;
+    }
+
+    // Check cache
+    session = this.sessionCache.get(id);
+    if (session) {
+      return session;
+    }
+
+    // Try to load from store
+    if (this.store) {
+      try {
+        const storedSession = await this.store.getSession(id);
+        if (storedSession) {
+          // Rehydrate into session manager
+          this.sessionCache.set(id, storedSession);
+          return storedSession;
+        }
+      } catch (error) {
+        console.warn('Failed to load session from store:', error);
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get a session by ID (synchronous, in-memory only).
+   * For async with store loading, use getSessionAsync().
    */
   getSession(id: string): UnifiedAuiSession | undefined {
-    return this.sessionManager.get(id);
+    // Check in-memory first
+    const session = this.sessionManager.get(id);
+    if (session) return session;
+
+    // Check cache
+    return this.sessionCache.get(id);
   }
 
   /**
@@ -483,7 +573,7 @@ export class UnifiedAuiService {
   /**
    * Commit buffer changes.
    */
-  commit(sessionId: string, bufferName: string, message: string): BufferVersion {
+  async commit(sessionId: string, bufferName: string, message: string): Promise<BufferVersion> {
     const session = this.getSession(sessionId);
     if (!session) {
       throw new Error(`Session "${sessionId}" not found`);
@@ -491,6 +581,44 @@ export class UnifiedAuiService {
 
     const version = this.bufferManager.commit(bufferName, message);
     this.sessionManager.touch(session);
+
+    // Persist to store if available
+    if (this.store) {
+      try {
+        const buffer = this.bufferManager.getBuffer(bufferName);
+        if (buffer) {
+          // Get or create buffer in store
+          let storedBuffer = await this.store.getBufferByName(sessionId, bufferName);
+          if (!storedBuffer) {
+            storedBuffer = await this.store.createBuffer(sessionId, bufferName, buffer.workingContent);
+          }
+
+          // Create version in store
+          await this.store.createVersion(storedBuffer.id, {
+            id: version.id,
+            content: version.content,
+            message: version.message,
+            parentId: version.parentId ?? undefined,
+            tags: version.tags,
+            metadata: version.metadata,
+          });
+
+          // Update branch head
+          await this.store.updateBranch(storedBuffer.id, buffer.currentBranch, {
+            headVersionId: version.id,
+          });
+
+          // Update buffer state
+          await this.store.updateBuffer(storedBuffer.id, {
+            workingContent: buffer.workingContent,
+            isDirty: buffer.isDirty,
+            currentBranch: buffer.currentBranch,
+          });
+        }
+      } catch (error) {
+        console.warn('Failed to persist commit to store:', error);
+      }
+    }
 
     return version;
   }
@@ -1116,17 +1244,35 @@ export class UnifiedAuiService {
         options.onProgress({ phase: 'loading', step: 1, totalSteps: 4, message: 'Loading embeddings...' });
       }
 
-      // Get all nodes with embeddings
-      const searchResults = await store.searchByEmbedding(new Array(768).fill(0), { limit: 10000, threshold: 0.0 });
+      // Get random sample of nodes with embeddings (not using zero vector search)
+      const sampleSize = options?.sampleSize || 500;
+      const randomNodeIds = await store.getRandomEmbeddedNodeIds(sampleSize);
+
+      if (randomNodeIds.length === 0) {
+        return {
+          clusters: [],
+          totalPassages: 0,
+          assignedPassages: 0,
+          noisePassages: 0,
+          durationMs: Date.now() - startTime,
+        };
+      }
+
+      // Fetch nodes and apply filters
+      const nodes: StoredNode[] = [];
+      for (const id of randomNodeIds) {
+        const node = await store.getNode(id);
+        if (node) nodes.push(node);
+      }
 
       // Apply filters
-      let filteredResults = searchResults;
+      let filteredNodes = nodes;
 
       // Filter by word count
       const minWordCount = options?.minWordCount ?? 7;
       if (minWordCount > 0) {
-        filteredResults = filteredResults.filter(result => {
-          const wordCount = result.node.text?.split(/\s+/).filter(Boolean).length || 0;
+        filteredNodes = filteredNodes.filter(node => {
+          const wordCount = node.text?.split(/\s+/).filter(Boolean).length || 0;
           return wordCount >= minWordCount;
         });
       }
@@ -1134,28 +1280,27 @@ export class UnifiedAuiService {
       // Filter by exclude patterns
       if (options?.excludePatterns?.length) {
         const patterns = options.excludePatterns.map(p => new RegExp(p, 'i'));
-        filteredResults = filteredResults.filter(result => !patterns.some(p => p.test(result.node.text || '')));
+        filteredNodes = filteredNodes.filter(node => !patterns.some(p => p.test(node.text || '')));
       }
 
       // Filter by source type
       if (options?.sourceTypes?.length) {
-        filteredResults = filteredResults.filter(result =>
-          options.sourceTypes!.includes(result.node.sourceType || '')
+        filteredNodes = filteredNodes.filter(node =>
+          options.sourceTypes!.includes(node.sourceType || '')
         );
       }
 
       // Filter by author role (only user messages by default)
       const authorRoles: string[] = options?.authorRoles || ['user'];
-      filteredResults = filteredResults.filter(result =>
-        authorRoles.includes((result.node as StoredNode & { authorRole?: string }).authorRole || 'user')
+      filteredNodes = filteredNodes.filter(node =>
+        authorRoles.includes((node as StoredNode & { authorRole?: string }).authorRole || 'user')
       );
 
       if (options?.onProgress) {
-        options.onProgress({ phase: 'clustering', step: 2, totalSteps: 4, message: `Clustering ${filteredResults.length} passages...` });
+        options.onProgress({ phase: 'clustering', step: 2, totalSteps: 4, message: `Clustering ${filteredNodes.length} passages...` });
       }
 
       // Simple K-means-like clustering using cosine similarity
-      // For now, use a simplified approach based on semantic similarity search
       const maxClusters = options?.maxClusters || 10;
       const minClusterSize = options?.minClusterSize || 5;
       const minSimilarity = options?.minSimilarity || 0.7;
@@ -1165,32 +1310,43 @@ export class UnifiedAuiService {
       const assigned = new Set<string>();
 
       // Sample seed passages for clustering
-      const seedCandidates = filteredResults.slice(0, Math.min(filteredResults.length, 100));
+      const seedCandidates = filteredNodes.slice(0, Math.min(filteredNodes.length, 100));
 
-      for (const seedResult of seedCandidates) {
-        if (assigned.has(seedResult.node.id)) continue;
+      for (const seedNode of seedCandidates) {
+        if (assigned.has(seedNode.id)) continue;
         if (clusters.length >= maxClusters) break;
 
-        // Find similar passages to this seed
-        const seedEmbedding = (seedResult.node as StoredNode & { embedding?: number[] }).embedding;
+        // Find similar passages to this seed - fetch embedding from store
+        const seedEmbedding = await store.getEmbedding(seedNode.id);
         if (!seedEmbedding) continue;
 
         const similarResults = await store.searchByEmbedding(seedEmbedding, { limit: 100, threshold: minSimilarity });
-        const clusterMemberResults = similarResults.filter(r => !assigned.has(r.node.id) && r.node.id !== seedResult.node.id);
+        const clusterMemberResults = similarResults.filter(r => !assigned.has(r.node.id) && r.node.id !== seedNode.id);
 
         if (clusterMemberResults.length + 1 >= minClusterSize) {
-          // Create cluster
-          const allResults = [seedResult, ...clusterMemberResults];
-          const clusterPassages = allResults.map(r => ({
-            id: r.node.id,
-            text: r.node.text || '',
-            sourceType: r.node.sourceType || 'unknown',
-            authorRole: (r.node as StoredNode & { authorRole?: string }).authorRole,
-            wordCount: r.node.text?.split(/\s+/).filter(Boolean).length || 0,
-            distanceFromCentroid: r === seedResult ? 0 : (r.distance ?? 1 - r.score),
-            sourceCreatedAt: r.node.sourceCreatedAt ? new Date(r.node.sourceCreatedAt) : undefined,
-            title: (r.node as StoredNode & { title?: string }).title,
-          }));
+          // Create cluster - seed node as first passage, then similar results
+          const clusterPassages = [
+            {
+              id: seedNode.id,
+              text: seedNode.text || '',
+              sourceType: seedNode.sourceType || 'unknown',
+              authorRole: (seedNode as StoredNode & { authorRole?: string }).authorRole,
+              wordCount: seedNode.text?.split(/\s+/).filter(Boolean).length || 0,
+              distanceFromCentroid: 0,
+              sourceCreatedAt: seedNode.sourceCreatedAt ? new Date(seedNode.sourceCreatedAt) : undefined,
+              title: (seedNode as StoredNode & { title?: string }).title,
+            },
+            ...clusterMemberResults.map(r => ({
+              id: r.node.id,
+              text: r.node.text || '',
+              sourceType: r.node.sourceType || 'unknown',
+              authorRole: (r.node as StoredNode & { authorRole?: string }).authorRole,
+              wordCount: r.node.text?.split(/\s+/).filter(Boolean).length || 0,
+              distanceFromCentroid: r.distance ?? 1 - r.score,
+              sourceCreatedAt: r.node.sourceCreatedAt ? new Date(r.node.sourceCreatedAt) : undefined,
+              title: (r.node as StoredNode & { title?: string }).title,
+            })),
+          ];
 
           // Extract keywords from cluster
           const allText = clusterPassages.map(p => p.text).join(' ');
@@ -1220,7 +1376,7 @@ export class UnifiedAuiService {
           const cluster: ContentCluster = {
             id: `cluster-${clusters.length + 1}`,
             label: keywords.slice(0, 3).join(', '),
-            description: `Cluster around: ${seedResult.node.text?.substring(0, 100)}...`,
+            description: `Cluster around: ${seedNode.text?.substring(0, 100)}...`,
             passages: clusterPassages.slice(0, 20), // Top 20 passages
             totalPassages: clusterPassages.length,
             coherence: similarResults.reduce((sum, r) => sum + r.score, 0) / similarResults.length,
@@ -1245,9 +1401,9 @@ export class UnifiedAuiService {
 
       return {
         clusters,
-        totalPassages: filteredResults.length,
+        totalPassages: filteredNodes.length,
         assignedPassages: assigned.size,
-        noisePassages: filteredResults.length - assigned.size,
+        noisePassages: filteredNodes.length - assigned.size,
         durationMs: Date.now() - startTime,
       };
     } catch (error) {
@@ -1258,9 +1414,21 @@ export class UnifiedAuiService {
   /**
    * List discovered clusters.
    */
-  async listClusters(): Promise<ContentCluster[]> {
-    // For now, run discovery - in production, would cache/store results
-    const result = await this.discoverClusters({ maxClusters: 20 });
+  async listClusters(options?: { userId?: string; limit?: number }): Promise<ContentCluster[]> {
+    // If store available, load from store first
+    if (this.store) {
+      try {
+        const clusters = await this.store.listClusters(options);
+        if (clusters.length > 0) {
+          return clusters;
+        }
+      } catch (error) {
+        console.warn('Failed to list clusters from store:', error);
+      }
+    }
+
+    // Fall back to discovery
+    const result = await this.discoverClusters({ maxClusters: options?.limit ?? 20 });
     return result.clusters;
   }
 
@@ -1268,8 +1436,37 @@ export class UnifiedAuiService {
    * Get a specific cluster by ID.
    */
   async getCluster(clusterId: string): Promise<ContentCluster | undefined> {
+    // If store available, try to get from store first
+    if (this.store) {
+      try {
+        const cluster = await this.store.getCluster(clusterId);
+        if (cluster) {
+          return cluster;
+        }
+      } catch (error) {
+        console.warn('Failed to get cluster from store:', error);
+      }
+    }
+
+    // Fall back to search
     const clusters = await this.listClusters();
     return clusters.find(c => c.id === clusterId);
+  }
+
+  /**
+   * Save a discovered cluster to the store for caching.
+   */
+  async saveCluster(cluster: ContentCluster, userId?: string): Promise<ContentCluster> {
+    if (!this.store) {
+      return cluster;
+    }
+
+    try {
+      return await this.store.saveCluster(cluster, userId);
+    } catch (error) {
+      console.warn('Failed to save cluster to store:', error);
+      return cluster;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1356,13 +1553,114 @@ export class UnifiedAuiService {
       },
     };
 
+    // Persist to store if available
+    if (this.store) {
+      try {
+        const storedBook = await this.store.createBook(book);
+        book.id = storedBook.id;
+      } catch (error) {
+        console.warn('Failed to persist book to store:', error);
+      }
+    }
+
     this.books.set(book.id, book);
 
+    // Index book content in books store for unified search
+    if (this.booksStore && this.booksStore.isAvailable()) {
+      if (options?.onProgress) {
+        options.onProgress({ phase: 'indexing', step: 5, totalSteps: 6, message: 'Indexing book content for search...' });
+      }
+
+      try {
+        await this.indexBookContent(book, options?.embedFn);
+      } catch (error) {
+        console.warn('Failed to index book content:', error);
+      }
+    }
+
     if (options?.onProgress) {
-      options.onProgress({ phase: 'complete', step: 5, totalSteps: 5, message: 'Book created' });
+      const finalStep = this.booksStore?.isAvailable() ? 6 : 5;
+      options.onProgress({ phase: 'complete', step: finalStep, totalSteps: finalStep, message: 'Book created' });
     }
 
     return book;
+  }
+
+  /**
+   * Index book content into the books store for unified search.
+   * Creates chunked nodes with embeddings for each chapter.
+   */
+  private async indexBookContent(
+    book: Book,
+    embedFn?: (text: string) => Promise<number[]>
+  ): Promise<void> {
+    if (!this.booksStore || !this.booksStore.isAvailable()) {
+      return;
+    }
+
+    let position = 0;
+
+    for (const chapter of book.chapters) {
+      // Create L0 node (chapter content as single chunk)
+      const node = await this.booksStore.createNode({
+        bookId: book.id,
+        chapterId: chapter.id,
+        text: chapter.content,
+        format: 'markdown',
+        position: position++,
+        hierarchyLevel: 0,
+        sourceType: 'synthesized',
+        metadata: {
+          chapterTitle: chapter.title,
+          passageIds: chapter.passageIds,
+          wordCount: chapter.wordCount,
+        },
+      });
+
+      // Generate and store embedding if embedFn provided
+      if (embedFn) {
+        try {
+          const embedding = await embedFn(chapter.content);
+          await this.booksStore.updateNodeEmbedding(
+            node.id,
+            embedding,
+            'nomic-embed-text', // default model
+            node.contentHash
+          );
+        } catch (error) {
+          console.warn(`Failed to embed chapter ${chapter.title}:`, error);
+        }
+      }
+    }
+
+    // Create apex node (book summary) if we have the arc introduction
+    if (book.arc?.introduction && embedFn) {
+      try {
+        const apexNode = await this.booksStore.createNode({
+          bookId: book.id,
+          text: book.arc.introduction,
+          format: 'markdown',
+          position: 0,
+          hierarchyLevel: 2, // Apex level
+          sourceType: 'synthesized',
+          metadata: {
+            bookTitle: book.title,
+            arcType: book.arc.arcType,
+            themes: book.arc.themes,
+          },
+        });
+
+        const apexEmbedding = await embedFn(book.arc.introduction);
+        await this.booksStore.updateNodeEmbedding(
+          apexNode.id,
+          apexEmbedding,
+          'nomic-embed-text',
+          apexNode.contentHash
+        );
+      } catch (error) {
+        console.warn('Failed to create/embed apex node:', error);
+      }
+    }
   }
 
   /**
@@ -1532,7 +1830,22 @@ export class UnifiedAuiService {
   /**
    * List all books.
    */
-  async listBooks(): Promise<Book[]> {
+  async listBooks(options?: { userId?: string; limit?: number }): Promise<Book[]> {
+    // If store available, load from store
+    if (this.store) {
+      try {
+        const books = await this.store.listBooks(options);
+        // Cache in memory
+        for (const book of books) {
+          this.books.set(book.id, book);
+        }
+        return books;
+      } catch (error) {
+        console.warn('Failed to list books from store:', error);
+      }
+    }
+
+    // Fall back to in-memory
     return Array.from(this.books.values());
   }
 
@@ -1540,7 +1853,217 @@ export class UnifiedAuiService {
    * Get a book by ID.
    */
   async getBook(bookId: string): Promise<Book | undefined> {
-    return this.books.get(bookId);
+    // Check in-memory first
+    let book = this.books.get(bookId);
+    if (book) return book;
+
+    // Try to load from store
+    if (this.store) {
+      try {
+        book = await this.store.getBook(bookId);
+        if (book) {
+          this.books.set(bookId, book);
+          return book;
+        }
+      } catch (error) {
+        console.warn('Failed to load book from store:', error);
+      }
+    }
+
+    return undefined;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ARTIFACT EXPORT OPERATIONS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Export a book as an artifact (markdown, etc.)
+   */
+  async exportBook(
+    bookId: string,
+    format: 'markdown' | 'html' | 'json' = 'markdown'
+  ): Promise<AuiArtifact | undefined> {
+    if (!this.store) {
+      throw new Error('Persistent store not configured - cannot create artifacts');
+    }
+
+    const book = await this.getBook(bookId);
+    if (!book) {
+      throw new Error(`Book "${bookId}" not found`);
+    }
+
+    let content: string;
+    let mimeType: string;
+
+    switch (format) {
+      case 'markdown':
+        content = this.bookToMarkdown(book);
+        mimeType = 'text/markdown';
+        break;
+      case 'html':
+        content = this.bookToHtml(book);
+        mimeType = 'text/html';
+        break;
+      case 'json':
+        content = JSON.stringify(book, null, 2);
+        mimeType = 'application/json';
+        break;
+      default:
+        throw new Error(`Unsupported format: ${format}`);
+    }
+
+    const artifact = await this.store.createArtifact({
+      name: `${book.title.replace(/[^a-zA-Z0-9]/g, '_')}.${format === 'markdown' ? 'md' : format}`,
+      artifactType: format,
+      content,
+      mimeType,
+      sourceType: 'book',
+      sourceId: bookId,
+      metadata: {
+        bookTitle: book.title,
+        chapterCount: book.chapters.length,
+        wordCount: book.chapters.reduce((sum, ch) => sum + ch.wordCount, 0),
+      },
+    });
+
+    return artifact;
+  }
+
+  /**
+   * Download an artifact by ID.
+   */
+  async downloadArtifact(artifactId: string): Promise<AuiArtifact | undefined> {
+    if (!this.store) {
+      throw new Error('Persistent store not configured');
+    }
+
+    return this.store.exportArtifact(artifactId);
+  }
+
+  /**
+   * List artifacts.
+   */
+  async listArtifacts(options?: {
+    userId?: string;
+    limit?: number;
+  }): Promise<Omit<AuiArtifact, 'content' | 'contentBinary'>[]> {
+    if (!this.store) {
+      return [];
+    }
+
+    return this.store.listArtifacts(options);
+  }
+
+  /**
+   * Convert a book to markdown format.
+   */
+  private bookToMarkdown(book: Book): string {
+    const lines: string[] = [];
+
+    // Title
+    lines.push(`# ${book.title}`);
+    lines.push('');
+
+    // Description
+    if (book.description) {
+      lines.push(`*${book.description}*`);
+      lines.push('');
+    }
+
+    // Introduction
+    if (book.arc?.introduction) {
+      lines.push('## Introduction');
+      lines.push('');
+      lines.push(book.arc.introduction);
+      lines.push('');
+    }
+
+    // Chapters
+    for (const chapter of book.chapters) {
+      lines.push(`## ${chapter.title}`);
+      lines.push('');
+      lines.push(chapter.content);
+      lines.push('');
+    }
+
+    // Metadata footer
+    lines.push('---');
+    lines.push('');
+    lines.push(`*Generated by humanizer.com*`);
+    lines.push(`*Created: ${book.createdAt.toISOString()}*`);
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Convert a book to HTML format.
+   */
+  private bookToHtml(book: Book): string {
+    const lines: string[] = [];
+
+    lines.push('<!DOCTYPE html>');
+    lines.push('<html lang="en">');
+    lines.push('<head>');
+    lines.push(`  <meta charset="UTF-8">`);
+    lines.push(`  <meta name="viewport" content="width=device-width, initial-scale=1.0">`);
+    lines.push(`  <title>${this.escapeHtml(book.title)}</title>`);
+    lines.push('  <style>');
+    lines.push('    body { font-family: Georgia, serif; max-width: 800px; margin: 0 auto; padding: 2rem; line-height: 1.6; }');
+    lines.push('    h1 { border-bottom: 2px solid #333; padding-bottom: 0.5rem; }');
+    lines.push('    h2 { color: #444; margin-top: 2rem; }');
+    lines.push('    .intro { font-style: italic; color: #666; }');
+    lines.push('    .chapter { margin-bottom: 2rem; }');
+    lines.push('    .footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #ccc; font-size: 0.9rem; color: #888; }');
+    lines.push('  </style>');
+    lines.push('</head>');
+    lines.push('<body>');
+
+    lines.push(`  <h1>${this.escapeHtml(book.title)}</h1>`);
+
+    if (book.description) {
+      lines.push(`  <p class="intro">${this.escapeHtml(book.description)}</p>`);
+    }
+
+    if (book.arc?.introduction) {
+      lines.push('  <section class="introduction">');
+      lines.push('    <h2>Introduction</h2>');
+      lines.push(`    <p>${this.escapeHtml(book.arc.introduction)}</p>`);
+      lines.push('  </section>');
+    }
+
+    for (const chapter of book.chapters) {
+      lines.push('  <section class="chapter">');
+      lines.push(`    <h2>${this.escapeHtml(chapter.title)}</h2>`);
+      // Convert newlines to paragraphs
+      const paragraphs = chapter.content.split('\n\n').filter(Boolean);
+      for (const para of paragraphs) {
+        lines.push(`    <p>${this.escapeHtml(para)}</p>`);
+      }
+      lines.push('  </section>');
+    }
+
+    lines.push('  <div class="footer">');
+    lines.push('    <p>Generated by humanizer.com</p>');
+    lines.push(`    <p>Created: ${book.createdAt.toISOString()}</p>`);
+    lines.push('  </div>');
+
+    lines.push('</body>');
+    lines.push('</html>');
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Escape HTML special characters.
+   */
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1728,6 +2251,102 @@ export async function createUnifiedAuiService(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// FACTORY WITH STORAGE
+// ═══════════════════════════════════════════════════════════════════════════
+
+import type { PostgresStorageConfig } from '../storage/schema-postgres.js';
+
+/**
+ * Options for initializing UnifiedAuiService with storage
+ */
+export interface InitUnifiedAuiWithStorageOptions extends CreateUnifiedAuiOptions {
+  /** PostgreSQL storage config for archive (humanizer_archive) */
+  storageConfig: PostgresStorageConfig;
+  /** Optional books database config (humanizer_books) - defaults to same host/port */
+  booksConfig?: {
+    host?: string;
+    port?: number;
+    database?: string;
+    user?: string;
+    password?: string;
+  };
+  /** AUI store options */
+  storeOptions?: {
+    maxVersionHistory?: number;
+    sessionExpirationMs?: number;
+    clusterCacheDays?: number;
+    artifactExpirationDays?: number;
+  };
+  /** Embedding function for search (required for integrated search) */
+  embedFn?: (text: string) => Promise<number[]>;
+}
+
+/**
+ * Initialize UnifiedAuiService with PostgreSQL persistent storage.
+ *
+ * This sets up the service with:
+ * - Archive storage (humanizer_archive)
+ * - Books storage (humanizer_books) - optional, for integrated search
+ * - Unified search across both databases
+ * - AUI persistence (sessions, buffers, books, clusters, artifacts)
+ */
+export async function initUnifiedAuiWithStorage(
+  config: InitUnifiedAuiWithStorageOptions
+): Promise<UnifiedAuiService> {
+  // Initialize content store (which runs migrations including AUI tables)
+  const { initContentStore, getContentStore } = await import('../storage/postgres-content-store.js');
+  const contentStore = await initContentStore(config.storageConfig);
+
+  // Initialize AUI store with the same pool
+  const { initAuiStore } = await import('../storage/aui-postgres-store.js');
+  const auiStore = initAuiStore(contentStore.getPool(), config.storeOptions);
+
+  // Initialize books store if embedFn provided (enables integrated search)
+  let booksStore = null;
+  if (config.embedFn) {
+    try {
+      const { initBooksStore } = await import('../storage/books-postgres-store.js');
+      const booksDbConfig = {
+        host: config.booksConfig?.host ?? config.storageConfig.host,
+        port: config.booksConfig?.port ?? config.storageConfig.port,
+        database: config.booksConfig?.database ?? 'humanizer_books',
+        user: config.booksConfig?.user ?? config.storageConfig.user,
+        password: config.booksConfig?.password ?? config.storageConfig.password,
+        maxConnections: config.storageConfig.maxConnections ?? 10,
+        idleTimeoutMs: config.storageConfig.idleTimeoutMs ?? 30000,
+        connectionTimeoutMs: config.storageConfig.connectionTimeoutMs ?? 10000,
+        embeddingDimension: config.storageConfig.embeddingDimension ?? 768,
+      };
+      booksStore = await initBooksStore(booksDbConfig);
+    } catch (error) {
+      console.warn('Failed to initialize books store, using stub:', error);
+    }
+  }
+
+  // Create unified store and agentic search service if embedFn provided
+  let agenticSearchService = config.agenticSearch;
+  if (config.embedFn && !agenticSearchService) {
+    const { UnifiedStore, AgenticSearchService } = await import('../agentic-search/index.js');
+    const unifiedStore = new UnifiedStore(contentStore, booksStore ?? undefined);
+    agenticSearchService = new AgenticSearchService(unifiedStore, config.embedFn);
+  }
+
+  // Create the service with agentic search
+  const service = await createUnifiedAuiService({
+    ...config,
+    agenticSearch: agenticSearchService,
+  });
+
+  // Attach the stores
+  service.setStore(auiStore);
+  if (booksStore) {
+    service.setBooksStore(booksStore);
+  }
+
+  return service;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // GLOBAL INSTANCE
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1737,7 +2356,7 @@ let _unifiedAui: UnifiedAuiService | null = null;
  * Initialize the global unified AUI service.
  */
 export async function initUnifiedAui(
-  config: CreateUnifiedAuiOptions
+  config: CreateUnifiedAuiOptions = {}
 ): Promise<UnifiedAuiService> {
   _unifiedAui = await createUnifiedAuiService(config);
   return _unifiedAui;

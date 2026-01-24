@@ -94,6 +94,40 @@ export {
   type SetupStep,
 } from './postgres-detection.js';
 
+// Books Store (humanizer_books database)
+export {
+  BooksPostgresStore,
+  initBooksStore,
+  getBooksStore,
+  getBooksPool,
+  closeBooksStore,
+  resetBooksStore,
+  type BooksPostgresStoreOptions,
+  type CreateBookNodeOptions,
+} from './books-postgres-store.js';
+
+// Books Schema
+export type { BooksStorageConfig } from './schema-books.js';
+export {
+  BOOKS_SCHEMA_VERSION,
+  initializeBooksSchema,
+  DEFAULT_BOOKS_CONFIG,
+} from './schema-books.js';
+
+// AUI Store (sessions, buffers, books metadata, clusters, artifacts)
+export {
+  AuiPostgresStore,
+  initAuiStore,
+  getAuiStore,
+  resetAuiStore,
+  type AuiPostgresStoreOptions,
+  type AuiArtifact,
+  type CreateArtifactOptions,
+} from './aui-postgres-store.js';
+
+// AUI Schema
+export { runAuiMigration } from './schema-aui.js';
+
 // Legacy SQLite exports (DEPRECATED - kept for reference only)
 // NOTE: The old content-store.ts and schema.ts files are kept in the repo
 // for reference but are no longer used. They will be removed in a future version.

@@ -65,7 +65,7 @@ function createMockBookNode(id: string, overrides: Partial<BookNode> = {}): Book
     wordCount: 40,
     position: 1,
     hierarchyLevel: 0,
-    createdAt: Date.now(),
+    createdAt: new Date(),
     ...overrides,
   };
 }

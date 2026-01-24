@@ -22,7 +22,7 @@ import type { Pool, PoolClient } from 'pg';
 // ═══════════════════════════════════════════════════════════════════
 
 /** Current schema version */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 // ═══════════════════════════════════════════════════════════════════
 // EXTENSION SETUP
@@ -480,7 +480,19 @@ async function runMigrations(
     // Create relationship indexes
     await client.query(CREATE_RELATIONSHIP_INDEXES);
 
-    // Update schema version
+    // Update schema version to 2
+    await client.query(
+      "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      ['2']
+    );
+  }
+
+  // Migration to version 3: Add AUI tables (sessions, buffers, books, clusters, artifacts)
+  if (fromVersion < 3) {
+    const { runAuiMigration } = await import('./schema-aui.js');
+    await runAuiMigration(client, config.embeddingDimension, config.enableVec);
+
+    // Update schema version to 3
     await client.query(
       "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
       [SCHEMA_VERSION.toString()]
@@ -488,7 +500,7 @@ async function runMigrations(
   }
 
   // Future migrations would go here:
-  // if (fromVersion < 3) { ... }
+  // if (fromVersion < 4) { ... }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -557,6 +569,16 @@ FROM content_nodes
 WHERE embedding IS NOT NULL
 ORDER BY embedding <=> $1::vector
 LIMIT $2
+`;
+
+/**
+ * Get random nodes with embeddings (for clustering seed selection)
+ */
+export const GET_RANDOM_EMBEDDED_NODES = `
+SELECT id FROM content_nodes
+WHERE embedding IS NOT NULL
+ORDER BY RANDOM()
+LIMIT $1
 `;
 
 /**

@@ -924,7 +924,7 @@ export class AgenticSearchService {
             chapterId: bookNode.chapterId,
           }
         : undefined,
-      sourceCreatedAt: storedNode?.sourceCreatedAt ?? bookNode?.createdAt,
+      sourceCreatedAt: storedNode?.sourceCreatedAt ?? (bookNode?.createdAt ? bookNode.createdAt.getTime() : undefined),
       author: storedNode?.author,
       authorRole: storedNode?.authorRole,
       uri: storedNode?.uri ?? `book://${bookNode?.bookId}/${bookNode?.id}`,

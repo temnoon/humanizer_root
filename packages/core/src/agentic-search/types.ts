@@ -97,9 +97,15 @@ export interface BookNode {
   sourceArchiveId?: string;
   sourceType?: 'original' | 'extracted' | 'synthesized';
 
+  /** Annotations (e.g., highlights, notes) */
+  annotations?: Record<string, unknown>;
+
+  /** Arbitrary metadata */
+  metadata?: Record<string, unknown>;
+
   /** Timestamps */
-  createdAt: number;
-  updatedAt?: number;
+  createdAt: Date;
+  updatedAt?: Date;
 }
 
 // ═══════════════════════════════════════════════════════════════════

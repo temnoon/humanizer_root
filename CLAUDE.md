@@ -314,6 +314,7 @@ Example refactor:
 | Workspace Buffers | `narrative-studio/docs/WORKSPACE_BUFFERS.md` | `WorkspaceContext.tsx`, `useWorkspaceTools.ts` |
 | AI Detection | `narrative-studio/docs/AI_DETECTION.md` | `ai-detection/`, `AIAnalysisPane.tsx` |
 | Archive Import | `narrative-studio/docs/ARCHIVE_IMPORT.md` | `src/services/parser/` |
+| AUI Storage | `packages/core/docs/AUI_STORAGE.md` | `aui-postgres-store.ts`, `schema-aui.ts` |
 
 **Also query ChromaDB** for operational details: search tags like `llm-architecture`, `workspace-buffers`, `context-continuity`
 
@@ -373,6 +374,7 @@ Key existing systems (check these before building):
 | Embeddings/Search | `embeddingService` | `src/services/embeddingService.ts` |
 | Transformations | `transformationService` | `src/services/transformationService.ts` |
 | Archive Import | Parser module | `src/services/parser/` |
+| AUI Sessions/Books | `AuiPostgresStore` | `packages/core/src/storage/aui-postgres-store.ts` |
 
 **Update this registry when adding new core systems.**
 
@@ -696,6 +698,7 @@ Restart session to activate after config changes.
 | `css-compliance` | Theme/styling system | v1 | Dec 2025 |
 | `archive-import` | Parser module | v1 | Nov 2025 |
 | `embeddings` | Semantic search | v1 | Nov 2025 |
+| `aui-postgres-storage` | AuiPostgresStore + schema-aui | v1 | Jan 2026 |
 | `llm-arch` | LLM/transformation | v1 | - |
 
 **Update this table when major refactors occur.**

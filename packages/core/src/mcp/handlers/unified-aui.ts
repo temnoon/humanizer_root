@@ -49,7 +49,7 @@ export async function handleSessionCreate(args: {
 }): Promise<MCPResult> {
   try {
     const service = getService();
-    const session = service.createSession(args);
+    const session = await service.createSession(args);
     return jsonResult({
       sessionId: session.id,
       name: session.name,
@@ -370,7 +370,7 @@ export async function handleBufferCommit(args: {
 }): Promise<MCPResult> {
   try {
     const service = getService();
-    const version = service.commit(args.sessionId, args.name, args.message);
+    const version = await service.commit(args.sessionId, args.name, args.message);
     return jsonResult({
       versionId: version.id,
       message: version.message,
@@ -1123,6 +1123,7 @@ export async function handleArchiveEmbedBatch(args: {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export async function handleClusterDiscover(args: {
+  sampleSize?: number;
   minClusterSize?: number;
   maxClusters?: number;
   minSimilarity?: number;
@@ -1135,6 +1136,7 @@ export async function handleClusterDiscover(args: {
   try {
     const service = getService();
     const result = await service.discoverClusters({
+      sampleSize: args.sampleSize,
       minClusterSize: args.minClusterSize,
       maxClusters: args.maxClusters,
       minSimilarity: args.minSimilarity,
@@ -1173,6 +1175,8 @@ export async function handleClusterList(): Promise<MCPResult> {
         label: c.label,
         totalPassages: c.totalPassages,
         coherence: c.coherence,
+        keywords: c.keywords?.slice(0, 5) || [],
+        sourceDistribution: c.sourceDistribution,
       })),
       count: clusters.length,
     });

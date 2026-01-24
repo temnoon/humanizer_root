@@ -1394,6 +1394,9 @@ export interface EmbedResult {
  * Options for cluster discovery.
  */
 export interface ClusterDiscoveryOptions {
+  /** Sample size for random node selection */
+  sampleSize?: number;
+
   /** Minimum cluster size */
   minClusterSize?: number;
 
@@ -1402,6 +1405,9 @@ export interface ClusterDiscoveryOptions {
 
   /** Minimum similarity threshold for cluster membership */
   minSimilarity?: number;
+
+  /** Alias for minSimilarity */
+  similarityThreshold?: number;
 
   /** Content filters (exclude certain patterns) */
   excludePatterns?: string[];
@@ -1560,6 +1566,9 @@ export interface BookFromClusterOptions {
 
   /** Progress callback */
   onProgress?: (progress: BookCreationProgress) => void;
+
+  /** Embedding function for indexing book content (enables unified search) */
+  embedFn?: (text: string) => Promise<number[]>;
 }
 
 /**
@@ -1567,7 +1576,7 @@ export interface BookFromClusterOptions {
  */
 export interface BookCreationProgress {
   /** Current phase */
-  phase: 'gathering' | 'organizing' | 'generating_arc' | 'writing_intro' | 'assembling' | 'complete';
+  phase: 'gathering' | 'organizing' | 'generating_arc' | 'writing_intro' | 'assembling' | 'indexing' | 'complete';
 
   /** Current step */
   step: number;
