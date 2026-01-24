@@ -107,3 +107,7 @@ docs/LEGAL_DOCUMENTS_README.md
 narrative-studio/docs/DISTRIBUTION_STRATEGY_ANALYSIS.md
 narrative-studio/docs/API_SERVICE_STRATEGY.md
 narrative-studio/release/
+
+# Generated Output
+output/
+**/output/
