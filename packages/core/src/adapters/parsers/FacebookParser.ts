@@ -79,10 +79,14 @@ export class FacebookParser {
 
   /**
    * Find all message_*.json files in the Facebook export
-   * Facebook organizes messages in: messages/inbox/<thread-name>/message_*.json
+   * Facebook organizes messages in various paths:
+   * - messages/inbox/<thread-name>/message_*.json (older exports)
+   * - your_facebook_activity/messages/inbox/<thread-name>/message_*.json (newer exports)
    */
   private findMessageFiles(extractedDir: string): string[] {
-    const inboxPattern = /messages\/(inbox|archived_threads)\/[^\/]+\/message_\d+\.json$/i;
+    // Match both old and new Facebook export path structures
+    const inboxPattern =
+      /(messages|your_facebook_activity\/messages)\/(inbox|archived_threads)\/[^\/]+\/message_\d+\.json$/i;
     const allFiles = findFiles(extractedDir, inboxPattern);
 
     console.log(`[FacebookParser] Found ${allFiles.length} message files`);
@@ -173,12 +177,12 @@ export class FacebookParser {
    * Generate a unique conversation ID from the file path
    */
   private generateConversationId(filePath: string): string {
+    // Handle both old and new Facebook export structures
     const match =
-      filePath.match(/\/inbox\/([^\/]+)\/message_\d+\.json$/i) ||
-      filePath.match(/\/archived_threads\/([^\/]+)\/message_\d+\.json$/i);
+      filePath.match(/\/(inbox|archived_threads)\/([^\/]+)\/message_\d+\.json$/i);
 
-    if (match && match[1]) {
-      return `facebook_${match[1]}`;
+    if (match && match[2]) {
+      return `facebook_${match[2]}`;
     }
 
     return `facebook_${path.basename(path.dirname(filePath))}`;
@@ -397,7 +401,9 @@ export class FacebookParser {
    * Detect if a directory contains Facebook export format
    */
   static async detectFormat(extractedDir: string): Promise<boolean> {
-    const inboxPattern = /messages\/(inbox|archived_threads)\/[^\/]+\/message_\d+\.json$/i;
+    // Match both old and new Facebook export path structures
+    const inboxPattern =
+      /(messages|your_facebook_activity\/messages)\/(inbox|archived_threads)\/[^\/]+\/message_\d+\.json$/i;
     const messageFiles = findFiles(extractedDir, inboxPattern);
 
     if (messageFiles.length === 0) {
