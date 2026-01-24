@@ -3,6 +3,10 @@
  *
  * Parses Twitter GDPR data export (JS format with window.YTD.* wrapper)
  * Supports: tweets.js, direct-messages.js
+ *
+ * Structure:
+ * - Tweets: One conversation per tweet (natural content unit)
+ * - DMs: Grouped by conversation thread
  */
 
 import * as path from 'path';
@@ -15,7 +19,6 @@ import type {
   MessageContent,
   MessageAttachment,
 } from './types.js';
-import { findFiles } from './utils.js';
 
 /**
  * Twitter tweet structure
@@ -88,6 +91,7 @@ interface DMConversation {
 
 export class TwitterParser {
   private userId: string = '';
+  private username: string = '';
 
   /**
    * Parse all content from an extracted Twitter export directory
@@ -98,20 +102,20 @@ export class TwitterParser {
     // Get account info for user ID
     await this.loadAccountInfo(extractedDir);
 
-    // Parse tweets
+    // Parse tweets - one conversation per tweet
     const tweetsFile = path.join(extractedDir, 'data', 'tweets.js');
     if (fs.existsSync(tweetsFile)) {
       const tweetConversations = await this.parseTweets(tweetsFile, extractedDir);
       conversations.push(...tweetConversations);
-      console.log(`Parsed ${tweetConversations.length} Twitter tweet conversations`);
+      console.log(`Parsed ${tweetConversations.length} tweets`);
     }
 
-    // Parse DMs
+    // Parse DMs - grouped by conversation
     const dmsFile = path.join(extractedDir, 'data', 'direct-messages.js');
     if (fs.existsSync(dmsFile)) {
       const dmConversations = await this.parseDMs(dmsFile);
       conversations.push(...dmConversations);
-      console.log(`Parsed ${dmConversations.length} Twitter DM conversations`);
+      console.log(`Parsed ${dmConversations.length} DM conversations`);
     }
 
     // Parse group DMs
@@ -119,7 +123,7 @@ export class TwitterParser {
     if (fs.existsSync(groupDmsFile)) {
       const groupDmConversations = await this.parseDMs(groupDmsFile, true);
       conversations.push(...groupDmConversations);
-      console.log(`Parsed ${groupDmConversations.length} Twitter group DM conversations`);
+      console.log(`Parsed ${groupDmConversations.length} group DM conversations`);
     }
 
     console.log(`Successfully parsed ${conversations.length} Twitter conversations total`);
@@ -127,15 +131,16 @@ export class TwitterParser {
   }
 
   /**
-   * Load account info to get user ID
+   * Load account info to get user ID and username
    */
   private async loadAccountInfo(extractedDir: string): Promise<void> {
     const accountFile = path.join(extractedDir, 'data', 'account.js');
     if (fs.existsSync(accountFile)) {
       try {
-        const data = this.parseTwitterJS<Array<{ account?: { accountId?: string } }>>(accountFile);
+        const data = this.parseTwitterJS<Array<{ account?: { accountId?: string; username?: string } }>>(accountFile);
         if (data && data[0]?.account) {
           this.userId = data[0].account.accountId || '';
+          this.username = data[0].account.username || '';
         }
       } catch (err) {
         console.warn('Could not load Twitter account info:', err);
@@ -144,56 +149,118 @@ export class TwitterParser {
   }
 
   /**
-   * Parse tweets.js into conversations (grouped by thread or standalone)
+   * Parse tweets - one conversation per tweet
    */
   private async parseTweets(
     tweetsFile: string,
     extractedDir: string
   ): Promise<Conversation[]> {
     const tweets = this.parseTwitterJS<Tweet[]>(tweetsFile) || [];
-
-    // Group tweets into threads
-    const threads = this.groupTweetsIntoThreads(tweets);
     const conversations: Conversation[] = [];
 
-    for (const [threadId, threadTweets] of threads) {
-      const sorted = threadTweets.sort(
-        (a, b) =>
-          new Date(a.tweet.created_at).getTime() - new Date(b.tweet.created_at).getTime()
-      );
+    // Index tweets by ID for thread context
+    const tweetById = new Map<string, Tweet>();
+    for (const tweet of tweets) {
+      tweetById.set(tweet.tweet.id_str, tweet);
+    }
 
-      const conversationId = `twitter_${threadId}`;
-      const mapping = this.buildTweetMapping(sorted, conversationId, extractedDir);
+    for (const tweet of tweets) {
+      const t = tweet.tweet;
+      const conversationId = `twitter_tweet_${t.id_str}`;
+      const timestamp = new Date(t.created_at).getTime() / 1000;
 
-      const timestamps = sorted.map((t) => new Date(t.tweet.created_at).getTime() / 1000);
-      const firstTweet = sorted[0]?.tweet;
+      // Build mapping with single message (the tweet)
+      const mapping: ConversationMapping = {};
+      const rootId = `${conversationId}_root`;
+      const tweetNodeId = `${conversationId}_content`;
 
-      // Generate title from first tweet
-      let title = firstTweet?.full_text?.slice(0, 50) || 'Tweet';
-      if (title.length < (firstTweet?.full_text?.length || 0)) {
+      mapping[rootId] = {
+        id: rootId,
+        message: undefined,
+        parent: undefined,
+        children: [tweetNodeId],
+      };
+
+      // Extract attachments
+      const attachments: MessageAttachment[] = [];
+      const media = t.extended_entities?.media || t.entities?.media || [];
+      media.forEach((m, idx) => {
+        attachments.push({
+          id: m.id_str,
+          name: `media_${idx}.${m.type === 'video' ? 'mp4' : 'jpg'}`,
+          mimeType: m.type === 'video' ? 'video/mp4' : 'image/jpeg',
+        });
+      });
+
+      const message: Message = {
+        id: tweetNodeId,
+        author: {
+          role: 'user',
+          name: this.username || 'self',
+        },
+        create_time: timestamp,
+        content: {
+          content_type: 'text',
+          parts: [t.full_text || ''],
+        },
+        status: 'finished_successfully',
+        metadata: {
+          twitter_id: t.id_str,
+          attachments: attachments.length > 0 ? attachments : undefined,
+          retweet_count: parseInt(t.retweet_count) || 0,
+          favorite_count: parseInt(t.favorite_count) || 0,
+          lang: t.lang,
+          // Thread context
+          in_reply_to_tweet_id: t.in_reply_to_status_id_str || undefined,
+          in_reply_to_user: t.in_reply_to_screen_name || undefined,
+          // Entities
+          hashtags: t.entities?.hashtags?.map((h) => h.text),
+          mentions: t.entities?.user_mentions?.map((m) => `@${m.screen_name}`),
+          urls: t.entities?.urls?.map((u) => u.expanded_url),
+        },
+      };
+
+      mapping[tweetNodeId] = {
+        id: tweetNodeId,
+        message,
+        parent: rootId,
+        children: [],
+      };
+
+      // Generate title
+      let title = t.full_text?.slice(0, 60) || 'Tweet';
+      if (title.length < (t.full_text?.length || 0)) {
         title += '...';
       }
 
-      // Check if it's a reply thread
-      if (firstTweet?.in_reply_to_screen_name) {
-        title = `Reply to @${firstTweet.in_reply_to_screen_name}: ${title}`;
+      // Determine tweet type for title prefix
+      let titlePrefix = '';
+      if (t.in_reply_to_screen_name) {
+        if (t.in_reply_to_screen_name === this.username) {
+          titlePrefix = '🧵 '; // Part of own thread
+        } else {
+          titlePrefix = `↩️ @${t.in_reply_to_screen_name}: `;
+        }
       }
+
+      // Extract media files for this tweet
+      const mediaFiles = this.extractTweetMediaFiles(t, extractedDir);
 
       conversations.push({
         conversation_id: conversationId,
-        title,
-        create_time: Math.min(...timestamps),
-        update_time: Math.max(...timestamps),
+        title: titlePrefix + title,
+        create_time: timestamp,
+        update_time: timestamp,
         mapping,
         moderation_results: [],
         _source: 'twitter',
         _import_date: new Date().toISOString(),
-        _original_id: threadId,
-        _media_files: this.extractMediaFiles(sorted, extractedDir),
+        _original_id: t.id_str,
+        _media_files: mediaFiles.length > 0 ? mediaFiles : undefined,
         _twitter_metadata: {
-          username: this.userId,
-          tweet_count: sorted.length,
-          reply_count: sorted.filter((t) => t.tweet.in_reply_to_status_id_str).length,
+          username: this.username,
+          tweet_count: 1,
+          retweet_count: parseInt(t.retweet_count) || 0,
         },
       });
     }
@@ -202,54 +269,7 @@ export class TwitterParser {
   }
 
   /**
-   * Group tweets into threads based on reply chains
-   */
-  private groupTweetsIntoThreads(tweets: Tweet[]): Map<string, Tweet[]> {
-    const threads = new Map<string, Tweet[]>();
-    const tweetById = new Map<string, Tweet>();
-
-    // Index all tweets by ID
-    for (const tweet of tweets) {
-      tweetById.set(tweet.tweet.id_str, tweet);
-    }
-
-    // Find thread roots (tweets not replying to our own tweets)
-    for (const tweet of tweets) {
-      const replyTo = tweet.tweet.in_reply_to_status_id_str;
-
-      if (!replyTo || !tweetById.has(replyTo)) {
-        // This is a thread root
-        const threadId = tweet.tweet.id_str;
-        if (!threads.has(threadId)) {
-          threads.set(threadId, []);
-        }
-        threads.get(threadId)!.push(tweet);
-      } else {
-        // Find the root of this thread
-        let rootId = replyTo;
-        let current = tweetById.get(replyTo);
-        while (current?.tweet.in_reply_to_status_id_str) {
-          const parentId = current.tweet.in_reply_to_status_id_str;
-          if (tweetById.has(parentId)) {
-            rootId = parentId;
-            current = tweetById.get(parentId);
-          } else {
-            break;
-          }
-        }
-
-        if (!threads.has(rootId)) {
-          threads.set(rootId, []);
-        }
-        threads.get(rootId)!.push(tweet);
-      }
-    }
-
-    return threads;
-  }
-
-  /**
-   * Parse DMs into conversations
+   * Parse DMs - grouped by conversation thread
    */
   private async parseDMs(dmsFile: string, isGroup = false): Promise<Conversation[]> {
     const dmData = this.parseTwitterJS<DMConversation[]>(dmsFile) || [];
@@ -269,9 +289,24 @@ export class TwitterParser {
 
       if (timestamps.length === 0) continue;
 
+      // Get participant IDs for title
+      const participants = new Set<string>();
+      conv.messages.forEach((m) => {
+        if (m.messageCreate) {
+          participants.add(m.messageCreate.senderId);
+          participants.add(m.messageCreate.recipientId);
+        }
+      });
+      participants.delete(this.userId); // Remove self
+
+      const otherParticipants = Array.from(participants);
+      const title = isGroup
+        ? `Group DM (${otherParticipants.length + 1} participants)`
+        : `DM with ${otherParticipants[0] || 'unknown'}`;
+
       conversations.push({
         conversation_id: conversationId,
-        title: isGroup ? `Twitter Group DM ${conv.conversationId}` : `Twitter DM ${conv.conversationId}`,
+        title,
         create_time: Math.min(...timestamps),
         update_time: Math.max(...timestamps),
         mapping,
@@ -280,86 +315,13 @@ export class TwitterParser {
         _import_date: new Date().toISOString(),
         _original_id: conv.conversationId,
         _twitter_metadata: {
-          username: this.userId,
+          username: this.username,
           dm_count: conv.messages.filter((m) => m.messageCreate).length,
         },
       });
     }
 
     return conversations;
-  }
-
-  /**
-   * Build conversation mapping from tweets
-   */
-  private buildTweetMapping(
-    tweets: Tweet[],
-    conversationId: string,
-    extractedDir: string
-  ): ConversationMapping {
-    const mapping: ConversationMapping = {};
-
-    const rootId = `${conversationId}_root`;
-    mapping[rootId] = {
-      id: rootId,
-      message: undefined,
-      parent: undefined,
-      children: tweets.length > 0 ? [`${conversationId}_tweet_0`] : [],
-    };
-
-    tweets.forEach((tweet, index) => {
-      const nodeId = `${conversationId}_tweet_${index}`;
-      const prevNodeId = index === 0 ? rootId : `${conversationId}_tweet_${index - 1}`;
-      const nextNodeId =
-        index < tweets.length - 1 ? `${conversationId}_tweet_${index + 1}` : undefined;
-
-      const author: MessageAuthor = {
-        role: 'user',
-        name: 'self',
-      };
-
-      const content: MessageContent = {
-        content_type: 'text',
-        parts: [tweet.tweet.full_text || ''],
-      };
-
-      // Extract attachments
-      const attachments: MessageAttachment[] = [];
-      const media = tweet.tweet.extended_entities?.media || tweet.tweet.entities?.media || [];
-      media.forEach((m, idx) => {
-        attachments.push({
-          id: m.id_str,
-          name: `media_${idx}.${m.type === 'video' ? 'mp4' : 'jpg'}`,
-          mimeType: m.type === 'video' ? 'video/mp4' : 'image/jpeg',
-        });
-      });
-
-      const message: Message = {
-        id: nodeId,
-        author,
-        create_time: new Date(tweet.tweet.created_at).getTime() / 1000,
-        content,
-        status: 'finished_successfully',
-        metadata: {
-          attachments: attachments.length > 0 ? attachments : undefined,
-          retweet_count: tweet.tweet.retweet_count,
-          favorite_count: tweet.tweet.favorite_count,
-          lang: tweet.tweet.lang,
-          in_reply_to_screen_name: tweet.tweet.in_reply_to_screen_name,
-          hashtags: tweet.tweet.entities?.hashtags?.map((h) => h.text),
-          mentions: tweet.tweet.entities?.user_mentions?.map((m) => m.screen_name),
-        },
-      };
-
-      mapping[nodeId] = {
-        id: nodeId,
-        message,
-        parent: prevNodeId,
-        children: nextNodeId ? [nextNodeId] : [],
-      };
-    });
-
-    return mapping;
   }
 
   /**
@@ -371,8 +333,14 @@ export class TwitterParser {
   ): ConversationMapping {
     const mapping: ConversationMapping = {};
 
-    // Filter to actual messages
-    const actualMessages = messages.filter((m) => m.messageCreate);
+    // Filter to actual messages and sort chronologically
+    const actualMessages = messages
+      .filter((m) => m.messageCreate)
+      .sort((a, b) => {
+        const timeA = new Date(a.messageCreate!.createdAt).getTime();
+        const timeB = new Date(b.messageCreate!.createdAt).getTime();
+        return timeA - timeB;
+      });
 
     const rootId = `${conversationId}_root`;
     mapping[rootId] = {
@@ -390,26 +358,25 @@ export class TwitterParser {
         index < actualMessages.length - 1 ? `${conversationId}_dm_${index + 1}` : undefined;
 
       const isSelf = dm.senderId === this.userId;
-      const author: MessageAuthor = {
-        role: 'user',
-        name: isSelf ? 'self' : dm.senderId,
-      };
-
-      const content: MessageContent = {
-        content_type: 'text',
-        parts: [dm.text || ''],
-      };
 
       const message: Message = {
         id: nodeId,
-        author,
+        author: {
+          role: 'user',
+          name: isSelf ? (this.username || 'self') : dm.senderId,
+        },
         create_time: new Date(dm.createdAt).getTime() / 1000,
-        content,
+        content: {
+          content_type: 'text',
+          parts: [dm.text || ''],
+        },
         status: 'finished_successfully',
         metadata: {
-          senderId: dm.senderId,
-          recipientId: dm.recipientId,
+          dm_id: dm.id,
+          sender_id: dm.senderId,
+          recipient_id: dm.recipientId,
           reactions: dm.reactions,
+          media_urls: dm.mediaUrls,
         },
       };
 
@@ -425,26 +392,28 @@ export class TwitterParser {
   }
 
   /**
-   * Extract media file references from tweets
+   * Extract media files for a single tweet
    */
-  private extractMediaFiles(tweets: Tweet[], extractedDir: string): string[] {
+  private extractTweetMediaFiles(tweet: Tweet['tweet'], extractedDir: string): string[] {
     const mediaFiles: string[] = [];
     const mediaDir = path.join(extractedDir, 'data', 'tweets_media');
 
     if (!fs.existsSync(mediaDir)) return mediaFiles;
 
-    for (const tweet of tweets) {
-      const media =
-        tweet.tweet.extended_entities?.media || tweet.tweet.entities?.media || [];
-      for (const m of media) {
-        // Twitter media files are named with tweet ID prefix
-        const tweetId = tweet.tweet.id_str;
-        const files = fs.readdirSync(mediaDir);
-        const matchingFiles = files.filter((f) => f.startsWith(tweetId));
-        matchingFiles.forEach((f) => {
-          mediaFiles.push(path.join(mediaDir, f));
-        });
-      }
+    const media = tweet.extended_entities?.media || tweet.entities?.media || [];
+    if (media.length === 0) return mediaFiles;
+
+    try {
+      const files = fs.readdirSync(mediaDir);
+      const tweetId = tweet.id_str;
+
+      // Twitter media files are named with tweet ID prefix: {tweet_id}-{media_id}.ext
+      const matchingFiles = files.filter((f) => f.startsWith(tweetId));
+      matchingFiles.forEach((f) => {
+        mediaFiles.push(path.join(mediaDir, f));
+      });
+    } catch {
+      // Ignore errors reading media directory
     }
 
     return mediaFiles;
@@ -459,7 +428,6 @@ export class TwitterParser {
       // Strip the window.YTD.*.part0 = prefix
       const jsonStart = content.indexOf('[');
       if (jsonStart === -1) {
-        // Try finding object start
         const objStart = content.indexOf('{');
         if (objStart === -1) return null;
         return JSON.parse(content.slice(objStart));
@@ -478,13 +446,10 @@ export class TwitterParser {
     const dataDir = path.join(extractedDir, 'data');
     if (!fs.existsSync(dataDir)) return false;
 
-    // Check for Twitter-specific files
     const hasTweets = fs.existsSync(path.join(dataDir, 'tweets.js'));
     const hasAccount = fs.existsSync(path.join(dataDir, 'account.js'));
-    const hasReadme = fs.existsSync(path.join(dataDir, 'README.txt'));
 
     if (hasTweets && hasAccount) {
-      // Verify it's Twitter format by checking file content
       try {
         const content = fs.readFileSync(path.join(dataDir, 'tweets.js'), 'utf-8');
         return content.startsWith('window.YTD.tweets');
