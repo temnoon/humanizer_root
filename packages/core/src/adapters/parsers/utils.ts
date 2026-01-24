@@ -120,9 +120,11 @@ export function findFiles(
     if (stat.isDirectory()) {
       findFiles(filePath, pattern, results);
     } else {
+      // Test pattern against full path for path-based patterns (like Facebook's inbox path)
+      // or against filename for simple filename patterns
       const matches =
         pattern instanceof RegExp
-          ? pattern.test(file)
+          ? pattern.test(filePath)
           : file.includes(pattern);
 
       if (matches) {

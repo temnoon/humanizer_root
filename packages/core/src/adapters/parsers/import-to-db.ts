@@ -189,7 +189,8 @@ function conversationToNodes(
   const convHash = hashContent(convContent + convId);
 
   const convNode: ImportedNode = {
-    id: convId,
+    // Generate UUID - the original ID is preserved in metadata.originalId
+    id: crypto.randomUUID(),
     uri: convUri,
     contentHash: convHash,
     content: convContent,
@@ -235,7 +236,8 @@ function conversationToNodes(
     const updateTime = msg.update_time as number | undefined;
 
     const msgNode: ImportedNode = {
-      id: msgId,
+      // Generate UUID - the original ID is preserved in metadata.originalId
+      id: crypto.randomUUID(),
       uri: msgUri,
       contentHash: msgHash,
       content: textContent,
@@ -251,6 +253,7 @@ function conversationToNodes(
       threadRootUri: convUri,
       position,
       metadata: {
+        originalId: msgId,
         status: msg.status,
         modelSlug: metadata?.model_slug,
         endTurn: msg.end_turn,
