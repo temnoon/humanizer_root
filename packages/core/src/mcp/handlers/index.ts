@@ -9,6 +9,7 @@ export { BOOK_AGENT_HANDLERS } from './book-agent.js';
 export { BOOKMAKING_HANDLERS } from './bookmaking.js';
 export { AUI_HANDLERS } from './aui.js';
 export { ARXIV_HANDLERS } from './arxiv.js';
+export { AGENTIC_SEARCH_HANDLERS } from './agentic-search.js';
 
 import { CODEGUARD_HANDLERS } from './codeguard.js';
 import { SYSTEM_HANDLERS } from './system.js';
@@ -17,6 +18,7 @@ import { BOOK_AGENT_HANDLERS } from './book-agent.js';
 import { BOOKMAKING_HANDLERS } from './bookmaking.js';
 import { AUI_HANDLERS } from './aui.js';
 import { ARXIV_HANDLERS } from './arxiv.js';
+import { AGENTIC_SEARCH_HANDLERS } from './agentic-search.js';
 import type { MCPResult, HandlerContext } from '../types.js';
 
 /**
@@ -35,6 +37,7 @@ export const ALL_HANDLERS: Record<string, MCPHandler> = {
   ...BOOKMAKING_HANDLERS,
   ...AUI_HANDLERS,
   ...ARXIV_HANDLERS,
+  ...AGENTIC_SEARCH_HANDLERS,
 };
 
 /**
