@@ -256,3 +256,136 @@ export interface MatchStats {
   unmatchedFiles: number;
   byStrategy: Record<MatchStrategy, number>;
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Relationship Graph Types (Facebook, Instagram)
+// ═══════════════════════════════════════════════════════════════════
+
+export interface ParsedFriend {
+  id: string;
+  name: string;
+  friendshipDate: number;  // Unix timestamp
+  status: 'friend' | 'removed' | 'sent_request' | 'rejected_request';
+  removedDate?: number;
+}
+
+export interface ParsedAdvertiser {
+  id: string;
+  name: string;
+  targetingType: string;
+  interactionCount: number;
+  firstSeen?: number;
+  lastSeen?: number;
+  isDataBroker: boolean;
+}
+
+export interface ParsedPage {
+  id: string;
+  name: string;
+  facebookId?: string;
+  url?: string;
+  isLiked: boolean;
+  likedAt?: number;
+  isFollowing: boolean;
+  followedAt?: number;
+  unfollowedAt?: number;
+}
+
+export interface ParsedReaction {
+  id: string;
+  reactionType: 'like' | 'love' | 'haha' | 'wow' | 'sad' | 'angry';
+  reactorName: string;
+  createdAt: number;
+  targetType: 'link' | 'post' | 'photo' | 'video' | 'comment' | 'unknown';
+  targetAuthor?: string;
+  title?: string;
+}
+
+export interface ParsedGroup {
+  id: string;
+  name: string;
+  joinedAt: number | null;
+  postCount: number;
+  commentCount: number;
+  lastActivity: number;
+}
+
+export interface ParsedGroupPost {
+  id: string;
+  groupName: string;
+  text: string;
+  timestamp: number;
+  externalUrls: string[];
+  hasAttachments: boolean;
+  title: string;
+}
+
+export interface ParsedGroupComment {
+  id: string;
+  groupName: string;
+  text: string;
+  timestamp: number;
+  author: string;
+  originalPostAuthor: string;
+  title: string;
+}
+
+export interface RelationshipData {
+  friends: {
+    friends: ParsedFriend[];
+    removed: ParsedFriend[];
+    sentRequests: ParsedFriend[];
+    rejectedRequests: ParsedFriend[];
+    stats: {
+      totalFriends: number;
+      totalRemoved: number;
+      totalSentRequests: number;
+      totalRejectedRequests: number;
+      earliestFriendship: number;
+      latestFriendship: number;
+    };
+  };
+  advertisers: {
+    advertisers: ParsedAdvertiser[];
+    stats: {
+      total: number;
+      dataBrokers: number;
+      byTargetingType: Record<string, number>;
+    };
+  };
+  pages: {
+    pages: ParsedPage[];
+    stats: {
+      totalLiked: number;
+      totalFollowed: number;
+      totalUnfollowed: number;
+      earliestLike?: number;
+      latestLike?: number;
+    };
+  };
+  reactions: {
+    reactions: ParsedReaction[];
+    stats: {
+      total: number;
+      byType: Record<string, number>;
+      byTargetType: Record<string, number>;
+      dateRange: { earliest: number; latest: number };
+    };
+  };
+  groups: {
+    groups: ParsedGroup[];
+    posts: ParsedGroupPost[];
+    comments: ParsedGroupComment[];
+    stats: {
+      totalGroups: number;
+      totalPosts: number;
+      totalComments: number;
+      dateRange: { earliest: number; latest: number };
+    };
+  };
+}
+
+// Extended ParsedArchive to include relationship data
+export interface ParsedArchiveWithRelationships extends ParsedArchive {
+  relationships?: RelationshipData;
+}
