@@ -126,7 +126,7 @@ export class BrowserPluginParser {
   }
 
   /**
-   * Parse a single-conversation export from browser plugin
+   * Parse a single-conversation export from browser plugin or native export
    */
   async parseConversation(extractedDir: string): Promise<Conversation | null> {
     const conversationFile = this.findConversationFile(extractedDir);
@@ -135,26 +135,46 @@ export class BrowserPluginParser {
       return null;
     }
 
-    const data = readJSON<PluginConversation>(conversationFile);
-    if (!data || !data.source) {
-      this.log('Invalid plugin export format');
+    const data = readJSON<Record<string, unknown>>(conversationFile);
+    if (!data) {
+      this.log('Failed to read conversation file');
       return null;
     }
 
-    this.log(`[BrowserPluginParser] Detected source: ${data.source}`);
-
-    const source = data.source.toLowerCase();
     let conversation: Conversation;
+    let source: string;
+
+    // Detect format
+    if (data.source) {
+      // Plugin format with source field
+      source = (data.source as string).toLowerCase();
+      this.log(`[BrowserPluginParser] Detected plugin source: ${data.source}`);
+    } else if (data.mapping && data.conversation_id) {
+      // Native OpenAI single export
+      source = 'openai-single';
+      this.log('[BrowserPluginParser] Detected native OpenAI single export');
+    } else if (data.chat_messages) {
+      // Native Claude single export
+      source = 'claude-single';
+      this.log('[BrowserPluginParser] Detected native Claude single export');
+    } else {
+      this.log('Unknown conversation format');
+      return null;
+    }
 
     if (source === 'chatgpt') {
-      conversation = this.parseChatGPT(data, extractedDir);
+      conversation = this.parseChatGPT(data as unknown as PluginConversation, extractedDir);
     } else if (source === 'claude') {
-      conversation = this.parseClaude(data, extractedDir);
+      conversation = this.parseClaude(data as unknown as PluginConversation, extractedDir);
     } else if (source === 'gemini') {
-      conversation = this.parseGemini(data, extractedDir);
+      conversation = this.parseGemini(data as unknown as PluginConversation, extractedDir);
+    } else if (source === 'openai-single') {
+      conversation = this.parseNativeOpenAI(data, extractedDir);
+    } else if (source === 'claude-single') {
+      conversation = this.parseNativeClaude(data, extractedDir);
     } else {
-      this.log(`Unknown source: ${data.source}, attempting generic parse`);
-      conversation = this.parseGeneric(data, extractedDir);
+      this.log(`Unknown source: ${source}, attempting generic parse`);
+      conversation = this.parseGeneric(data as unknown as PluginConversation, extractedDir);
     }
 
     // Attach media files
@@ -456,13 +476,111 @@ export class BrowserPluginParser {
   }
 
   /**
-   * Detect if a directory contains a browser plugin export
+   * Parse native OpenAI single-conversation export
+   * These have the same structure as full exports but just one conversation
    */
-  static async detectFormat(extractedDir: string): Promise<'plugin-chatgpt' | 'plugin-claude' | 'plugin-gemini' | null> {
+  private parseNativeOpenAI(data: Record<string, unknown>, extractedDir: string): Conversation {
+    // This is already in OpenAI format with mapping structure
+    const mapping = data.mapping as ConversationMapping;
+    const conversationId = (data.conversation_id as string) || `openai_single_${crypto.randomUUID().slice(0, 8)}`;
+
+    return {
+      conversation_id: conversationId,
+      title: (data.title as string) || 'Untitled Conversation',
+      create_time: data.create_time as number | undefined,
+      update_time: data.update_time as number | undefined,
+      mapping: mapping || {},
+      moderation_results: (data.moderation_results as unknown[]) || [],
+      current_node: data.current_node as string | undefined,
+      plugin_ids: data.plugin_ids as string | null,
+      conversation_template_id: data.conversation_template_id as string | null,
+      _source: 'single-openai',
+      _import_date: new Date().toISOString(),
+      _original_id: conversationId,
+    };
+  }
+
+  /**
+   * Parse native Claude single-conversation export
+   */
+  private parseNativeClaude(data: Record<string, unknown>, extractedDir: string): Conversation {
+    const chatMessages = data.chat_messages as PluginClaudeChatMessage[] || [];
+    const conversationId = (data.uuid as string) || `claude_single_${crypto.randomUUID().slice(0, 8)}`;
+    const createTime = data.created_at ? parseISOTimestamp(data.created_at as string) : undefined;
+    const updateTime = data.updated_at ? parseISOTimestamp(data.updated_at as string) : undefined;
+
+    // Build mapping from flat message list
+    const mapping: ConversationMapping = {};
+
+    // Root node
+    const rootId = `${conversationId}_root`;
+    mapping[rootId] = {
+      id: rootId,
+      message: undefined,
+      parent: undefined,
+      children: chatMessages.length > 0 ? [chatMessages[0].uuid] : [],
+    };
+
+    // Convert each message
+    for (let i = 0; i < chatMessages.length; i++) {
+      const msg = chatMessages[i];
+      const nextMsg = chatMessages[i + 1];
+
+      const message: Message = {
+        id: msg.uuid,
+        author: {
+          role: msg.sender === 'human' ? 'user' : 'assistant',
+          metadata: {},
+        },
+        create_time: msg.created_at ? parseISOTimestamp(msg.created_at) : undefined,
+        update_time: msg.updated_at ? parseISOTimestamp(msg.updated_at) : undefined,
+        content: {
+          content_type: 'text',
+          parts: [msg.text],
+        },
+        status: 'finished_successfully',
+        metadata: {
+          _files: msg.files,
+          _attachments: msg.attachments,
+        },
+        recipient: 'all',
+        weight: 1.0,
+        end_turn: true,
+      };
+
+      mapping[msg.uuid] = {
+        id: msg.uuid,
+        message,
+        parent: i === 0 ? rootId : chatMessages[i - 1].uuid,
+        children: nextMsg ? [nextMsg.uuid] : [],
+      };
+    }
+
+    return {
+      conversation_id: conversationId,
+      title: (data.name as string) || 'Untitled Claude Conversation',
+      create_time: createTime,
+      update_time: updateTime,
+      mapping,
+      moderation_results: [],
+      current_node: undefined,
+      plugin_ids: null,
+      conversation_template_id: null,
+      _source: 'single-claude',
+      _import_date: new Date().toISOString(),
+      _original_id: conversationId,
+    };
+  }
+
+  /**
+   * Detect if a directory contains a browser plugin or single-conversation export
+   */
+  static async detectFormat(extractedDir: string): Promise<'plugin-chatgpt' | 'plugin-claude' | 'plugin-gemini' | 'single-openai' | null> {
     // Look for conversation.json (singular)
     const candidates = [
       'conversation.json',
       'conversation (1).json',
+      'conversation (2).json',
     ];
 
     let conversationFile: string | null = null;
@@ -478,23 +596,29 @@ export class BrowserPluginParser {
       return null;
     }
 
-    // Check for source field
+    // Check format
     try {
       const content = fs.readFileSync(conversationFile, 'utf-8');
-      const data = JSON.parse(content) as PluginConversation;
+      const data = JSON.parse(content) as Record<string, unknown>;
 
-      if (!data.source) {
-        return null;
+      // Check for plugin format (has source field)
+      if (data.source) {
+        const source = (data.source as string).toLowerCase();
+        if (source === 'chatgpt') return 'plugin-chatgpt';
+        if (source === 'claude') return 'plugin-claude';
+        if (source === 'gemini') return 'plugin-gemini';
+        // Unknown source but has plugin format
+        return 'plugin-chatgpt';
       }
 
-      const source = data.source.toLowerCase();
-      if (source === 'chatgpt') return 'plugin-chatgpt';
-      if (source === 'claude') return 'plugin-claude';
-      if (source === 'gemini') return 'plugin-gemini';
+      // Check for native OpenAI single export (has mapping and conversation_id)
+      if (data.mapping && data.conversation_id) {
+        return 'single-openai';
+      }
 
-      // Unknown source but has plugin format markers
-      if (data.title && (data.messages || data.media)) {
-        return 'plugin-chatgpt'; // Default to ChatGPT format
+      // Check for native Claude single export (has chat_messages array)
+      if (data.chat_messages && Array.isArray(data.chat_messages)) {
+        return 'plugin-claude';
       }
     } catch {
       return null;

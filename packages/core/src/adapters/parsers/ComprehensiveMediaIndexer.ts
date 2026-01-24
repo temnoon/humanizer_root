@@ -275,6 +275,7 @@ export class ComprehensiveMediaIndexer {
    * - file-{ID}_{filename} (top-level user uploads)
    * - file-{ID}-{uuid}.ext (DALL-E generations)
    * - file-{ID}-{filename} (other hyphen separators)
+   * - file-{ID}.ext (direct file-ID with extension)
    */
   private extractFileId(filename: string): string | null {
     // Pattern 1: Underscore separator (top-level user uploads)
@@ -295,6 +296,12 @@ export class ComprehensiveMediaIndexer {
     const hyphenMatch = filename.match(/^(file-[A-Za-z0-9]+)-(?![a-f0-9]{8}-)/);
     if (hyphenMatch) {
       return hyphenMatch[1];
+    }
+
+    // Pattern 4: Direct file-ID with extension (file-{ID}.ext)
+    const directMatch = filename.match(/^(file-[A-Za-z0-9]+)\.[a-zA-Z0-9]+$/);
+    if (directMatch) {
+      return directMatch[1];
     }
 
     return null;
