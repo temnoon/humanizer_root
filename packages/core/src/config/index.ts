@@ -244,6 +244,19 @@ export {
   MODEL_MASTER_DETECT_AI,
   MODEL_MASTER_HUMANIZE,
   MODEL_MASTER_PROMPTS,
+  // Prospector (Content Excellence System)
+  PROSPECTOR_EXCELLENCE_SCORE,
+  PROSPECTOR_RAW_GEM_DETECTION,
+  PROSPECTOR_PROMPTS,
+  // Refiner (Content Excellence System)
+  REFINER_EXTRACT_INSIGHT,
+  REFINER_VERIFY_PRESERVATION,
+  REFINER_POLISH_EXPRESSION,
+  REFINER_PROMPTS,
+  // Archivist (Content Excellence System)
+  ARCHIVIST_CATEGORIZE_EXPRESSION,
+  ARCHIVIST_FIND_CANONICAL,
+  ARCHIVIST_PROMPTS,
   // Combined
   ALL_PROMPTS,
   PROMPT_REGISTRY,
@@ -280,3 +293,16 @@ export {
   getPatternsByCategory,
   createPattern,
 } from './ai-detection-config.js';
+
+// Excellence Configuration (Content Excellence System)
+export {
+  EXCELLENCE_CONFIG_KEYS,
+  EXCELLENCE_DEFAULTS,
+  EXCELLENCE_CONFIG_CATEGORIES,
+  type ExcellenceConfigKey,
+  type ExcellenceTier,
+  getExcellenceConfigCategory,
+  getExcellenceDefault,
+  seedExcellenceDefaults,
+  getExcellenceTier,
+} from './excellence-config.js';

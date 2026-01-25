@@ -267,7 +267,10 @@ export type PromptCategory =
   | 'vimalakirti'  // Boundary check prompts
   | 'search'       // Search and retrieval prompts
   | 'transform'    // Text transformation prompts
-  | 'utility';     // General utility prompts
+  | 'utility'      // General utility prompts
+  | 'prospector'   // Excellence scoring prompts
+  | 'refiner'      // Expression polishing prompts
+  | 'archivist';   // Expression indexing prompts
 
 /**
  * Maps prompt IDs to their categories.

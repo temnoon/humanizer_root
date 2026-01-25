@@ -13,6 +13,11 @@
  * - Project Manager: Project lifecycle coordination
  * - Explorer: Format discovery and import intelligence
  *
+ * Content Excellence Houses:
+ * - Prospector: Excellence scoring and raw gem detection
+ * - Refiner: Expression polishing and insight extraction
+ * - Archivist: Expression indexing and canonical finding
+ *
  * Development Houses:
  * - Architect: Code architecture and design patterns
  * - Stylist: Code style and conventions
@@ -58,6 +63,21 @@ import {
   getExplorerAgent as _getExplorerAgent,
   resetExplorerAgent as _resetExplorerAgent,
 } from './explorer.js';
+
+import {
+  getProspectorAgent as _getProspectorAgent,
+  resetProspectorAgent as _resetProspectorAgent,
+} from './prospector.js';
+
+import {
+  getRefinerAgent as _getRefinerAgent,
+  resetRefinerAgent as _resetRefinerAgent,
+} from './refiner.js';
+
+import {
+  getArchivistAgent as _getArchivistAgent,
+  resetArchivistAgent as _resetArchivistAgent,
+} from './archivist.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // MODEL MASTER - AI Routing
@@ -192,6 +212,48 @@ export {
 } from './explorer.js';
 
 // ═══════════════════════════════════════════════════════════════════
+// PROSPECTOR - Excellence Detection (Content Excellence System)
+// ═══════════════════════════════════════════════════════════════════
+export {
+  ProspectorAgent,
+  getProspectorAgent,
+  resetProspectorAgent,
+  type ExcellenceScore,
+  type RawGemReport,
+  type QualityCluster,
+  type ProspectorIntention,
+} from './prospector.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// REFINER - Expression Polishing (Content Excellence System)
+// ═══════════════════════════════════════════════════════════════════
+export {
+  RefinerAgent,
+  getRefinerAgent,
+  resetRefinerAgent,
+  type ExtractedInsight,
+  type PolishedExpression,
+  type RefinementResult,
+  type PreservationVerification,
+  type RefinerIntention,
+} from './refiner.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// ARCHIVIST - Expression Indexing (Content Excellence System)
+// ═══════════════════════════════════════════════════════════════════
+export {
+  ArchivistAgent,
+  getArchivistAgent,
+  resetArchivistAgent,
+  type IndexedExpression,
+  type ExpressionCategory,
+  type CanonicalResult,
+  type ExpressionAnchor,
+  type IndexBuildResult,
+  type ArchivistIntention,
+} from './archivist.js';
+
+// ═══════════════════════════════════════════════════════════════════
 // CODEGUARD HOUSES (Development Standards Enforcement)
 // ═══════════════════════════════════════════════════════════════════
 export * from './codeguard/index.js';
@@ -220,6 +282,9 @@ export async function initializeAllHouseAgents(): Promise<void> {
     _getBuilderAgent(),
     _getProjectManagerAgent(),
     _getExplorerAgent(),
+    _getProspectorAgent(),
+    _getRefinerAgent(),
+    _getArchivistAgent(),
   ];
 
   for (const agent of agents) {
@@ -248,6 +313,9 @@ export async function shutdownAllHouseAgents(): Promise<void> {
     _getBuilderAgent(),
     _getProjectManagerAgent(),
     _getExplorerAgent(),
+    _getProspectorAgent(),
+    _getRefinerAgent(),
+    _getArchivistAgent(),
   ];
 
   for (const agent of agents) {
@@ -274,6 +342,9 @@ export function resetAllHouseAgents(): void {
   _resetBuilderAgent();
   _resetProjectManagerAgent();
   _resetExplorerAgent();
+  _resetProspectorAgent();
+  _resetRefinerAgent();
+  _resetArchivistAgent();
 }
 
 /**

@@ -1264,7 +1264,7 @@ Output JSON only:
 }
 ${SIC_GUARDRAILS}`,
   requirements: {
-    capabilities: ['json-mode', 'analysis'],
+    capabilities: ['json-mode'],
     temperature: 0.3,
     maxTokens: 2048,
   },
@@ -1435,7 +1435,7 @@ export const MODEL_MASTER_DETECT_AI: PromptDefinition = {
 Text:
 {{text}}`,
   requirements: {
-    capabilities: ['json-mode', 'analysis'],
+    capabilities: ['json-mode'],
     temperature: 0.2,
     maxTokens: 1024,
   },
@@ -1452,7 +1452,7 @@ export const MODEL_MASTER_HUMANIZE: PromptDefinition = {
 Text:
 {{text}}`,
   requirements: {
-    capabilities: ['creative'],
+    capabilities: [],
     temperature: 0.7,
     maxTokens: 4096,
   },
@@ -1466,6 +1466,348 @@ export const MODEL_MASTER_PROMPTS: PromptDefinition[] = [
   MODEL_MASTER_SUMMARIZE,
   MODEL_MASTER_DETECT_AI,
   MODEL_MASTER_HUMANIZE,
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROSPECTOR PROMPTS (Content Excellence System)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const PROSPECTOR_EXCELLENCE_SCORE: PromptDefinition = {
+  id: 'PROSPECTOR_EXCELLENCE_SCORE',
+  name: 'Prospector Excellence Scoring',
+  description: 'Multi-dimensional excellence scoring for content',
+  template: `You are an excellence assessor evaluating content quality across five dimensions.
+
+{{#if context}}Context: {{context}}{{/if}}
+
+Score each dimension from 0.0 to 1.0:
+
+1. INSIGHT DENSITY (Novel ideas per paragraph)
+   - Are there original thoughts or perspectives?
+   - Is there intellectual substance worth preserving?
+
+2. EXPRESSIVE POWER (Clarity and memorability)
+   - Is the writing clear and easy to follow?
+   - Are there memorable phrases or images?
+
+3. EMOTIONAL RESONANCE (Reader connection)
+   - Does the content evoke genuine feeling?
+   - Would a reader feel moved or connected?
+
+4. STRUCTURAL ELEGANCE (Flow and pacing)
+   - Does the content flow naturally?
+   - Is the pacing appropriate for the content?
+
+5. VOICE AUTHENTICITY (Distinct, genuine)
+   - Does this sound like a real person?
+   - Is there a distinct perspective or voice?
+
+Also extract up to 3 STANDOUT QUOTES - phrases worth preserving.
+
+Content:
+{{content}}
+
+Respond with JSON:
+{
+  "insightDensity": 0.0-1.0,
+  "expressivePower": 0.0-1.0,
+  "emotionalResonance": 0.0-1.0,
+  "structuralElegance": 0.0-1.0,
+  "voiceAuthenticity": 0.0-1.0,
+  "standoutQuotes": ["quote1", "quote2"],
+  "reasoning": "Brief explanation of scoring"
+}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 1024,
+  },
+  version: 1,
+  usedBy: ['prospector'],
+};
+
+export const PROSPECTOR_RAW_GEM_DETECTION: PromptDefinition = {
+  id: 'PROSPECTOR_RAW_GEM_DETECTION',
+  name: 'Prospector Raw Gem Detection',
+  description: 'Detect buried insights in poorly written content',
+  template: `You are analyzing content that may have valuable insights buried in poor writing.
+
+A "raw gem" has:
+- High INSIGHT quality (novel ideas, genuine observations)
+- Low WRITING quality (unclear expression, poor flow)
+
+Identify:
+1. EXTRACTABLE INSIGHTS: Valuable ideas that deserve better expression
+   - Location in text (beginning/middle/end or brief quote)
+   - The insight itself (what's being said)
+   - How it's currently written (original phrasing)
+   - Your confidence this is a real insight (0-1)
+
+2. NOISE TO REMOVE: Elements that obscure the insights
+   - Redundant phrases
+   - Unclear transitions
+   - Off-topic tangents
+   - Filler content
+
+Content:
+{{content}}
+
+Respond with JSON:
+{
+  "isRawGem": true/false,
+  "writingQuality": 0.0-1.0,
+  "insightQuality": 0.0-1.0,
+  "qualityGap": 0.0-1.0,
+  "insights": [
+    {
+      "location": "string",
+      "insight": "string",
+      "originalPhrasing": "string",
+      "confidence": 0.0-1.0
+    }
+  ],
+  "noise": ["string"],
+  "reasoning": "Brief explanation"
+}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 2048,
+  },
+  version: 1,
+  usedBy: ['prospector'],
+};
+
+export const PROSPECTOR_PROMPTS: PromptDefinition[] = [
+  PROSPECTOR_EXCELLENCE_SCORE,
+  PROSPECTOR_RAW_GEM_DETECTION,
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REFINER PROMPTS (Content Excellence System)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const REFINER_EXTRACT_INSIGHT: PromptDefinition = {
+  id: 'REFINER_EXTRACT_INSIGHT',
+  name: 'Refiner Insight Extraction',
+  description: 'Extract valuable insights from raw content',
+  template: `You are extracting valuable insights from content that may have poor writing.
+
+Focus on finding:
+1. Original ideas or perspectives
+2. Genuine observations or realizations
+3. Meaningful connections or patterns
+4. Authentic emotional truths
+
+For each insight, provide:
+- coreIdea: The essential idea (1-2 sentences)
+- originalPhrasing: How it's written in the source
+- location: Where in the text (beginning/middle/end or brief quote)
+- confidence: How confident you are this is a real insight (0-1)
+- context: Any context needed to understand it
+
+{{#if knownInsights}}
+These insights have already been identified - verify and expand:
+{{#each knownInsights}}
+- "{{this.insight}}" at {{this.location}}
+{{/each}}
+{{/if}}
+
+Content:
+{{content}}
+
+Respond with JSON:
+{
+  "insights": [
+    {
+      "coreIdea": "string",
+      "originalPhrasing": "string",
+      "location": "string",
+      "confidence": 0.0-1.0,
+      "context": "string or null"
+    }
+  ]
+}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 2048,
+  },
+  version: 1,
+  usedBy: ['refiner'],
+};
+
+export const REFINER_VERIFY_PRESERVATION: PromptDefinition = {
+  id: 'REFINER_VERIFY_PRESERVATION',
+  name: 'Refiner Preservation Verification',
+  description: 'Verify that refinement preserved original insights',
+  template: `You are verifying that a text refinement preserved the original insights.
+
+For each insight listed, determine:
+1. Is it preserved in the refined text?
+2. Is it distorted or changed in meaning?
+3. Is it lost entirely?
+
+Also identify any new concerns:
+- Meaning shifts
+- Tone changes that alter interpretation
+- Missing context that was important
+
+Original Text:
+{{original}}
+
+Refined Text:
+{{refined}}
+
+Insights to verify:
+{{#each insights}}
+- ID: {{this.id}} | Insight: {{this.coreIdea}}
+{{/each}}
+
+Respond with JSON:
+{
+  "score": 0.0-1.0,
+  "preservedInsights": ["insight IDs that were preserved"],
+  "lostInsights": ["insight IDs that were lost or distorted"],
+  "issues": ["specific problems found"],
+  "suggestions": ["how to improve preservation"]
+}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 1024,
+  },
+  version: 1,
+  usedBy: ['refiner'],
+};
+
+export const REFINER_POLISH_EXPRESSION: PromptDefinition = {
+  id: 'REFINER_POLISH_EXPRESSION',
+  name: 'Refiner Expression Polishing',
+  description: 'Polish a piece of writing while preserving its core insight',
+  template: `You are polishing a piece of writing to better express its core insight.
+
+CORE INSIGHT TO PRESERVE:
+{{coreIdea}}
+
+{{#if context}}CONTEXT: {{context}}{{/if}}
+
+RULES:
+1. PRESERVE the exact meaning - do not add or remove ideas
+2. Improve clarity and flow
+3. Remove unnecessary words
+4. Make it memorable if possible
+5. Keep the authentic voice where present
+
+DO NOT:
+- Add new ideas not in the original
+- Change the perspective or stance
+- Make it sound generic or corporate
+- Add hedging or qualifications not present
+
+Original Text:
+{{originalText}}
+
+Respond with JSON:
+{
+  "polishedText": "the refined text",
+  "changesSummary": "brief description of changes made",
+  "preservationConfidence": 0.0-1.0
+}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.5,
+    maxTokens: 2048,
+  },
+  version: 1,
+  usedBy: ['refiner'],
+};
+
+export const REFINER_PROMPTS: PromptDefinition[] = [
+  REFINER_EXTRACT_INSIGHT,
+  REFINER_VERIFY_PRESERVATION,
+  REFINER_POLISH_EXPRESSION,
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ARCHIVIST PROMPTS (Content Excellence System)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const ARCHIVIST_CATEGORIZE_EXPRESSION: PromptDefinition = {
+  id: 'ARCHIVIST_CATEGORIZE_EXPRESSION',
+  name: 'Archivist Expression Categorization',
+  description: 'Categorize an expression for indexing',
+  template: `You are categorizing an expression for a semantic index.
+
+The expression should be placed in the most specific applicable category.
+Categories are hierarchical (e.g., "emotions/joy/gratitude").
+
+{{#if existingCategories}}
+Existing categories to consider:
+{{#each existingCategories}}
+- {{this.id}}: {{this.description}}
+{{/each}}
+{{/if}}
+
+Expression:
+{{expression}}
+
+Respond with JSON:
+{
+  "categoryId": "suggested category ID (use / for hierarchy)",
+  "categoryName": "Human-readable name",
+  "categoryDescription": "What expressions in this category cover",
+  "confidence": 0.0-1.0,
+  "reasoning": "Brief explanation"
+}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 512,
+  },
+  version: 1,
+  usedBy: ['archivist'],
+};
+
+export const ARCHIVIST_FIND_CANONICAL: PromptDefinition = {
+  id: 'ARCHIVIST_FIND_CANONICAL',
+  name: 'Archivist Canonical Expression Finding',
+  description: 'Find the best expression for a concept from candidates',
+  template: `You are selecting the canonical (best) expression for a concept from candidates.
+
+The concept/idea to express:
+{{concept}}
+
+Candidate expressions (with excellence scores):
+{{#each candidates}}
+{{@index}}. [Score: {{this.score}}] "{{this.text}}"
+{{/each}}
+
+Select the BEST expression based on:
+1. Clarity of expression
+2. Memorability
+3. Conciseness
+4. Authenticity of voice
+
+Respond with JSON:
+{
+  "selectedIndex": number,
+  "reasoning": "Why this is the best expression",
+  "alternativeIndices": [other good options],
+  "confidence": 0.0-1.0
+}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 512,
+  },
+  version: 1,
+  usedBy: ['archivist'],
+};
+
+export const ARCHIVIST_PROMPTS: PromptDefinition[] = [
+  ARCHIVIST_CATEGORIZE_EXPRESSION,
+  ARCHIVIST_FIND_CANONICAL,
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1485,6 +1827,9 @@ export const ALL_PROMPTS: PromptDefinition[] = [
   ...TRANSFORMATION_PROMPTS,
   ...SIC_PROMPTS,
   ...MODEL_MASTER_PROMPTS,
+  ...PROSPECTOR_PROMPTS,
+  ...REFINER_PROMPTS,
+  ...ARCHIVIST_PROMPTS,
 ];
 
 /**
@@ -1538,6 +1883,16 @@ export const PROMPT_CATEGORIES: Record<string, PromptCategory> = {
   MODEL_MASTER_SUMMARIZE: 'utility',
   MODEL_MASTER_DETECT_AI: 'utility',
   MODEL_MASTER_HUMANIZE: 'utility',
+  // Prospector (Content Excellence System)
+  PROSPECTOR_EXCELLENCE_SCORE: 'prospector',
+  PROSPECTOR_RAW_GEM_DETECTION: 'prospector',
+  // Refiner (Content Excellence System)
+  REFINER_EXTRACT_INSIGHT: 'refiner',
+  REFINER_VERIFY_PRESERVATION: 'refiner',
+  REFINER_POLISH_EXPRESSION: 'refiner',
+  // Archivist (Content Excellence System)
+  ARCHIVIST_CATEGORIZE_EXPRESSION: 'archivist',
+  ARCHIVIST_FIND_CANONICAL: 'archivist',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

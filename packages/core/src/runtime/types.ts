@@ -24,7 +24,10 @@ export type AppAgentHouse =
   | 'builder'          // Chapter composition
   | 'harvester'        // Archive search and extraction
   | 'reviewer'         // Quality checks and signoffs
-  | 'explorer';        // Format discovery and import intelligence
+  | 'explorer'         // Format discovery and import intelligence
+  | 'prospector'       // Excellence scoring and raw gem detection
+  | 'refiner'          // Expression polishing and insight extraction
+  | 'archivist';       // Expression indexing and canonical finding
 
 /**
  * CodeGuard Houses - Enforce code quality standards during development
