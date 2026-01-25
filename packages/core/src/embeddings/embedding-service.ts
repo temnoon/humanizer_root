@@ -17,12 +17,13 @@
  * - Use getEmbedDimensionsAsync() for registry-aware dimension lookup
  */
 
-import type { Embedder, Summarizer, PyramidBuildResult } from '../pyramid/types.js';
+import type { Embedder, Summarizer, PyramidBuildResult, PyramidNode, ApexNode } from '../pyramid/types.js';
 import { PyramidBuilder, initPyramidBuilder } from '../pyramid/builder.js';
 import { MIN_WORDS_FOR_PYRAMID } from '../pyramid/constants.js';
 import { countWords, ChunkingService, MAX_CHUNK_CHARS } from '../chunking/index.js';
-import type { StoredNode } from '../storage/types.js';
+import type { StoredNode, ContentLinkType } from '../storage/types.js';
 import { getModelRegistry } from '../models/index.js';
+import { randomUUID } from 'crypto';
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -84,6 +85,68 @@ export interface ContentEmbeddingResult {
   durationMs: number;
   /** Whether Ollama was available */
   ollamaAvailable: boolean;
+}
+
+/**
+ * A pyramid node converted to StoredNode format for persistence
+ */
+export interface PyramidStoredNode {
+  /** Node ID (same as PyramidNode.id) */
+  id: string;
+  /** Text content */
+  text: string;
+  /** Content hash for deduplication */
+  contentHash: string;
+  /** Hierarchy level (0, 1, or 2) */
+  hierarchyLevel: number;
+  /** Thread root ID for grouping */
+  threadRootId: string;
+  /** Parent node ID (for L0 -> L1, L1 -> Apex) */
+  parentNodeId?: string;
+  /** Position within level */
+  position: number;
+  /** Word count */
+  wordCount: number;
+  /** Source type */
+  sourceType: string;
+  /** Chunk offsets (for L0 only) */
+  chunkStartOffset?: number;
+  chunkEndOffset?: number;
+  chunkIndex?: number;
+}
+
+/**
+ * Link between pyramid nodes
+ */
+export interface PyramidLink {
+  sourceId: string;
+  targetId: string;
+  linkType: ContentLinkType;
+}
+
+/**
+ * Result from embedding nodes with pyramid building
+ */
+export interface PyramidEmbeddingResult {
+  /** Embedding items for existing nodes */
+  embeddingItems: Array<{ nodeId: string; embedding: number[] }>;
+  /** New pyramid nodes to store (L1 summaries and Apex) */
+  newNodes: PyramidStoredNode[];
+  /** Links to create between nodes */
+  links: PyramidLink[];
+  /** Number of pyramids built */
+  pyramidsBuilt: number;
+  /** Total embeddings generated */
+  totalEmbeddings: number;
+  /** Processing duration in ms */
+  durationMs: number;
+  /** Statistics by thread */
+  threadStats: Map<string, {
+    l0Count: number;
+    l1Count: number;
+    hasApex: boolean;
+    totalWords: number;
+  }>;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -410,6 +473,310 @@ export class EmbeddingService {
    */
   getEmbedModel(): string {
     return this.config.embedModel;
+  }
+
+  /**
+   * Embed nodes with automatic pyramid building for threads with sufficient content.
+   *
+   * This method:
+   * 1. Groups nodes by threadRootId
+   * 2. For threads with combined content >= MIN_WORDS_FOR_PYRAMID:
+   *    - Builds L0/L1/Apex pyramid structure
+   *    - Creates new nodes for L1 summaries and Apex
+   *    - Generates embeddings for all levels
+   * 3. For smaller threads: generates single embeddings per node
+   *
+   * @param nodes - Nodes to embed (typically from a single import job)
+   * @param sourceType - Source type for new pyramid nodes
+   * @returns Result with embeddings, new nodes, and links to create
+   */
+  async embedNodesWithPyramid(
+    nodes: StoredNode[],
+    sourceType: string = 'pyramid'
+  ): Promise<PyramidEmbeddingResult> {
+    const startTime = Date.now();
+    const embeddingItems: Array<{ nodeId: string; embedding: number[] }> = [];
+    const newNodes: PyramidStoredNode[] = [];
+    const links: PyramidLink[] = [];
+    const threadStats = new Map<string, {
+      l0Count: number;
+      l1Count: number;
+      hasApex: boolean;
+      totalWords: number;
+    }>();
+    let pyramidsBuilt = 0;
+
+    // Filter nodes that need embedding
+    const needsEmbedding = nodes.filter((n) => !n.embeddingModel);
+    if (needsEmbedding.length === 0) {
+      return {
+        embeddingItems: [],
+        newNodes: [],
+        links: [],
+        pyramidsBuilt: 0,
+        totalEmbeddings: 0,
+        durationMs: Date.now() - startTime,
+        threadStats,
+      };
+    }
+
+    // Group nodes by threadRootId
+    const threadGroups = new Map<string, StoredNode[]>();
+    const orphanNodes: StoredNode[] = [];
+
+    for (const node of needsEmbedding) {
+      const threadId = node.threadRootId || node.id;
+      if (node.threadRootId) {
+        const group = threadGroups.get(threadId) || [];
+        group.push(node);
+        threadGroups.set(threadId, group);
+      } else {
+        orphanNodes.push(node);
+      }
+    }
+
+    if (this.config.verbose) {
+      console.log(`  Processing ${threadGroups.size} threads + ${orphanNodes.length} orphan nodes`);
+    }
+
+    // Process each thread group
+    for (const [threadId, threadNodes] of threadGroups) {
+      // Combine content from all nodes in thread (ordered by position)
+      const sorted = [...threadNodes].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+      const combinedContent = sorted.map((n) => n.text || '').join('\n\n');
+      const totalWords = countWords(combinedContent);
+
+      // Initialize thread stats
+      threadStats.set(threadId, {
+        l0Count: 0,
+        l1Count: 0,
+        hasApex: false,
+        totalWords,
+      });
+
+      // Check if thread needs pyramid
+      if (totalWords >= MIN_WORDS_FOR_PYRAMID && this.pyramidBuilder) {
+        // Build pyramid for this thread
+        if (this.config.verbose) {
+          console.log(`  Building pyramid for thread ${threadId.slice(0, 8)}... (${totalWords} words)`);
+        }
+
+        try {
+          const builder = this.getPyramidBuilder();
+          const result = await builder.build({
+            content: combinedContent,
+            threadRootId: threadId,
+            sourceType: `${sourceType}-pyramid`,
+          });
+
+          pyramidsBuilt++;
+
+          // Process L0 nodes - these correspond to chunks of the original content
+          // Map original nodes to L0 pyramid nodes for embedding
+          const stats = threadStats.get(threadId)!;
+          stats.l0Count = result.pyramid.l0Nodes.length;
+
+          // For L0, we'll embed the original nodes using their content
+          // (the pyramid L0 nodes are just chunked versions)
+          for (const l0 of result.pyramid.l0Nodes) {
+            if (l0.embedding) {
+              // Store L0 as a new chunk node
+              const l0Node = this.pyramidNodeToStoredNode(
+                l0,
+                threadId,
+                `${sourceType}-chunk`
+              );
+              newNodes.push(l0Node);
+              embeddingItems.push({
+                nodeId: l0.id,
+                embedding: l0.embedding,
+              });
+            }
+          }
+
+          // Process L1 summary nodes
+          stats.l1Count = result.pyramid.l1Nodes.length;
+          for (const l1 of result.pyramid.l1Nodes) {
+            const l1Node = this.pyramidNodeToStoredNode(
+              l1,
+              threadId,
+              `${sourceType}-summary`
+            );
+            newNodes.push(l1Node);
+
+            if (l1.embedding) {
+              embeddingItems.push({
+                nodeId: l1.id,
+                embedding: l1.embedding,
+              });
+            }
+
+            // Create summary-of links from L1 to its L0 children
+            for (const childId of l1.childIds) {
+              links.push({
+                sourceId: l1.id,
+                targetId: childId,
+                linkType: 'summary-of',
+              });
+            }
+          }
+
+          // Process Apex node
+          if (result.pyramid.apex) {
+            stats.hasApex = true;
+            const apex = result.pyramid.apex;
+            const apexNode = this.apexNodeToStoredNode(
+              apex,
+              threadId,
+              `${sourceType}-apex`
+            );
+            newNodes.push(apexNode);
+
+            if (apex.embedding) {
+              embeddingItems.push({
+                nodeId: apex.id,
+                embedding: apex.embedding,
+              });
+            }
+
+            // Create summary-of links from Apex to its L1 children
+            for (const childId of apex.childIds) {
+              links.push({
+                sourceId: apex.id,
+                targetId: childId,
+                linkType: 'summary-of',
+              });
+            }
+
+            // Link apex to thread root
+            links.push({
+              sourceId: apex.id,
+              targetId: threadId,
+              linkType: 'summary-of',
+            });
+          }
+        } catch (err) {
+          // Pyramid building failed, fall back to simple embedding
+          if (this.config.verbose) {
+            console.warn(`  Pyramid build failed for thread ${threadId.slice(0, 8)}:`, err);
+          }
+          const fallbackItems = await this.embedNodesSimple(threadNodes);
+          embeddingItems.push(...fallbackItems);
+        }
+      } else {
+        // Thread too small for pyramid, use simple embedding
+        const simpleItems = await this.embedNodesSimple(threadNodes);
+        embeddingItems.push(...simpleItems);
+      }
+    }
+
+    // Process orphan nodes with simple embedding
+    if (orphanNodes.length > 0) {
+      const orphanItems = await this.embedNodesSimple(orphanNodes);
+      embeddingItems.push(...orphanItems);
+    }
+
+    return {
+      embeddingItems,
+      newNodes,
+      links,
+      pyramidsBuilt,
+      totalEmbeddings: embeddingItems.length,
+      durationMs: Date.now() - startTime,
+      threadStats,
+    };
+  }
+
+  /**
+   * Simple embedding for nodes (no pyramid)
+   */
+  private async embedNodesSimple(
+    nodes: StoredNode[]
+  ): Promise<Array<{ nodeId: string; embedding: number[] }>> {
+    if (nodes.length === 0) return [];
+
+    const SAFE_CHARS = 4000;
+    const chunker = new ChunkingService({
+      targetChunkChars: 3000,
+      maxChunkChars: SAFE_CHARS,
+      preserveParagraphs: true,
+      preserveSentences: true,
+    });
+
+    const texts = nodes.map((n) => {
+      const text = n.text || '';
+      if (text.length <= SAFE_CHARS) return text;
+
+      const result = chunker.chunk({
+        content: text,
+        parentId: n.id,
+        format: 'markdown',
+      });
+
+      if (result.chunks.length > 0) {
+        return result.chunks[0].text;
+      }
+      return text.substring(0, SAFE_CHARS);
+    });
+
+    const batchResult = await this.embedBatch(texts);
+    return nodes.map((n, i) => ({
+      nodeId: n.id,
+      embedding: batchResult.embeddings[i],
+    }));
+  }
+
+  /**
+   * Convert a PyramidNode to PyramidStoredNode format
+   */
+  private pyramidNodeToStoredNode(
+    node: PyramidNode,
+    threadRootId: string,
+    sourceType: string
+  ): PyramidStoredNode {
+    return {
+      id: node.id,
+      text: node.text,
+      contentHash: this.hashContent(node.text),
+      hierarchyLevel: node.level,
+      threadRootId,
+      parentNodeId: node.parentId,
+      position: node.position,
+      wordCount: node.wordCount,
+      sourceType,
+      chunkStartOffset: node.sourceChunk?.startOffset,
+      chunkEndOffset: node.sourceChunk?.endOffset,
+      chunkIndex: node.sourceChunk?.index,
+    };
+  }
+
+  /**
+   * Convert an ApexNode to PyramidStoredNode format
+   */
+  private apexNodeToStoredNode(
+    apex: ApexNode,
+    threadRootId: string,
+    sourceType: string
+  ): PyramidStoredNode {
+    return {
+      id: apex.id,
+      text: apex.text,
+      contentHash: this.hashContent(apex.text),
+      hierarchyLevel: 2,
+      threadRootId,
+      parentNodeId: undefined, // Apex has no parent
+      position: 0,
+      wordCount: apex.wordCount,
+      sourceType,
+    };
+  }
+
+  /**
+   * Hash content for deduplication
+   */
+  private hashContent(content: string): string {
+    const crypto = require('crypto');
+    return crypto.createHash('sha256').update(content).digest('hex');
   }
 
   /**

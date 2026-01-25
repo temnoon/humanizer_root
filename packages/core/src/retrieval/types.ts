@@ -138,6 +138,77 @@ export interface HybridSearchStats {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// CROSS-LEVEL SEARCH (PYRAMID)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Options for cross-level pyramid search
+ */
+export interface CrossLevelSearchOptions extends HybridSearchOptions {
+  /** Starting level for search (default: search all levels) */
+  startLevel?: 0 | 1 | 2;
+
+  /** Whether to expand results to child nodes */
+  expandToChildren?: boolean;
+
+  /** Maximum child nodes to return per result */
+  maxChildrenPerResult?: number;
+
+  /** Whether to include ancestor path for each result */
+  includeAncestorPath?: boolean;
+}
+
+/**
+ * A result from pyramid search with hierarchy information
+ */
+export interface PyramidSearchResultItem extends FusedResult {
+  /** Hierarchy level of the matched node (0, 1, or 2) */
+  hierarchyLevel: number;
+
+  /** Child nodes (L0 chunks when matching L1/Apex) */
+  children?: StoredNode[];
+
+  /** Ancestor path (from apex to this node) */
+  ancestorPath?: string[];
+}
+
+/**
+ * Result from cross-level pyramid search
+ */
+export interface CrossLevelSearchResult {
+  /** All results ordered by fused score */
+  results: PyramidSearchResultItem[];
+
+  /** Results grouped by hierarchy level */
+  byLevel: {
+    l0: PyramidSearchResultItem[];
+    l1: PyramidSearchResultItem[];
+    apex: PyramidSearchResultItem[];
+  };
+
+  /** Statistics about the search */
+  stats: CrossLevelSearchStats;
+}
+
+/**
+ * Statistics from cross-level search
+ */
+export interface CrossLevelSearchStats extends HybridSearchStats {
+  /** Result counts by level */
+  resultsByLevel: {
+    l0: number;
+    l1: number;
+    apex: number;
+  };
+
+  /** Number of children expanded */
+  childrenExpandedCount: number;
+
+  /** Total unique threads found */
+  uniqueThreads: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // NEGATIVE FILTERING
 // ═══════════════════════════════════════════════════════════════════
 

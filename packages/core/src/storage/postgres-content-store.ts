@@ -241,13 +241,13 @@ export class PostgresContentStore {
       null, // embedding_text_hash
       parentNodeId,
       node.position ?? null,
-      null, // chunk_index
-      null, // chunk_start_offset
-      null, // chunk_end_offset
-      0, // hierarchy_level
+      node.chunkIndex ?? null,
+      node.chunkStartOffset ?? null,
+      node.chunkEndOffset ?? null,
+      node.hierarchyLevel ?? 0,
       threadRootId,
       node.sourceType,
-      sourceAdapter,
+      node.sourceAdapter || sourceAdapter,
       (node.metadata?.originalId as string) ?? null,
       (node.metadata?.originalPath as string) ?? null,
       jobId ?? null,
@@ -686,21 +686,46 @@ export class PostgresContentStore {
   // ─────────────────────────────────────────────────────────────────
 
   /**
-   * Create a link between nodes
+   * Create a link between nodes (using ContentLink with targetUri)
    */
-  async createLink(sourceId: string, link: ContentLink): Promise<StoredLink> {
+  async createLink(sourceId: string, link: ContentLink): Promise<StoredLink>;
+  /**
+   * Create a link between nodes (using direct node IDs)
+   */
+  async createLink(sourceId: string, targetId: string, linkType: ContentLinkType, metadata?: Record<string, unknown>): Promise<StoredLink>;
+  async createLink(
+    sourceId: string,
+    linkOrTargetId: ContentLink | string,
+    linkType?: ContentLinkType,
+    metadata?: Record<string, unknown>
+  ): Promise<StoredLink> {
     this.ensureInitialized();
 
     const id = randomUUID();
     const now = new Date();
-    const targetId = await this.uriToId(link.targetUri);
+
+    let targetId: string;
+    let type: string;
+    let meta: Record<string, unknown> | null;
+
+    if (typeof linkOrTargetId === 'string') {
+      // Called with direct IDs
+      targetId = linkOrTargetId;
+      type = linkType!;
+      meta = metadata ?? null;
+    } else {
+      // Called with ContentLink object
+      targetId = await this.uriToId(linkOrTargetId.targetUri);
+      type = linkOrTargetId.type;
+      meta = linkOrTargetId.metadata ?? null;
+    }
 
     const result = await this.pool!.query(INSERT_LINK, [
       id,
       sourceId,
       targetId,
-      link.type,
-      link.metadata ?? null,
+      type,
+      meta,
       now,
     ]);
 
@@ -925,13 +950,13 @@ export class PostgresContentStore {
       null, // embedding_text_hash
       parentNodeId,
       node.position ?? null,
-      null, // chunk_index
-      null, // chunk_start_offset
-      null, // chunk_end_offset
-      0, // hierarchy_level
+      node.chunkIndex ?? null,
+      node.chunkStartOffset ?? null,
+      node.chunkEndOffset ?? null,
+      node.hierarchyLevel ?? 0,
       threadRootId,
       node.sourceType,
-      sourceAdapter,
+      node.sourceAdapter || sourceAdapter,
       (node.metadata?.originalId as string) ?? null,
       (node.metadata?.originalPath as string) ?? null,
       jobId ?? null,

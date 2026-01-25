@@ -20,4 +20,7 @@ export type {
   EmbeddingServiceConfig,
   EmbeddingBatchResult,
   ContentEmbeddingResult,
+  PyramidStoredNode,
+  PyramidLink,
+  PyramidEmbeddingResult,
 } from './embedding-service.js';

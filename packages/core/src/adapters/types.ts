@@ -237,6 +237,26 @@ export interface ImportedNode {
   /** Position in sequence */
   position?: number;
 
+  /** Chunk index (for chunked content) */
+  chunkIndex?: number;
+
+  /** Chunk start offset (for chunked content) */
+  chunkStartOffset?: number;
+
+  /** Chunk end offset (for chunked content) */
+  chunkEndOffset?: number;
+
+  /**
+   * Hierarchy level for pyramid structure:
+   * - 0: Base content (messages, chunks)
+   * - 1: Summary level (grouped chunks)
+   * - 2: Apex level (document summary)
+   */
+  hierarchyLevel?: number;
+
+  /** Source adapter ID */
+  sourceAdapter?: string;
+
   /** Media attachments */
   media?: MediaReference[];
 

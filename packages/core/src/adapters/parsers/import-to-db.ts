@@ -198,11 +198,80 @@ export async function importArchiveToDb(
 
         let nodesEmbedded = 0;
         let pyramidsBuilt = 0;
+        let pyramidNodesCreated = 0;
 
-        // Embed nodes in batches
-        const embeddingItems = await embedService.embedNodes(nodesResult.nodes);
-        if (embeddingItems.length > 0) {
-          const result = await store.storeEmbeddings(embeddingItems, embedService.getEmbedModel());
+        // Embed nodes with automatic pyramid building for large threads
+        const pyramidResult = await embedService.embedNodesWithPyramid(
+          nodesResult.nodes,
+          formatToSourceType(archive.format)
+        );
+
+        pyramidsBuilt = pyramidResult.pyramidsBuilt;
+
+        // Store new pyramid nodes (L0 chunks, L1 summaries, Apex)
+        if (pyramidResult.newNodes.length > 0) {
+          log(`  Creating ${pyramidResult.newNodes.length} pyramid nodes...`);
+          for (const pyramidNode of pyramidResult.newNodes) {
+            try {
+              // Convert PyramidStoredNode to ImportedNode format
+              const importedNode: ImportedNode = {
+                id: pyramidNode.id,
+                uri: `pyramid://${pyramidNode.threadRootId}/${pyramidNode.hierarchyLevel}/${pyramidNode.id}`,
+                contentHash: pyramidNode.contentHash,
+                content: pyramidNode.text,
+                format: 'text',
+                sourceType: pyramidNode.sourceType,
+                sourceAdapter: adapterId,
+                parentUri: pyramidNode.parentNodeId
+                  ? `pyramid://${pyramidNode.threadRootId}/${pyramidNode.hierarchyLevel - 1}/${pyramidNode.parentNodeId}`
+                  : undefined,
+                threadRootUri: `${archive.format}://${pyramidNode.threadRootId}`,
+                position: pyramidNode.position,
+                chunkIndex: pyramidNode.chunkIndex,
+                chunkStartOffset: pyramidNode.chunkStartOffset,
+                chunkEndOffset: pyramidNode.chunkEndOffset,
+                hierarchyLevel: pyramidNode.hierarchyLevel,
+                metadata: {
+                  wordCount: pyramidNode.wordCount,
+                  pyramidLevel: pyramidNode.hierarchyLevel,
+                },
+              };
+
+              await store.storeNode(importedNode, job.id);
+              pyramidNodesCreated++;
+            } catch (err) {
+              if (verbose) {
+                console.error(`  Failed to store pyramid node ${pyramidNode.id}:`, err);
+              }
+            }
+          }
+          log(`  Created ${pyramidNodesCreated} pyramid nodes`);
+        }
+
+        // Store content links for pyramid relationships
+        if (pyramidResult.links.length > 0) {
+          log(`  Creating ${pyramidResult.links.length} pyramid links...`);
+          let linksCreated = 0;
+          for (const link of pyramidResult.links) {
+            try {
+              await store.createLink(link.sourceId, link.targetId, link.linkType);
+              linksCreated++;
+            } catch (err) {
+              // Link may already exist or target doesn't exist
+              if (verbose) {
+                console.debug(`  Link creation skipped: ${link.sourceId} -> ${link.targetId}`);
+              }
+            }
+          }
+          log(`  Created ${linksCreated} pyramid links`);
+        }
+
+        // Store embeddings for all nodes (original + pyramid)
+        if (pyramidResult.embeddingItems.length > 0) {
+          const result = await store.storeEmbeddings(
+            pyramidResult.embeddingItems,
+            embedService.getEmbedModel()
+          );
           nodesEmbedded = result.stored;
           log(`  Embedded ${nodesEmbedded} nodes`);
         }
@@ -215,7 +284,7 @@ export async function importArchiveToDb(
           ollamaAvailable: true,
         };
 
-        log(`  ✓ Embeddings complete (${nodesEmbedded} nodes, ${(embeddingStats.embeddingDurationMs / 1000).toFixed(1)}s)`);
+        log(`  ✓ Embeddings complete (${nodesEmbedded} nodes, ${pyramidsBuilt} pyramids, ${(embeddingStats.embeddingDurationMs / 1000).toFixed(1)}s)`);
       }
     }
 

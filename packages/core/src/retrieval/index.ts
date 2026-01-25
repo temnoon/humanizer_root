@@ -55,6 +55,11 @@ export type {
   EnrichedResult,
   QualityIndicators,
   QualityGateStats,
+  // Cross-level pyramid search
+  CrossLevelSearchOptions,
+  PyramidSearchResultItem,
+  CrossLevelSearchResult,
+  CrossLevelSearchStats,
 } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════════
