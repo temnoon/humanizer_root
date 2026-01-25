@@ -183,12 +183,13 @@ I remember when I first started learning...
 
 ### 6. Export as PDF
 
-Export your content directly to PDF:
+Export your content directly to PDF with automatic LaTeX rendering:
 
 ```
 humanizer> export-pdf
-Generating PDF...
+Generating PDF with LaTeX rendering...
 Exported to: ./humanizer-output/buffer-bf8a2c91.pdf
+  LaTeX equations rendered via KaTeX
 
 humanizer> export-pdf my-document.pdf
 Generating PDF...
@@ -199,11 +200,48 @@ The PDF includes:
 - Buffer metadata (ID, date, word count)
 - Full provenance chain
 - Styled content with code highlighting
+- **LaTeX equations** rendered via KaTeX (lazy-loaded only when math is detected)
 
-**Alternative: Use pandoc**
+LaTeX is automatically detected and rendered:
+- Inline math: `$E = mc^2$` or `\(E = mc^2\)`
+- Display math: `$$\int_0^\infty f(x) dx$$` or `\[\int_0^\infty f(x) dx\]`
+
+---
+
+### 6a. Book-Quality Export via Pandoc
+
+For book-quality output with full LaTeX support, use the pandoc export:
+
+```
+humanizer> export-pandoc pdf my-book.pdf
+Exporting via pandoc to pdf...
+Exported to: ./humanizer-output/my-book.pdf
+  LaTeX equations processed natively by pandoc
+
+humanizer> export-pandoc epub my-book.epub
+Exporting via pandoc to epub...
+Exported to: ./humanizer-output/my-book.epub
+
+humanizer> export-pandoc docx draft.docx
+Exporting via pandoc to docx...
+Exported to: ./humanizer-output/draft.docx
+```
+
+**Supported formats:**
+- `pdf` - Publication-quality PDF (requires xelatex)
+- `epub` - E-book format with table of contents
+- `docx` - Microsoft Word document
+- `html` - Standalone HTML
+- `latex` - Raw LaTeX source
+- `odt` - OpenDocument format
+
+**Install pandoc:**
 ```bash
-# If you prefer pandoc for PDF generation
-pandoc ./humanizer-output/output.md -o ./humanizer-output/output.pdf
+brew install pandoc           # macOS
+apt install pandoc            # Ubuntu
+# For PDF: also need LaTeX
+brew install --cask mactex    # macOS
+apt install texlive-xetex     # Ubuntu
 ```
 
 ---
@@ -334,7 +372,8 @@ Add samples with archive search or manual text input.
 | Command | Description |
 |---------|-------------|
 | `save [filename]` | Save buffer as markdown |
-| `export-pdf [filename]` | Export guidance for PDF |
+| `export-pdf [filename]` | Export as PDF with KaTeX LaTeX |
+| `export-pandoc [format] [filename]` | Book-quality export (pdf/epub/docx/html/latex/odt) |
 
 ### Book Commands
 | Command | Description |

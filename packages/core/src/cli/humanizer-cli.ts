@@ -14,6 +14,7 @@
 import * as readline from 'readline';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
+import { execSync } from 'child_process';
 import { marked } from 'marked';
 import puppeteer from 'puppeteer';
 import {
@@ -24,6 +25,38 @@ import {
 } from '../aui/index.js';
 import type { ContentBuffer } from '../buffer/types.js';
 import type { Book } from '../aui/types.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LATEX UTILITIES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Check if content contains LaTeX math expressions
+ * Looks for: $...$ $$...$$ \[...\] \(...\)
+ */
+function hasLatexContent(content: string): boolean {
+  return /\$[^$]+\$|\$\$[\s\S]+?\$\$|\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)/.test(content);
+}
+
+/**
+ * Convert ChatGPT-style LaTeX delimiters to standard $ delimiters
+ * - \[...\] → $$...$$ (display math)
+ * - \(...\) → $...$ (inline math)
+ */
+function fixLatexDelimiters(content: string): string {
+  // Convert display math \[...\] → $$...$$
+  let result = content.replace(/(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]/g, '$$$$1$$');
+  // Convert inline math \(...\) → $...$
+  result = result.replace(/(?<!\\)\\\(([\s\S]*?)(?<!\\)\\\)/g, '$$$1$');
+  return result;
+}
+
+/**
+ * KaTeX CSS for PDF rendering
+ */
+const KATEX_CSS_CDN = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css';
+const KATEX_JS_CDN = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js';
+const KATEX_AUTO_RENDER_CDN = 'https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -74,7 +107,8 @@ const COMMANDS: Record<string, { description: string; usage: string; example?: s
 
   // Export
   'save': { description: 'Save buffer as markdown', usage: 'save [filename]', example: 'save output.md' },
-  'export-pdf': { description: 'Export buffer as PDF', usage: 'export-pdf [filename]' },
+  'export-pdf': { description: 'Export buffer as PDF (with LaTeX)', usage: 'export-pdf [filename]' },
+  'export-pandoc': { description: 'Export via pandoc (book-quality)', usage: 'export-pandoc [format] [filename]', example: 'export-pandoc pdf my-book.pdf' },
 
   // Books
   'books': { description: 'List all books', usage: 'books' },
@@ -284,6 +318,9 @@ class HumanizerCli {
         break;
       case 'export-pdf':
         await this.exportAsPdf(args[0]);
+        break;
+      case 'export-pandoc':
+        await this.exportViaPandoc(args[0], args[1]);
         break;
 
       // Book commands
@@ -674,10 +711,19 @@ ${this.state.activeBuffer.text}
     const fname = filename || `buffer-${this.state.activeBuffer.id.slice(0, 8)}.pdf`;
     const filepath = join(this.state.outputDir, fname);
 
-    this.print('Generating PDF...', 'dim');
-
     const bufferService = this.service.getBufferService();
     const provenance = bufferService.getProvenance(this.state.activeBuffer);
+
+    // Check for LaTeX content and preprocess delimiters
+    const rawText = this.state.activeBuffer.text;
+    const needsLatex = hasLatexContent(rawText);
+    const processedText = needsLatex ? fixLatexDelimiters(rawText) : rawText;
+
+    if (needsLatex) {
+      this.print('Generating PDF with LaTeX rendering...', 'dim');
+    } else {
+      this.print('Generating PDF...', 'dim');
+    }
 
     // Build markdown content
     const md = `# Buffer Export
@@ -698,17 +744,34 @@ ${provenance.operations.map(op => `- \`${op.type}\`: ${op.description || ''}`).j
 
 ## Content
 
-${this.state.activeBuffer.text}
+${processedText}
 `;
 
     // Convert markdown to HTML
     const htmlContent = await marked.parse(md);
 
+    // Build KaTeX includes (only if needed)
+    const katexIncludes = needsLatex ? `
+  <link rel="stylesheet" href="${KATEX_CSS_CDN}">
+  <script defer src="${KATEX_JS_CDN}"></script>
+  <script defer src="${KATEX_AUTO_RENDER_CDN}"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      renderMathInElement(document.body, {
+        delimiters: [
+          {left: '$$', right: '$$', display: true},
+          {left: '$', right: '$', display: false}
+        ],
+        throwOnError: false
+      });
+    });
+  </script>` : '';
+
     // Wrap in styled HTML document
     const html = `<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8">${katexIncludes}
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -765,6 +828,11 @@ ${this.state.activeBuffer.text}
       padding-left: 15px;
       color: #666;
     }
+    /* KaTeX display math styling */
+    .katex-display {
+      margin: 1.5em 0;
+      overflow-x: auto;
+    }
   </style>
 </head>
 <body>
@@ -778,6 +846,17 @@ ${htmlContent}
       browser = await puppeteer.launch({ headless: true });
       const page = await browser.newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });
+
+      // Wait for KaTeX to render if needed
+      if (needsLatex) {
+        // Wait for network to settle and KaTeX scripts to load
+        await page.waitForNetworkIdle({ idleTime: 500, timeout: 10000 }).catch(() => {
+          // Timeout is okay - continue anyway
+        });
+        // Additional delay for rendering
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
       await page.pdf({
         path: filepath,
         format: 'A4',
@@ -785,14 +864,130 @@ ${htmlContent}
         printBackground: true,
       });
       this.print(`Exported to: ${filepath}`, 'green');
+      if (needsLatex) {
+        this.print('  LaTeX equations rendered via KaTeX', 'dim');
+      }
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       this.print(`PDF export failed: ${msg}`, 'red');
-      this.print('Tip: Convert markdown to PDF using pandoc:', 'dim');
-      this.print('  pandoc output.md -o output.pdf', 'dim');
+      this.print('Tip: Use export-pandoc for book-quality output:', 'dim');
+      this.print('  export-pandoc pdf output.pdf', 'dim');
     } finally {
       if (browser) {
         await browser.close();
+      }
+    }
+  }
+
+  private async exportViaPandoc(format?: string, filename?: string): Promise<void> {
+    if (!this.state.activeBuffer) {
+      this.print('No active buffer', 'yellow');
+      return;
+    }
+
+    // Check if pandoc is available
+    try {
+      execSync('pandoc --version', { stdio: 'pipe' });
+    } catch {
+      this.print('Pandoc is not installed', 'red');
+      this.print('Install pandoc for book-quality export:', 'dim');
+      this.print('  brew install pandoc    # macOS', 'dim');
+      this.print('  apt install pandoc     # Ubuntu', 'dim');
+      this.print('  https://pandoc.org/installing.html', 'dim');
+      return;
+    }
+
+    const outputFormat = format || 'pdf';
+    const validFormats = ['pdf', 'docx', 'epub', 'html', 'latex', 'odt'];
+    if (!validFormats.includes(outputFormat)) {
+      this.print(`Invalid format: ${outputFormat}`, 'red');
+      this.print(`Supported formats: ${validFormats.join(', ')}`, 'dim');
+      return;
+    }
+
+    const extension = outputFormat === 'latex' ? 'tex' : outputFormat;
+    const fname = filename || `buffer-${this.state.activeBuffer.id.slice(0, 8)}.${extension}`;
+    const filepath = join(this.state.outputDir, fname);
+
+    this.print(`Exporting via pandoc to ${outputFormat}...`, 'dim');
+
+    const bufferService = this.service.getBufferService();
+    const provenance = bufferService.getProvenance(this.state.activeBuffer);
+
+    // Build markdown content with proper LaTeX (pandoc handles \[ \] natively)
+    const md = `---
+title: Buffer Export
+author: Humanizer AUI
+date: ${new Date().toISOString().split('T')[0]}
+---
+
+# Buffer Export
+
+**ID:** ${this.state.activeBuffer.id}
+**Created:** ${new Date(this.state.activeBuffer.createdAt).toLocaleString()}
+**Words:** ${this.state.activeBuffer.wordCount}
+**Format:** ${this.state.activeBuffer.format}
+
+## Provenance
+
+- **Origin:** ${this.state.activeBuffer.origin.sourceType}
+- **Transformations:** ${provenance.transformationCount}
+
+${provenance.operations.map(op => `- \`${op.type}\`: ${op.description || ''}`).join('\n')}
+
+---
+
+## Content
+
+${this.state.activeBuffer.text}
+`;
+
+    // Write temp markdown file
+    const tempMdPath = join(this.state.outputDir, `.temp-${Date.now()}.md`);
+    writeFileSync(tempMdPath, md);
+
+    try {
+      // Build pandoc command with appropriate options
+      const pandocArgs = ['pandoc', tempMdPath, '-o', filepath];
+
+      // Add format-specific options
+      if (outputFormat === 'pdf') {
+        // Use xelatex for better unicode/font support
+        pandocArgs.push('--pdf-engine=xelatex');
+        pandocArgs.push('-V', 'geometry:margin=1in');
+        pandocArgs.push('-V', 'fontsize=11pt');
+      } else if (outputFormat === 'epub') {
+        pandocArgs.push('--toc');
+        pandocArgs.push('--toc-depth=2');
+      } else if (outputFormat === 'docx') {
+        // Could add reference-doc for styling
+      }
+
+      // Enable smart typography
+      pandocArgs.push('--smart');
+
+      execSync(pandocArgs.join(' '), { stdio: 'pipe' });
+
+      this.print(`Exported to: ${filepath}`, 'green');
+      if (hasLatexContent(this.state.activeBuffer.text)) {
+        this.print('  LaTeX equations processed natively by pandoc', 'dim');
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.print(`Pandoc export failed: ${msg}`, 'red');
+
+      // Common error: missing xelatex for PDF
+      if (outputFormat === 'pdf' && msg.includes('xelatex')) {
+        this.print('xelatex not found. Install a LaTeX distribution:', 'dim');
+        this.print('  brew install --cask mactex   # macOS', 'dim');
+        this.print('  apt install texlive-xetex    # Ubuntu', 'dim');
+      }
+    } finally {
+      // Clean up temp file
+      try {
+        execSync(`rm "${tempMdPath}"`, { stdio: 'pipe' });
+      } catch {
+        // Ignore cleanup errors
       }
     }
   }
@@ -984,7 +1179,7 @@ ${htmlContent}
     this.printCommandGroup(['history', 'trace']);
 
     this.print('\nExport:', 'dim');
-    this.printCommandGroup(['save', 'export-pdf']);
+    this.printCommandGroup(['save', 'export-pdf', 'export-pandoc']);
 
     this.print('\nBooks:', 'dim');
     this.printCommandGroup(['books', 'book', 'to-book', 'new-book']);
