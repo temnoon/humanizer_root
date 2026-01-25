@@ -59,9 +59,10 @@ import type { AuiPostgresStore, AuiArtifact, CreateArtifactOptions, PersonaProfi
 import { VoiceAnalyzer, getVoiceAnalyzer, type VoiceAnalysisResult, type SuggestedStyle } from './voice-analyzer.js';
 import { getBuilderAgent, mergePersonaWithStyle, type PersonaProfileForRewrite } from '../houses/builder.js';
 import { getModelRegistry } from '../models/index.js';
-import type { BufferService, BufferServiceOptions } from '../buffer/buffer-service.js';
+import type { BufferService, BufferServiceOptions, ArchiveStoreAdapter, BooksStoreAdapter } from '../buffer/buffer-service.js';
 import type { ContentBuffer, ProvenanceChain, BufferOperation } from '../buffer/types.js';
 import { BufferServiceImpl } from '../buffer/buffer-service-impl.js';
+import type { PostgresContentStore } from '../storage/postgres-content-store.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SESSION MANAGER
@@ -243,6 +244,7 @@ export class UnifiedAuiService {
   // Persistent storage
   private store: AuiPostgresStore | null = null;
   private booksStore: import('../storage/books-postgres-store.js').BooksPostgresStore | null = null;
+  private archiveStore: PostgresContentStore | null = null;
   private sessionCache: Map<string, UnifiedAuiSession> = new Map();
 
   // Content buffer service (provenance-aware transformation pipelines)
@@ -304,10 +306,24 @@ export class UnifiedAuiService {
   }
 
   /**
+   * Set the archive store (enables archive node loading for buffers).
+   */
+  setArchiveStore(store: PostgresContentStore): void {
+    this.archiveStore = store;
+  }
+
+  /**
    * Check if persistent storage is enabled.
    */
   hasStore(): boolean {
     return this.store !== null;
+  }
+
+  /**
+   * Check if archive store is available.
+   */
+  hasArchiveStore(): boolean {
+    return this.archiveStore !== null;
   }
 
   /**
@@ -349,15 +365,27 @@ export class UnifiedAuiService {
   /**
    * Get or create the buffer service.
    * Creates a default BufferServiceImpl if none was set.
+   * Wires up all available store adapters.
    */
   getBufferService(): BufferService {
     if (!this.bufferService) {
       // Create default with available adapters
       this.bufferService = new BufferServiceImpl({
         auiStore: this.store ? this.createAuiStoreAdapter() : undefined,
+        archiveStore: this.archiveStore ? this.createArchiveStoreAdapter() : undefined,
+        booksStore: this.booksStore ? this.createBooksStoreAdapter() : undefined,
       });
     }
     return this.bufferService;
+  }
+
+  /**
+   * Recreate the buffer service with current store configuration.
+   * Call this after setting stores to update the BufferService adapters.
+   */
+  rebuildBufferService(): BufferService {
+    this.bufferService = null;
+    return this.getBufferService();
   }
 
   /**
@@ -377,6 +405,84 @@ export class UnifiedAuiService {
       findDerivedBuffers: async (_rootBufferId: string) => {
         // Derived buffers tracking not yet implemented in store
         return [];
+      },
+    };
+  }
+
+  /**
+   * Create an adapter for the archive store that implements ArchiveStoreAdapter.
+   */
+  private createArchiveStoreAdapter(): ArchiveStoreAdapter | undefined {
+    if (!this.archiveStore) return undefined;
+
+    const store = this.archiveStore;
+    return {
+      getNode: (nodeId: string) => store.getNode(nodeId),
+      createNode: async (node: Omit<import('../storage/types.js').StoredNode, 'id'>) => {
+        // Archive store uses storeNode with ImportedNode format
+        // Map format to ImportedNode-compatible format (doesn't support 'code' or 'conversation')
+        const validFormats = ['text', 'markdown', 'html', 'json'] as const;
+        const format = validFormats.includes(node.format as any)
+          ? (node.format as 'text' | 'markdown' | 'html' | 'json')
+          : 'text';
+
+        const imported: import('../adapters/types.js').ImportedNode = {
+          id: `buffer-${Date.now()}`,
+          uri: `buffer://manual/${Date.now()}`,
+          contentHash: node.contentHash,
+          content: node.text,
+          format,
+          sourceType: node.sourceType ?? 'manual',
+          sourceCreatedAt: node.sourceCreatedAt ? new Date(node.sourceCreatedAt) : undefined,
+          metadata: node.sourceMetadata ?? {},
+        };
+        return store.storeNode(imported);
+      },
+      updateNode: async (nodeId: string, _updates: Partial<import('../storage/types.js').StoredNode>) => {
+        // Archive store doesn't have updateNode - return current node
+        return store.getNode(nodeId);
+      },
+    };
+  }
+
+  /**
+   * Create an adapter for the books store that implements BooksStoreAdapter.
+   */
+  private createBooksStoreAdapter(): BooksStoreAdapter | undefined {
+    if (!this.booksStore || !this.booksStore.isAvailable()) return undefined;
+
+    const store = this.booksStore;
+    return {
+      getChapter: async (_chapterId: string) => {
+        // Books store doesn't have direct chapter lookup - would need to query by chapter_id
+        // For now, return undefined (chapters are identified by bookId + chapterId)
+        return undefined;
+      },
+      updateChapter: async (_chapterId: string, _content: string, _metadata?: Record<string, unknown>) => {
+        // Books store uses createNode, not direct chapter updates
+        return undefined;
+      },
+      addToChapter: async (bookId: string, chapterId: string, content: string, position?: number) => {
+        // Create a new node in the book chapter
+        const node = await store.createNode({
+          bookId,
+          chapterId,
+          text: content,
+          format: 'markdown',
+          position: position ?? 0,
+          hierarchyLevel: 0,
+          sourceType: 'synthesized',
+        });
+
+        // Return as BookChapter format
+        return {
+          id: chapterId,
+          title: chapterId, // Would need chapter metadata lookup
+          content,
+          passageIds: [],
+          position: position ?? 0,
+          wordCount: content.split(/\s+/).filter(Boolean).length,
+        };
       },
     };
   }

@@ -152,7 +152,7 @@ describe('UnifiedAuiService Buffer Integration', () => {
       const original = await bufferService.createFromText(TEST_TEXT);
 
       const transformed = await bufferService.transform(original, {
-        type: 'custom',
+        type: 'transform_custom',
         parameters: { action: 'uppercase' },
         description: 'Test transform',
       });
@@ -168,14 +168,14 @@ describe('UnifiedAuiService Buffer Integration', () => {
       const original = await bufferService.createFromText(TEST_TEXT);
 
       const transformed = await bufferService.transform(original, {
-        type: 'custom',
+        type: 'transform_custom',
         parameters: { test: true },
         description: 'Test operation',
       });
 
       const provenance = bufferService.getProvenance(transformed);
       expect(provenance.operations.length).toBe(2);
-      expect(provenance.operations[1].type).toBe('custom');
+      expect(provenance.operations[1].type).toBe('transform_custom');
       expect(provenance.operations[1].description).toBe('Test operation');
     });
 
@@ -186,7 +186,7 @@ describe('UnifiedAuiService Buffer Integration', () => {
       const originalOpsCount = original.provenanceChain.operations.length;
 
       await bufferService.transform(original, {
-        type: 'custom',
+        type: 'transform_custom',
         parameters: {},
         description: 'Should not mutate original',
       });
@@ -340,12 +340,12 @@ describe('UnifiedAuiService Buffer Integration', () => {
       // Create → Transform → Transform → Analyze
       let buffer = await bufferService.createFromText('Original text');
       buffer = await bufferService.transform(buffer, {
-        type: 'custom',
+        type: 'transform_custom',
         parameters: { step: 1 },
         description: 'Step 1',
       });
       buffer = await bufferService.transform(buffer, {
-        type: 'custom',
+        type: 'transform_custom',
         parameters: { step: 2 },
         description: 'Step 2',
       });
@@ -369,7 +369,7 @@ describe('UnifiedAuiService Buffer Integration', () => {
       const bufferService = service.getBufferService();
       const original = await bufferService.createFromText('Before');
       const transformed = await bufferService.transform(original, {
-        type: 'custom',
+        type: 'transform_custom',
         parameters: { newText: 'After' },
         description: 'Change text',
       });
