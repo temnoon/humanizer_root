@@ -59,6 +59,9 @@ import type { AuiPostgresStore, AuiArtifact, CreateArtifactOptions, PersonaProfi
 import { VoiceAnalyzer, getVoiceAnalyzer, type VoiceAnalysisResult, type SuggestedStyle } from './voice-analyzer.js';
 import { getBuilderAgent, mergePersonaWithStyle, type PersonaProfileForRewrite } from '../houses/builder.js';
 import { getModelRegistry } from '../models/index.js';
+import type { BufferService, BufferServiceOptions } from '../buffer/buffer-service.js';
+import type { ContentBuffer, ProvenanceChain, BufferOperation } from '../buffer/types.js';
+import { BufferServiceImpl } from '../buffer/buffer-service-impl.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SESSION MANAGER
@@ -242,6 +245,9 @@ export class UnifiedAuiService {
   private booksStore: import('../storage/books-postgres-store.js').BooksPostgresStore | null = null;
   private sessionCache: Map<string, UnifiedAuiSession> = new Map();
 
+  // Content buffer service (provenance-aware transformation pipelines)
+  private bufferService: BufferService | null = null;
+
   constructor(options?: UnifiedAuiServiceOptions) {
     this.options = options ?? {};
     this.sessionManager = new AuiSessionManager({
@@ -323,6 +329,56 @@ export class UnifiedAuiService {
    */
   hasBooksStore(): boolean {
     return this.booksStore !== null && this.booksStore.isAvailable();
+  }
+
+  /**
+   * Set the buffer service (enables provenance-aware content transformations).
+   * If not set, a default BufferServiceImpl will be created on first use.
+   */
+  setBufferService(service: BufferService): void {
+    this.bufferService = service;
+  }
+
+  /**
+   * Check if buffer service is available.
+   */
+  hasBufferService(): boolean {
+    return this.bufferService !== null;
+  }
+
+  /**
+   * Get or create the buffer service.
+   * Creates a default BufferServiceImpl if none was set.
+   */
+  getBufferService(): BufferService {
+    if (!this.bufferService) {
+      // Create default with available adapters
+      this.bufferService = new BufferServiceImpl({
+        auiStore: this.store ? this.createAuiStoreAdapter() : undefined,
+      });
+    }
+    return this.bufferService;
+  }
+
+  /**
+   * Create an adapter for the AUI store that implements AuiStoreAdapter.
+   */
+  private createAuiStoreAdapter(): import('../buffer/buffer-service.js').AuiStoreAdapter | undefined {
+    if (!this.store) return undefined;
+
+    const store = this.store;
+    return {
+      saveContentBuffer: (buffer: ContentBuffer) => store.saveContentBuffer(buffer),
+      loadContentBuffer: (id: string) => store.loadContentBuffer(id),
+      findContentBuffersByHash: (hash: string) => store.findContentBuffersByHash(hash),
+      deleteContentBuffer: (id: string) => store.deleteContentBuffer(id),
+      saveProvenanceChain: (chain: ProvenanceChain) => store.saveProvenanceChain(chain),
+      loadProvenanceChain: (id: string) => store.loadProvenanceChain(id),
+      findDerivedBuffers: async (_rootBufferId: string) => {
+        // Derived buffers tracking not yet implemented in store
+        return [];
+      },
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1930,6 +1986,166 @@ export class UnifiedAuiService {
         console.warn('Failed to create/embed apex node:', error);
       }
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROVENANCE-AWARE BOOK CREATION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Create a book chapter from a ContentBuffer with full provenance tracking.
+   *
+   * This bypasses the harvest flow and directly creates book content from
+   * the buffer, maintaining the complete transformation lineage.
+   */
+  async createChapterFromBuffer(
+    buffer: ContentBuffer,
+    bookId: string,
+    options?: {
+      chapterTitle?: string;
+      chapterId?: string;
+      position?: number;
+    }
+  ): Promise<import('./types.js').BookChapter> {
+    const bufferSvc = this.getBufferService();
+
+    // Commit the buffer content to the book
+    const chapter = await bufferSvc.commitToBook(
+      buffer,
+      bookId,
+      options?.chapterId ?? `chapter-${Date.now()}`,
+      {
+        position: options?.position,
+        metadata: options?.chapterTitle ? { chapterTitle: options.chapterTitle } : undefined,
+      }
+    );
+
+    return chapter;
+  }
+
+  /**
+   * Transform and commit content to a book with provenance tracking.
+   *
+   * This method:
+   * 1. Creates a ContentBuffer from the source content
+   * 2. Optionally applies persona rewriting
+   * 3. Commits to the book with full provenance chain
+   */
+  async transformAndCommitToBook(options: {
+    text: string;
+    bookId: string;
+    chapterId: string;
+    chapterTitle?: string;
+    personaId?: string;
+    styleId?: string;
+    sourceArchiveNodeId?: string;
+    onProgress?: (step: string) => void;
+  }): Promise<{
+    chapter: import('./types.js').BookChapter;
+    buffer: ContentBuffer;
+    provenance: ProvenanceChain;
+  }> {
+    const bufferSvc = this.getBufferService();
+
+    options.onProgress?.('Creating buffer from content...');
+
+    // Create initial buffer
+    let buffer = await bufferSvc.createFromText(options.text, {
+      metadata: options.sourceArchiveNodeId
+        ? { sourceArchiveNodeId: options.sourceArchiveNodeId }
+        : undefined,
+    });
+
+    // Apply persona rewriting if specified
+    if (options.personaId) {
+      options.onProgress?.('Applying persona voice...');
+      buffer = await bufferSvc.rewriteForPersona(
+        buffer,
+        options.personaId,
+        options.styleId
+      );
+    }
+
+    options.onProgress?.('Committing to book...');
+
+    // Commit to book with provenance
+    const chapter = await bufferSvc.commitToBook(
+      buffer,
+      options.bookId,
+      options.chapterId,
+      {
+        metadata: options.chapterTitle ? { chapterTitle: options.chapterTitle } : undefined,
+      }
+    );
+
+    // Get provenance chain for the result
+    const provenance = bufferSvc.getProvenance(buffer);
+
+    return {
+      chapter,
+      buffer,
+      provenance,
+    };
+  }
+
+  /**
+   * Get the provenance chain for content in a book chapter.
+   *
+   * Traces back through all transformations to find the original source.
+   */
+  async getChapterProvenance(
+    bookId: string,
+    chapterId: string
+  ): Promise<ProvenanceChain | undefined> {
+    if (!this.store) return undefined;
+
+    // Look up the buffer associated with this chapter
+    // This requires a reverse lookup from book chapter to buffer
+    // For now, return undefined as this requires chapter→buffer mapping
+    // which would be stored in chapter metadata
+
+    // TODO: Implement chapter→buffer lookup once book schema includes bufferId
+    return undefined;
+  }
+
+  /**
+   * Trace content provenance to its archive origin.
+   *
+   * Given a ContentBuffer, traces back through all transformations
+   * to find the original archive node(s) that were the source.
+   */
+  async traceToArchiveOrigin(
+    buffer: ContentBuffer
+  ): Promise<{
+    archiveNodeIds: string[];
+    transformationCount: number;
+    operations: BufferOperation[];
+  }> {
+    const bufferSvc = this.getBufferService();
+    const provenance = bufferSvc.getProvenance(buffer);
+
+    // Collect all archive node IDs from the origin
+    const archiveNodeIds: string[] = [];
+    if (
+      buffer.origin.sourceType === 'archive' &&
+      buffer.origin.sourceNodeId
+    ) {
+      archiveNodeIds.push(buffer.origin.sourceNodeId);
+    }
+
+    // Check merge operations for additional sources
+    for (const op of provenance.operations) {
+      if (op.type === 'merge' && op.parameters.sourceBufferIds) {
+        // Merged buffers may have their own archive origins
+        // Would need to trace each one recursively
+      }
+    }
+
+    return {
+      archiveNodeIds,
+      transformationCount: provenance.transformationCount,
+      operations: provenance.operations,
+    };
   }
 
   /**
