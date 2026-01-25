@@ -48,6 +48,8 @@ function createAuiStoreAdapter(store: AuiPostgresStore): AuiStoreAdapter {
     saveProvenanceChain: (chain: ProvenanceChain) => store.saveProvenanceChain(chain),
     loadProvenanceChain: (id: string) => store.loadProvenanceChain(id),
     findDerivedBuffers: async (_rootBufferId: string) => [],
+    getPersonaProfile: async () => undefined,
+    getStyleProfile: async () => undefined,
   };
 }
 

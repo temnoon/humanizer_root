@@ -227,6 +227,8 @@ function createFullMockAuiStore() {
     },
     loadProvenanceChain: async (chainId: string) => chains.get(chainId),
     findDerivedBuffers: async () => [],
+    getPersonaProfile: async () => undefined,
+    getStyleProfile: async () => undefined,
   };
 }
 

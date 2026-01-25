@@ -126,6 +126,8 @@ function createMockAuiStore(): AuiStoreAdapter {
     },
     loadProvenanceChain: async (chainId: string) => chains.get(chainId),
     findDerivedBuffers: async (rootBufferId: string) => [],
+    getPersonaProfile: async () => undefined,
+    getStyleProfile: async () => undefined,
   };
 }
 
