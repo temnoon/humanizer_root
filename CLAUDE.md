@@ -304,6 +304,99 @@ Example refactor:
 
 ---
 
+## 🔧 CONFIGURATION STANDARDS GUARD (MANDATORY)
+
+**CRITICAL: Before writing ANY backend/agent code, read this section. The pre-commit hook WILL reject violations.**
+
+**Enforcement**: `./scripts/lint-config-standards.sh` runs on every commit.
+
+### The Problem We're Solving
+
+Configuration drift causes:
+- **Hardcoded model names** → Breaking changes when models update
+- **Inline prompts** → Impossible to A/B test or tune
+- **Magic numbers** → Inconsistent behavior, hard to debug
+- **Direct service URLs** → Environment-specific failures
+
+### Absolute Rules (Pre-commit Hook Enforced)
+
+| Rule | ❌ FORBIDDEN | ✅ REQUIRED |
+|------|-------------|-------------|
+| Model names | `'llama3.2:3b'` | `registry.getDefault('completion').id` |
+| Embedding dims | `dimensions: 768` | `registry.getEmbeddingDimensions()` |
+| Service URLs | `'localhost:11434'` | `config.get(EMBEDDING_CONFIG_KEYS.OLLAMA_URL)` |
+| System prompts | `'You are a...'` | `getPrompt('PROMPT_ID').template` |
+
+### How to Add New Models
+
+```typescript
+// ❌ WRONG - hardcoded
+const response = await ollama.generate({ model: 'llama3.2:3b', ... });
+
+// ✅ CORRECT - use registry
+import { getModelRegistry } from '@humanizer/core';
+const registry = getModelRegistry();
+const model = await registry.getDefault('completion');
+const response = await ollama.generate({ model: model.id, ... });
+```
+
+### How to Add New Prompts
+
+1. Define in `packages/core/src/config/prompt-registry.ts`:
+```typescript
+export const MY_NEW_PROMPT: PromptDefinition = {
+  id: 'MY_NEW_PROMPT',
+  name: 'Human-readable name',
+  description: 'What this prompt does',
+  template: `Your prompt with {{variables}}`,
+  requirements: {
+    capabilities: ['json-mode'], // if needed
+    temperature: 0.3,
+  },
+  version: 1,
+  usedBy: ['agent-name'],
+};
+```
+
+2. Add to the appropriate agent's prompt array
+3. Use via: `getPrompt('MY_NEW_PROMPT')`
+
+### How to Add New Thresholds
+
+1. Define key in appropriate config module:
+```typescript
+// In packages/core/src/config/embedding-config.ts
+export const EMBEDDING_CONFIG_KEYS = {
+  // ... existing keys
+  MY_NEW_THRESHOLD: 'embedding.myNewThreshold',
+} as const;
+
+export const EMBEDDING_DEFAULTS = {
+  // ... existing defaults
+  [EMBEDDING_CONFIG_KEYS.MY_NEW_THRESHOLD]: 0.75,
+};
+```
+
+2. Use via: `config.getOrDefault(EMBEDDING_CONFIG_KEYS.MY_NEW_THRESHOLD, 0.75)`
+
+### Registry Locations
+
+| What | Where |
+|------|-------|
+| Model definitions | `packages/core/src/models/default-model-registry.ts` |
+| Prompt definitions | `packages/core/src/config/prompt-registry.ts` |
+| Embedding config | `packages/core/src/config/embedding-config.ts` |
+| Storage config | `packages/core/src/config/storage-config.ts` |
+| AI-tell patterns | `packages/core/src/config/ai-detection-config.ts` |
+
+### Running the Linter Manually
+
+```bash
+./scripts/lint-config-standards.sh
+```
+
+---
+
 ## 🔗 SUBSYSTEM DOCUMENTATION (READ BEFORE MODIFYING)
 
 **CRITICAL**: Before modifying any subsystem, READ the relevant documentation first.

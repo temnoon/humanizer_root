@@ -1,0 +1,8 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Run configuration standards linter
+./scripts/lint-config-standards.sh
+
+# Run TypeScript type check
+npx tsc --noEmit

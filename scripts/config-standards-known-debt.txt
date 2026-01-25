@@ -1,0 +1,32 @@
+# Configuration Standards - Known Technical Debt
+#
+# This file lists files that have known violations of configuration standards
+# that are scheduled for remediation. The linter will report these as warnings
+# instead of errors.
+#
+# Format: filepath:violation-type
+#
+# Remove entries as they are fixed.
+#
+# Last updated: 2026-01-24
+
+# Houses with inline prompts (to be migrated to prompt-registry)
+packages/core/src/houses/curator.ts:inline-prompt
+packages/core/src/houses/codeguard/architect.ts:inline-prompt
+packages/core/src/houses/reviewer.ts:ai-tell-pattern
+
+# Model Master has legacy model selection logic (to use registry)
+packages/core/src/houses/model-master.ts:hardcoded-model
+
+# Voice analyzer has hardcoded thresholds (to use config)
+packages/core/src/aui/voice-analyzer.ts:magic-threshold
+
+# MCP handlers have hardcoded error messages with URLs
+packages/core/src/mcp/handlers/aui.ts:hardcoded-url
+packages/core/src/mcp/handlers/book-agent.ts:hardcoded-url
+packages/core/src/mcp/handlers/agentic-search.ts:hardcoded-url
+packages/core/src/mcp/handlers/bookmaking.ts:hardcoded-url
+
+# Explorer and adapters use 'claude-' as source identifiers (not model names)
+packages/core/src/houses/explorer.ts:false-positive-claude
+packages/core/src/adapters/parsers/BrowserPluginParser.ts:false-positive-claude
