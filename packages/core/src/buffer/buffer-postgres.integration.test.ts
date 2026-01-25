@@ -17,10 +17,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import pg from 'pg';
 import { AuiPostgresStore, resetAuiStore } from '../storage/aui-postgres-store.js';
 import { BufferServiceImpl } from './buffer-service-impl.js';
 import type { BufferService, AuiStoreAdapter } from './buffer-service.js';
 import type { ContentBuffer, ProvenanceChain } from './types.js';
+
+const { Pool } = pg;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TEST CONFIGURATION
@@ -53,24 +56,28 @@ function createAuiStoreAdapter(store: AuiPostgresStore): AuiStoreAdapter {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describePostgres('Buffer PostgreSQL Integration', () => {
+  let pool: pg.Pool;
   let store: AuiPostgresStore;
   let bufferService: BufferService;
 
   beforeAll(async () => {
-    // Initialize store with test database
-    store = new AuiPostgresStore({
+    // Initialize pool with test database
+    pool = new Pool({
       connectionString: TEST_DATABASE_URL,
     });
-    await store.initialize();
 
-    // Create buffer service with store adapter
+    // Verify connection works
+    await pool.query('SELECT 1');
+
+    // Create store and buffer service
+    store = new AuiPostgresStore(pool);
     bufferService = new BufferServiceImpl({
       auiStore: createAuiStoreAdapter(store),
     });
   });
 
   afterAll(async () => {
-    await store.close();
+    await pool.end();
     resetAuiStore();
   });
 

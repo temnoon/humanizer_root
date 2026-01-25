@@ -183,22 +183,26 @@ I remember when I first started learning...
 
 ### 6. Export as PDF
 
-The CLI provides guidance for PDF conversion:
+Export your content directly to PDF:
 
 ```
 humanizer> export-pdf
-PDF export requires additional setup. Use "save" for markdown.
-Tip: Convert markdown to PDF using pandoc:
-  pandoc output.md -o output.pdf
+Generating PDF...
+Exported to: ./humanizer-output/buffer-bf8a2c91.pdf
+
+humanizer> export-pdf my-document.pdf
+Generating PDF...
+Exported to: ./humanizer-output/my-document.pdf
 ```
 
-**Using pandoc (install separately):**
-```bash
-# Install pandoc
-brew install pandoc  # macOS
-apt install pandoc   # Ubuntu
+The PDF includes:
+- Buffer metadata (ID, date, word count)
+- Full provenance chain
+- Styled content with code highlighting
 
-# Convert markdown to PDF
+**Alternative: Use pandoc**
+```bash
+# If you prefer pandoc for PDF generation
 pandoc ./humanizer-output/output.md -o ./humanizer-output/output.pdf
 ```
 
@@ -439,7 +443,7 @@ The AUI system provides many more capabilities accessible via the CLI or program
 - **Markdown** - With full metadata
 - **HTML** - Formatted output
 - **JSON** - Structured data
-- **PDF** - Via pandoc or similar
+- **PDF** - Native export with styled formatting
 
 ---
 

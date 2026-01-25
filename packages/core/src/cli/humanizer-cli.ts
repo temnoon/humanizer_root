@@ -14,6 +14,8 @@
 import * as readline from 'readline';
 import { writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join } from 'path';
+import { marked } from 'marked';
+import puppeteer from 'puppeteer';
 import {
   UnifiedAuiService,
   resetUnifiedAui,
@@ -513,10 +515,12 @@ class HumanizerCli {
     const ai = this.state.activeBuffer.qualityMetrics?.aiDetection;
     if (ai) {
       this.print('AI Detection Results:', 'cyan');
-      this.print(`  AI Probability: ${((ai.score || 0) * 100).toFixed(1)}%`);
-      this.print(`  Classification: ${ai.label || 'Unknown'}`);
-      if (ai.patterns && ai.patterns.length > 0) {
-        this.print(`  Patterns Found: ${ai.patterns.join(', ')}`);
+      this.print(`  AI Probability: ${((ai.probability || 0) * 100).toFixed(1)}%`);
+      this.print(`  Confidence: ${((ai.confidence || 0) * 100).toFixed(1)}%`);
+      const label = ai.probability > 0.7 ? 'Likely AI' : ai.probability > 0.3 ? 'Uncertain' : 'Likely Human';
+      this.print(`  Classification: ${label}`);
+      if (ai.tells && ai.tells.length > 0) {
+        this.print(`  AI Tells Found: ${ai.tells.map(t => t.phrase).join(', ')}`);
       }
     } else {
       this.print('AI detection not available', 'yellow');
@@ -666,10 +670,131 @@ ${this.state.activeBuffer.text}
       this.print('No active buffer', 'yellow');
       return;
     }
-    // PDF export would require additional dependencies (puppeteer, pdfkit, etc.)
-    this.print('PDF export requires additional setup. Use "save" for markdown.', 'yellow');
-    this.print('Tip: Convert markdown to PDF using pandoc:', 'dim');
-    this.print('  pandoc output.md -o output.pdf', 'dim');
+
+    const fname = filename || `buffer-${this.state.activeBuffer.id.slice(0, 8)}.pdf`;
+    const filepath = join(this.state.outputDir, fname);
+
+    this.print('Generating PDF...', 'dim');
+
+    const bufferService = this.service.getBufferService();
+    const provenance = bufferService.getProvenance(this.state.activeBuffer);
+
+    // Build markdown content
+    const md = `# Buffer Export
+
+**ID:** ${this.state.activeBuffer.id}
+**Created:** ${new Date(this.state.activeBuffer.createdAt).toLocaleString()}
+**Words:** ${this.state.activeBuffer.wordCount}
+**Format:** ${this.state.activeBuffer.format}
+
+## Provenance
+
+- **Origin:** ${this.state.activeBuffer.origin.sourceType}
+- **Transformations:** ${provenance.transformationCount}
+
+${provenance.operations.map(op => `- \`${op.type}\`: ${op.description || ''}`).join('\n')}
+
+---
+
+## Content
+
+${this.state.activeBuffer.text}
+`;
+
+    // Convert markdown to HTML
+    const htmlContent = await marked.parse(md);
+
+    // Wrap in styled HTML document
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.6;
+      color: #333;
+    }
+    h1 {
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 10px;
+    }
+    h2 {
+      color: #34495e;
+      margin-top: 30px;
+    }
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Monaco', 'Menlo', monospace;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f8f8f8;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      border: 1px solid #e0e0e0;
+    }
+    pre code {
+      background: none;
+      padding: 0;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #ddd;
+      margin: 30px 0;
+    }
+    ul {
+      padding-left: 25px;
+    }
+    li {
+      margin: 5px 0;
+    }
+    p strong {
+      color: #555;
+    }
+    blockquote {
+      border-left: 3px solid #3498db;
+      margin: 20px 0;
+      padding-left: 15px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+${htmlContent}
+</body>
+</html>`;
+
+    // Generate PDF using puppeteer
+    let browser;
+    try {
+      browser = await puppeteer.launch({ headless: true });
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      await page.pdf({
+        path: filepath,
+        format: 'A4',
+        margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' },
+        printBackground: true,
+      });
+      this.print(`Exported to: ${filepath}`, 'green');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.print(`PDF export failed: ${msg}`, 'red');
+      this.print('Tip: Convert markdown to PDF using pandoc:', 'dim');
+      this.print('  pandoc output.md -o output.pdf', 'dim');
+    } finally {
+      if (browser) {
+        await browser.close();
+      }
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -764,7 +889,7 @@ ${this.state.activeBuffer.text}
       this.print('Discovering clusters...', 'dim');
       try {
         const result = await this.service.discoverClusters({
-          maxSampleSize: 500,
+          sampleSize: 500,
           minClusterSize: 5,
         });
         this.print(`Found ${result.clusters.length} clusters`, 'green');
