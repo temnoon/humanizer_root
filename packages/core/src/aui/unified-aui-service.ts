@@ -58,6 +58,7 @@ import type { StoredNode, SearchResult } from '../storage/types.js';
 import type { AuiPostgresStore, AuiArtifact, CreateArtifactOptions, PersonaProfile, StyleProfile, CreatePersonaProfileOptions, CreateStyleProfileOptions } from '../storage/aui-postgres-store.js';
 import { VoiceAnalyzer, getVoiceAnalyzer, type VoiceAnalysisResult, type SuggestedStyle } from './voice-analyzer.js';
 import { getBuilderAgent, mergePersonaWithStyle, type PersonaProfileForRewrite } from '../houses/builder.js';
+import { getModelRegistry } from '../models/index.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SESSION MANAGER
@@ -301,6 +302,20 @@ export class UnifiedAuiService {
    */
   hasStore(): boolean {
     return this.store !== null;
+  }
+
+  /**
+   * Get the default embedding model ID from ModelRegistry.
+   * Falls back to 'nomic-embed-text:latest' if registry unavailable.
+   */
+  private getDefaultEmbeddingModel(): string {
+    try {
+      const registry = getModelRegistry();
+      // Synchronous lookup - the registry caches its models
+      return registry.getDefaultSync?.('embedding')?.id ?? 'nomic-embed-text:latest';
+    } catch {
+      return 'nomic-embed-text:latest';
+    }
   }
 
   /**
@@ -1878,7 +1893,7 @@ export class UnifiedAuiService {
           await this.booksStore.updateNodeEmbedding(
             node.id,
             embedding,
-            'nomic-embed-text', // default model
+            this.getDefaultEmbeddingModel(),
             node.contentHash
           );
         } catch (error) {
@@ -1908,7 +1923,7 @@ export class UnifiedAuiService {
         await this.booksStore.updateNodeEmbedding(
           apexNode.id,
           apexEmbedding,
-          'nomic-embed-text',
+          this.getDefaultEmbeddingModel(),
           apexNode.contentHash
         );
       } catch (error) {

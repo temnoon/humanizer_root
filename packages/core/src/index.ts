@@ -124,3 +124,109 @@ export * from './integration/index.js';
 // EMBEDDINGS - 3-level embedding service (L0, L1, Apex)
 // ═══════════════════════════════════════════════════════════════════
 export * from './embeddings/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// MODELS - Model Registry & Vetting (Phase 1)
+// ═══════════════════════════════════════════════════════════════════
+export * from './models/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// AUI - Agentic User Interface (Phases 1-5)
+// Note: Explicit exports to avoid conflicts with runtime, instruments, etc.
+// ═══════════════════════════════════════════════════════════════════
+export {
+  // Phase 4: Benchmark Suite
+  type BenchmarkPassage,
+  type PassageCategory,
+  type ExpectedBehavior,
+  type BenchmarkMetrics,
+  type BenchmarkWeights,
+  type BenchmarkSuite,
+  type PassageBenchmarkResult,
+  type BenchmarkSuiteResult,
+  type BenchmarkRunnerOptions,
+  type ModelInvoker,
+  type EmbeddingGenerator,
+  DEFAULT_BENCHMARK_SUITE,
+  DEFAULT_BENCHMARK_PASSAGES,
+  DEFAULT_EXPECTED_BEHAVIORS,
+  DEFAULT_BENCHMARK_METRICS,
+  DEFAULT_BENCHMARK_WEIGHTS,
+  BENCHMARK_PASSAGES,
+  EXPECTED_BEHAVIORS,
+  BENCHMARK_METRICS,
+  BENCHMARK_WEIGHTS,
+  BenchmarkRunner,
+
+  // Phase 4: A/B Testing
+  type ABTestStatus,
+  type ABTestWinner,
+  type ABTestConfig,
+  type ABTestSample,
+  type ABTestStatistics,
+  type ABTestResult,
+  type ABTestManagerOptions,
+  ABTestManager,
+  getABTestManager,
+  resetABTestManager,
+
+  // Phase 4: LLM Control Panel
+  type LLMControlPanelOptions,
+  type ModelSummary,
+  type ModelTestRequest,
+  type VettingDecision,
+  type ModelHealthCheck,
+  type MCPResult,
+  type LLMControlPanelHandlers,
+  LLMControlPanel,
+  getLLMControlPanel,
+  setLLMControlPanel,
+  resetLLMControlPanel,
+
+  // Phase 5: Task Embedding Service (Rho Integration)
+  type TaskEmbeddingRecord,
+  type SimilarTaskResult,
+  type AgentSuggestion,
+  type TaskOutcome,
+  type TemporalDecayConfig,
+  type AdaptiveThresholdConfig,
+  type TaskEmbeddingServiceOptions,
+  // Note: Embedder type conflicts with pyramid - use TaskEmbeddingService.Embedder or import from aui directly
+  TaskEmbeddingService,
+  getTaskEmbeddingService,
+  setTaskEmbeddingService,
+  resetTaskEmbeddingService,
+
+  // AUI Core (buffer, admin, unified service)
+  BufferManager,
+  initBufferManager,
+  getBufferManager,
+  resetBufferManager,
+  type BufferManagerOptions,
+  AgenticLoop,
+  createToolExecutor,
+  initAgenticLoop,
+  getAgenticLoop,
+  resetAgenticLoop,
+  type AgentLlmAdapter,
+  type AgenticLoopOptions,
+  AdminService,
+  initAdminService,
+  getAdminService,
+  resetAdminService,
+  UnifiedAuiService,
+  createUnifiedAuiService,
+  initUnifiedAui,
+  initUnifiedAuiWithStorage,
+  getUnifiedAui,
+  resetUnifiedAui,
+  type CreateUnifiedAuiOptions,
+  type InitUnifiedAuiWithStorageOptions,
+  AuiPostgresStore,
+  initAuiStore,
+  getAuiStore,
+  resetAuiStore,
+  type AuiPostgresStoreOptions,
+  type AuiArtifact,
+  type CreateArtifactOptions,
+} from './aui/index.js';

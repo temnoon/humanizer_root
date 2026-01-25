@@ -194,3 +194,101 @@ export {
   type AuiArtifact,
   type CreateArtifactOptions,
 } from '../storage/aui-postgres-store.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// BENCHMARK SUITE (Phase 4)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type BenchmarkPassage,
+  type PassageCategory,
+  type ExpectedBehavior,
+  type BenchmarkMetrics,
+  type BenchmarkWeights,
+  type BenchmarkSuite,
+  type PassageBenchmarkResult,
+  type BenchmarkSuiteResult,
+  type BenchmarkRunnerOptions,
+  type ModelInvoker,
+  type EmbeddingGenerator,
+
+  // Default suite
+  DEFAULT_BENCHMARK_SUITE,
+  DEFAULT_BENCHMARK_PASSAGES,
+  DEFAULT_EXPECTED_BEHAVIORS,
+  DEFAULT_BENCHMARK_METRICS,
+  DEFAULT_BENCHMARK_WEIGHTS,
+
+  // Aliases
+  BENCHMARK_PASSAGES,
+  EXPECTED_BEHAVIORS,
+  BENCHMARK_METRICS,
+  BENCHMARK_WEIGHTS,
+
+  // Runner
+  BenchmarkRunner,
+} from './benchmark-suite.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// A/B TESTING (Phase 4)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type ABTestStatus,
+  type ABTestWinner,
+  type ABTestConfig,
+  type ABTestSample,
+  type ABTestStatistics,
+  type ABTestResult,
+  type ABTestManagerOptions,
+
+  // Manager
+  ABTestManager,
+  getABTestManager,
+  resetABTestManager,
+} from './ab-testing.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LLM CONTROL PANEL (Phase 4)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type LLMControlPanelOptions,
+  type ModelSummary,
+  type ModelTestRequest,
+  type VettingDecision,
+  type ModelHealthCheck,
+  type MCPResult,
+  type LLMControlPanelHandlers,
+
+  // Service
+  LLMControlPanel,
+  getLLMControlPanel,
+  setLLMControlPanel,
+  resetLLMControlPanel,
+} from './llm-control-panel.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TASK EMBEDDING SERVICE (Phase 5 - Rho Integration)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type TaskEmbeddingRecord,
+  type SimilarTaskResult,
+  type AgentSuggestion,
+  type TaskOutcome,
+  type TemporalDecayConfig,
+  type AdaptiveThresholdConfig,
+  type TaskEmbeddingServiceOptions,
+  type Embedder,
+
+  // Service
+  TaskEmbeddingService,
+  getTaskEmbeddingService,
+  setTaskEmbeddingService,
+  resetTaskEmbeddingService,
+} from './task-embedding-service.js';

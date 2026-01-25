@@ -40,6 +40,7 @@ import type {
   ConfigAuditEntry,
 } from '../config/types.js';
 import { AUI_DEFAULTS, DEFAULT_TIERS, MODEL_COST_RATES, OPERATION_TYPES } from './constants.js';
+import { getModelRegistry } from '../models/index.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ADMIN SERVICE
@@ -201,12 +202,27 @@ export class AdminService {
 
   /**
    * Calculate cost for token usage.
+   * Uses ModelRegistry for cost lookup, falling back to MODEL_COST_RATES.
    */
   calculateCost(model: string, inputTokens: number, outputTokens: number): number {
+    // Try ModelRegistry first (costPer1kTokens in dollars)
+    try {
+      const registry = getModelRegistry();
+      const rates = registry.getCostSync?.(model);
+      if (rates) {
+        // Registry costs are per 1K tokens in dollars
+        const inputCost = (inputTokens / 1000) * rates.input;
+        const outputCost = (outputTokens / 1000) * rates.output;
+        return Math.round((inputCost + outputCost) * 100) / 100;
+      }
+    } catch {
+      // Registry not available, fall through to legacy lookup
+    }
+
+    // Fallback to legacy MODEL_COST_RATES (per 1M tokens in cents)
     const rates = MODEL_COST_RATES[model as keyof typeof MODEL_COST_RATES]
       ?? MODEL_COST_RATES.default;
 
-    // Rates are per 1M tokens, in cents
     const inputCost = (inputTokens / 1_000_000) * rates.input;
     const outputCost = (outputTokens / 1_000_000) * rates.output;
 

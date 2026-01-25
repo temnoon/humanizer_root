@@ -5,10 +5,16 @@
  * Provides 3-level embedding: L0 chunks, L1 summaries, Apex synthesis.
  *
  * Architecture:
- * - Uses OllamaAdapter for embedding generation (nomic-embed-text, 768 dims)
- * - Uses OllamaAdapter for summarization (llama3.2:3b)
+ * - Uses ModelRegistry for model selection (embedding + completion)
+ * - Uses OllamaAdapter for embedding generation
+ * - Uses OllamaAdapter for summarization
  * - Integrates with PyramidBuilder for hierarchical content
  * - Stores embeddings via ContentStore.storeEmbeddings()
+ *
+ * Model Configuration:
+ * - Models are resolved from ModelRegistry when available
+ * - Falls back to config values if registry unavailable
+ * - Use getEmbedDimensionsAsync() for registry-aware dimension lookup
  */
 
 import type { Embedder, Summarizer, PyramidBuildResult } from '../pyramid/types.js';
@@ -16,6 +22,7 @@ import { PyramidBuilder, initPyramidBuilder } from '../pyramid/builder.js';
 import { MIN_WORDS_FOR_PYRAMID } from '../pyramid/constants.js';
 import { countWords, ChunkingService, MAX_CHUNK_CHARS } from '../chunking/index.js';
 import type { StoredNode } from '../storage/types.js';
+import { getModelRegistry } from '../models/index.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -39,10 +46,14 @@ export interface EmbeddingServiceConfig {
   verbose?: boolean;
 }
 
+/**
+ * Default config values - used as fallback when ModelRegistry unavailable.
+ * Prefer using createEmbeddingServiceFromRegistry() for registry-aware initialization.
+ */
 const DEFAULT_CONFIG: Required<EmbeddingServiceConfig> = {
   ollamaUrl: 'http://localhost:11434',
-  embedModel: 'nomic-embed-text:latest',
-  completionModel: 'llama3.2:3b',
+  embedModel: 'nomic-embed-text:latest',  // Fallback - prefer registry lookup
+  completionModel: 'llama3.2:3b',          // Fallback - prefer registry lookup
   timeout: 60000,
   batchSize: 10,
   verbose: false,
@@ -151,10 +162,13 @@ export class EmbeddingService {
       }
     }
 
+    // Get dimensions from actual embeddings or fallback to registry/default
+    const dimensions = embeddings[0]?.length ?? await this.getEmbedDimensionsAsync();
+
     return {
       embeddings,
       model: this.config.embedModel,
-      dimensions: embeddings[0]?.length ?? 768,
+      dimensions,
       count: embeddings.length,
       durationMs: Date.now() - startTime,
     };
@@ -399,10 +413,34 @@ export class EmbeddingService {
   }
 
   /**
-   * Get embedding dimensions (768 for nomic-embed-text)
+   * Get embedding dimensions (synchronous fallback)
+   * @deprecated Use getEmbedDimensionsAsync() for registry-aware lookup
    */
   getEmbedDimensions(): number {
-    return 768; // nomic-embed-text standard
+    // Try to get from registry synchronously (if already initialized)
+    try {
+      const registry = getModelRegistry();
+      const model = (registry as any).models?.get(this.config.embedModel);
+      if (model?.dimensions) {
+        return model.dimensions;
+      }
+    } catch {
+      // Registry not available, use fallback
+    }
+    return 768; // Fallback for nomic-embed-text
+  }
+
+  /**
+   * Get embedding dimensions from ModelRegistry (async, preferred)
+   */
+  async getEmbedDimensionsAsync(): Promise<number> {
+    try {
+      const registry = getModelRegistry();
+      return await registry.getEmbeddingDimensions(this.config.embedModel);
+    } catch {
+      // Registry unavailable or model not found
+      return 768; // Fallback
+    }
   }
 }
 
@@ -435,4 +473,49 @@ export function initEmbeddingService(config: EmbeddingServiceConfig = {}): Embed
  */
 export function resetEmbeddingService(): void {
   _embeddingService = null;
+}
+
+/**
+ * Create embedding service with models resolved from ModelRegistry.
+ * This is the preferred way to create an EmbeddingService.
+ *
+ * @example
+ * ```typescript
+ * const service = await createEmbeddingServiceFromRegistry();
+ * const embedding = await service.embed("hello world");
+ * ```
+ */
+export async function createEmbeddingServiceFromRegistry(
+  config: Partial<EmbeddingServiceConfig> = {}
+): Promise<EmbeddingService> {
+  const registry = getModelRegistry();
+  await registry.initialize();
+
+  // Resolve models from registry if not explicitly provided
+  let embedModel = config.embedModel;
+  let completionModel = config.completionModel;
+
+  if (!embedModel) {
+    try {
+      const model = await registry.getDefault('embedding');
+      embedModel = model.id;
+    } catch {
+      embedModel = DEFAULT_CONFIG.embedModel;
+    }
+  }
+
+  if (!completionModel) {
+    try {
+      const model = await registry.getDefault('completion');
+      completionModel = model.id;
+    } catch {
+      completionModel = DEFAULT_CONFIG.completionModel;
+    }
+  }
+
+  return new EmbeddingService({
+    ...config,
+    embedModel,
+    completionModel,
+  });
 }

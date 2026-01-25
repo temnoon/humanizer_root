@@ -279,6 +279,11 @@ export const DEFAULT_TIERS: Record<string, {
 /**
  * Cost rates per 1M tokens (in cents).
  * These are approximate and should be updated based on actual pricing.
+ *
+ * @deprecated Use ModelRegistry.getCost() or getCostSync() instead.
+ * ModelRegistry stores costs in costPer1kTokens (dollars per 1K tokens).
+ * This constant is kept for backwards compatibility and as a fallback.
+ * @see packages/core/src/models/model-registry.ts
  */
 export const MODEL_COST_RATES = {
   // Ollama (local) - no API cost, but compute cost
