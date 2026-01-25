@@ -47,7 +47,13 @@ export type {
   // Fine-grained deduplication types
   ParagraphHashRecord,
   LineHashRecord,
+  // Media-text association types
+  MediaTextAssociationType,
+  MediaTextAssociation,
+  MediaTextStats,
 } from './types.js';
+
+export { KNOWN_GIZMO_IDS } from './types.js';
 
 // Fine-grained deduplication types (from postgres-content-store)
 export type {

@@ -250,6 +250,110 @@ export interface LineHashRecord {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// MEDIA-TEXT ASSOCIATION TYPES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Association types between media and text
+ */
+export type MediaTextAssociationType =
+  | 'ocr'              // OCR transcript from image
+  | 'description'      // AI-generated description
+  | 'caption'          // User-provided caption
+  | 'title'            // Extracted title
+  | 'alt-text'         // Alt text for accessibility
+  | 'generated-from'   // Image generated from this text
+  | 'echo-of';         // Echo/variation of source image
+
+/**
+ * A media-text association linking an image to extracted text
+ */
+export interface MediaTextAssociation {
+  /** Association ID */
+  id: string;
+
+  /** Media reference ID (from media_refs or file pointer ID) */
+  mediaId: string;
+
+  /** Full media pointer (file-service://file-XXX or sediment://file_XXX) */
+  mediaPointer?: string;
+
+  /** Node containing the extracted text */
+  nodeId?: string;
+
+  /** Start position of text span within node */
+  textSpanStart?: number;
+
+  /** End position of text span within node */
+  textSpanEnd?: number;
+
+  /** The extracted text itself (denormalized) */
+  extractedText?: string;
+
+  /** Type of association */
+  associationType: MediaTextAssociationType;
+
+  /** Source media ID (for echo chains) */
+  sourceMediaId?: string;
+
+  /** Position in echo chain (0 = original) */
+  chainPosition: number;
+
+  /** How the text was extracted */
+  extractionMethod?: string;
+
+  /** Confidence score (0-1) */
+  confidence?: number;
+
+  /** Custom GPT gizmo_id */
+  gizmoId?: string;
+
+  /** Original conversation ID */
+  conversationId?: string;
+
+  /** Message ID containing the extraction */
+  messageId?: string;
+
+  /** Batch ID (for multiple images → one text) */
+  batchId?: string;
+
+  /** Position within batch */
+  batchPosition?: number;
+
+  /** Import job that created this */
+  importJobId?: string;
+
+  /** When the source content was created (epoch ms) */
+  sourceCreatedAt?: number;
+
+  /** When this association was created (epoch ms) */
+  createdAt: number;
+}
+
+/**
+ * Statistics about media-text associations
+ */
+export interface MediaTextStats {
+  totalAssociations: number;
+  ocrCount: number;
+  descriptionCount: number;
+  echoCount: number;
+  uniqueGizmos: number;
+  uniqueConversations: number;
+  batchCount: number;
+}
+
+/**
+ * Known Custom GPT gizmo IDs for specialized extraction
+ */
+export const KNOWN_GIZMO_IDS = {
+  /** Journal Recognizer OCR - Handwritten notebook transcription */
+  JOURNAL_RECOGNIZER_OCR: 'g-T7bW2qVzx',
+  /** Image Name Echo & Bounce - Visual art analysis and echo generation */
+  IMAGE_ECHO_BOUNCE: 'g-FmQp1Tm1G',
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════
 // LINK TYPES
 // ═══════════════════════════════════════════════════════════════════
 

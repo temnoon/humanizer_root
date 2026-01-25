@@ -49,6 +49,18 @@ import {
   UPDATE_FIRST_SEEN,
   GET_FIRST_SEEN_BY_HASH,
   GET_DUPLICATE_STATS,
+  // Media-text associations
+  INSERT_MEDIA_TEXT_ASSOCIATION,
+  GET_ASSOCIATIONS_BY_MEDIA,
+  GET_ASSOCIATIONS_BY_NODE,
+  GET_ASSOCIATIONS_BY_GIZMO,
+  GET_MEDIA_CHAIN,
+  GET_BATCH_ASSOCIATIONS,
+  GET_TEXT_FOR_MEDIA,
+  GET_MEDIA_FOR_TEXT,
+  GET_ASSOCIATIONS_BY_CONVERSATION,
+  GET_MEDIA_TEXT_STATS,
+  SEARCH_EXTRACTED_TEXT,
 } from './schema-postgres.js';
 import type {
   StoredNode,
@@ -70,6 +82,7 @@ import type {
 } from './types.js';
 import type { ImportedNode, ContentLink } from '../adapters/types.js';
 import type { ParagraphHash, LineHash } from '../chunking/content-hasher.js';
+import type { MediaTextAssociation, MediaTextStats } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // DATABASE ROW TYPES
@@ -198,6 +211,34 @@ export interface DuplicateStats {
   duplicateLineCount: number;
   /** Total line duplications (sum of occurrences) */
   totalLineDuplicates: number;
+}
+
+// Row type for media_text_associations
+interface DbMediaTextRow {
+  id: string;
+  media_id: string;
+  media_pointer: string | null;
+  node_id: string | null;
+  text_span_start: number | null;
+  text_span_end: number | null;
+  extracted_text: string | null;
+  association_type: string;
+  source_media_id: string | null;
+  chain_position: number;
+  extraction_method: string | null;
+  confidence: number | null;
+  gizmo_id: string | null;
+  conversation_id: string | null;
+  message_id: string | null;
+  batch_id: string | null;
+  batch_position: number | null;
+  import_job_id: string | null;
+  source_created_at: Date | null;
+  created_at: Date;
+  // Joined fields
+  full_node_text?: string;
+  node_title?: string;
+  rank?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -910,6 +951,243 @@ export class PostgresContentStore {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // MEDIA-TEXT ASSOCIATIONS
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Store a media-text association
+   */
+  async storeMediaTextAssociation(
+    association: Omit<MediaTextAssociation, 'id' | 'createdAt'>
+  ): Promise<MediaTextAssociation> {
+    this.ensureInitialized();
+
+    const id = randomUUID();
+    const now = new Date();
+
+    const params = [
+      id,
+      association.mediaId,
+      association.mediaPointer ?? null,
+      association.nodeId ?? null,
+      association.textSpanStart ?? null,
+      association.textSpanEnd ?? null,
+      association.extractedText ?? null,
+      association.associationType,
+      association.sourceMediaId ?? null,
+      association.chainPosition ?? 0,
+      association.extractionMethod ?? null,
+      association.confidence ?? null,
+      association.gizmoId ?? null,
+      association.conversationId ?? null,
+      association.messageId ?? null,
+      association.batchId ?? null,
+      association.batchPosition ?? null,
+      association.importJobId ?? null,
+      association.sourceCreatedAt ? new Date(association.sourceCreatedAt) : null,
+      now,
+    ];
+
+    const result = await this.pool!.query(INSERT_MEDIA_TEXT_ASSOCIATION, params);
+    return this.rowToMediaTextAssociation(result.rows[0]);
+  }
+
+  /**
+   * Store multiple media-text associations in batch
+   */
+  async storeMediaTextAssociations(
+    associations: Array<Omit<MediaTextAssociation, 'id' | 'createdAt'>>
+  ): Promise<{ stored: number; failed: number }> {
+    this.ensureInitialized();
+
+    const client = await this.pool!.connect();
+    let stored = 0;
+    let failed = 0;
+
+    try {
+      await client.query('BEGIN');
+
+      for (const association of associations) {
+        try {
+          const id = randomUUID();
+          const now = new Date();
+
+          const params = [
+            id,
+            association.mediaId,
+            association.mediaPointer ?? null,
+            association.nodeId ?? null,
+            association.textSpanStart ?? null,
+            association.textSpanEnd ?? null,
+            association.extractedText ?? null,
+            association.associationType,
+            association.sourceMediaId ?? null,
+            association.chainPosition ?? 0,
+            association.extractionMethod ?? null,
+            association.confidence ?? null,
+            association.gizmoId ?? null,
+            association.conversationId ?? null,
+            association.messageId ?? null,
+            association.batchId ?? null,
+            association.batchPosition ?? null,
+            association.importJobId ?? null,
+            association.sourceCreatedAt ? new Date(association.sourceCreatedAt) : null,
+            now,
+          ];
+
+          await client.query(INSERT_MEDIA_TEXT_ASSOCIATION, params);
+          stored++;
+        } catch (error) {
+          failed++;
+        }
+      }
+
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    return { stored, failed };
+  }
+
+  /**
+   * Get associations for a media item
+   */
+  async getAssociationsByMedia(mediaId: string): Promise<MediaTextAssociation[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_ASSOCIATIONS_BY_MEDIA, [mediaId]);
+    return result.rows.map((row: DbMediaTextRow) => this.rowToMediaTextAssociation(row));
+  }
+
+  /**
+   * Get associations for a node
+   */
+  async getAssociationsByNode(nodeId: string): Promise<MediaTextAssociation[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_ASSOCIATIONS_BY_NODE, [nodeId]);
+    return result.rows.map((row: DbMediaTextRow) => this.rowToMediaTextAssociation(row));
+  }
+
+  /**
+   * Get associations by Custom GPT gizmo ID
+   */
+  async getAssociationsByGizmo(gizmoId: string): Promise<MediaTextAssociation[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_ASSOCIATIONS_BY_GIZMO, [gizmoId]);
+    return result.rows.map((row: DbMediaTextRow) => this.rowToMediaTextAssociation(row));
+  }
+
+  /**
+   * Get an image chain (original → echo → echo sequence)
+   */
+  async getMediaChain(mediaId: string): Promise<MediaTextAssociation[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_MEDIA_CHAIN, [mediaId]);
+    return result.rows.map((row: DbMediaTextRow) => this.rowToMediaTextAssociation(row));
+  }
+
+  /**
+   * Get associations for a batch (multiple images → one text)
+   */
+  async getBatchAssociations(batchId: string): Promise<MediaTextAssociation[]> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_BATCH_ASSOCIATIONS, [batchId]);
+    return result.rows.map((row: DbMediaTextRow) => this.rowToMediaTextAssociation(row));
+  }
+
+  /**
+   * Get text extractions for a media item (with full node text if available)
+   */
+  async getTextForMedia(
+    mediaId: string
+  ): Promise<Array<MediaTextAssociation & { fullNodeText?: string; nodeTitle?: string }>> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_TEXT_FOR_MEDIA, [mediaId]);
+    return result.rows.map((row: DbMediaTextRow) => ({
+      ...this.rowToMediaTextAssociation(row),
+      fullNodeText: row.full_node_text ?? undefined,
+      nodeTitle: row.node_title ?? undefined,
+    }));
+  }
+
+  /**
+   * Get media associated with a text node
+   */
+  async getMediaForText(
+    nodeId: string
+  ): Promise<Array<MediaTextAssociation & { fullNodeText?: string }>> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_MEDIA_FOR_TEXT, [nodeId]);
+    return result.rows.map((row: DbMediaTextRow) => ({
+      ...this.rowToMediaTextAssociation(row),
+      fullNodeText: row.full_node_text ?? undefined,
+    }));
+  }
+
+  /**
+   * Get associations for a conversation
+   */
+  async getAssociationsByConversation(
+    conversationId: string
+  ): Promise<Array<MediaTextAssociation & { fullNodeText?: string; nodeTitle?: string }>> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_ASSOCIATIONS_BY_CONVERSATION, [conversationId]);
+    return result.rows.map((row: DbMediaTextRow) => ({
+      ...this.rowToMediaTextAssociation(row),
+      fullNodeText: row.full_node_text ?? undefined,
+      nodeTitle: row.node_title ?? undefined,
+    }));
+  }
+
+  /**
+   * Search extracted text
+   */
+  async searchExtractedText(
+    query: string,
+    limit: number = 20
+  ): Promise<Array<MediaTextAssociation & { nodeTitle?: string; rank: number }>> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(SEARCH_EXTRACTED_TEXT, [query, limit]);
+    return result.rows.map((row: DbMediaTextRow) => ({
+      ...this.rowToMediaTextAssociation(row),
+      nodeTitle: row.node_title ?? undefined,
+      rank: row.rank ?? 0,
+    }));
+  }
+
+  /**
+   * Get media-text association statistics
+   */
+  async getMediaTextStats(): Promise<MediaTextStats> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_MEDIA_TEXT_STATS);
+    const row = result.rows[0];
+
+    return {
+      totalAssociations: parseInt(row.total_associations ?? '0', 10),
+      ocrCount: parseInt(row.ocr_count ?? '0', 10),
+      descriptionCount: parseInt(row.description_count ?? '0', 10),
+      echoCount: parseInt(row.echo_count ?? '0', 10),
+      uniqueGizmos: parseInt(row.unique_gizmos ?? '0', 10),
+      uniqueConversations: parseInt(row.unique_conversations ?? '0', 10),
+      batchCount: parseInt(row.batch_count ?? '0', 10),
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // LINK OPERATIONS
   // ─────────────────────────────────────────────────────────────────
 
@@ -1364,6 +1642,31 @@ export class PostgresContentStore {
       completedAt: row.completed_at?.getTime() ?? undefined,
       error: row.error ?? undefined,
       stats: row.stats ?? undefined,
+    };
+  }
+
+  private rowToMediaTextAssociation(row: DbMediaTextRow): MediaTextAssociation {
+    return {
+      id: row.id,
+      mediaId: row.media_id,
+      mediaPointer: row.media_pointer ?? undefined,
+      nodeId: row.node_id ?? undefined,
+      textSpanStart: row.text_span_start ?? undefined,
+      textSpanEnd: row.text_span_end ?? undefined,
+      extractedText: row.extracted_text ?? undefined,
+      associationType: row.association_type as MediaTextAssociation['associationType'],
+      sourceMediaId: row.source_media_id ?? undefined,
+      chainPosition: row.chain_position,
+      extractionMethod: row.extraction_method ?? undefined,
+      confidence: row.confidence ?? undefined,
+      gizmoId: row.gizmo_id ?? undefined,
+      conversationId: row.conversation_id ?? undefined,
+      messageId: row.message_id ?? undefined,
+      batchId: row.batch_id ?? undefined,
+      batchPosition: row.batch_position ?? undefined,
+      importJobId: row.import_job_id ?? undefined,
+      sourceCreatedAt: row.source_created_at?.getTime() ?? undefined,
+      createdAt: row.created_at.getTime(),
     };
   }
 }

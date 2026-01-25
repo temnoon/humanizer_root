@@ -22,7 +22,7 @@ import type { Pool, PoolClient } from 'pg';
 // ═══════════════════════════════════════════════════════════════════
 
 /** Current schema version */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 // ═══════════════════════════════════════════════════════════════════
 // EXTENSION SETUP
@@ -260,6 +260,103 @@ CREATE TABLE IF NOT EXISTS fb_group_content (
   posted_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+`;
+
+// ═══════════════════════════════════════════════════════════════════
+// MEDIA-TEXT ASSOCIATIONS (Phase 3: Image-OCR linking)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Media-Text Associations table
+ *
+ * Links media (images) to extracted text content (OCR, descriptions, captions).
+ * Supports:
+ * - Single image → text extraction
+ * - Multiple images → single text (batch OCR)
+ * - Image chains (original → echo → echo)
+ * - Custom GPT filtering via gizmo_id
+ */
+export const CREATE_MEDIA_TEXT_ASSOCIATIONS_TABLE = `
+CREATE TABLE IF NOT EXISTS media_text_associations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+  -- Media reference (can be media_ref ID or file pointer)
+  media_id TEXT NOT NULL,
+  media_pointer TEXT,  -- file-service://file-XXX or sediment://file_XXX
+
+  -- Node containing the extracted text
+  node_id UUID REFERENCES content_nodes(id) ON DELETE CASCADE,
+
+  -- Text span within the node (for precise linking)
+  text_span_start INTEGER,
+  text_span_end INTEGER,
+
+  -- The extracted text itself (denormalized for quick access)
+  extracted_text TEXT,
+
+  -- Association type
+  association_type TEXT NOT NULL CHECK (association_type IN (
+    'ocr',              -- OCR transcript from image
+    'description',      -- AI-generated description
+    'caption',          -- User-provided caption
+    'title',            -- Extracted title
+    'alt-text',         -- Alt text for accessibility
+    'generated-from',   -- Image generated from this text
+    'echo-of'           -- Echo/variation of source image
+  )),
+
+  -- For image chains (echo sequences)
+  source_media_id TEXT,  -- The original image this was derived from
+  chain_position INTEGER DEFAULT 0,  -- Position in echo chain (0 = original)
+
+  -- Extraction metadata
+  extraction_method TEXT,  -- 'gpt-ocr', 'journal-recognizer', 'image-echo', 'manual', etc.
+  confidence REAL CHECK (confidence >= 0 AND confidence <= 1),
+
+  -- Custom GPT context
+  gizmo_id TEXT,  -- e.g., 'g-T7bW2qVzx' for Journal Recognizer
+  conversation_id TEXT,  -- Original conversation ID
+  message_id TEXT,  -- Message containing the extraction
+
+  -- Batch grouping (multiple images → one text)
+  batch_id TEXT,  -- Groups images that share a single transcript
+  batch_position INTEGER,  -- Order within batch
+
+  -- Import tracking
+  import_job_id UUID REFERENCES import_jobs(id) ON DELETE CASCADE,
+
+  -- Timestamps
+  source_created_at TIMESTAMPTZ,  -- When the original content was created
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+/**
+ * Indexes for media_text_associations
+ */
+export const CREATE_MEDIA_TEXT_INDEXES = `
+-- Primary lookups
+CREATE INDEX IF NOT EXISTS idx_media_text_media_id ON media_text_associations(media_id);
+CREATE INDEX IF NOT EXISTS idx_media_text_node_id ON media_text_associations(node_id);
+CREATE INDEX IF NOT EXISTS idx_media_text_type ON media_text_associations(association_type);
+
+-- Chain/sequence lookups
+CREATE INDEX IF NOT EXISTS idx_media_text_source_media ON media_text_associations(source_media_id) WHERE source_media_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_media_text_batch ON media_text_associations(batch_id) WHERE batch_id IS NOT NULL;
+
+-- Custom GPT filtering
+CREATE INDEX IF NOT EXISTS idx_media_text_gizmo ON media_text_associations(gizmo_id) WHERE gizmo_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_media_text_conversation ON media_text_associations(conversation_id);
+
+-- Extraction method filtering
+CREATE INDEX IF NOT EXISTS idx_media_text_method ON media_text_associations(extraction_method);
+
+-- Import tracking
+CREATE INDEX IF NOT EXISTS idx_media_text_job ON media_text_associations(import_job_id);
+
+-- Full-text search on extracted content
+CREATE INDEX IF NOT EXISTS idx_media_text_extracted_tsv ON media_text_associations
+  USING gin(to_tsvector('english', COALESCE(extracted_text, '')));
 `;
 
 // ═══════════════════════════════════════════════════════════════════
@@ -549,12 +646,27 @@ async function runMigrations(
     // Update schema version to 5
     await client.query(
       "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      ['5']
+    );
+  }
+
+  // Migration to version 6: Add media_text_associations table
+  if (fromVersion < 6) {
+    // Create media-text associations table for OCR, descriptions, captions
+    await client.query(CREATE_MEDIA_TEXT_ASSOCIATIONS_TABLE);
+
+    // Create indexes for efficient lookups
+    await client.query(CREATE_MEDIA_TEXT_INDEXES);
+
+    // Update schema version to 6
+    await client.query(
+      "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
       [SCHEMA_VERSION.toString()]
     );
   }
 
   // Future migrations would go here:
-  // if (fromVersion < 6) { ... }
+  // if (fromVersion < 7) { ... }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -843,6 +955,153 @@ SELECT
   (SELECT SUM(node_count) FROM paragraph_counts) as total_paragraph_duplicates,
   (SELECT COUNT(*) FROM line_counts) as duplicate_line_count,
   (SELECT SUM(node_count) FROM line_counts) as total_line_duplicates
+`;
+
+// ═══════════════════════════════════════════════════════════════════
+// MEDIA-TEXT ASSOCIATION QUERIES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Insert a media-text association
+ */
+export const INSERT_MEDIA_TEXT_ASSOCIATION = `
+INSERT INTO media_text_associations (
+  id, media_id, media_pointer, node_id,
+  text_span_start, text_span_end, extracted_text,
+  association_type, source_media_id, chain_position,
+  extraction_method, confidence,
+  gizmo_id, conversation_id, message_id,
+  batch_id, batch_position,
+  import_job_id, source_created_at, created_at
+) VALUES (
+  $1, $2, $3, $4,
+  $5, $6, $7,
+  $8, $9, $10,
+  $11, $12,
+  $13, $14, $15,
+  $16, $17,
+  $18, $19, $20
+)
+RETURNING *
+`;
+
+/**
+ * Get associations by media ID
+ */
+export const GET_ASSOCIATIONS_BY_MEDIA = `
+SELECT * FROM media_text_associations
+WHERE media_id = $1
+ORDER BY created_at DESC
+`;
+
+/**
+ * Get associations by node ID
+ */
+export const GET_ASSOCIATIONS_BY_NODE = `
+SELECT * FROM media_text_associations
+WHERE node_id = $1
+ORDER BY text_span_start ASC NULLS LAST, created_at DESC
+`;
+
+/**
+ * Get associations by gizmo (Custom GPT)
+ */
+export const GET_ASSOCIATIONS_BY_GIZMO = `
+SELECT * FROM media_text_associations
+WHERE gizmo_id = $1
+ORDER BY source_created_at DESC NULLS LAST, created_at DESC
+`;
+
+/**
+ * Get image chain (original → echo → echo sequence)
+ */
+export const GET_MEDIA_CHAIN = `
+WITH RECURSIVE chain AS (
+  -- Start with the original media (chain_position = 0)
+  SELECT id, media_id, source_media_id, chain_position, association_type,
+         extracted_text, node_id, created_at
+  FROM media_text_associations
+  WHERE media_id = $1 AND (source_media_id IS NULL OR chain_position = 0)
+
+  UNION ALL
+
+  -- Follow the chain
+  SELECT m.id, m.media_id, m.source_media_id, m.chain_position, m.association_type,
+         m.extracted_text, m.node_id, m.created_at
+  FROM media_text_associations m
+  INNER JOIN chain c ON m.source_media_id = c.media_id
+)
+SELECT * FROM chain
+ORDER BY chain_position ASC
+`;
+
+/**
+ * Get associations for a batch (multiple images → one text)
+ */
+export const GET_BATCH_ASSOCIATIONS = `
+SELECT * FROM media_text_associations
+WHERE batch_id = $1
+ORDER BY batch_position ASC
+`;
+
+/**
+ * Get text for a media item
+ */
+export const GET_TEXT_FOR_MEDIA = `
+SELECT mta.*, cn.text as full_node_text, cn.title as node_title
+FROM media_text_associations mta
+LEFT JOIN content_nodes cn ON mta.node_id = cn.id
+WHERE mta.media_id = $1
+ORDER BY mta.association_type, mta.created_at DESC
+`;
+
+/**
+ * Get media for text (by node ID)
+ */
+export const GET_MEDIA_FOR_TEXT = `
+SELECT mta.*, cn.text as full_node_text
+FROM media_text_associations mta
+LEFT JOIN content_nodes cn ON mta.node_id = cn.id
+WHERE mta.node_id = $1
+ORDER BY mta.text_span_start ASC NULLS LAST, mta.created_at DESC
+`;
+
+/**
+ * Find associations by conversation
+ */
+export const GET_ASSOCIATIONS_BY_CONVERSATION = `
+SELECT mta.*, cn.text as full_node_text, cn.title as node_title
+FROM media_text_associations mta
+LEFT JOIN content_nodes cn ON mta.node_id = cn.id
+WHERE mta.conversation_id = $1
+ORDER BY mta.source_created_at ASC NULLS LAST, mta.created_at ASC
+`;
+
+/**
+ * Get media-text association statistics
+ */
+export const GET_MEDIA_TEXT_STATS = `
+SELECT
+  (SELECT COUNT(*) FROM media_text_associations) as total_associations,
+  (SELECT COUNT(*) FROM media_text_associations WHERE association_type = 'ocr') as ocr_count,
+  (SELECT COUNT(*) FROM media_text_associations WHERE association_type = 'description') as description_count,
+  (SELECT COUNT(*) FROM media_text_associations WHERE association_type = 'echo-of') as echo_count,
+  (SELECT COUNT(DISTINCT gizmo_id) FROM media_text_associations WHERE gizmo_id IS NOT NULL) as unique_gizmos,
+  (SELECT COUNT(DISTINCT conversation_id) FROM media_text_associations) as unique_conversations,
+  (SELECT COUNT(DISTINCT batch_id) FROM media_text_associations WHERE batch_id IS NOT NULL) as batch_count
+`;
+
+/**
+ * Search extracted text
+ */
+export const SEARCH_EXTRACTED_TEXT = `
+SELECT mta.*, cn.title as node_title,
+       ts_rank(to_tsvector('english', COALESCE(mta.extracted_text, '')), plainto_tsquery('english', $1)) as rank
+FROM media_text_associations mta
+LEFT JOIN content_nodes cn ON mta.node_id = cn.id
+WHERE to_tsvector('english', COALESCE(mta.extracted_text, '')) @@ plainto_tsquery('english', $1)
+ORDER BY rank DESC
+LIMIT $2
 `;
 
 // ═══════════════════════════════════════════════════════════════════

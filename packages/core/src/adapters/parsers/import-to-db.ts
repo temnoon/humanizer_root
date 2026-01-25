@@ -33,6 +33,11 @@ import {
   type ParagraphHash,
   type LineHash,
 } from '../../chunking/content-hasher.js';
+import {
+  extractMediaTextAssociations,
+  isMediaTextGizmo,
+  type MessageForExtraction,
+} from './media-text-extractor.js';
 
 /**
  * Import result statistics
@@ -70,6 +75,14 @@ export interface ImportResult {
     totalLineHashes: number;
     hashingDurationMs: number;
   };
+  // Media-text association stats
+  mediaText?: {
+    associationsCreated: number;
+    ocrExtractions: number;
+    descriptionExtractions: number;
+    gizmosDetected: string[];
+    extractionDurationMs: number;
+  };
 }
 
 /**
@@ -89,6 +102,8 @@ export async function importArchiveToDb(
     generateHashes?: boolean;
     /** Include line hashes (can be expensive for large content, default: true) */
     includeLineHashes?: boolean;
+    /** Extract media-text associations (OCR, descriptions) for Custom GPTs (default: true) */
+    extractMediaText?: boolean;
   } = {}
 ): Promise<ImportResult> {
   const {
@@ -99,6 +114,7 @@ export async function importArchiveToDb(
     embeddingConfig,
     generateHashes = true,
     includeLineHashes = true,
+    extractMediaText = true,
   } = options;
   const archiveWithRels = archive as ParsedArchiveWithRelationships;
   const startTime = Date.now();
@@ -333,6 +349,126 @@ export async function importArchiveToDb(
       }
     }
 
+    // Extract media-text associations if enabled
+    let mediaTextStats: ImportResult['mediaText'] | undefined;
+    if (extractMediaText) {
+      log('\nExtracting media-text associations...');
+      const mediaTextStartTime = Date.now();
+      let associationsCreated = 0;
+      let ocrExtractions = 0;
+      let descriptionExtractions = 0;
+      const gizmosDetected = new Set<string>();
+
+      // Process conversations for media-text extraction
+      for (const conversation of archive.conversations) {
+        // Check for gizmo_id in conversation metadata
+        const convGizmoId = (conversation as any).gizmo_id ||
+                           (conversation as any).metadata?.gizmo_id;
+
+        if (convGizmoId) {
+          gizmosDetected.add(convGizmoId);
+        }
+
+        // Skip if not a media-text gizmo and no gizmo detected
+        // But still process if it's a known gizmo
+        if (!convGizmoId && !isMediaTextGizmo(convGizmoId)) {
+          continue; // Only process conversations from known gizmos for now
+        }
+
+        // Extract messages from conversation
+        const mapping = conversation.mapping || {};
+        const messages = extractMessagesFromMapping(mapping);
+
+        // Process message pairs (user + assistant)
+        for (let i = 0; i < messages.length - 1; i++) {
+          const msg = messages[i];
+          const nextMsg = messages[i + 1];
+          const author = msg.author as { role?: string } | undefined;
+          const nextAuthor = nextMsg.author as { role?: string } | undefined;
+
+          // Only process user -> assistant pairs
+          if (author?.role !== 'user' || nextAuthor?.role !== 'assistant') {
+            continue;
+          }
+
+          const convId = conversation.conversation_id || conversation.id || 'unknown';
+          const msgId = (msg.id as string) || `msg_${i}`;
+          const nextMsgId = (nextMsg.id as string) || `msg_${i + 1}`;
+
+          // Build message objects for extraction
+          const userMessage: MessageForExtraction = {
+            messageId: msgId,
+            conversationId: convId,
+            content: extractTextContent(msg),
+            authorRole: 'user',
+            mediaRefs: extractMediaRefs(msg).map(m => ({
+              id: m.id,
+              type: m.type,
+              url: m.url,
+            })),
+            metadata: {
+              gizmo_id: convGizmoId,
+              ...((msg.metadata as Record<string, unknown>) || {}),
+            },
+            createdAt: (msg.create_time as number) ? new Date((msg.create_time as number) * 1000) : undefined,
+          };
+
+          const assistantMessage: MessageForExtraction = {
+            messageId: nextMsgId,
+            conversationId: convId,
+            content: extractTextContent(nextMsg),
+            authorRole: 'assistant',
+            mediaRefs: extractMediaRefs(nextMsg).map(m => ({
+              id: m.id,
+              type: m.type,
+              url: m.url,
+            })),
+            metadata: {
+              gizmo_id: convGizmoId,
+              ...((nextMsg.metadata as Record<string, unknown>) || {}),
+            },
+            createdAt: (nextMsg.create_time as number) ? new Date((nextMsg.create_time as number) * 1000) : undefined,
+          };
+
+          // Extract associations
+          const result = extractMediaTextAssociations(userMessage, assistantMessage, {
+            gizmoId: convGizmoId,
+            importJobId: job.id,
+          });
+
+          // Store associations
+          if (result.associations.length > 0) {
+            const storeResult = await store.storeMediaTextAssociations(result.associations);
+            associationsCreated += storeResult.stored;
+
+            // Count by type
+            for (const assoc of result.associations) {
+              if (assoc.associationType === 'ocr') ocrExtractions++;
+              if (assoc.associationType === 'description' || assoc.associationType === 'title') {
+                descriptionExtractions++;
+              }
+            }
+          }
+        }
+      }
+
+      const extractionDurationMs = Date.now() - mediaTextStartTime;
+
+      if (associationsCreated > 0) {
+        mediaTextStats = {
+          associationsCreated,
+          ocrExtractions,
+          descriptionExtractions,
+          gizmosDetected: Array.from(gizmosDetected),
+          extractionDurationMs,
+        };
+
+        log(`  ✓ Media-text extraction complete (${associationsCreated} associations, ${ocrExtractions} OCR, ${descriptionExtractions} descriptions)`);
+      } else {
+        log('  No media-text associations found');
+      }
+    }
+
     // Final update
     await store.updateJob(job.id, {
       status: 'completed',
@@ -376,6 +512,10 @@ export async function importArchiveToDb(
       log(`  Dedup hashes: ${totalParagraphHashes} paragraphs, ${totalLineHashes} lines`);
     }
 
+    if (mediaTextStats) {
+      log(`  Media-text: ${mediaTextStats.associationsCreated} associations from ${mediaTextStats.gizmosDetected.length} gizmos`);
+    }
+
     return {
       jobId: job.id,
       status: 'completed',
@@ -388,6 +528,7 @@ export async function importArchiveToDb(
       relationships: relationshipStats,
       embeddings: embeddingStats,
       dedup: dedupStats,
+      mediaText: mediaTextStats,
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
