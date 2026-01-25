@@ -20,6 +20,7 @@ import { AgentBase } from '../runtime/agent-base.js';
 import type { AgentMessage, HouseType } from '../runtime/types.js';
 import { getConfigManager, THRESHOLD_KEYS } from '../config/index.js';
 import type { ConfigManager } from '../config/types.js';
+import type { PersonaProfile, StyleProfile } from '../storage/aui-postgres-store.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // CONFIG KEYS FOR BUILDER
@@ -165,7 +166,7 @@ interface SuggestImprovementsRequest {
   content: string;
 }
 
-interface RewriteForPersonaRequest {
+export interface RewriteForPersonaRequest {
   /** Text to rewrite */
   text: string;
   /** Persona profile with voice traits and style guide */
@@ -180,7 +181,7 @@ interface RewriteForPersonaRequest {
  * Minimal persona profile for rewriting
  * Can be full PersonaProfile or subset for efficiency
  */
-interface PersonaProfileForRewrite {
+export interface PersonaProfileForRewrite {
   name: string;
   description?: string;
   voiceTraits: string[];
@@ -195,7 +196,7 @@ interface PersonaProfileForRewrite {
   referenceExamples?: string[];
 }
 
-interface RewriteResult {
+export interface RewriteResult {
   original: string;
   rewritten: string;
   changesApplied: string[];
@@ -207,7 +208,7 @@ interface RewriteResult {
 /**
  * Options for multi-pass rewriting to eliminate forbidden phrases
  */
-interface MultiPassRewriteOptions {
+export interface MultiPassRewriteOptions {
   /** Maximum number of rewrite passes (default: 3) */
   maxPasses?: number;
   /** Stop early if no remaining issues (default: true) */
@@ -251,6 +252,56 @@ interface RevisionResponse {
   newVersion: number;
   changesApplied: string[];
   remainingIssues?: string[];
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PERSONA/STYLE HELPERS
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Merge a PersonaProfile with an optional StyleProfile into the minimal
+ * PersonaProfileForRewrite format needed by the rewriting methods.
+ *
+ * If a style is provided, its settings override the persona's styleGuide
+ * and the arrays (forbiddenPhrases, preferredPatterns) are merged.
+ */
+export function mergePersonaWithStyle(
+  persona: PersonaProfile,
+  style?: StyleProfile
+): PersonaProfileForRewrite {
+  // If style provided, merge its settings with persona's styleGuide
+  const styleGuide = style ? {
+    forbiddenPhrases: [
+      ...persona.styleGuide.forbiddenPhrases,
+      ...style.forbiddenPhrases,
+    ],
+    preferredPatterns: [
+      ...persona.styleGuide.preferredPatterns,
+      ...style.preferredPatterns,
+    ],
+    useContractions: style.useContractions,
+    useRhetoricalQuestions: style.useRhetoricalQuestions,
+  } : {
+    forbiddenPhrases: persona.styleGuide.forbiddenPhrases,
+    preferredPatterns: persona.styleGuide.preferredPatterns,
+    useContractions: persona.styleGuide.useContractions,
+    useRhetoricalQuestions: persona.styleGuide.useRhetoricalQuestions,
+  };
+
+  // If style provided, use its formality level for both ends of range
+  const formalityRange: [number, number] = style
+    ? [style.formalityLevel, style.formalityLevel]
+    : persona.formalityRange;
+
+  return {
+    name: persona.name,
+    description: persona.description,
+    voiceTraits: persona.voiceTraits,
+    toneMarkers: persona.toneMarkers,
+    formalityRange,
+    styleGuide,
+    referenceExamples: persona.referenceExamples,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -809,8 +860,10 @@ Respond with JSON: { suggestions: [{ type, location, issue, fix }] }`,
    * - If first pass has remaining issues (leaked phrases), retry
    * - Each subsequent pass explicitly targets the leaked phrases
    * - Stops when clean or max passes reached
+   *
+   * @public - Used by UnifiedAuiService for book chapter rewriting
    */
-  private async rewriteForPersonaWithRetry(
+  async rewriteForPersonaWithRetry(
     request: RewriteForPersonaRequest,
     options?: MultiPassRewriteOptions
   ): Promise<RewriteResult> {

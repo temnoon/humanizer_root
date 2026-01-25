@@ -1726,6 +1726,130 @@ export async function handlePersonaGetDefault(args: {
   }
 }
 
+/**
+ * Set a persona as the default for a user.
+ */
+export async function handlePersonaSetDefault(args: {
+  userId: string;
+  personaId: string;
+}): Promise<MCPResult> {
+  try {
+    if (!args.userId) {
+      return errorResult('userId is required');
+    }
+    if (!args.personaId) {
+      return errorResult('personaId is required');
+    }
+
+    const service = getService();
+    const persona = await service.setDefaultPersona(args.userId, args.personaId);
+
+    return jsonResult({
+      message: `Persona "${persona.name}" set as default for user.`,
+      persona,
+    });
+  } catch (err) {
+    return errorResult(err instanceof Error ? err.message : String(err));
+  }
+}
+
+/**
+ * Create a book with explicit persona consistency.
+ *
+ * This is a convenience method that handles persona resolution and
+ * book creation in one call. Supports either cluster-based or
+ * query-based content sourcing.
+ */
+export async function handleBookCreateWithPersona(args: {
+  userId: string;
+  clusterId?: string;
+  query?: string;
+  personaId?: string;
+  styleId?: string;
+  title?: string;
+  arcType?: 'chronological' | 'thematic' | 'dramatic' | 'exploratory';
+  maxPassages?: number;
+}): Promise<MCPResult> {
+  try {
+    if (!args.userId) {
+      return errorResult('userId is required');
+    }
+    if (!args.clusterId && !args.query) {
+      return errorResult('Either clusterId or query is required');
+    }
+
+    const service = getService();
+
+    const book = await service.createBookWithPersona({
+      userId: args.userId,
+      clusterId: args.clusterId,
+      query: args.query,
+      personaId: args.personaId,
+      styleId: args.styleId,
+      title: args.title,
+      arcType: args.arcType,
+      maxPassages: args.maxPassages,
+    });
+
+    return jsonResult({
+      message: `Book "${book.title}" created with persona-consistent chapters.`,
+      book: {
+        id: book.id,
+        title: book.title,
+        description: book.description,
+        chapterCount: book.chapters.length,
+        totalWordCount: book.metadata?.totalWordCount,
+        personaId: book.metadata?.personaId,
+        personaName: book.metadata?.personaName,
+        styleId: book.metadata?.styleId,
+        styleName: book.metadata?.styleName,
+        status: book.status,
+        createdAt: book.createdAt,
+      },
+    });
+  } catch (err) {
+    return errorResult(err instanceof Error ? err.message : String(err));
+  }
+}
+
+/**
+ * Generate a sample in the persona's voice for preview.
+ *
+ * This is used during persona creation to let users review what content
+ * would look like before committing to save the persona.
+ */
+export async function handlePersonaGenerateSample(args: {
+  harvestId: string;
+  wordCount?: number;
+  topic?: string;
+}): Promise<MCPResult> {
+  try {
+    if (!args.harvestId) {
+      return errorResult('harvestId is required');
+    }
+
+    const service = getService();
+
+    const result = await service.generatePersonaSample(args.harvestId, {
+      wordCount: args.wordCount,
+      topic: args.topic,
+    });
+
+    return jsonResult({
+      message: 'Sample generated. Review this content to see how your persona writes.',
+      sample: result.sample,
+      personaPreview: result.personaPreview,
+      metrics: result.metrics,
+      nextSteps: [
+        'If satisfied, call persona_finalize to save the persona.',
+        'If not satisfied, add more samples with persona_add_sample.',
+      ],
+    });
+  } catch (err) {
+    return errorResult(err instanceof Error ? err.message : String(err));
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // HANDLER REGISTRY
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1818,16 +1942,19 @@ export const UNIFIED_AUI_HANDLERS: Record<string, (args: unknown) => Promise<MCP
   [TOOL_NAMES.BOOK_GENERATE_ARC]: handleBookGenerateArc as (args: unknown) => Promise<MCPResult>,
   [TOOL_NAMES.BOOK_LIST]: handleBookList as (args: unknown) => Promise<MCPResult>,
   [TOOL_NAMES.BOOK_GET]: handleBookGet as (args: unknown) => Promise<MCPResult>,
+  'book_create_with_persona': handleBookCreateWithPersona as (args: unknown) => Promise<MCPResult>,
 
   // Persona harvest
   'persona_start_harvest': handlePersonaStartHarvest as (args: unknown) => Promise<MCPResult>,
   'persona_add_sample': handlePersonaAddSample as (args: unknown) => Promise<MCPResult>,
   'persona_harvest_archive': handlePersonaHarvestArchive as (args: unknown) => Promise<MCPResult>,
   'persona_extract_traits': handlePersonaExtractTraits as (args: unknown) => Promise<MCPResult>,
+  'persona_generate_sample': handlePersonaGenerateSample as (args: unknown) => Promise<MCPResult>,
   'persona_finalize': handlePersonaFinalize as (args: unknown) => Promise<MCPResult>,
   'persona_list': handlePersonaList as (args: unknown) => Promise<MCPResult>,
   'persona_get': handlePersonaGet as (args: unknown) => Promise<MCPResult>,
   'persona_get_default': handlePersonaGetDefault as (args: unknown) => Promise<MCPResult>,
+  'persona_set_default': handlePersonaSetDefault as (args: unknown) => Promise<MCPResult>,
 
   // Style profiles
   'style_create': handleStyleCreate as (args: unknown) => Promise<MCPResult>,

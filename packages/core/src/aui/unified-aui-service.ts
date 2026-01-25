@@ -57,6 +57,7 @@ import { AUI_DEFAULTS } from './constants.js';
 import type { StoredNode, SearchResult } from '../storage/types.js';
 import type { AuiPostgresStore, AuiArtifact, CreateArtifactOptions, PersonaProfile, StyleProfile, CreatePersonaProfileOptions, CreateStyleProfileOptions } from '../storage/aui-postgres-store.js';
 import { VoiceAnalyzer, getVoiceAnalyzer, type VoiceAnalysisResult, type SuggestedStyle } from './voice-analyzer.js';
+import { getBuilderAgent, mergePersonaWithStyle, type PersonaProfileForRewrite } from '../houses/builder.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SESSION MANAGER
@@ -1534,6 +1535,9 @@ export class UnifiedAuiService {
 
   /**
    * Create a book from a cluster.
+   *
+   * If a personaId is provided, or useDefaultPersona is enabled (default),
+   * the chapter content will be rewritten to match the persona's voice.
    */
   async createBookFromCluster(
     clusterId: string,
@@ -1544,8 +1548,43 @@ export class UnifiedAuiService {
       throw new Error(`Cluster "${clusterId}" not found`);
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // PHASE 0: RESOLVE PERSONA
+    // ─────────────────────────────────────────────────────────────────
+    let persona: PersonaProfile | undefined;
+    let style: StyleProfile | undefined;
+    let personaForRewrite: PersonaProfileForRewrite | undefined;
+
+    // Explicit persona takes precedence
+    if (options?.personaId && this.store) {
+      persona = await this.store.getPersonaProfile(options.personaId);
+      if (!persona) {
+        console.warn(`Persona "${options.personaId}" not found, proceeding without persona`);
+      }
+    }
+    // Fall back to user's default persona if enabled (default: true)
+    else if (options?.useDefaultPersona !== false && options?.userId && this.store) {
+      persona = await this.store.getDefaultPersonaProfile(options.userId);
+    }
+
+    // If persona found, optionally fetch style
+    if (persona && this.store) {
+      if (options?.styleId) {
+        style = await this.store.getStyleProfile(options.styleId);
+      } else {
+        style = await this.store.getDefaultStyleProfile(persona.id);
+      }
+      // Merge persona + style into rewrite-ready format
+      personaForRewrite = mergePersonaWithStyle(persona, style);
+    }
+
+    // Calculate total steps based on whether persona rewriting is enabled
+    const hasPersona = !!personaForRewrite;
+    const hasIndexing = this.booksStore?.isAvailable() ?? false;
+    const totalSteps = 4 + (hasPersona ? 1 : 0) + (hasIndexing ? 1 : 0);
+
     if (options?.onProgress) {
-      options.onProgress({ phase: 'gathering', step: 1, totalSteps: 5, message: 'Gathering passages...' });
+      options.onProgress({ phase: 'gathering', step: 1, totalSteps, message: 'Gathering passages...' });
     }
 
     const maxPassages = options?.maxPassages || 50;
@@ -1564,7 +1603,7 @@ export class UnifiedAuiService {
     }));
 
     if (options?.onProgress) {
-      options.onProgress({ phase: 'generating_arc', step: 2, totalSteps: 5, message: 'Generating narrative arc...' });
+      options.onProgress({ phase: 'generating_arc', step: 2, totalSteps, message: 'Generating narrative arc...' });
     }
 
     // Generate narrative arc
@@ -1575,11 +1614,11 @@ export class UnifiedAuiService {
     });
 
     if (options?.onProgress) {
-      options.onProgress({ phase: 'assembling', step: 4, totalSteps: 5, message: 'Assembling book...' });
+      options.onProgress({ phase: 'assembling', step: 3, totalSteps, message: 'Assembling book...' });
     }
 
     // Create book chapters
-    const chapters = arc.chapters.map((ch, idx) => {
+    let chapters = arc.chapters.map((ch, idx) => {
       const chapterPassages = harvestedPassages.filter(p => ch.passageIds.includes(p.id));
       const content = chapterPassages.map(p => p.text).join('\n\n---\n\n');
 
@@ -1592,6 +1631,42 @@ export class UnifiedAuiService {
         wordCount: content.split(/\s+/).filter(Boolean).length,
       };
     });
+
+    // ─────────────────────────────────────────────────────────────────
+    // PHASE: PERSONA REWRITING (if persona is configured)
+    // ─────────────────────────────────────────────────────────────────
+    let currentStep = 4;
+    if (personaForRewrite) {
+      if (options?.onProgress) {
+        options.onProgress({
+          phase: 'persona_rewriting',
+          step: currentStep,
+          totalSteps,
+          message: `Applying ${persona!.name} voice to ${chapters.length} chapters...`,
+        });
+      }
+
+      const builder = getBuilderAgent();
+
+      // Rewrite each chapter's content with the persona
+      chapters = await Promise.all(
+        chapters.map(async (chapter) => {
+          const result = await builder.rewriteForPersonaWithRetry({
+            text: chapter.content,
+            persona: personaForRewrite,
+            sourceType: 'book-chapter',
+          }, { maxPasses: 3 });
+
+          return {
+            ...chapter,
+            content: result.rewritten,
+            wordCount: result.rewritten.split(/\s+/).filter(Boolean).length,
+          };
+        })
+      );
+
+      currentStep++;
+    }
 
     const book: Book = {
       id: `book-${Date.now()}`,
@@ -1607,6 +1682,11 @@ export class UnifiedAuiService {
         passageCount: passages.length,
         totalWordCount: chapters.reduce((sum, ch) => sum + ch.wordCount, 0),
         arcType: options?.arcType || 'thematic',
+        // Track persona used (if any)
+        personaId: persona?.id,
+        personaName: persona?.name,
+        styleId: style?.id,
+        styleName: style?.name,
       },
     };
 
@@ -1625,8 +1705,14 @@ export class UnifiedAuiService {
     // Index book content in books store for unified search
     if (this.booksStore && this.booksStore.isAvailable()) {
       if (options?.onProgress) {
-        options.onProgress({ phase: 'indexing', step: 5, totalSteps: 6, message: 'Indexing book content for search...' });
+        options.onProgress({
+          phase: 'indexing',
+          step: currentStep,
+          totalSteps,
+          message: 'Indexing book content for search...',
+        });
       }
+      currentStep++;
 
       try {
         await this.indexBookContent(book, options?.embedFn);
@@ -1636,11 +1722,122 @@ export class UnifiedAuiService {
     }
 
     if (options?.onProgress) {
-      const finalStep = this.booksStore?.isAvailable() ? 6 : 5;
-      options.onProgress({ phase: 'complete', step: finalStep, totalSteps: finalStep, message: 'Book created' });
+      options.onProgress({ phase: 'complete', step: totalSteps, totalSteps, message: 'Book created' });
     }
 
     return book;
+  }
+
+  /**
+   * Create a book with explicit persona consistency.
+   *
+   * This is a convenience method that:
+   * 1. Resolves the persona (explicit or user's default)
+   * 2. Gathers passages (from cluster or search query)
+   * 3. Creates a cluster if needed
+   * 4. Creates the book with persona-consistent chapters
+   *
+   * @throws Error if no persona is available (none specified and no default set)
+   */
+  async createBookWithPersona(options: {
+    /** User ID for default persona lookup */
+    userId: string;
+    /** Cluster to source content from (mutually exclusive with query) */
+    clusterId?: string;
+    /** Search query to source content from (mutually exclusive with clusterId) */
+    query?: string;
+    /** Explicit persona ID (uses user's default if not provided) */
+    personaId?: string;
+    /** Specific style within the persona */
+    styleId?: string;
+    /** Book title */
+    title?: string;
+    /** Narrative arc type */
+    arcType?: 'chronological' | 'thematic' | 'dramatic' | 'exploratory';
+    /** Maximum passages to include */
+    maxPassages?: number;
+    /** Progress callback */
+    onProgress?: (progress: { phase: string; step: number; totalSteps: number; message: string }) => void;
+    /** Embedding function for indexing */
+    embedFn?: (text: string) => Promise<number[]>;
+  }): Promise<Book> {
+    // Validate input
+    if (!options.clusterId && !options.query) {
+      throw new Error('Either clusterId or query is required');
+    }
+
+    // Resolve persona
+    let personaId = options.personaId;
+    if (!personaId && this.store) {
+      const defaultPersona = await this.store.getDefaultPersonaProfile(options.userId);
+      if (defaultPersona) {
+        personaId = defaultPersona.id;
+      }
+    }
+
+    if (!personaId) {
+      throw new Error('No persona specified and no default persona set. Create a persona first.');
+    }
+
+    // If query provided, harvest passages and create a cluster
+    let clusterId = options.clusterId;
+    if (!clusterId && options.query) {
+      // Harvest passages from the query
+      const harvestResult = await this.harvest({
+        query: options.query,
+        limit: options.maxPassages ?? 50,
+      });
+
+      if (harvestResult.passages.length === 0) {
+        throw new Error(`No passages found for query: "${options.query}"`);
+      }
+
+      // Create a temporary cluster from harvested passages
+      const clusterPassages = harvestResult.passages.map(p => ({
+        id: p.id,
+        text: p.text,
+        sourceType: p.sourceType ?? 'unknown',
+        authorRole: 'author' as const,
+        distanceFromCentroid: 1 - (p.relevance ?? 0.5),
+        wordCount: p.wordCount ?? p.text.split(/\s+/).filter(Boolean).length,
+      }));
+
+      const totalWords = clusterPassages.reduce((sum, p) => sum + p.wordCount, 0);
+      const avgWordCount = clusterPassages.length > 0 ? Math.round(totalWords / clusterPassages.length) : 0;
+
+      const tempCluster: ContentCluster = {
+        id: `cluster-${Date.now()}`,
+        label: options.title ?? `From: ${options.query}`,
+        description: `Harvested from query: ${options.query}`,
+        passages: clusterPassages,
+        totalPassages: harvestResult.passages.length,
+        coherence: 0.7,
+        keywords: options.query!.split(/\s+/).filter(w => w.length > 3),
+        sourceDistribution: {},
+        dateRange: {
+          earliest: null,
+          latest: null,
+        },
+        avgWordCount,
+      };
+
+      // Save cluster (creates or updates in store)
+      const savedCluster = await this.saveCluster(tempCluster, options.userId);
+      clusterId = savedCluster.id;
+    }
+
+    // Create the book with persona
+    return this.createBookFromCluster(clusterId!, {
+      title: options.title,
+      personaId,
+      styleId: options.styleId,
+      userId: options.userId,
+      useDefaultPersona: false, // We already resolved it
+      arcType: options.arcType,
+      maxPassages: options.maxPassages,
+      onProgress: options.onProgress as BookFromClusterOptions['onProgress'],
+      embedFn: options.embedFn,
+    });
   }
 
   /**
@@ -2393,6 +2590,125 @@ export class UnifiedAuiService {
     return this.harvestSessions.get(harvestId);
   }
 
+  /**
+   * Generate a composite sample demonstrating the persona's voice.
+   *
+   * This allows users to preview what content would look like when written
+   * in the persona's voice, before committing to save the persona.
+   */
+  async generatePersonaSample(
+    harvestId: string,
+    options?: {
+      wordCount?: number;
+      topic?: string;
+    }
+  ): Promise<{
+    sample: string;
+    personaPreview: {
+      name: string;
+      voiceTraits: string[];
+      toneMarkers: string[];
+    };
+    metrics: {
+      forbiddenPhrasesRemoved: number;
+      preferredPatternsUsed: number;
+      passCount: number;
+    };
+  }> {
+    const harvest = this.harvestSessions.get(harvestId);
+    if (!harvest) {
+      throw new Error(`Harvest session "${harvestId}" not found`);
+    }
+
+    // Extract traits if not already done
+    if (!harvest.analysis) {
+      await this.extractPersonaTraits(harvestId);
+    }
+
+    if (!harvest.analysis) {
+      throw new Error('Failed to extract persona traits from samples');
+    }
+
+    const analysis = harvest.analysis;
+    const wordCount = options?.wordCount ?? 300;
+    const topic = options?.topic ?? 'a reflection on everyday moments and observations';
+
+    // Build a temporary persona for rewriting
+    const tempPersona: PersonaProfileForRewrite = {
+      name: harvest.name,
+      description: `Voice harvested from ${harvest.samples.length} samples`,
+      voiceTraits: analysis.proposedTraits.voiceTraits,
+      toneMarkers: analysis.proposedTraits.toneMarkers,
+      formalityRange: [
+        analysis.suggestedStyles?.[0]?.formalityLevel ?? 0.4,
+        analysis.suggestedStyles?.[0]?.formalityLevel ?? 0.6,
+      ] as [number, number],
+      styleGuide: {
+        // Use forbidden phrases from the default corpus (common AI phrases)
+        forbiddenPhrases: [
+          'delve', 'delve into', 'dive into', 'tapestry', 'rich tapestry',
+          'the fact that', 'in conclusion', 'it is worth noting',
+          'it is important to note', 'essentially', 'fundamentally',
+          'at its core', 'at its essence', 'beacon', 'stark',
+          'however, it is', 'moreover,', 'furthermore,', 'thus,',
+          'hence,', 'consequently,', 'nonetheless,', 'notwithstanding',
+          'leveraging', 'leverage', 'utilize', 'utilization',
+        ],
+        preferredPatterns: [],
+        useContractions: analysis.suggestedStyles?.[0]?.useContractions ?? true,
+        useRhetoricalQuestions: analysis.suggestedStyles?.[0]?.useRhetoricalQuestions ?? false,
+      },
+      referenceExamples: harvest.samples.slice(0, 3).map(s => s.text),
+    };
+
+    // Generate raw sample content using LLM
+    const builder = getBuilderAgent();
+    const rawSample = await builder['callAI']('creative', `
+Write a ${wordCount}-word piece about ${topic}.
+Write naturally and reflectively.
+Draw on personal observation and lived experience.
+Avoid clichés and academic language.
+Output only the content, no titles or meta-commentary.
+    `.trim(), {
+      systemPrompt: `You are a skilled writer with these voice characteristics:
+Voice traits: ${tempPersona.voiceTraits.join(', ')}
+Tone: ${tempPersona.toneMarkers.join(', ')}
+
+Write naturally. Avoid phrases like: ${tempPersona.styleGuide.forbiddenPhrases.slice(0, 10).join(', ')}.
+${tempPersona.styleGuide.useContractions ? 'Use contractions naturally.' : 'Avoid contractions.'}`,
+    });
+
+    // Rewrite to match persona more precisely
+    const result = await builder.rewriteForPersonaWithRetry({
+      text: rawSample,
+      persona: tempPersona,
+      sourceType: 'sample-preview',
+    }, { maxPasses: 3 });
+
+    // Calculate metrics
+    const changesApplied = result.changesApplied || [];
+    const forbiddenPhrasesRemoved = changesApplied.filter(c =>
+      c.toLowerCase().includes('removed') || c.toLowerCase().includes('replaced')
+    ).length;
+    const preferredPatternsUsed = changesApplied.filter(c =>
+      c.toLowerCase().includes('pattern') || c.toLowerCase().includes('used')
+    ).length;
+
+    return {
+      sample: result.rewritten,
+      personaPreview: {
+        name: harvest.name,
+        voiceTraits: analysis.proposedTraits.voiceTraits,
+        toneMarkers: analysis.proposedTraits.toneMarkers,
+      },
+      metrics: {
+        forbiddenPhrasesRemoved,
+        preferredPatternsUsed,
+        passCount: result.passCount ?? 1,
+      },
+    };
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // STYLE PROFILE OPERATIONS
   // ═══════════════════════════════════════════════════════════════════════════
@@ -2496,6 +2812,37 @@ export class UnifiedAuiService {
       throw new Error('Persistent store not configured');
     }
     return this.store.getDefaultPersonaProfile(userId);
+  }
+
+  /**
+   * Set a persona as the default for a user.
+   *
+   * Verifies that the persona exists and optionally that it belongs to the user.
+   * Clears any previous default persona for the user.
+   */
+  async setDefaultPersona(userId: string, personaId: string): Promise<PersonaProfile> {
+    if (!this.store) {
+      throw new Error('Persistent store not configured');
+    }
+
+    // Verify persona exists
+    const persona = await this.store.getPersonaProfile(personaId);
+    if (!persona) {
+      throw new Error(`Persona "${personaId}" not found`);
+    }
+
+    // Verify ownership if persona has a userId
+    if (persona.userId && persona.userId !== userId) {
+      throw new Error(`Persona "${personaId}" does not belong to user "${userId}"`);
+    }
+
+    // Update persona to be default (store handles clearing previous default)
+    const updated = await this.store.updatePersonaProfile(personaId, { isDefault: true });
+    if (!updated) {
+      throw new Error(`Failed to set persona "${personaId}" as default`);
+    }
+
+    return updated;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

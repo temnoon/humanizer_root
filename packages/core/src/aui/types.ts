@@ -1569,6 +1569,22 @@ export interface BookFromClusterOptions {
 
   /** Embedding function for indexing book content (enables unified search) */
   embedFn?: (text: string) => Promise<number[]>;
+
+  // ─────────────────────────────────────────────────────────────────
+  // PERSONA CONFIGURATION
+  // ─────────────────────────────────────────────────────────────────
+
+  /** Explicit persona to use for voice consistency */
+  personaId?: string;
+
+  /** Specific style within persona (optional, uses persona's default if not specified) */
+  styleId?: string;
+
+  /** Whether to fall back to user's default persona if personaId not provided (default: true) */
+  useDefaultPersona?: boolean;
+
+  /** User ID for default persona lookup (required if useDefaultPersona is true) */
+  userId?: string;
 }
 
 /**
@@ -1576,7 +1592,7 @@ export interface BookFromClusterOptions {
  */
 export interface BookCreationProgress {
   /** Current phase */
-  phase: 'gathering' | 'organizing' | 'generating_arc' | 'writing_intro' | 'assembling' | 'indexing' | 'complete';
+  phase: 'gathering' | 'organizing' | 'generating_arc' | 'writing_intro' | 'assembling' | 'persona_rewriting' | 'indexing' | 'complete';
 
   /** Current step */
   step: number;
