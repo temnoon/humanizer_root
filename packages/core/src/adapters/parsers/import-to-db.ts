@@ -26,6 +26,13 @@ import {
   initEmbeddingService,
   type EmbeddingServiceConfig,
 } from '../../embeddings/index.js';
+import {
+  hashContent as hashContentForDedup,
+  hashParagraphs,
+  hashLines,
+  type ParagraphHash,
+  type LineHash,
+} from '../../chunking/content-hasher.js';
 
 /**
  * Import result statistics
@@ -57,6 +64,12 @@ export interface ImportResult {
     embeddingDurationMs: number;
     ollamaAvailable: boolean;
   };
+  // Fine-grained deduplication stats
+  dedup?: {
+    totalParagraphHashes: number;
+    totalLineHashes: number;
+    hashingDurationMs: number;
+  };
 }
 
 /**
@@ -72,9 +85,21 @@ export async function importArchiveToDb(
     generateEmbeddings?: boolean;
     /** Embedding service configuration */
     embeddingConfig?: EmbeddingServiceConfig;
+    /** Generate paragraph/line hashes for fine-grained deduplication (default: true) */
+    generateHashes?: boolean;
+    /** Include line hashes (can be expensive for large content, default: true) */
+    includeLineHashes?: boolean;
   } = {}
 ): Promise<ImportResult> {
-  const { verbose = false, batchSize = 100, skipExisting = true, generateEmbeddings = true, embeddingConfig } = options;
+  const {
+    verbose = false,
+    batchSize = 100,
+    skipExisting = true,
+    generateEmbeddings = true,
+    embeddingConfig,
+    generateHashes = true,
+    includeLineHashes = true,
+  } = options;
   const archiveWithRels = archive as ParsedArchiveWithRelationships;
   const startTime = Date.now();
 
@@ -106,6 +131,11 @@ export async function importArchiveToDb(
   let messagesFailed = 0;
   let mediaRefsLinked = 0;
 
+  // Fine-grained dedup stats
+  let totalParagraphHashes = 0;
+  let totalLineHashes = 0;
+  const hashingStartTime = Date.now();
+
   try {
     // Process conversations in batches
     for (const conversation of archive.conversations) {
@@ -114,7 +144,7 @@ export async function importArchiveToDb(
       // Convert conversation to nodes
       const nodes = conversationToNodes(conversation, archive.format);
 
-      // Store nodes
+      // Store nodes with optional hash generation
       for (const node of nodes) {
         try {
           if (skipExisting) {
@@ -122,6 +152,19 @@ export async function importArchiveToDb(
             if (existing) {
               messagesSkipped++;
               continue;
+            }
+          }
+
+          // Generate fine-grained hashes if enabled
+          if (generateHashes && node.content.length > 0) {
+            const paragraphHashResult = hashParagraphs(node.content);
+            node.paragraphHashes = paragraphHashResult;
+            totalParagraphHashes += paragraphHashResult.length;
+
+            if (includeLineHashes) {
+              const lineHashResult = hashLines(node.content);
+              node.lineHashes = lineHashResult;
+              totalLineHashes += lineHashResult.length;
             }
           }
 
@@ -149,6 +192,8 @@ export async function importArchiveToDb(
         });
       }
     }
+
+    const hashingDurationMs = Date.now() - hashingStartTime;
 
     // Import relationship data if present
     let relationshipStats: ImportResult['relationships'] | undefined;
@@ -318,6 +363,19 @@ export async function importArchiveToDb(
       log(`  Embeddings: ${embeddingStats.nodesEmbedded} nodes (${embeddingStats.ollamaAvailable ? 'Ollama OK' : 'Ollama unavailable'})`);
     }
 
+    // Dedup stats
+    const dedupStats = generateHashes
+      ? {
+          totalParagraphHashes,
+          totalLineHashes,
+          hashingDurationMs,
+        }
+      : undefined;
+
+    if (dedupStats) {
+      log(`  Dedup hashes: ${totalParagraphHashes} paragraphs, ${totalLineHashes} lines`);
+    }
+
     return {
       jobId: job.id,
       status: 'completed',
@@ -329,6 +387,7 @@ export async function importArchiveToDb(
       durationMs,
       relationships: relationshipStats,
       embeddings: embeddingStats,
+      dedup: dedupStats,
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);

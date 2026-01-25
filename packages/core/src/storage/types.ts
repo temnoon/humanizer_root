@@ -143,6 +143,19 @@ export interface StoredNode {
   sourceMetadata?: Record<string, unknown>;
 
   // ─────────────────────────────────────────────────────────────────
+  // Fine-Grained Deduplication
+  // ─────────────────────────────────────────────────────────────────
+
+  /** Paragraph-level hashes for duplicate detection */
+  paragraphHashes?: ParagraphHashRecord[];
+
+  /** Line-level hashes for copy-paste detection */
+  lineHashes?: LineHashRecord[];
+
+  /** When this content was first seen (provenance tracking) */
+  firstSeenAt?: number;
+
+  // ─────────────────────────────────────────────────────────────────
   // Timestamps
   // ─────────────────────────────────────────────────────────────────
 
@@ -202,6 +215,38 @@ export interface MediaRef {
 
   /** Transcript (for audio/video) */
   transcript?: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// FINE-GRAINED DEDUPLICATION TYPES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * A hash record for a paragraph (stored in JSONB)
+ */
+export interface ParagraphHashRecord {
+  /** SHA-256 hash of normalized paragraph text */
+  hash: string;
+  /** Zero-based position of this paragraph in the content */
+  position: number;
+  /** Character length of the original paragraph */
+  length: number;
+  /** Word count for filtering short paragraphs */
+  wordCount: number;
+}
+
+/**
+ * A hash record for a line (stored in JSONB)
+ */
+export interface LineHashRecord {
+  /** SHA-256 hash of normalized line text */
+  hash: string;
+  /** Zero-based position of this line in the content */
+  position: number;
+  /** The original line text (for debugging/display) */
+  text: string;
+  /** Character length of the original line */
+  length: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════

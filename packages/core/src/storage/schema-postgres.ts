@@ -22,7 +22,7 @@ import type { Pool, PoolClient } from 'pg';
 // ═══════════════════════════════════════════════════════════════════
 
 /** Current schema version */
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 // ═══════════════════════════════════════════════════════════════════
 // EXTENSION SETUP
@@ -99,6 +99,11 @@ CREATE TABLE IF NOT EXISTS content_nodes (
 
   -- Source metadata (JSONB object)
   source_metadata JSONB,
+
+  -- Fine-grained deduplication (Phase 2)
+  paragraph_hashes JSONB DEFAULT '[]'::jsonb,  -- Array of {hash, position, length}
+  line_hashes JSONB DEFAULT '[]'::jsonb,       -- Array of {hash, position, text}
+  first_seen_at TIMESTAMPTZ,                   -- When content first appeared (provenance)
 
   -- Full-text search (generated column)
   tsv tsvector GENERATED ALWAYS AS (
@@ -282,6 +287,11 @@ CREATE INDEX IF NOT EXISTS idx_content_nodes_author_role ON content_nodes(author
 
 -- Full-text search index (GIN)
 CREATE INDEX IF NOT EXISTS idx_content_nodes_tsv ON content_nodes USING gin(tsv);
+
+-- Fine-grained deduplication indexes (GIN for JSONB hash lookups)
+CREATE INDEX IF NOT EXISTS idx_content_nodes_paragraph_hashes ON content_nodes USING gin(paragraph_hashes jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_content_nodes_line_hashes ON content_nodes USING gin(line_hashes jsonb_path_ops);
+CREATE INDEX IF NOT EXISTS idx_content_nodes_first_seen ON content_nodes(first_seen_at) WHERE first_seen_at IS NOT NULL;
 
 -- Links indexes
 CREATE INDEX IF NOT EXISTS idx_content_links_source ON content_links(source_id);
@@ -515,12 +525,36 @@ async function runMigrations(
     // Update schema version to 4
     await client.query(
       "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      ['4']
+    );
+  }
+
+  // Migration to version 5: Add fine-grained deduplication columns
+  if (fromVersion < 5) {
+    // Add new columns for paragraph/line hashing and provenance
+    await client.query(`
+      ALTER TABLE content_nodes
+      ADD COLUMN IF NOT EXISTS paragraph_hashes JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS line_hashes JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS first_seen_at TIMESTAMPTZ;
+    `);
+
+    // Add GIN indexes for efficient hash lookups
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_content_nodes_paragraph_hashes ON content_nodes USING gin(paragraph_hashes jsonb_path_ops);
+      CREATE INDEX IF NOT EXISTS idx_content_nodes_line_hashes ON content_nodes USING gin(line_hashes jsonb_path_ops);
+      CREATE INDEX IF NOT EXISTS idx_content_nodes_first_seen ON content_nodes(first_seen_at) WHERE first_seen_at IS NOT NULL;
+    `);
+
+    // Update schema version to 5
+    await client.query(
+      "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
       [SCHEMA_VERSION.toString()]
     );
   }
 
   // Future migrations would go here:
-  // if (fromVersion < 5) { ... }
+  // if (fromVersion < 6) { ... }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -538,6 +572,7 @@ INSERT INTO content_nodes (
   hierarchy_level, thread_root_id,
   source_type, source_adapter, source_original_id, source_original_path, import_job_id,
   title, author, author_role, tags, media_refs, source_metadata,
+  paragraph_hashes, line_hashes, first_seen_at,
   source_created_at, source_updated_at, created_at, imported_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6,
@@ -546,7 +581,8 @@ INSERT INTO content_nodes (
   $16, $17,
   $18, $19, $20, $21, $22,
   $23, $24, $25, $26, $27, $28,
-  $29, $30, $31, $32
+  $29, $30, $31,
+  $32, $33, $34, $35
 )
 RETURNING *
 `;
@@ -707,6 +743,106 @@ export const GET_NODES_BY_ADAPTER = `
 SELECT source_adapter, COUNT(*) as count
 FROM content_nodes
 GROUP BY source_adapter
+`;
+
+// ═══════════════════════════════════════════════════════════════════
+// FINE-GRAINED DEDUPLICATION QUERIES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Find nodes containing a specific paragraph hash
+ * Uses JSONB containment with the @> operator
+ */
+export const FIND_NODES_BY_PARAGRAPH_HASH = `
+SELECT id, content_hash, first_seen_at, created_at,
+       paragraph_hashes
+FROM content_nodes
+WHERE paragraph_hashes @> $1::jsonb
+ORDER BY first_seen_at ASC NULLS LAST, created_at ASC
+`;
+
+/**
+ * Find nodes containing a specific line hash
+ */
+export const FIND_NODES_BY_LINE_HASH = `
+SELECT id, content_hash, first_seen_at, created_at,
+       line_hashes
+FROM content_nodes
+WHERE line_hashes @> $1::jsonb
+ORDER BY first_seen_at ASC NULLS LAST, created_at ASC
+`;
+
+/**
+ * Find nodes with any matching paragraph hashes (batch lookup)
+ * Returns nodes that contain ANY of the provided hashes
+ */
+export const FIND_NODES_BY_ANY_PARAGRAPH_HASH = `
+SELECT DISTINCT cn.id, cn.content_hash, cn.first_seen_at, cn.created_at,
+       cn.paragraph_hashes, cn.title, cn.source_type
+FROM content_nodes cn,
+     jsonb_array_elements(cn.paragraph_hashes) AS elem
+WHERE elem->>'hash' = ANY($1::text[])
+ORDER BY cn.first_seen_at ASC NULLS LAST, cn.created_at ASC
+`;
+
+/**
+ * Find nodes with any matching line hashes (batch lookup)
+ */
+export const FIND_NODES_BY_ANY_LINE_HASH = `
+SELECT DISTINCT cn.id, cn.content_hash, cn.first_seen_at, cn.created_at,
+       cn.line_hashes, cn.title, cn.source_type
+FROM content_nodes cn,
+     jsonb_array_elements(cn.line_hashes) AS elem
+WHERE elem->>'hash' = ANY($1::text[])
+ORDER BY cn.first_seen_at ASC NULLS LAST, cn.created_at ASC
+`;
+
+/**
+ * Update first_seen_at for a node (for provenance tracking)
+ */
+export const UPDATE_FIRST_SEEN = `
+UPDATE content_nodes
+SET first_seen_at = $1
+WHERE id = $2
+RETURNING id, first_seen_at
+`;
+
+/**
+ * Get first occurrence of content by hash
+ * Returns the node with the earliest first_seen_at or created_at
+ */
+export const GET_FIRST_SEEN_BY_HASH = `
+SELECT id, content_hash, first_seen_at, created_at, title
+FROM content_nodes
+WHERE content_hash = $1
+ORDER BY first_seen_at ASC NULLS LAST, created_at ASC
+LIMIT 1
+`;
+
+/**
+ * Get duplicate statistics
+ * Returns counts of paragraphs/lines that appear multiple times
+ */
+export const GET_DUPLICATE_STATS = `
+WITH paragraph_counts AS (
+  SELECT elem->>'hash' as hash, COUNT(DISTINCT cn.id) as node_count
+  FROM content_nodes cn,
+       jsonb_array_elements(cn.paragraph_hashes) AS elem
+  GROUP BY elem->>'hash'
+  HAVING COUNT(DISTINCT cn.id) > 1
+),
+line_counts AS (
+  SELECT elem->>'hash' as hash, COUNT(DISTINCT cn.id) as node_count
+  FROM content_nodes cn,
+       jsonb_array_elements(cn.line_hashes) AS elem
+  GROUP BY elem->>'hash'
+  HAVING COUNT(DISTINCT cn.id) > 1
+)
+SELECT
+  (SELECT COUNT(*) FROM paragraph_counts) as duplicate_paragraph_count,
+  (SELECT SUM(node_count) FROM paragraph_counts) as total_paragraph_duplicates,
+  (SELECT COUNT(*) FROM line_counts) as duplicate_line_count,
+  (SELECT SUM(node_count) FROM line_counts) as total_line_duplicates
 `;
 
 // ═══════════════════════════════════════════════════════════════════

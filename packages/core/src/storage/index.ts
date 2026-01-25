@@ -44,7 +44,17 @@ export type {
   AuthorRole,
   MediaRef,
   ContentLinkType,
+  // Fine-grained deduplication types
+  ParagraphHashRecord,
+  LineHashRecord,
 } from './types.js';
+
+// Fine-grained deduplication types (from postgres-content-store)
+export type {
+  DuplicateMatch,
+  DuplicateMatchDetailed,
+  DuplicateStats,
+} from './postgres-content-store.js';
 
 // PostgreSQL Schema and Config
 export type { PostgresStorageConfig } from './schema-postgres.js';

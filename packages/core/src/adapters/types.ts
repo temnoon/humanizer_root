@@ -268,6 +268,29 @@ export interface ImportedNode {
 
   /** Raw original data (if preserveOriginal is true) */
   original?: unknown;
+
+  // ─────────────────────────────────────────────────────────────────
+  // Fine-Grained Deduplication (Phase 2)
+  // ─────────────────────────────────────────────────────────────────
+
+  /** Paragraph-level hashes for duplicate detection */
+  paragraphHashes?: Array<{
+    hash: string;
+    position: number;
+    length: number;
+    wordCount: number;
+  }>;
+
+  /** Line-level hashes for copy-paste detection */
+  lineHashes?: Array<{
+    hash: string;
+    position: number;
+    text: string;
+    length: number;
+  }>;
+
+  /** When this content was first seen (provenance tracking) */
+  firstSeenAt?: Date;
 }
 
 /**

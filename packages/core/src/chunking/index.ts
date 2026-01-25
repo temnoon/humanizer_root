@@ -78,3 +78,37 @@ export {
   getChunkingService,
   initChunkingService,
 } from './chunker.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTENT HASHING (FINE-GRAINED DEDUPLICATION)
+// ═══════════════════════════════════════════════════════════════════
+
+export type {
+  ParagraphHash,
+  LineHash,
+  ContentHashResult,
+  ContentHashOptions,
+} from './content-hasher.js';
+
+export {
+  // Constants
+  DEFAULT_MIN_PARAGRAPH_WORDS,
+  DEFAULT_MIN_LINE_CHARS,
+  DEFAULT_MAX_LINE_TEXT,
+  // Text utilities
+  normalizeForHash,
+  sha256,
+  hashText,
+  // Splitting
+  splitIntoParagraphs,
+  splitIntoLines,
+  countWords as countWordsForHash,
+  // Hashing
+  hashParagraphs,
+  hashLines,
+  hashContent,
+  // Duplicate detection
+  findCommonHashes,
+  hashSetSimilarity,
+  getUniqueHashes,
+} from './content-hasher.js';

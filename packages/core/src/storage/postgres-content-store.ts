@@ -41,6 +41,14 @@ import {
   GET_STATS,
   GET_NODES_BY_SOURCE_TYPE,
   GET_NODES_BY_ADAPTER,
+  // Fine-grained deduplication
+  FIND_NODES_BY_PARAGRAPH_HASH,
+  FIND_NODES_BY_LINE_HASH,
+  FIND_NODES_BY_ANY_PARAGRAPH_HASH,
+  FIND_NODES_BY_ANY_LINE_HASH,
+  UPDATE_FIRST_SEEN,
+  GET_FIRST_SEEN_BY_HASH,
+  GET_DUPLICATE_STATS,
 } from './schema-postgres.js';
 import type {
   StoredNode,
@@ -61,6 +69,7 @@ import type {
   ContentLinkType,
 } from './types.js';
 import type { ImportedNode, ContentLink } from '../adapters/types.js';
+import type { ParagraphHash, LineHash } from '../chunking/content-hasher.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // DATABASE ROW TYPES
@@ -95,6 +104,11 @@ interface DbRow {
   tags: string[] | null;
   media_refs: MediaRef[] | null;
   source_metadata: Record<string, unknown> | null;
+  // Fine-grained deduplication
+  paragraph_hashes: ParagraphHash[] | null;
+  line_hashes: LineHash[] | null;
+  first_seen_at: Date | null;
+  // Timestamps
   source_created_at: Date | null;
   source_updated_at: Date | null;
   created_at: Date;
@@ -123,6 +137,67 @@ interface DbJobRow {
   completed_at: Date | null;
   error: string | null;
   stats: Record<string, unknown> | null;
+}
+
+// Row types for duplicate detection queries
+interface DbDuplicateRow {
+  id: string;
+  content_hash: string;
+  first_seen_at: Date | null;
+  created_at: Date;
+  title?: string | null;
+}
+
+interface DbDuplicateDetailedRow extends DbDuplicateRow {
+  paragraph_hashes?: ParagraphHash[] | null;
+  line_hashes?: LineHash[] | null;
+  source_type: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// DUPLICATE DETECTION TYPES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * A match from duplicate detection
+ */
+export interface DuplicateMatch {
+  /** Node ID */
+  nodeId: string;
+  /** Content hash of the node */
+  contentHash: string;
+  /** When this content was first seen (provenance) */
+  firstSeenAt?: number;
+  /** When this node was created */
+  createdAt: number;
+}
+
+/**
+ * Detailed duplicate match with hash arrays
+ */
+export interface DuplicateMatchDetailed extends DuplicateMatch {
+  /** Paragraph hashes from this node */
+  paragraphHashes?: ParagraphHash[];
+  /** Line hashes from this node */
+  lineHashes?: LineHash[];
+  /** Node title if available */
+  title?: string;
+  /** Source type */
+  sourceType: string;
+}
+
+/**
+ * Statistics about duplicate content
+ */
+export interface DuplicateStats {
+  /** Number of unique paragraphs appearing in multiple nodes */
+  duplicateParagraphCount: number;
+  /** Total paragraph duplications (sum of occurrences) */
+  totalParagraphDuplicates: number;
+  /** Number of unique lines appearing in multiple nodes */
+  duplicateLineCount: number;
+  /** Total line duplications (sum of occurrences) */
+  totalLineDuplicates: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -257,6 +332,11 @@ export class PostgresContentStore {
       JSON.stringify((node.metadata?.tags as string[]) ?? []),
       JSON.stringify(node.media ?? []),
       node.metadata ? JSON.stringify(node.metadata) : null,
+      // Fine-grained deduplication hashes
+      JSON.stringify(node.paragraphHashes ?? []),
+      JSON.stringify(node.lineHashes ?? []),
+      node.firstSeenAt ?? now, // Default to now if not set
+      // Timestamps
       node.sourceCreatedAt ?? null,
       node.sourceUpdatedAt ?? null,
       now,
@@ -682,6 +762,154 @@ export class PostgresContentStore {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // FINE-GRAINED DEDUPLICATION
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Find nodes that contain a specific paragraph hash
+   *
+   * @param hash - The paragraph hash to search for
+   * @returns Nodes containing this paragraph, ordered by first_seen_at
+   */
+  async findNodesByParagraphHash(hash: string): Promise<DuplicateMatch[]> {
+    this.ensureInitialized();
+
+    // Search for hash in the JSONB array
+    const searchPattern = JSON.stringify([{ hash }]);
+    const result = await this.pool!.query(FIND_NODES_BY_PARAGRAPH_HASH, [searchPattern]);
+
+    return result.rows.map((row: DbDuplicateRow) => ({
+      nodeId: row.id,
+      contentHash: row.content_hash,
+      firstSeenAt: row.first_seen_at?.getTime(),
+      createdAt: row.created_at.getTime(),
+    }));
+  }
+
+  /**
+   * Find nodes that contain a specific line hash
+   *
+   * @param hash - The line hash to search for
+   * @returns Nodes containing this line, ordered by first_seen_at
+   */
+  async findNodesByLineHash(hash: string): Promise<DuplicateMatch[]> {
+    this.ensureInitialized();
+
+    const searchPattern = JSON.stringify([{ hash }]);
+    const result = await this.pool!.query(FIND_NODES_BY_LINE_HASH, [searchPattern]);
+
+    return result.rows.map((row: DbDuplicateRow) => ({
+      nodeId: row.id,
+      contentHash: row.content_hash,
+      firstSeenAt: row.first_seen_at?.getTime(),
+      createdAt: row.created_at.getTime(),
+    }));
+  }
+
+  /**
+   * Find nodes containing ANY of the provided paragraph hashes
+   * Efficient batch lookup for duplicate detection during import
+   *
+   * @param hashes - Array of paragraph hashes to search for
+   * @returns Nodes containing any of these paragraphs
+   */
+  async findNodesByAnyParagraphHash(hashes: string[]): Promise<DuplicateMatchDetailed[]> {
+    this.ensureInitialized();
+
+    if (hashes.length === 0) return [];
+
+    const result = await this.pool!.query(FIND_NODES_BY_ANY_PARAGRAPH_HASH, [hashes]);
+
+    return result.rows.map((row: DbDuplicateDetailedRow) => ({
+      nodeId: row.id,
+      contentHash: row.content_hash,
+      firstSeenAt: row.first_seen_at?.getTime(),
+      createdAt: row.created_at.getTime(),
+      paragraphHashes: row.paragraph_hashes ?? [],
+      title: row.title ?? undefined,
+      sourceType: row.source_type,
+    }));
+  }
+
+  /**
+   * Find nodes containing ANY of the provided line hashes
+   * Useful for detecting copy-pasted content
+   *
+   * @param hashes - Array of line hashes to search for
+   * @returns Nodes containing any of these lines
+   */
+  async findNodesByAnyLineHash(hashes: string[]): Promise<DuplicateMatchDetailed[]> {
+    this.ensureInitialized();
+
+    if (hashes.length === 0) return [];
+
+    const result = await this.pool!.query(FIND_NODES_BY_ANY_LINE_HASH, [hashes]);
+
+    return result.rows.map((row: DbDuplicateDetailedRow) => ({
+      nodeId: row.id,
+      contentHash: row.content_hash,
+      firstSeenAt: row.first_seen_at?.getTime(),
+      createdAt: row.created_at.getTime(),
+      lineHashes: row.line_hashes ?? [],
+      title: row.title ?? undefined,
+      sourceType: row.source_type,
+    }));
+  }
+
+  /**
+   * Get the first occurrence of content by its hash
+   * Used for provenance tracking
+   *
+   * @param contentHash - The content hash to look up
+   * @returns The earliest node with this content
+   */
+  async getFirstSeenByHash(contentHash: string): Promise<DuplicateMatch | undefined> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_FIRST_SEEN_BY_HASH, [contentHash]);
+    const row = result.rows[0] as DbDuplicateRow | undefined;
+
+    if (!row) return undefined;
+
+    return {
+      nodeId: row.id,
+      contentHash: row.content_hash,
+      firstSeenAt: row.first_seen_at?.getTime(),
+      createdAt: row.created_at.getTime(),
+    };
+  }
+
+  /**
+   * Update the first_seen_at timestamp for a node
+   * Used when importing content that we know existed earlier
+   *
+   * @param nodeId - The node to update
+   * @param firstSeenAt - The timestamp when content was first seen
+   */
+  async updateFirstSeen(nodeId: string, firstSeenAt: Date): Promise<void> {
+    this.ensureInitialized();
+
+    await this.pool!.query(UPDATE_FIRST_SEEN, [firstSeenAt, nodeId]);
+  }
+
+  /**
+   * Get statistics about duplicate content in the store
+   */
+  async getDuplicateStats(): Promise<DuplicateStats> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_DUPLICATE_STATS);
+    const row = result.rows[0];
+
+    return {
+      duplicateParagraphCount: parseInt(row.duplicate_paragraph_count ?? '0', 10),
+      totalParagraphDuplicates: parseInt(row.total_paragraph_duplicates ?? '0', 10),
+      duplicateLineCount: parseInt(row.duplicate_line_count ?? '0', 10),
+      totalLineDuplicates: parseInt(row.total_line_duplicates ?? '0', 10),
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // LINK OPERATIONS
   // ─────────────────────────────────────────────────────────────────
 
@@ -966,6 +1194,11 @@ export class PostgresContentStore {
       JSON.stringify((node.metadata?.tags as string[]) ?? []),
       JSON.stringify(node.media ?? []),
       node.metadata ? JSON.stringify(node.metadata) : null,
+      // Fine-grained deduplication hashes
+      JSON.stringify(node.paragraphHashes ?? []),
+      JSON.stringify(node.lineHashes ?? []),
+      node.firstSeenAt ?? now, // Default to now if not set
+      // Timestamps
       node.sourceCreatedAt ?? null,
       node.sourceUpdatedAt ?? null,
       now,
@@ -1094,6 +1327,11 @@ export class PostgresContentStore {
       tags: row.tags ?? undefined,
       mediaRefs: row.media_refs ?? undefined,
       sourceMetadata: row.source_metadata ?? undefined,
+      // Fine-grained deduplication
+      paragraphHashes: row.paragraph_hashes ?? undefined,
+      lineHashes: row.line_hashes ?? undefined,
+      firstSeenAt: row.first_seen_at?.getTime() ?? undefined,
+      // Timestamps
       sourceCreatedAt: row.source_created_at?.getTime() ?? undefined,
       sourceUpdatedAt: row.source_updated_at?.getTime() ?? undefined,
       createdAt: row.created_at.getTime(),
