@@ -22,7 +22,7 @@ import type { Pool, PoolClient } from 'pg';
 // ═══════════════════════════════════════════════════════════════════
 
 /** Current schema version */
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 // ═══════════════════════════════════════════════════════════════════
 // EXTENSION SETUP
@@ -104,6 +104,12 @@ CREATE TABLE IF NOT EXISTS content_nodes (
   paragraph_hashes JSONB DEFAULT '[]'::jsonb,  -- Array of {hash, position, length}
   line_hashes JSONB DEFAULT '[]'::jsonb,       -- Array of {hash, position, text}
   first_seen_at TIMESTAMPTZ,                   -- When content first appeared (provenance)
+
+  -- Paste detection (Phase 4)
+  has_pasted_content BOOLEAN DEFAULT FALSE,    -- Whether pasted content was detected
+  paste_segments JSONB DEFAULT '[]'::jsonb,    -- Array of {start, end, confidence, reasons, hash}
+  paste_confidence REAL,                       -- Overall paste confidence (0-1)
+  paste_reasons TEXT[],                        -- Array of detection reasons
 
   -- Full-text search (generated column)
   tsv tsvector GENERATED ALWAYS AS (
@@ -390,6 +396,10 @@ CREATE INDEX IF NOT EXISTS idx_content_nodes_paragraph_hashes ON content_nodes U
 CREATE INDEX IF NOT EXISTS idx_content_nodes_line_hashes ON content_nodes USING gin(line_hashes jsonb_path_ops);
 CREATE INDEX IF NOT EXISTS idx_content_nodes_first_seen ON content_nodes(first_seen_at) WHERE first_seen_at IS NOT NULL;
 
+-- Paste detection indexes (Phase 4)
+CREATE INDEX IF NOT EXISTS idx_content_nodes_pasted ON content_nodes(has_pasted_content) WHERE has_pasted_content = TRUE;
+CREATE INDEX IF NOT EXISTS idx_content_nodes_paste_confidence ON content_nodes(paste_confidence DESC) WHERE paste_confidence IS NOT NULL;
+
 -- Links indexes
 CREATE INDEX IF NOT EXISTS idx_content_links_source ON content_links(source_id);
 CREATE INDEX IF NOT EXISTS idx_content_links_target ON content_links(target_id);
@@ -661,12 +671,36 @@ async function runMigrations(
     // Update schema version to 6
     await client.query(
       "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      ['6']
+    );
+  }
+
+  // Migration to version 7: Add paste detection columns
+  if (fromVersion < 7) {
+    // Add new columns for paste detection
+    await client.query(`
+      ALTER TABLE content_nodes
+      ADD COLUMN IF NOT EXISTS has_pasted_content BOOLEAN DEFAULT FALSE,
+      ADD COLUMN IF NOT EXISTS paste_segments JSONB DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS paste_confidence REAL,
+      ADD COLUMN IF NOT EXISTS paste_reasons TEXT[];
+    `);
+
+    // Add indexes for efficient paste detection queries
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_content_nodes_pasted ON content_nodes(has_pasted_content) WHERE has_pasted_content = TRUE;
+      CREATE INDEX IF NOT EXISTS idx_content_nodes_paste_confidence ON content_nodes(paste_confidence DESC) WHERE paste_confidence IS NOT NULL;
+    `);
+
+    // Update schema version to 7
+    await client.query(
+      "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
       [SCHEMA_VERSION.toString()]
     );
   }
 
   // Future migrations would go here:
-  // if (fromVersion < 7) { ... }
+  // if (fromVersion < 8) { ... }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -685,6 +719,7 @@ INSERT INTO content_nodes (
   source_type, source_adapter, source_original_id, source_original_path, import_job_id,
   title, author, author_role, tags, media_refs, source_metadata,
   paragraph_hashes, line_hashes, first_seen_at,
+  has_pasted_content, paste_segments, paste_confidence, paste_reasons,
   source_created_at, source_updated_at, created_at, imported_at
 ) VALUES (
   $1, $2, $3, $4, $5, $6,
@@ -694,7 +729,8 @@ INSERT INTO content_nodes (
   $18, $19, $20, $21, $22,
   $23, $24, $25, $26, $27, $28,
   $29, $30, $31,
-  $32, $33, $34, $35
+  $32, $33, $34, $35,
+  $36, $37, $38, $39
 )
 RETURNING *
 `;
@@ -1102,6 +1138,74 @@ LEFT JOIN content_nodes cn ON mta.node_id = cn.id
 WHERE to_tsvector('english', COALESCE(mta.extracted_text, '')) @@ plainto_tsquery('english', $1)
 ORDER BY rank DESC
 LIMIT $2
+`;
+
+// ═══════════════════════════════════════════════════════════════════
+// PASTE DETECTION QUERIES (Phase 4)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Update paste analysis for a node
+ */
+export const UPDATE_PASTE_ANALYSIS = `
+UPDATE content_nodes
+SET has_pasted_content = $1,
+    paste_segments = $2,
+    paste_confidence = $3,
+    paste_reasons = $4
+WHERE id = $5
+RETURNING id, has_pasted_content, paste_confidence
+`;
+
+/**
+ * Get nodes with pasted content
+ */
+export const GET_NODES_WITH_PASTED_CONTENT = `
+SELECT id, content_hash, title, author_role, paste_confidence, paste_reasons,
+       paste_segments, source_type, created_at
+FROM content_nodes
+WHERE has_pasted_content = TRUE
+  AND ($1::text IS NULL OR author_role = $1)
+  AND ($2::real IS NULL OR paste_confidence >= $2)
+ORDER BY paste_confidence DESC
+LIMIT $3 OFFSET $4
+`;
+
+/**
+ * Get paste detection statistics
+ */
+export const GET_PASTE_STATS = `
+SELECT
+  (SELECT COUNT(*) FROM content_nodes WHERE has_pasted_content = TRUE) as nodes_with_paste,
+  (SELECT COUNT(*) FROM content_nodes WHERE author_role = 'user') as total_user_messages,
+  (SELECT COUNT(*) FROM content_nodes WHERE author_role = 'user' AND has_pasted_content = TRUE) as user_messages_with_paste,
+  (SELECT AVG(paste_confidence) FROM content_nodes WHERE has_pasted_content = TRUE) as avg_paste_confidence,
+  (SELECT unnest(paste_reasons), COUNT(*) FROM content_nodes WHERE paste_reasons IS NOT NULL GROUP BY 1 ORDER BY 2 DESC) as reasons_breakdown
+`;
+
+/**
+ * Get paste reasons breakdown
+ */
+export const GET_PASTE_REASONS_BREAKDOWN = `
+SELECT reason, COUNT(*) as count
+FROM content_nodes,
+     unnest(paste_reasons) AS reason
+WHERE paste_reasons IS NOT NULL AND array_length(paste_reasons, 1) > 0
+GROUP BY reason
+ORDER BY count DESC
+`;
+
+/**
+ * Find nodes with matching paste segment hashes
+ * For detecting content that was pasted from the same source
+ */
+export const FIND_NODES_BY_PASTE_SEGMENT_HASH = `
+SELECT DISTINCT cn.id, cn.content_hash, cn.title, cn.paste_confidence,
+       ps->>'hash' as matched_hash, ps->>'text' as matched_text
+FROM content_nodes cn,
+     jsonb_array_elements(cn.paste_segments) AS ps
+WHERE ps->>'hash' = $1
+ORDER BY cn.paste_confidence DESC
 `;
 
 // ═══════════════════════════════════════════════════════════════════

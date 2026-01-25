@@ -38,6 +38,11 @@ import {
   isMediaTextGizmo,
   type MessageForExtraction,
 } from './media-text-extractor.js';
+import {
+  analyzePastedContent,
+  quickPasteCheck,
+  type PasteAnalysisResult,
+} from './paste-detector.js';
 
 /**
  * Import result statistics
@@ -83,6 +88,15 @@ export interface ImportResult {
     gizmosDetected: string[];
     extractionDurationMs: number;
   };
+  // Paste detection stats (Phase 4)
+  pasteDetection?: {
+    messagesAnalyzed: number;
+    messagesWithPaste: number;
+    totalPasteSegments: number;
+    avgPasteConfidence: number;
+    reasonsDetected: string[];
+    detectionDurationMs: number;
+  };
 }
 
 /**
@@ -104,6 +118,10 @@ export async function importArchiveToDb(
     includeLineHashes?: boolean;
     /** Extract media-text associations (OCR, descriptions) for Custom GPTs (default: true) */
     extractMediaText?: boolean;
+    /** Detect pasted content in user messages (default: true) */
+    detectPaste?: boolean;
+    /** Minimum confidence threshold for paste detection (default: 0.5) */
+    pasteMinConfidence?: number;
   } = {}
 ): Promise<ImportResult> {
   const {
@@ -115,6 +133,8 @@ export async function importArchiveToDb(
     generateHashes = true,
     includeLineHashes = true,
     extractMediaText = true,
+    detectPaste = true,
+    pasteMinConfidence = 0.5,
   } = options;
   const archiveWithRels = archive as ParsedArchiveWithRelationships;
   const startTime = Date.now();
@@ -152,6 +172,14 @@ export async function importArchiveToDb(
   let totalLineHashes = 0;
   const hashingStartTime = Date.now();
 
+  // Paste detection stats
+  let pasteMessagesAnalyzed = 0;
+  let pasteMessagesWithPaste = 0;
+  let pasteTotalSegments = 0;
+  let pasteTotalConfidence = 0;
+  const pasteReasonsSet = new Set<string>();
+  const pasteStartTime = Date.now();
+
   try {
     // Process conversations in batches
     for (const conversation of archive.conversations) {
@@ -181,6 +209,41 @@ export async function importArchiveToDb(
               const lineHashResult = hashLines(node.content);
               node.lineHashes = lineHashResult;
               totalLineHashes += lineHashResult.length;
+            }
+          }
+
+          // Detect pasted content for user messages (Phase 4)
+          if (detectPaste && node.author?.role === 'user' && node.content.length > 20) {
+            pasteMessagesAnalyzed++;
+
+            // Quick check first to avoid expensive analysis on simple messages
+            if (quickPasteCheck(node.content)) {
+              const pasteResult = analyzePastedContent(node.content, {
+                minPasteConfidence: pasteMinConfidence,
+              });
+
+              if (pasteResult.hasPastedContent) {
+                pasteMessagesWithPaste++;
+                pasteTotalSegments += pasteResult.segments.length;
+                pasteTotalConfidence += pasteResult.overallConfidence;
+
+                // Record reasons
+                for (const reason of pasteResult.allReasons) {
+                  pasteReasonsSet.add(reason);
+                }
+
+                // Add paste analysis to node
+                node.hasPastedContent = true;
+                node.pasteSegments = pasteResult.segments.map(s => ({
+                  start: s.start,
+                  end: s.end,
+                  pasteConfidence: s.pasteConfidence,
+                  reasons: s.reasons,
+                  hash: s.hash,
+                }));
+                node.pasteConfidence = pasteResult.overallConfidence;
+                node.pasteReasons = pasteResult.allReasons;
+              }
             }
           }
 
@@ -516,6 +579,22 @@ export async function importArchiveToDb(
       log(`  Media-text: ${mediaTextStats.associationsCreated} associations from ${mediaTextStats.gizmosDetected.length} gizmos`);
     }
 
+    // Paste detection stats
+    const pasteDetectionStats = detectPaste && pasteMessagesAnalyzed > 0
+      ? {
+          messagesAnalyzed: pasteMessagesAnalyzed,
+          messagesWithPaste: pasteMessagesWithPaste,
+          totalPasteSegments: pasteTotalSegments,
+          avgPasteConfidence: pasteMessagesWithPaste > 0 ? pasteTotalConfidence / pasteMessagesWithPaste : 0,
+          reasonsDetected: Array.from(pasteReasonsSet),
+          detectionDurationMs: Date.now() - pasteStartTime,
+        }
+      : undefined;
+
+    if (pasteDetectionStats && pasteMessagesWithPaste > 0) {
+      log(`  Paste detection: ${pasteMessagesWithPaste}/${pasteMessagesAnalyzed} user messages with paste (${pasteTotalSegments} segments)`);
+    }
+
     return {
       jobId: job.id,
       status: 'completed',
@@ -529,6 +608,7 @@ export async function importArchiveToDb(
       embeddings: embeddingStats,
       dedup: dedupStats,
       mediaText: mediaTextStats,
+      pasteDetection: pasteDetectionStats,
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);

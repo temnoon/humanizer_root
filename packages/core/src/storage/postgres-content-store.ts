@@ -61,6 +61,11 @@ import {
   GET_ASSOCIATIONS_BY_CONVERSATION,
   GET_MEDIA_TEXT_STATS,
   SEARCH_EXTRACTED_TEXT,
+  // Paste detection
+  UPDATE_PASTE_ANALYSIS,
+  GET_NODES_WITH_PASTED_CONTENT,
+  GET_PASTE_REASONS_BREAKDOWN,
+  FIND_NODES_BY_PASTE_SEGMENT_HASH,
 } from './schema-postgres.js';
 import type {
   StoredNode,
@@ -82,7 +87,7 @@ import type {
 } from './types.js';
 import type { ImportedNode, ContentLink } from '../adapters/types.js';
 import type { ParagraphHash, LineHash } from '../chunking/content-hasher.js';
-import type { MediaTextAssociation, MediaTextStats } from './types.js';
+import type { MediaTextAssociation, MediaTextStats, PasteSegmentRecord, PasteStats } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // DATABASE ROW TYPES
@@ -121,6 +126,11 @@ interface DbRow {
   paragraph_hashes: ParagraphHash[] | null;
   line_hashes: LineHash[] | null;
   first_seen_at: Date | null;
+  // Paste detection
+  has_pasted_content: boolean | null;
+  paste_segments: PasteSegmentRecord[] | null;
+  paste_confidence: number | null;
+  paste_reasons: string[] | null;
   // Timestamps
   source_created_at: Date | null;
   source_updated_at: Date | null;
@@ -377,6 +387,11 @@ export class PostgresContentStore {
       JSON.stringify(node.paragraphHashes ?? []),
       JSON.stringify(node.lineHashes ?? []),
       node.firstSeenAt ?? now, // Default to now if not set
+      // Paste detection (Phase 4)
+      node.hasPastedContent ?? false,
+      JSON.stringify(node.pasteSegments ?? []),
+      node.pasteConfidence ?? null,
+      node.pasteReasons ?? null,
       // Timestamps
       node.sourceCreatedAt ?? null,
       node.sourceUpdatedAt ?? null,
@@ -1188,6 +1203,179 @@ export class PostgresContentStore {
   }
 
   // ─────────────────────────────────────────────────────────────────
+  // PASTE DETECTION (Phase 4)
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Update paste analysis for a node
+   *
+   * @param nodeId - The node to update
+   * @param analysis - Paste analysis result
+   * @returns Updated node info
+   */
+  async updatePasteAnalysis(
+    nodeId: string,
+    analysis: {
+      hasPastedContent: boolean;
+      pasteSegments: PasteSegmentRecord[];
+      pasteConfidence: number;
+      pasteReasons: string[];
+    }
+  ): Promise<{ nodeId: string; hasPastedContent: boolean; pasteConfidence: number }> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(UPDATE_PASTE_ANALYSIS, [
+      analysis.hasPastedContent,
+      JSON.stringify(analysis.pasteSegments),
+      analysis.pasteConfidence,
+      analysis.pasteReasons,
+      nodeId,
+    ]);
+
+    if (result.rows.length === 0) {
+      throw new Error(`Node not found: ${nodeId}`);
+    }
+
+    const row = result.rows[0];
+    return {
+      nodeId: row.id,
+      hasPastedContent: row.has_pasted_content,
+      pasteConfidence: row.paste_confidence,
+    };
+  }
+
+  /**
+   * Get nodes with pasted content
+   *
+   * @param options - Query options
+   * @returns Nodes with paste analysis
+   */
+  async getNodesWithPastedContent(options: {
+    authorRole?: AuthorRole;
+    minConfidence?: number;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<Array<{
+    nodeId: string;
+    contentHash: string;
+    title?: string;
+    authorRole?: AuthorRole;
+    pasteConfidence: number;
+    pasteReasons: string[];
+    pasteSegments: PasteSegmentRecord[];
+    sourceType: string;
+    createdAt: number;
+  }>> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(GET_NODES_WITH_PASTED_CONTENT, [
+      options.authorRole ?? null,
+      options.minConfidence ?? null,
+      options.limit ?? 100,
+      options.offset ?? 0,
+    ]);
+
+    return result.rows.map((row: {
+      id: string;
+      content_hash: string;
+      title: string | null;
+      author_role: string | null;
+      paste_confidence: number;
+      paste_reasons: string[];
+      paste_segments: PasteSegmentRecord[];
+      source_type: string;
+      created_at: Date;
+    }) => ({
+      nodeId: row.id,
+      contentHash: row.content_hash,
+      title: row.title ?? undefined,
+      authorRole: (row.author_role as AuthorRole) ?? undefined,
+      pasteConfidence: row.paste_confidence,
+      pasteReasons: row.paste_reasons ?? [],
+      pasteSegments: row.paste_segments ?? [],
+      sourceType: row.source_type,
+      createdAt: row.created_at.getTime(),
+    }));
+  }
+
+  /**
+   * Find nodes that share the same paste segment hash
+   * Useful for detecting content pasted from the same source
+   *
+   * @param hash - The paste segment hash to search for
+   * @returns Matching nodes
+   */
+  async findNodesByPasteSegmentHash(hash: string): Promise<Array<{
+    nodeId: string;
+    contentHash: string;
+    title?: string;
+    pasteConfidence: number;
+    matchedHash: string;
+    matchedText?: string;
+  }>> {
+    this.ensureInitialized();
+
+    const result = await this.pool!.query(FIND_NODES_BY_PASTE_SEGMENT_HASH, [hash]);
+
+    return result.rows.map((row: {
+      id: string;
+      content_hash: string;
+      title: string | null;
+      paste_confidence: number;
+      matched_hash: string;
+      matched_text: string | null;
+    }) => ({
+      nodeId: row.id,
+      contentHash: row.content_hash,
+      title: row.title ?? undefined,
+      pasteConfidence: row.paste_confidence,
+      matchedHash: row.matched_hash,
+      matchedText: row.matched_text ?? undefined,
+    }));
+  }
+
+  /**
+   * Get paste detection statistics
+   *
+   * @returns Paste statistics
+   */
+  async getPasteStats(): Promise<PasteStats> {
+    this.ensureInitialized();
+
+    // Get basic stats
+    const statsResult = await this.pool!.query(`
+      SELECT
+        (SELECT COUNT(*) FROM content_nodes WHERE has_pasted_content = TRUE) as nodes_with_paste,
+        (SELECT COUNT(*) FROM content_nodes WHERE author_role = 'user') as total_user_messages,
+        (SELECT COUNT(*) FROM content_nodes WHERE author_role = 'user' AND has_pasted_content = TRUE) as user_messages_with_paste,
+        (SELECT AVG(paste_confidence) FROM content_nodes WHERE has_pasted_content = TRUE) as avg_paste_confidence
+    `);
+
+    // Get reasons breakdown
+    const reasonsResult = await this.pool!.query(GET_PASTE_REASONS_BREAKDOWN);
+
+    const row = statsResult.rows[0];
+    const nodesWithPaste = parseInt(row.nodes_with_paste ?? '0', 10);
+    const totalUserMessages = parseInt(row.total_user_messages ?? '0', 10);
+    const userMessagesWithPaste = parseInt(row.user_messages_with_paste ?? '0', 10);
+
+    // Build reasons breakdown map
+    const reasonsBreakdown: Record<string, number> = {};
+    for (const reasonRow of reasonsResult.rows) {
+      reasonsBreakdown[reasonRow.reason] = parseInt(reasonRow.count, 10);
+    }
+
+    return {
+      nodesWithPaste,
+      totalUserMessages,
+      userMessagesWithPaste,
+      pastePercentage: totalUserMessages > 0 ? (userMessagesWithPaste / totalUserMessages) * 100 : 0,
+      avgPasteConfidence: parseFloat(row.avg_paste_confidence ?? '0'),
+      reasonsBreakdown,
+    };
+  }
+
+  // ─────────────────────────────────────────────────────────────────
   // LINK OPERATIONS
   // ─────────────────────────────────────────────────────────────────
 
@@ -1476,6 +1664,11 @@ export class PostgresContentStore {
       JSON.stringify(node.paragraphHashes ?? []),
       JSON.stringify(node.lineHashes ?? []),
       node.firstSeenAt ?? now, // Default to now if not set
+      // Paste detection (Phase 4)
+      node.hasPastedContent ?? false,
+      JSON.stringify(node.pasteSegments ?? []),
+      node.pasteConfidence ?? null,
+      node.pasteReasons ?? null,
       // Timestamps
       node.sourceCreatedAt ?? null,
       node.sourceUpdatedAt ?? null,
@@ -1609,6 +1802,11 @@ export class PostgresContentStore {
       paragraphHashes: row.paragraph_hashes ?? undefined,
       lineHashes: row.line_hashes ?? undefined,
       firstSeenAt: row.first_seen_at?.getTime() ?? undefined,
+      // Paste detection
+      hasPastedContent: row.has_pasted_content ?? undefined,
+      pasteSegments: row.paste_segments ?? undefined,
+      pasteConfidence: row.paste_confidence ?? undefined,
+      pasteReasons: row.paste_reasons ?? undefined,
       // Timestamps
       sourceCreatedAt: row.source_created_at?.getTime() ?? undefined,
       sourceUpdatedAt: row.source_updated_at?.getTime() ?? undefined,

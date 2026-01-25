@@ -291,6 +291,28 @@ export interface ImportedNode {
 
   /** When this content was first seen (provenance tracking) */
   firstSeenAt?: Date;
+
+  // ─────────────────────────────────────────────────────────────────
+  // Paste Detection (Phase 4)
+  // ─────────────────────────────────────────────────────────────────
+
+  /** Whether pasted content was detected */
+  hasPastedContent?: boolean;
+
+  /** Paste segment details */
+  pasteSegments?: Array<{
+    start: number;
+    end: number;
+    pasteConfidence: number;
+    reasons: string[];
+    hash: string;
+  }>;
+
+  /** Overall paste confidence (0-1) */
+  pasteConfidence?: number;
+
+  /** Detection reasons found */
+  pasteReasons?: string[];
 }
 
 /**

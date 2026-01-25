@@ -156,6 +156,22 @@ export interface StoredNode {
   firstSeenAt?: number;
 
   // ─────────────────────────────────────────────────────────────────
+  // Paste Detection
+  // ─────────────────────────────────────────────────────────────────
+
+  /** Whether pasted content was detected */
+  hasPastedContent?: boolean;
+
+  /** Paste segment details */
+  pasteSegments?: PasteSegmentRecord[];
+
+  /** Overall paste confidence (0-1) */
+  pasteConfidence?: number;
+
+  /** Detection reasons found */
+  pasteReasons?: string[];
+
+  // ─────────────────────────────────────────────────────────────────
   // Timestamps
   // ─────────────────────────────────────────────────────────────────
 
@@ -247,6 +263,44 @@ export interface LineHashRecord {
   text: string;
   /** Character length of the original line */
   length: number;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PASTE DETECTION TYPES (Phase 4)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * A detected paste segment (stored in JSONB)
+ */
+export interface PasteSegmentRecord {
+  /** Start character offset in the original text */
+  start: number;
+  /** End character offset in the original text */
+  end: number;
+  /** Confidence that this segment was pasted (0-1) */
+  pasteConfidence: number;
+  /** Reasons for the paste detection */
+  reasons: string[];
+  /** Hash of this segment (for cross-node deduplication) */
+  hash: string;
+}
+
+/**
+ * Paste detection statistics
+ */
+export interface PasteStats {
+  /** Total nodes with pasted content */
+  nodesWithPaste: number;
+  /** Total user messages */
+  totalUserMessages: number;
+  /** User messages with pasted content */
+  userMessagesWithPaste: number;
+  /** Percentage of user messages with paste */
+  pastePercentage: number;
+  /** Average paste confidence */
+  avgPasteConfidence: number;
+  /** Breakdown by detection reason */
+  reasonsBreakdown: Record<string, number>;
 }
 
 // ═══════════════════════════════════════════════════════════════════

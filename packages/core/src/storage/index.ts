@@ -47,6 +47,9 @@ export type {
   // Fine-grained deduplication types
   ParagraphHashRecord,
   LineHashRecord,
+  // Paste detection types
+  PasteSegmentRecord,
+  PasteStats,
   // Media-text association types
   MediaTextAssociationType,
   MediaTextAssociation,
