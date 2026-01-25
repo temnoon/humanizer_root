@@ -71,9 +71,23 @@ export {
   type AIResponse,
   type RouterDecision,
   type BudgetStatus,
-  type ModelClass,
   type ModelInfo,
+  /** @deprecated Use ModelInfo instead */
+  type ModelClass,
 } from './model-master.js';
+
+// Re-export LLM provider infrastructure
+export {
+  getProviderManager,
+  initializeProviders,
+  resetProviderManager,
+  type ProviderConfig,
+  type LlmProvider,
+  type LlmRequest,
+  type LlmResponse,
+  ProviderError,
+  ProviderUnavailableError,
+} from '../llm-providers/index.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // HARVESTER - Archive Search

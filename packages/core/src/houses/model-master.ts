@@ -1,24 +1,34 @@
 /**
  * Model Master Agent
  *
- * The AI Master Control wrapped as a council agent.
- * Routes capability requests to the best available model.
+ * The enforcement layer for AI model routing. Routes capability requests
+ * to the best available model using the ModelRegistry and ProviderManager.
  *
  * Capabilities:
- * - call-capability: Call an AI capability
+ * - call-capability: Call an AI capability (actual LLM call)
  * - preview-routing: Preview which model would be used
  * - check-budget: Check user's budget status
  * - list-capabilities: List available capabilities
  * - list-models: List available models for a capability
  *
- * NOTE: This agent uses ConfigManager for all thresholds and prompts.
- * NO hardcoded literals allowed - see config/default-thresholds.ts
+ * KEY PRINCIPLE:
+ * Model-Master is NOT an independent mechanism. It queries:
+ * - ModelRegistry: Source of truth for approved models
+ * - ProviderManager: Executes actual LLM calls
+ * - ConfigManager: Thresholds and preferences
+ *
+ * @see packages/core/docs/AGENT_RUNTIME_HANDOFF.md
  */
 
 import { AgentBase } from '../runtime/agent-base.js';
 import type { AgentMessage, HouseType } from '../runtime/types.js';
-import { getConfigManager, THRESHOLD_KEYS, LIMIT_KEYS } from '../config/index.js';
+import { getConfigManager, THRESHOLD_KEYS, LIMIT_KEYS, getPrompt } from '../config/index.js';
 import type { ConfigManager } from '../config/types.js';
+import { getModelRegistry } from '../models/default-model-registry.js';
+import type { ModelRegistry, VettedModel, ModelCapability } from '../models/model-registry.js';
+import { getProviderManager, type ProviderManager } from '../llm-providers/provider-manager.js';
+import type { ChatMessage, LlmRequest } from '../llm-providers/types.js';
+import { ProviderError, ProviderUnavailableError } from '../llm-providers/types.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // CONFIG KEYS FOR MODEL MASTER
@@ -36,6 +46,7 @@ export const MODEL_MASTER_CONFIG = {
   // Budget thresholds
   BUDGET_WARNING_THRESHOLD: 'modelMaster.budgetWarningThreshold',
   BUDGET_CRITICAL_THRESHOLD: 'modelMaster.budgetCriticalThreshold',
+  DEFAULT_USER_BUDGET: 'modelMaster.defaultUserBudget',
 
   // Rate limiting
   MAX_CONCURRENT_CALLS: 'modelMaster.maxConcurrentCalls',
@@ -51,11 +62,15 @@ export const MODEL_MASTER_CONFIG = {
 export interface AIRequest {
   capability: string;
   input: string;
+  systemPrompt?: string;
   params?: Record<string, unknown>;
   userId?: string;
   modelOverride?: string;
   providerOverride?: string;
   requestId?: string;
+  temperature?: number;
+  maxTokens?: number;
+  jsonMode?: boolean;
 }
 
 /**
@@ -100,7 +115,18 @@ export interface BudgetStatus {
 }
 
 /**
- * Model class definition
+ * Model info for listing
+ */
+export interface ModelInfo {
+  modelId: string;
+  provider: string;
+  capabilities: string[];
+  qualityScore: number;
+  costPer1k: { input: number; output: number };
+}
+
+/**
+ * @deprecated Use ModelInfo instead. Retained for backward compatibility.
  */
 export interface ModelClass {
   name: string;
@@ -114,16 +140,6 @@ export interface ModelClass {
   }>;
 }
 
-/**
- * Model info for listing
- */
-export interface ModelInfo {
-  modelId: string;
-  provider: string;
-  priority: number;
-  conditions?: unknown;
-}
-
 // ═══════════════════════════════════════════════════════════════════
 // REQUEST TYPES
 // ═══════════════════════════════════════════════════════════════════
@@ -131,10 +147,14 @@ export interface ModelInfo {
 interface CallCapabilityRequest {
   capability: string;
   input: string;
+  systemPrompt?: string;
   params?: Record<string, unknown>;
   userId?: string;
   modelOverride?: string;
   providerOverride?: string;
+  temperature?: number;
+  maxTokens?: number;
+  jsonMode?: boolean;
 }
 
 interface PreviewRoutingRequest {
@@ -178,14 +198,18 @@ export class ModelMasterAgent extends AgentBase {
   ];
 
   private config: ConfigManager;
+  private registry: ModelRegistry;
+  private providers: ProviderManager;
 
-  // In-memory tracking (would be persisted in production)
+  // In-memory tracking (TODO: persist to database via AuiPostgresStore)
   private userSpending: Map<string, number> = new Map();
   private activeCalls: number = 0;
 
   constructor() {
     super();
     this.config = getConfigManager();
+    this.registry = getModelRegistry();
+    this.providers = getProviderManager();
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -193,7 +217,10 @@ export class ModelMasterAgent extends AgentBase {
   // ─────────────────────────────────────────────────────────────────
 
   protected async onInitialize(): Promise<void> {
-    this.log('info', 'Initializing with ConfigManager integration');
+    this.log('info', 'Initializing with ModelRegistry + ProviderManager integration');
+
+    // Initialize the model registry
+    await this.registry.initialize();
 
     // Subscribe to budget-related events
     this.subscribe('budget:check');
@@ -238,7 +265,18 @@ export class ModelMasterAgent extends AgentBase {
   // ─────────────────────────────────────────────────────────────────
 
   private async handleCallCapability(request: CallCapabilityRequest): Promise<AIResponse> {
-    const { capability, input, params, userId, modelOverride, providerOverride } = request;
+    const {
+      capability,
+      input,
+      systemPrompt,
+      params,
+      userId,
+      modelOverride,
+      providerOverride,
+      temperature,
+      maxTokens,
+      jsonMode,
+    } = request;
 
     // Get config values
     const maxConcurrent = await this.config.getOrDefault<number>(
@@ -264,28 +302,90 @@ export class ModelMasterAgent extends AgentBase {
     const startTime = Date.now();
 
     try {
-      // Route to appropriate model/provider
+      // Route to appropriate model using ModelRegistry
       const routing = await this.handlePreviewRouting({
         capability,
         userId,
         modelOverride,
       });
 
-      // Simulate AI call (would connect to actual AI service)
-      // In production, this would call the AI control service
+      // Get the selected model details
+      const modelId = modelOverride || routing.selectedModel;
+      const model = await this.registry.get(modelId);
+
+      if (!model) {
+        throw new Error(`Model ${modelId} not found in registry`);
+      }
+
+      // Get provider (override or from model)
+      const providerName = providerOverride
+        ? (providerOverride as typeof model.provider)
+        : model.provider;
+
+      // Check provider availability
+      const providerAvailable = await this.providers.isAvailable(providerName);
+      if (!providerAvailable) {
+        // Try fallback
+        const fallbackModel = await this.registry.getWithFallback(capability as ModelCapability);
+        if (fallbackModel.id === model.id) {
+          throw new ProviderUnavailableError(providerName);
+        }
+        // Recursively call with fallback model
+        return this.handleCallCapability({
+          ...request,
+          modelOverride: fallbackModel.id,
+          providerOverride: fallbackModel.provider,
+        });
+      }
+
+      const provider = this.providers.get(providerName);
+
+      // Build messages
+      const messages: ChatMessage[] = [];
+      if (systemPrompt || params?.systemPrompt) {
+        messages.push({
+          role: 'system',
+          content: (systemPrompt || params?.systemPrompt) as string,
+        });
+      }
+      messages.push({
+        role: 'user',
+        content: input,
+      });
+
+      // Build LLM request
+      const llmRequest: LlmRequest = {
+        modelId,
+        messages,
+        temperature: temperature ?? (params?.temperature as number | undefined) ?? 0.7,
+        maxTokens: maxTokens ?? (params?.maxTokens as number | undefined) ?? 2048,
+        jsonMode,
+      };
+
+      // Execute the call
+      const llmResponse = await provider.chat(llmRequest);
+
+      // Calculate cost from registry
+      const costs = await this.registry.getCost(modelId);
+      const cost = (
+        (llmResponse.usage.promptTokens * costs.input) +
+        (llmResponse.usage.completionTokens * costs.output)
+      ) / 1000;
+
       const response: AIResponse = {
-        output: `[Simulated response for capability: ${capability}]`,
-        modelUsed: modelOverride || routing.selectedModel,
-        providerUsed: providerOverride || routing.selectedProvider,
-        inputTokens: Math.ceil(input.length / 4),
-        outputTokens: 100,
-        cost: 0.001,
-        latencyMs: Date.now() - startTime,
+        output: llmResponse.content,
+        modelUsed: modelId,
+        providerUsed: providerName,
+        inputTokens: llmResponse.usage.promptTokens,
+        outputTokens: llmResponse.usage.completionTokens,
+        cost,
+        latencyMs: llmResponse.latencyMs,
+        structured: jsonMode ? this.tryParseJson(llmResponse.content) : undefined,
       };
 
       // Track spending
       if (userId) {
-        await this.handleTrackSpend({ userId, amount: response.cost });
+        await this.handleTrackSpend({ userId, amount: cost });
       }
 
       // Emit event for tracking
@@ -296,50 +396,100 @@ export class ModelMasterAgent extends AgentBase {
         inputTokens: response.inputTokens,
         outputTokens: response.outputTokens,
         cost: response.cost,
+        latencyMs: response.latencyMs,
         userId,
       });
 
       return response;
+    } catch (error) {
+      // Log the error
+      this.log('error', `Call failed: ${(error as Error).message}`);
+
+      // Re-throw provider errors
+      if (error instanceof ProviderError) {
+        throw error;
+      }
+
+      throw error;
     } finally {
       this.activeCalls--;
+    }
+  }
+
+  private tryParseJson(content: string): unknown {
+    try {
+      return JSON.parse(content);
+    } catch {
+      return undefined;
     }
   }
 
   private async handlePreviewRouting(request: PreviewRoutingRequest): Promise<RouterDecision> {
     const { capability, modelOverride } = request;
 
-    // Get available models for this capability from config
-    const modelClasses = await this.config.get<Record<string, ModelClass>>(
-      'agents',
-      'modelClasses'
-    ) || this.getDefaultModelClasses();
+    // If model override specified, use it directly
+    if (modelOverride) {
+      const model = await this.registry.get(modelOverride);
+      if (model && model.vettingStatus === 'approved') {
+        return {
+          capability,
+          selectedModel: model.id,
+          selectedProvider: model.provider,
+          reason: `Model override: ${modelOverride}`,
+          alternatives: [],
+        };
+      }
+    }
 
-    const modelClass = modelClasses[capability];
+    // Get models for capability from ModelRegistry
+    const models = await this.registry.getForCapability(capability as ModelCapability);
 
-    if (!modelClass) {
-      // Fallback to default
+    if (models.length === 0) {
+      // No models for this capability - try to find something close
+      const defaultModel = await this.registry.getDefault('completion');
       return {
         capability,
-        selectedModel: modelOverride || 'claude-3-sonnet',
-        selectedProvider: 'anthropic',
-        reason: `No specific routing for capability "${capability}", using default`,
+        selectedModel: defaultModel.id,
+        selectedProvider: defaultModel.provider,
+        reason: `No specific model for "${capability}", using default completion model`,
         alternatives: [],
       };
     }
 
-    // Sort by priority
-    const sortedModels = [...modelClass.models].sort((a, b) => a.priority - b.priority);
-    const primary = sortedModels[0];
+    // Models are already sorted by quality score from getForCapability
+    const primary = models[0];
+
+    // Check if primary's provider is available
+    const providerAvailable = await this.providers.isAvailable(primary.provider);
+
+    if (!providerAvailable && models.length > 1) {
+      // Find first alternative with available provider
+      for (let i = 1; i < models.length; i++) {
+        if (await this.providers.isAvailable(models[i].provider)) {
+          return {
+            capability,
+            selectedModel: models[i].id,
+            selectedProvider: models[i].provider,
+            reason: `Primary provider ${primary.provider} unavailable, falling back to ${models[i].id}`,
+            alternatives: models.slice(i + 1).map(m => ({
+              model: m.id,
+              provider: m.provider,
+              reason: `Quality score: ${(m.performanceProfile.qualityScore * 100).toFixed(0)}%`,
+            })),
+          };
+        }
+      }
+    }
 
     return {
       capability,
-      selectedModel: modelOverride || primary.modelId,
+      selectedModel: primary.id,
       selectedProvider: primary.provider,
-      reason: `Routed to ${primary.modelId} (priority ${primary.priority})`,
-      alternatives: sortedModels.slice(1).map(m => ({
-        model: m.modelId,
+      reason: `Highest quality model for "${capability}" (${(primary.performanceProfile.qualityScore * 100).toFixed(0)}% quality)`,
+      alternatives: models.slice(1).map(m => ({
+        model: m.id,
         provider: m.provider,
-        reason: `Alternative with priority ${m.priority}`,
+        reason: `Quality score: ${(m.performanceProfile.qualityScore * 100).toFixed(0)}%`,
       })),
     };
   }
@@ -358,9 +508,14 @@ export class ModelMasterAgent extends AgentBase {
       MODEL_MASTER_CONFIG.BUDGET_CRITICAL_THRESHOLD,
       0.95
     );
+    const defaultBudget = await this.config.getOrDefault<number>(
+      'limits',
+      MODEL_MASTER_CONFIG.DEFAULT_USER_BUDGET,
+      10.0
+    );
 
-    // Get user's limit (would come from user profile in production)
-    const limit = 10.0; // Default $10 limit
+    // Get user's limit (TODO: get from database/user profile)
+    const limit = defaultBudget;
     const spent = this.userSpending.get(userId) || 0;
     const remaining = limit - spent;
     const usageRatio = spent / limit;
@@ -382,34 +537,33 @@ export class ModelMasterAgent extends AgentBase {
     };
   }
 
-  private async handleListCapabilities(_request: ListCapabilitiesRequest): Promise<ModelClass[]> {
-    const modelClasses = await this.config.get<Record<string, ModelClass>>(
-      'agents',
-      'modelClasses'
-    ) || this.getDefaultModelClasses();
+  private async handleListCapabilities(_request: ListCapabilitiesRequest): Promise<ModelCapability[]> {
+    // Return all unique capabilities from approved models
+    const models = await this.registry.listAllModels();
+    const capabilities = new Set<ModelCapability>();
 
-    return Object.values(modelClasses);
+    for (const model of models) {
+      if (model.vettingStatus === 'approved') {
+        for (const cap of model.capabilities) {
+          capabilities.add(cap);
+        }
+      }
+    }
+
+    return Array.from(capabilities);
   }
 
   private async handleListModels(request: ListModelsRequest): Promise<ModelInfo[]> {
     const { capability } = request;
 
-    const modelClasses = await this.config.get<Record<string, ModelClass>>(
-      'agents',
-      'modelClasses'
-    ) || this.getDefaultModelClasses();
+    const models = await this.registry.getForCapability(capability as ModelCapability);
 
-    const modelClass = modelClasses[capability];
-
-    if (!modelClass) {
-      throw new Error(`Unknown capability: ${capability}`);
-    }
-
-    return modelClass.models.map(pref => ({
-      modelId: pref.modelId,
-      provider: pref.provider,
-      priority: pref.priority,
-      conditions: pref.conditions,
+    return models.map(m => ({
+      modelId: m.id,
+      provider: m.provider,
+      capabilities: m.capabilities,
+      qualityScore: m.performanceProfile.qualityScore,
+      costPer1k: m.costPer1kTokens,
     }));
   }
 
@@ -425,69 +579,9 @@ export class ModelMasterAgent extends AgentBase {
         userId,
         level: status.warningLevel,
         remaining: status.remaining,
+        spent: status.totalSpent,
       });
     }
-  }
-
-  // ─────────────────────────────────────────────────────────────────
-  // DEFAULT MODEL CLASSES
-  // ─────────────────────────────────────────────────────────────────
-
-  private getDefaultModelClasses(): Record<string, ModelClass> {
-    return {
-      'analysis': {
-        name: 'Analysis',
-        description: 'Text analysis and understanding',
-        capabilities: ['analysis'],
-        models: [
-          { modelId: 'claude-3-sonnet', provider: 'anthropic', priority: 1 },
-          { modelId: 'gpt-4-turbo', provider: 'openai', priority: 2 },
-        ],
-      },
-      'creative': {
-        name: 'Creative',
-        description: 'Creative writing and composition',
-        capabilities: ['creative'],
-        models: [
-          { modelId: 'claude-3-opus', provider: 'anthropic', priority: 1 },
-          { modelId: 'claude-3-sonnet', provider: 'anthropic', priority: 2 },
-        ],
-      },
-      'summarization': {
-        name: 'Summarization',
-        description: 'Text summarization',
-        capabilities: ['summarization'],
-        models: [
-          { modelId: 'claude-3-haiku', provider: 'anthropic', priority: 1 },
-          { modelId: 'gpt-4-turbo', provider: 'openai', priority: 2 },
-        ],
-      },
-      'detection': {
-        name: 'AI Detection',
-        description: 'Detect AI-generated content',
-        capabilities: ['detection'],
-        models: [
-          { modelId: 'claude-3-sonnet', provider: 'anthropic', priority: 1 },
-        ],
-      },
-      'humanizer': {
-        name: 'Humanizer',
-        description: 'Make text more human-like',
-        capabilities: ['humanizer'],
-        models: [
-          { modelId: 'claude-3-opus', provider: 'anthropic', priority: 1 },
-        ],
-      },
-      'embedding': {
-        name: 'Embedding',
-        description: 'Text embeddings',
-        capabilities: ['embedding'],
-        models: [
-          { modelId: 'text-embedding-3-small', provider: 'openai', priority: 1 },
-          { modelId: 'voyage-2', provider: 'voyage', priority: 2 },
-        ],
-      },
-    };
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -501,48 +595,92 @@ export class ModelMasterAgent extends AgentBase {
     capability: string,
     input: string,
     options?: {
+      systemPrompt?: string;
       params?: Record<string, unknown>;
       userId?: string;
       modelOverride?: string;
+      temperature?: number;
+      maxTokens?: number;
+      jsonMode?: boolean;
     }
   ): Promise<AIResponse> {
     return this.handleCallCapability({
       capability,
       input,
+      systemPrompt: options?.systemPrompt,
       params: options?.params,
       userId: options?.userId,
       modelOverride: options?.modelOverride,
+      temperature: options?.temperature,
+      maxTokens: options?.maxTokens,
+      jsonMode: options?.jsonMode,
     });
   }
 
   /**
    * Quick call for common capabilities
+   * All prompts are sourced from the central prompt registry.
    */
   async translate(text: string, targetLanguage: string, userId?: string): Promise<string> {
-    const response = await this.callCapability('translation', text, {
-      params: { targetLanguage },
+    const promptDef = getPrompt('MODEL_MASTER_TRANSLATE');
+    const systemPrompt = promptDef?.template
+      .replace('{{targetLanguage}}', targetLanguage)
+      .replace('{{text}}', text)
+      ?? `Translate the following text to ${targetLanguage}. Return only the translation, no explanation.\n\nText:\n${text}`;
+
+    const response = await this.callCapability('completion', text, {
+      systemPrompt,
       userId,
     });
     return response.output;
   }
 
   async analyze(text: string, userId?: string): Promise<unknown> {
-    const response = await this.callCapability('analysis', text, { userId });
+    const promptDef = getPrompt('MODEL_MASTER_ANALYZE');
+    const systemPrompt = promptDef?.template.replace('{{text}}', text)
+      ?? `Analyze the following text. Provide structured analysis.\n\nText:\n${text}`;
+
+    const response = await this.callCapability('analysis', text, {
+      systemPrompt,
+      userId,
+      jsonMode: true,
+    });
     return response.structured || response.output;
   }
 
   async summarize(text: string, userId?: string): Promise<string> {
-    const response = await this.callCapability('summarization', text, { userId });
+    const promptDef = getPrompt('MODEL_MASTER_SUMMARIZE');
+    const systemPrompt = promptDef?.template.replace('{{text}}', text)
+      ?? `Summarize the following text concisely.\n\nText:\n${text}`;
+
+    const response = await this.callCapability('completion', text, {
+      systemPrompt,
+      userId,
+    });
     return response.output;
   }
 
   async detectAI(text: string): Promise<unknown> {
-    const response = await this.callCapability('detection', text);
+    const promptDef = getPrompt('MODEL_MASTER_DETECT_AI');
+    const systemPrompt = promptDef?.template.replace('{{text}}', text)
+      ?? `Analyze this text for AI-generated content indicators. Return a JSON object with probability (0-1) and evidence array.\n\nText:\n${text}`;
+
+    const response = await this.callCapability('analysis', text, {
+      systemPrompt,
+      jsonMode: true,
+    });
     return response.structured || response.output;
   }
 
   async humanize(text: string, userId?: string): Promise<string> {
-    const response = await this.callCapability('humanizer', text, { userId });
+    const promptDef = getPrompt('MODEL_MASTER_HUMANIZE');
+    const systemPrompt = promptDef?.template.replace('{{text}}', text)
+      ?? `Rewrite this text to sound more natural and human-like while preserving the meaning.\n\nText:\n${text}`;
+
+    const response = await this.callCapability('creative', text, {
+      systemPrompt,
+      userId,
+    });
     return response.output;
   }
 

@@ -87,6 +87,8 @@ export function createInitializationMethods(
         findDerivedBuffers: async (_rootBufferId: string) => {
           return [];
         },
+        getPersonaProfile: (id: string) => store.getPersonaProfile(id),
+        getStyleProfile: (id: string) => store.getStyleProfile(id),
       };
     },
 

@@ -797,6 +797,678 @@ export const VIMALAKIRTI_PROMPTS: PromptDefinition[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
+// TRANSFORMATION PROMPTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const TRANSFORMATION_SYSTEM: PromptDefinition = {
+  id: 'TRANSFORMATION_SYSTEM',
+  name: 'Transformation System Prompt',
+  description: 'Base system prompt for all narrative transformations',
+  template: `You are a narrative transformation specialist.
+You transform text while preserving specified invariants.
+Output ONLY the transformed text with no explanation or commentary.`,
+  requirements: {
+    capabilities: [],
+    temperature: 0.6,
+    maxTokens: 8192,
+  },
+  version: 1,
+  usedBy: ['builder', 'transformation-service'],
+};
+
+export const TRANSFORMATION_PERSONA: PromptDefinition = {
+  id: 'TRANSFORMATION_PERSONA',
+  name: 'Persona Transformation',
+  description: 'Transform WHO perceives/narrates while preserving WHAT and HOW',
+  template: `You are a narrative perspective transformation specialist. Your task is to rewrite the following text through the lens of "{{personaName}}".
+
+PERSONA DEFINITION:
+{{personaSystemPrompt}}
+
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 1: INVARIANTS (MUST PRESERVE)
+═══════════════════════════════════════════════════════════════════════════════
+These elements define WHAT happens and HOW it's written. Do not change them.
+
+• PLOT & EVENTS: Every event must happen in the same sequence with same outcomes
+• FACTS & ENTITIES: All names, locations, objects, dates, and specific details stay the same
+• SETTING & UNIVERSE: The world remains the same (don't shift genres or eras)
+• DIALOGUE CONTENT: Keep dialogue meaning intact
+• WRITING STYLE: Preserve sentence patterns, vocabulary register, figurative language density
+  (Persona changes WHO perceives, not HOW they write)
+
+⚠️ VOCABULARY RULE (CRITICAL):
+Keep ALL specific nouns, verbs, names, and key terms from the original.
+Only change the FRAMING and PERSPECTIVE, not the vocabulary.
+Do not replace "boss" with "supervisor", "email" with "correspondence", etc.
+
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 2: PERSONA DIMENSIONS (WHAT YOU MAY CHANGE)
+═══════════════════════════════════════════════════════════════════════════════
+Persona is a stable epistemic operator - it determines WHO perceives, WHAT counts
+as salient, WHAT is taken for granted, and HOW uncertainty is handled.
+
+ONTOLOGICAL FRAMING:
+• How the narrator understands the world (orderly vs chaotic, improvable vs fixed)
+• What forces the narrator sees as primary (systems vs individuals, fate vs agency)
+
+EPISTEMIC STANCE:
+• How the narrator knows things (observation, inference, intuition, authority)
+• Certainty level (confident assertions vs hedged observations vs open questions)
+
+ATTENTION & SALIENCE:
+• What the narrator notices first and lingers on
+• What the narrator treats as background or unremarkable
+
+NORMATIVE FRAMING:
+• What the narrator implicitly approves or finds admirable (shown, not stated)
+• What provokes the narrator's skepticism or concern
+
+{{lengthGuidance}}
+
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 3: PROHIBITIONS (HARD NO - NEVER DO THESE)
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ NO STYLE CHANGES: Don't alter sentence length patterns, vocabulary register,
+   or figurative language density.
+
+❌ NO NEW FACTS: Don't invent new objects, characters, locations, or details.
+
+❌ NO NARRATOR BIOGRAPHY: Don't add "As a scientist, I..." framing.
+
+❌ NO MORAL SERMONS: Values should be implicit, not stated as lessons.
+
+❌ NO PLATFORM ARTIFACTS: Never add "EDIT:", "Thanks for reading", etc.
+
+❌ NO GENRE SHIFTS: Don't turn narrative into essay or vice versa.
+
+═══════════════════════════════════════════════════════════════════════════════
+SOURCE TEXT:
+═══════════════════════════════════════════════════════════════════════════════
+{{text}}
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT:
+═══════════════════════════════════════════════════════════════════════════════
+Output ONLY the transformed text - no explanations, no thinking process.
+Begin directly with the transformed content.`,
+  requirements: {
+    capabilities: [],
+    temperature: 0.6,
+    maxTokens: 8192,
+  },
+  version: 1,
+  usedBy: ['builder', 'transformation-service'],
+};
+
+export const TRANSFORMATION_STYLE: PromptDefinition = {
+  id: 'TRANSFORMATION_STYLE',
+  name: 'Style Transformation',
+  description: 'Transform HOW the text is written while preserving WHO and WHAT',
+  template: `You are a writing style transformation specialist. Your task is to rewrite the following text in "{{styleName}}" style.
+
+STYLE GUIDANCE:
+{{stylePrompt}}
+
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 1: INVARIANTS (MUST PRESERVE)
+═══════════════════════════════════════════════════════════════════════════════
+
+• EVENT ORDER: Every event must happen in the same sequence
+• CAUSE/EFFECT: Preserve all causal relationships between events
+• DIALOGUE CONTENT: Keep dialogue meaning intact
+• CHARACTER KNOWLEDGE: Characters know only what they knew originally
+• NARRATIVE VIEWPOINT: {{viewpointHint}} - maintain this perspective throughout
+• FACTS & ENTITIES: All names, locations, objects, and details stay the same
+• GENRE IDENTITY: The text type remains the same
+
+⚠️ VOCABULARY RULE (CRITICAL):
+Keep ALL specific nouns, names, and key terms from the original.
+Transform sentence STRUCTURE and hedging style only.
+Do not replace "boss" with "supervisor", "email" with "missive", etc.
+
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 2: STYLE CHANGES (WHAT YOU MAY CHANGE)
+═══════════════════════════════════════════════════════════════════════════════
+
+SENTENCE-LEVEL:
+• Sentence length and variation
+• Clause complexity
+• Lexical register
+• Cadence and rhythm
+
+FIGURATIVE LANGUAGE:
+• Metaphor and simile frequency (within reason)
+• Imagery source domains
+• Sound devices (light use)
+
+DISCOURSE-LEVEL:
+• Connective tissue
+• Rhetorical devices
+• Pacing of description
+
+{{lengthGuidance}}
+
+═══════════════════════════════════════════════════════════════════════════════
+LAYER 3: PROHIBITIONS (HARD NO)
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ NO PLATFORM ARTIFACTS: Never add "EDIT:", "Thanks for reading", etc.
+❌ NO NARRATOR IDENTITY SHIFT: Don't turn third-person into first-person.
+❌ NO NEW FACTS OR ENTITIES: Don't invent new details.
+❌ NO MORAL REFRAMING: Don't change the fundamental tone or meaning.
+❌ NO VIEWPOINT MIXING: Maintain consistent perspective throughout.
+
+═══════════════════════════════════════════════════════════════════════════════
+SOURCE TEXT:
+═══════════════════════════════════════════════════════════════════════════════
+{{text}}
+
+═══════════════════════════════════════════════════════════════════════════════
+OUTPUT:
+═══════════════════════════════════════════════════════════════════════════════
+Output ONLY the transformed text - no explanations.
+Begin directly with the transformed content.`,
+  requirements: {
+    capabilities: [],
+    temperature: 0.6,
+    maxTokens: 8192,
+  },
+  version: 1,
+  usedBy: ['builder', 'transformation-service'],
+};
+
+/**
+ * Namespace transformation prompts - DEPRECATED
+ * @deprecated Namespace transformations lose original meaning. Use persona/style instead.
+ */
+export const TRANSFORMATION_NAMESPACE_EXTRACT: PromptDefinition = {
+  id: 'TRANSFORMATION_NAMESPACE_EXTRACT',
+  name: 'Namespace Structure Extraction (Deprecated)',
+  description: 'Extract core structure for namespace transformation - DEPRECATED',
+  deprecated: true,
+  template: `You are a narrative structure analyst.
+
+Extract the CORE STRUCTURE of this narrative without any universe-specific details:
+- Who does what (roles, not names)
+- What happens (events, not locations)
+- What conflicts arise (tensions, not specifics)
+- How things resolve (outcomes, not details)
+
+Preserve the NARRATIVE VOICE and TONE completely.
+
+Source Text:
+"""
+{{text}}
+"""
+
+Core Structure (abstract, universe-neutral):`,
+  requirements: {
+    capabilities: [],
+    temperature: 0.5,
+    maxTokens: 4096,
+  },
+  version: 1,
+  usedBy: ['transformation-service'],
+};
+
+export const TRANSFORMATION_NAMESPACE_MAP: PromptDefinition = {
+  id: 'TRANSFORMATION_NAMESPACE_MAP',
+  name: 'Namespace Mapping (Deprecated)',
+  description: 'Map abstract structure to new namespace - DEPRECATED',
+  deprecated: true,
+  template: `You are a narrative universe mapper.
+
+Map this abstract narrative structure into the "{{namespaceName}}" universe:
+
+{{namespaceContextPrompt}}
+
+MAPPING RULES:
+1. Translate roles → appropriate entities in {{namespaceName}}
+2. Translate events → equivalent actions in {{namespaceName}}
+3. Translate conflicts → analogous tensions in {{namespaceName}}
+4. Keep the NARRATIVE VOICE and TONE from the original
+5. Use proper {{namespaceName}} terminology and concepts
+
+Abstract Structure:
+"""
+{{structure}}
+"""
+
+Mapped to {{namespaceName}}:`,
+  requirements: {
+    capabilities: [],
+    temperature: 0.5,
+    maxTokens: 4096,
+  },
+  version: 1,
+  usedBy: ['transformation-service'],
+};
+
+export const TRANSFORMATION_NAMESPACE_RECONSTRUCT: PromptDefinition = {
+  id: 'TRANSFORMATION_NAMESPACE_RECONSTRUCT',
+  name: 'Namespace Reconstruction (Deprecated)',
+  description: 'Reconstruct full narrative from mapped structure - DEPRECATED',
+  deprecated: true,
+  template: `You are a narrative reconstruction specialist.
+
+Take this {{namespaceName}}-mapped structure and write it as a complete, engaging narrative.
+
+RECONSTRUCTION RULES:
+1. Fully realize the {{namespaceName}} universe with vivid details
+2. Maintain the EXACT narrative voice and tone from the mapping
+3. Keep the same sentence patterns and paragraph structure
+4. Make it feel natural and immersive in {{namespaceName}}
+{{lengthGuidance}}
+
+Mapped Structure:
+"""
+{{mapped}}
+"""
+
+Complete Narrative in {{namespaceName}}:`,
+  requirements: {
+    capabilities: [],
+    temperature: 0.6,
+    maxTokens: 8192,
+  },
+  version: 1,
+  usedBy: ['transformation-service'],
+};
+
+export const TRANSFORMATION_PROMPTS: PromptDefinition[] = [
+  TRANSFORMATION_SYSTEM,
+  TRANSFORMATION_PERSONA,
+  TRANSFORMATION_STYLE,
+  TRANSFORMATION_NAMESPACE_EXTRACT,
+  TRANSFORMATION_NAMESPACE_MAP,
+  TRANSFORMATION_NAMESPACE_RECONSTRUCT,
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SIC (SUBJECTIVE INTENTIONAL CONSTRAINT) PROMPTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Guardrails appended to all SIC prompts
+ */
+export const SIC_GUARDRAILS = `
+CRITICAL RULES:
+- Output ONLY valid JSON. No markdown, no explanation, no preamble.
+- Do NOT evaluate style, aesthetics, or quality.
+- Do NOT suggest improvements or rewrites.
+- Focus ONLY on detecting constraint traces as specified.
+- Every claim must cite specific evidence from the text.
+- If uncertain, say "insufficient evidence" rather than guessing.
+`;
+
+export const SIC_GENRE_DETECTION: PromptDefinition = {
+  id: 'SIC_GENRE_DETECTION',
+  name: 'SIC Genre Detection',
+  description: 'Classify text genre for SIC analysis calibration (Pass 0)',
+  template: `You are a genre classifier. Analyze the text and determine its primary genre.
+
+Your task:
+1. Read the text carefully
+2. Identify the primary genre from: narrative, argument, technical, legal, marketing, unknown
+3. Note any genre mixing or ambiguity
+
+Text:
+{{text}}
+
+Output JSON only:
+{
+  "genre": "narrative" | "argument" | "technical" | "legal" | "marketing" | "unknown",
+  "confidence": 0.0-1.0,
+  "notes": "brief explanation of genre signals"
+}
+${SIC_GUARDRAILS}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.2,
+    maxTokens: 512,
+  },
+  version: 1,
+  usedBy: ['sic-analyzer'],
+};
+
+export const SIC_EXTRACTOR: PromptDefinition = {
+  id: 'SIC_EXTRACTOR',
+  name: 'SIC Evidence Extractor',
+  description: 'Extract evidence of subjective intentional constraint (Pass 1)',
+  template: `You are a constraint detector. Your task is to find evidence of SUBJECTIVE INTENTIONAL CONSTRAINT in the text.
+
+Subjective Intentional Constraint measures the cost of authorship: traces of commitment, tradeoff, irreversibility, and situated stakes. It is NOT about style or quality.
+
+For EACH feature category, extract relevant quotes (max 25 words each) with rationale:
+
+POSITIVE FEATURES (indicators of human authorship):
+
+1. commitment_irreversibility
+   - Concrete decisions with consequences
+   - Claims that narrow future options
+   - "Humans trap themselves. LLMs keep exits open."
+
+2. epistemic_risk_uncertainty
+   - Being wrong, surprises, ignorance that mattered
+   - NOT just hedging words, but genuine not-knowing with stakes
+   - "I thought X but Y", discoveries that cost something
+
+3. time_pressure_tradeoffs
+   - Urgency, deadlines, asymmetric time awareness
+   - "suddenly", "before I could", "too late"
+
+4. situatedness_body_social
+   - Embodied risk, social cost, friction
+   - Physical presence, social exposure
+
+5. scar_tissue_specificity
+   - PERSISTENT residue in the PRESENT
+   - Physical involuntary reactions: flinch, wince, freeze
+   - Temporal persistence: "still", "even now", "years later"
+   - NOT formulaic apology language
+
+6. bounded_viewpoint
+   - Non-omniscient narration
+   - Limited perspective, acknowledged gaps
+
+NEGATIVE FEATURES (indicators of AI generation):
+
+7. anti_smoothing (high score = GOOD)
+   - REFUSAL OF SYMMETRY
+   - HIGH: Asymmetric commitment, closure of alternatives
+   - LOW: "Valid arguments on both sides", performed balance
+
+8. meta_contamination
+   - Preambles, "EDIT:", roleplay wrappers
+   - "In conclusion", "It is important to note"
+
+Text:
+{{text}}
+
+Output JSON only:
+{
+  "features": {
+    "commitment_irreversibility": {
+      "evidence": [{"quote": "...", "rationale": "..."}],
+      "signal_strength": "none" | "weak" | "moderate" | "strong"
+    }
+  },
+  "preliminary_notes": "overall observations"
+}
+${SIC_GUARDRAILS}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 2048,
+  },
+  version: 1,
+  usedBy: ['sic-analyzer'],
+};
+
+export const SIC_JUDGE: PromptDefinition = {
+  id: 'SIC_JUDGE',
+  name: 'SIC Judge',
+  description: 'Score constraint evidence and calculate final SIC score (Pass 2)',
+  template: `You are a constraint judge. Given extracted evidence, score each feature and provide final assessment.
+
+GENRE CONTEXT: {{genreContext}}
+
+Your task:
+1. Review the extracted evidence for each feature
+2. Score each feature 0-100 based on evidence strength
+3. Apply genre-appropriate calibration
+4. Identify key inflection points (collapse moments)
+5. Calculate overall SIC score
+
+SCORING GUIDELINES:
+- 0-20: No evidence or very weak signals
+- 21-40: Some evidence but inconsistent
+- 41-60: Moderate evidence, clear constraint traces
+- 61-80: Strong evidence, multiple constraint types
+- 81-100: Exceptional, load-bearing constraint throughout
+
+INFLECTION POINTS:
+Collapse moments where interpretive freedom reduces.
+Types: commitment, reversal, reframe, stakes, constraint-reveal
+
+Evidence:
+{{extractedEvidence}}
+
+Output JSON only:
+{
+  "features": {
+    "commitment_irreversibility": {
+      "score": 0-100,
+      "notes": "brief scoring rationale",
+      "evidence": [{"quote": "...", "rationale": "..."}]
+    }
+  },
+  "inflectionPoints": [
+    {
+      "chunkId": "chunk_0",
+      "kind": "commitment",
+      "quote": "the specific sentence",
+      "whyItMatters": "why this reduces degrees of freedom"
+    }
+  ],
+  "sicScore": 0-100,
+  "aiProbability": 0.0-1.0,
+  "diagnostics": {
+    "genreBaselineUsed": true/false,
+    "corporateBureaucratRisk": true/false,
+    "highFluencyLowCommitmentPattern": true/false
+  },
+  "notes": "human-readable summary"
+}
+${SIC_GUARDRAILS}`,
+  requirements: {
+    capabilities: ['json-mode', 'analysis'],
+    temperature: 0.3,
+    maxTokens: 2048,
+  },
+  version: 1,
+  usedBy: ['sic-analyzer'],
+};
+
+export const SIC_STYLE_CHECK_EXTRACTOR: PromptDefinition = {
+  id: 'SIC_STYLE_CHECK_EXTRACTOR',
+  name: 'Style Check Extractor',
+  description: 'Extract style features for comparison against profile',
+  template: `You are a style analyzer. Compare the text against the provided style profile.
+
+Style Profile:
+{{styleProfile}}
+
+Text:
+{{text}}
+
+Output JSON only:
+{
+  "matches": [{"pattern": "...", "evidence": "...", "strength": 0.0-1.0}],
+  "deviations": [{"expected": "...", "actual": "...", "severity": "minor" | "moderate" | "major"}],
+  "metrics": {
+    "avgSentenceLength": number,
+    "vocabularyLevel": "basic" | "intermediate" | "advanced",
+    "formalityLevel": "informal" | "neutral" | "formal"
+  }
+}
+${SIC_GUARDRAILS}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 1024,
+  },
+  version: 1,
+  usedBy: ['sic-analyzer'],
+};
+
+export const SIC_STYLE_CHECK_JUDGE: PromptDefinition = {
+  id: 'SIC_STYLE_CHECK_JUDGE',
+  name: 'Style Check Judge',
+  description: 'Score overall style consistency',
+  template: `You are a style consistency judge. Score the overall consistency.
+
+Extraction Results:
+{{extractionResults}}
+
+Output JSON only:
+{
+  "consistencyScore": 0-100,
+  "profileMatchScore": 0-100,
+  "deviations": ["human-readable deviation descriptions"],
+  "metrics": {
+    "perplexity": number or null,
+    "burstiness": number or null,
+    "avgSentenceLength": number,
+    "typeTokenRatio": number or null
+  }
+}
+${SIC_GUARDRAILS}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 1024,
+  },
+  version: 1,
+  usedBy: ['sic-analyzer'],
+};
+
+export const SIC_PROFILE_VETTING: PromptDefinition = {
+  id: 'SIC_PROFILE_VETTING',
+  name: 'Profile Vetting',
+  description: 'Evaluate if text is suitable for extracting a writing profile',
+  template: `You are a profile source evaluator. Determine if this text is suitable for extracting a writing profile.
+
+Text:
+{{text}}
+
+Output JSON only:
+{
+  "suitable": true/false,
+  "qualityScore": 0-100,
+  "sicScore": 0-100,
+  "concerns": ["list of specific concerns"],
+  "recommendations": ["suggestions for better samples"]
+}
+${SIC_GUARDRAILS}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 1024,
+  },
+  version: 1,
+  usedBy: ['sic-analyzer'],
+};
+
+export const SIC_PROMPTS: PromptDefinition[] = [
+  SIC_GENRE_DETECTION,
+  SIC_EXTRACTOR,
+  SIC_JUDGE,
+  SIC_STYLE_CHECK_EXTRACTOR,
+  SIC_STYLE_CHECK_JUDGE,
+  SIC_PROFILE_VETTING,
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODEL-MASTER UTILITY PROMPTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const MODEL_MASTER_TRANSLATE: PromptDefinition = {
+  id: 'MODEL_MASTER_TRANSLATE',
+  name: 'Translation',
+  description: 'Translate text to a target language',
+  template: `Translate the following text to {{targetLanguage}}. Return only the translation, no explanation.
+
+Text:
+{{text}}`,
+  requirements: {
+    capabilities: [],
+    temperature: 0.3,
+    maxTokens: 4096,
+  },
+  version: 1,
+  usedBy: ['model-master'],
+};
+
+export const MODEL_MASTER_ANALYZE: PromptDefinition = {
+  id: 'MODEL_MASTER_ANALYZE',
+  name: 'Text Analysis',
+  description: 'Analyze text and provide structured output',
+  template: `Analyze the following text. Provide structured analysis.
+
+Text:
+{{text}}`,
+  requirements: {
+    capabilities: ['json-mode'],
+    temperature: 0.3,
+    maxTokens: 2048,
+  },
+  version: 1,
+  usedBy: ['model-master'],
+};
+
+export const MODEL_MASTER_SUMMARIZE: PromptDefinition = {
+  id: 'MODEL_MASTER_SUMMARIZE',
+  name: 'Summarization',
+  description: 'Summarize text concisely',
+  template: `Summarize the following text concisely.
+
+Text:
+{{text}}`,
+  requirements: {
+    capabilities: [],
+    temperature: 0.4,
+    maxTokens: 1024,
+  },
+  version: 1,
+  usedBy: ['model-master'],
+};
+
+export const MODEL_MASTER_DETECT_AI: PromptDefinition = {
+  id: 'MODEL_MASTER_DETECT_AI',
+  name: 'AI Detection',
+  description: 'Detect AI-generated content indicators',
+  template: `Analyze this text for AI-generated content indicators. Return a JSON object with probability (0-1) and evidence array.
+
+Text:
+{{text}}`,
+  requirements: {
+    capabilities: ['json-mode', 'analysis'],
+    temperature: 0.2,
+    maxTokens: 1024,
+  },
+  version: 1,
+  usedBy: ['model-master'],
+};
+
+export const MODEL_MASTER_HUMANIZE: PromptDefinition = {
+  id: 'MODEL_MASTER_HUMANIZE',
+  name: 'Humanization',
+  description: 'Rewrite text to sound more natural and human-like',
+  template: `Rewrite this text to sound more natural and human-like while preserving the meaning.
+
+Text:
+{{text}}`,
+  requirements: {
+    capabilities: ['creative'],
+    temperature: 0.7,
+    maxTokens: 4096,
+  },
+  version: 1,
+  usedBy: ['model-master'],
+};
+
+export const MODEL_MASTER_PROMPTS: PromptDefinition[] = [
+  MODEL_MASTER_TRANSLATE,
+  MODEL_MASTER_ANALYZE,
+  MODEL_MASTER_SUMMARIZE,
+  MODEL_MASTER_DETECT_AI,
+  MODEL_MASTER_HUMANIZE,
+];
+
+// ═══════════════════════════════════════════════════════════════════════════
 // COMBINED REGISTRY
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -810,6 +1482,9 @@ export const ALL_PROMPTS: PromptDefinition[] = [
   ...HARVESTER_PROMPTS,
   ...REVIEWER_PROMPTS,
   ...VIMALAKIRTI_PROMPTS,
+  ...TRANSFORMATION_PROMPTS,
+  ...SIC_PROMPTS,
+  ...MODEL_MASTER_PROMPTS,
 ];
 
 /**
@@ -846,6 +1521,23 @@ export const PROMPT_CATEGORIES: Record<string, PromptCategory> = {
   VIMALAKIRTI_INQUIRY_LEVEL: 'vimalakirti',
   VIMALAKIRTI_PROFESSIONAL_DISTANCE: 'vimalakirti',
   VIMALAKIRTI_SHADOW_CHECK: 'vimalakirti',
+  TRANSFORMATION_SYSTEM: 'transform',
+  TRANSFORMATION_PERSONA: 'transform',
+  TRANSFORMATION_STYLE: 'transform',
+  TRANSFORMATION_NAMESPACE_EXTRACT: 'transform',
+  TRANSFORMATION_NAMESPACE_MAP: 'transform',
+  TRANSFORMATION_NAMESPACE_RECONSTRUCT: 'transform',
+  SIC_GENRE_DETECTION: 'reviewer',
+  SIC_EXTRACTOR: 'reviewer',
+  SIC_JUDGE: 'reviewer',
+  SIC_STYLE_CHECK_EXTRACTOR: 'reviewer',
+  SIC_STYLE_CHECK_JUDGE: 'reviewer',
+  SIC_PROFILE_VETTING: 'reviewer',
+  MODEL_MASTER_TRANSLATE: 'utility',
+  MODEL_MASTER_ANALYZE: 'utility',
+  MODEL_MASTER_SUMMARIZE: 'utility',
+  MODEL_MASTER_DETECT_AI: 'utility',
+  MODEL_MASTER_HUMANIZE: 'utility',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

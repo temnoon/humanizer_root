@@ -137,6 +137,16 @@ export interface VettedModel {
 
   /** Human-readable description */
   description?: string;
+
+  // ─────────────────────────────────────────────────────────────────
+  // Privacy & Compliance (CRITICAL for user trust)
+  // ─────────────────────────────────────────────────────────────────
+
+  /** Privacy level - where user data is processed */
+  privacyLevel: PrivacyLevel;
+
+  /** Extended privacy information for user awareness */
+  privacyInfo?: PrivacyInfo;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -171,6 +181,37 @@ export type ModelProvider =
   | 'cohere'
   | 'local'
   | 'custom';
+
+/**
+ * Privacy level for data handling
+ *
+ * Users MUST be informed where their archive content is being sent.
+ * This is a critical trust and compliance requirement.
+ */
+export type PrivacyLevel =
+  | 'local'           // Data stays on user's machine (Ollama, local models)
+  | 'cloud-trusted'   // Processed by our infrastructure (Cloudflare Workers AI)
+  | 'third-party';    // Sent to external API (OpenAI, Anthropic, Google, etc.)
+
+/**
+ * Privacy metadata for user awareness
+ */
+export interface PrivacyInfo {
+  /** Privacy classification */
+  level: PrivacyLevel;
+
+  /** User-facing warning message */
+  warning?: string;
+
+  /** Data retention policy (if known) */
+  dataRetention?: string;
+
+  /** Whether provider may train on data */
+  mayTrainOnData?: boolean;
+
+  /** Link to provider's privacy policy */
+  privacyPolicyUrl?: string;
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // FALLBACK CHAINS

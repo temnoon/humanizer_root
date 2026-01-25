@@ -1,7 +1,18 @@
 /**
  * Transformation Prompts
  *
- * System and user prompts for persona and style transformations.
+ * Functions that build prompts for persona and style transformations.
+ *
+ * IMPORTANT: The authoritative source for these prompts is:
+ * @humanizer/core/src/config/prompt-registry.ts
+ *
+ * The prompts are duplicated here for:
+ * 1. Backward compatibility with existing consumers
+ * 2. TypeScript standalone compilation (avoids circular dependency)
+ *
+ * When updating prompts, update BOTH locations:
+ * - This file (npe/src/transformations/prompts.ts)
+ * - Core registry (core/src/config/prompt-registry.ts)
  *
  * Key Design Principles:
  * - Style = HOW (sentence patterns, register, figurative language)
@@ -16,24 +27,20 @@
 import type { PersonaDefinition, StyleDefinition, NamespaceDefinition } from './types.js';
 
 /**
- * Persona transformation prompt
- *
- * Transforms WHO perceives/narrates while preserving WHAT and HOW.
+ * System prompt for transformations
  */
-export function createPersonaPrompt(
-  persona: PersonaDefinition,
-  text: string,
-  wordCount: number,
-  preserveLength: boolean
-): string {
-  const lengthGuidance = preserveLength
-    ? `Keep the output approximately the same length as the input (around ${wordCount} words).`
-    : '';
+export const TRANSFORMATION_SYSTEM = `You are a narrative transformation specialist.
+You transform text while preserving specified invariants.
+Output ONLY the transformed text with no explanation or commentary.`;
 
-  return `You are a narrative perspective transformation specialist. Your task is to rewrite the following text through the lens of "${persona.name}".
+/**
+ * Persona transformation prompt template
+ * @see TRANSFORMATION_PERSONA in @humanizer/core prompt-registry
+ */
+const PERSONA_TEMPLATE = `You are a narrative perspective transformation specialist. Your task is to rewrite the following text through the lens of "{{personaName}}".
 
 PERSONA DEFINITION:
-${persona.systemPrompt}
+{{personaSystemPrompt}}
 
 ═══════════════════════════════════════════════════════════════════════════════
 LAYER 1: INVARIANTS (MUST PRESERVE)
@@ -74,7 +81,7 @@ NORMATIVE FRAMING:
 • What the narrator implicitly approves or finds admirable (shown, not stated)
 • What provokes the narrator's skepticism or concern
 
-${lengthGuidance}
+{{lengthGuidance}}
 
 ═══════════════════════════════════════════════════════════════════════════════
 LAYER 3: PROHIBITIONS (HARD NO - NEVER DO THESE)
@@ -96,35 +103,22 @@ LAYER 3: PROHIBITIONS (HARD NO - NEVER DO THESE)
 ═══════════════════════════════════════════════════════════════════════════════
 SOURCE TEXT:
 ═══════════════════════════════════════════════════════════════════════════════
-${text}
+{{text}}
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT:
 ═══════════════════════════════════════════════════════════════════════════════
 Output ONLY the transformed text - no explanations, no thinking process.
 Begin directly with the transformed content.`;
-}
 
 /**
- * Style transformation prompt
- *
- * Transforms HOW the text is written while preserving WHO and WHAT.
+ * Style transformation prompt template
+ * @see TRANSFORMATION_STYLE in @humanizer/core prompt-registry
  */
-export function createStylePrompt(
-  style: StyleDefinition,
-  text: string,
-  wordCount: number,
-  preserveLength: boolean,
-  viewpointHint: string
-): string {
-  const lengthGuidance = preserveLength
-    ? `Keep the output approximately the same length as the input (around ${wordCount} words).`
-    : '';
-
-  return `You are a writing style transformation specialist. Your task is to rewrite the following text in "${style.name}" style.
+const STYLE_TEMPLATE = `You are a writing style transformation specialist. Your task is to rewrite the following text in "{{styleName}}" style.
 
 STYLE GUIDANCE:
-${style.stylePrompt}
+{{stylePrompt}}
 
 ═══════════════════════════════════════════════════════════════════════════════
 LAYER 1: INVARIANTS (MUST PRESERVE)
@@ -134,7 +128,7 @@ LAYER 1: INVARIANTS (MUST PRESERVE)
 • CAUSE/EFFECT: Preserve all causal relationships between events
 • DIALOGUE CONTENT: Keep dialogue meaning intact
 • CHARACTER KNOWLEDGE: Characters know only what they knew originally
-• NARRATIVE VIEWPOINT: ${viewpointHint} - maintain this perspective throughout
+• NARRATIVE VIEWPOINT: {{viewpointHint}} - maintain this perspective throughout
 • FACTS & ENTITIES: All names, locations, objects, and details stay the same
 • GENRE IDENTITY: The text type remains the same
 
@@ -163,7 +157,7 @@ DISCOURSE-LEVEL:
 • Rhetorical devices
 • Pacing of description
 
-${lengthGuidance}
+{{lengthGuidance}}
 
 ═══════════════════════════════════════════════════════════════════════════════
 LAYER 3: PROHIBITIONS (HARD NO)
@@ -178,13 +172,72 @@ LAYER 3: PROHIBITIONS (HARD NO)
 ═══════════════════════════════════════════════════════════════════════════════
 SOURCE TEXT:
 ═══════════════════════════════════════════════════════════════════════════════
-${text}
+{{text}}
 
 ═══════════════════════════════════════════════════════════════════════════════
 OUTPUT:
 ═══════════════════════════════════════════════════════════════════════════════
 Output ONLY the transformed text - no explanations.
 Begin directly with the transformed content.`;
+
+/**
+ * Simple template variable substitution.
+ * Replaces {{variable}} patterns with provided values.
+ */
+function fillTemplate(template: string, variables: Record<string, string>): string {
+  let result = template;
+  for (const [key, value] of Object.entries(variables)) {
+    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
+  }
+  return result;
+}
+
+/**
+ * Persona transformation prompt
+ *
+ * Transforms WHO perceives/narrates while preserving WHAT and HOW.
+ */
+export function createPersonaPrompt(
+  persona: PersonaDefinition,
+  text: string,
+  wordCount: number,
+  preserveLength: boolean
+): string {
+  const lengthGuidance = preserveLength
+    ? `Keep the output approximately the same length as the input (around ${wordCount} words).`
+    : '';
+
+  return fillTemplate(PERSONA_TEMPLATE, {
+    personaName: persona.name,
+    personaSystemPrompt: persona.systemPrompt,
+    lengthGuidance,
+    text,
+  });
+}
+
+/**
+ * Style transformation prompt
+ *
+ * Transforms HOW the text is written while preserving WHO and WHAT.
+ */
+export function createStylePrompt(
+  style: StyleDefinition,
+  text: string,
+  wordCount: number,
+  preserveLength: boolean,
+  viewpointHint: string
+): string {
+  const lengthGuidance = preserveLength
+    ? `Keep the output approximately the same length as the input (around ${wordCount} words).`
+    : '';
+
+  return fillTemplate(STYLE_TEMPLATE, {
+    styleName: style.name,
+    stylePrompt: style.stylePrompt,
+    viewpointHint,
+    lengthGuidance,
+    text,
+  });
 }
 
 /**
@@ -212,6 +265,7 @@ Core Structure (abstract, universe-neutral):`;
 
 /**
  * Namespace transformation - Step 2: Map to new namespace
+ * @deprecated Namespace transformations lose original meaning. Use persona/style instead.
  */
 export function createNamespaceMapPrompt(
   namespace: NamespaceDefinition,
@@ -240,6 +294,7 @@ Mapped to ${namespace.name}:`;
 
 /**
  * Namespace transformation - Step 3: Reconstruct
+ * @deprecated Namespace transformations lose original meaning. Use persona/style instead.
  */
 export function createNamespaceReconstructPrompt(
   namespace: NamespaceDefinition,
@@ -269,13 +324,6 @@ ${mapped}
 
 Complete Narrative in ${namespace.name}:`;
 }
-
-/**
- * System prompt for transformations
- */
-export const TRANSFORMATION_SYSTEM = `You are a narrative transformation specialist.
-You transform text while preserving specified invariants.
-Output ONLY the transformed text with no explanation or commentary.`;
 
 /**
  * Sanitize output - remove common LLM artifacts

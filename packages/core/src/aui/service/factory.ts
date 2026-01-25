@@ -125,6 +125,7 @@ export async function initUnifiedAuiWithStorage(
 
   // Attach the stores
   service.setStore(auiStore);
+  service.setArchiveStore(contentStore);
   if (booksStore) {
     service.setBooksStore(booksStore);
   }

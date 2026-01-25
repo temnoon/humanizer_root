@@ -1,6 +1,17 @@
 /**
  * SIC Prompt Templates
  *
+ * IMPORTANT: The authoritative source for these prompts is:
+ * @humanizer/core/src/config/prompt-registry.ts
+ *
+ * The prompts are duplicated here for:
+ * 1. Backward compatibility with existing consumers
+ * 2. TypeScript standalone compilation (avoids circular dependency)
+ *
+ * When updating prompts, update BOTH locations:
+ * - This file (npe/src/sic/prompts.ts)
+ * - Core registry (core/src/config/prompt-registry.ts)
+ *
  * Two-pass architecture:
  * - Pass 1 (Extractor): Fast model. Extracts evidence quotes.
  * - Pass 2 (Judge): Stronger model. Scores and calibrates.
@@ -10,6 +21,7 @@ import type { Genre } from '../types.js';
 
 /**
  * Guardrails appended to all prompts
+ * @see SIC_GUARDRAILS in @humanizer/core prompt-registry
  */
 export const PROMPT_GUARDRAILS = `
 CRITICAL RULES:
@@ -23,6 +35,7 @@ CRITICAL RULES:
 
 /**
  * Genre detection prompt (Pass 0)
+ * @see SIC_GENRE_DETECTION in @humanizer/core prompt-registry
  */
 export const GENRE_DETECTION_PROMPT = `You are a genre classifier. Analyze the text and determine its primary genre.
 
@@ -41,6 +54,7 @@ ${PROMPT_GUARDRAILS}`;
 
 /**
  * SIC Extractor prompt (Pass 1)
+ * @see SIC_EXTRACTOR in @humanizer/core prompt-registry
  */
 export const SIC_EXTRACTOR_PROMPT = `You are a constraint detector. Your task is to find evidence of SUBJECTIVE INTENTIONAL CONSTRAINT in the text.
 
@@ -103,6 +117,7 @@ ${PROMPT_GUARDRAILS}`;
 
 /**
  * SIC Judge prompt (Pass 2)
+ * @see SIC_JUDGE in @humanizer/core prompt-registry
  */
 export function getSicJudgePrompt(genre: Genre): string {
   const genreContext = getGenreContext(genre);
@@ -180,6 +195,7 @@ function getGenreContext(genre: Genre): string {
 
 /**
  * Style Check Extractor prompt
+ * @see SIC_STYLE_CHECK_EXTRACTOR in @humanizer/core prompt-registry
  */
 export const STYLE_CHECK_EXTRACTOR_PROMPT = `You are a style analyzer. Compare the text against the provided style profile.
 
@@ -197,6 +213,7 @@ ${PROMPT_GUARDRAILS}`;
 
 /**
  * Style Check Judge prompt
+ * @see SIC_STYLE_CHECK_JUDGE in @humanizer/core prompt-registry
  */
 export const STYLE_CHECK_JUDGE_PROMPT = `You are a style consistency judge. Score the overall consistency.
 
@@ -216,6 +233,7 @@ ${PROMPT_GUARDRAILS}`;
 
 /**
  * Profile Vetting prompt
+ * @see SIC_PROFILE_VETTING in @humanizer/core prompt-registry
  */
 export const VET_PROFILE_TEXT_PROMPT = `You are a profile source evaluator. Determine if this text is suitable for extracting a writing profile.
 

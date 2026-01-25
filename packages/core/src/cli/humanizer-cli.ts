@@ -22,9 +22,12 @@ import {
   resetUnifiedAui,
   initBufferManager,
   resetBufferManager,
+  initUnifiedAuiWithStorage,
 } from '../aui/index.js';
 import type { ContentBuffer } from '../buffer/types.js';
 import type { Book } from '../aui/types.js';
+import { EmbeddingService } from '../embeddings/embedding-service.js';
+import { initializeProviders, initializeAllHouseAgents } from '../houses/index.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LATEX UTILITIES
@@ -139,12 +142,8 @@ class HumanizerCli {
   private state: CliState;
   private rl: readline.Interface;
 
-  constructor(userId: string = 'cli-user', sessionId?: string) {
-    resetBufferManager();
-    resetUnifiedAui();
-    initBufferManager();
-
-    this.service = new UnifiedAuiService();
+  constructor(service: UnifiedAuiService, userId: string = 'cli-user', sessionId?: string) {
+    this.service = service;
     this.state = {
       sessionId: sessionId || null,
       userId,
@@ -1129,7 +1128,27 @@ ${this.state.activeBuffer.text}
   // ═══════════════════════════════════════════════════════════════════════════
 
   private async listPersonas(): Promise<void> {
-    this.print('Persona listing requires store connection', 'yellow');
+    if (!this.service.hasStore()) {
+      this.print('Persona listing requires store connection', 'yellow');
+      return;
+    }
+    try {
+      const personas = await this.service.listPersonaProfiles();
+      if (personas.length === 0) {
+        this.print('No personas found. Use "harvest <name>" to create one.', 'dim');
+        return;
+      }
+      this.print(`Personas (${personas.length}):`, 'cyan');
+      for (const p of personas) {
+        const defaultMark = p.isDefault ? ' *' : '';
+        this.print(`  ${p.id.slice(0, 8)} - ${p.name}${defaultMark}`);
+        if (p.voiceTraits && p.voiceTraits.length > 0) {
+          this.print(`    Traits: ${p.voiceTraits.slice(0, 3).join(', ')}`, 'dim');
+        }
+      }
+    } catch (error) {
+      this.print(`Failed to list personas: ${(error as Error).message}`, 'red');
+    }
   }
 
   private async startHarvest(name: string): Promise<void> {
@@ -1223,6 +1242,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   let userId = 'cli-user';
   let sessionId: string | undefined;
+  let noStorage = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--user' && args[i + 1]) {
@@ -1231,6 +1251,8 @@ async function main(): Promise<void> {
     } else if (args[i] === '--session' && args[i + 1]) {
       sessionId = args[i + 1];
       i++;
+    } else if (args[i] === '--no-storage') {
+      noStorage = true;
     } else if (args[i] === '--help') {
       console.log(`
 Humanizer AUI CLI
@@ -1241,13 +1263,96 @@ Usage:
 Options:
   --user <id>       User ID (default: cli-user)
   --session <id>    Resume existing session
+  --no-storage      Run without PostgreSQL storage
   --help            Show this help
+
+Environment:
+  POSTGRES_HOST     PostgreSQL host (default: localhost)
+  POSTGRES_PORT     PostgreSQL port (default: 5432)
+  POSTGRES_USER     PostgreSQL user (default: postgres)
+  POSTGRES_PASSWORD PostgreSQL password (default: '')
+  POSTGRES_DB       PostgreSQL database (default: humanizer_archive)
+  OLLAMA_URL        Ollama URL (default: http://localhost:11434)
 `);
       process.exit(0);
     }
   }
 
-  const cli = new HumanizerCli(userId, sessionId);
+  // Reset singletons
+  resetBufferManager();
+  resetUnifiedAui();
+  initBufferManager();
+
+  // Initialize LLM providers with environment config
+  const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+  console.log('\x1b[2mInitializing LLM providers...\x1b[0m');
+  await initializeProviders({
+    ollamaUrl,
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+  });
+
+  // Initialize house agents (model-master, harvester, etc.)
+  console.log('\x1b[2mInitializing house agents...\x1b[0m');
+  await initializeAllHouseAgents();
+  console.log('\x1b[32mHouse agents ready\x1b[0m');
+
+  let service: UnifiedAuiService;
+
+  if (noStorage) {
+    // Simple mode without storage
+    service = new UnifiedAuiService();
+    console.log('\x1b[33mRunning without storage - search/archive features disabled\x1b[0m');
+  } else {
+    // Initialize with PostgreSQL storage
+    const storageConfig = {
+      host: process.env.POSTGRES_HOST || 'localhost',
+      port: parseInt(process.env.POSTGRES_PORT || '5432'),
+      user: process.env.POSTGRES_USER || 'postgres',
+      password: process.env.POSTGRES_PASSWORD || '',
+      database: process.env.POSTGRES_DB || 'humanizer_archive',
+      maxConnections: 5,
+      idleTimeoutMs: 30000,
+      connectionTimeoutMs: 10000,
+      embeddingDimension: 768,
+      enableFTS: true,
+      enableVec: true,
+    };
+
+    const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+
+    // Create embedding function using EmbeddingService
+    const embeddingService = new EmbeddingService({
+      ollamaUrl,
+      embedModel: 'nomic-embed-text:latest',
+    });
+
+    // Check if Ollama is available
+    const ollamaAvailable = await embeddingService.isAvailable();
+    if (!ollamaAvailable) {
+      console.log('\x1b[33mWarning: Ollama not available at ' + ollamaUrl + '\x1b[0m');
+      console.log('\x1b[33mSearch/embedding features will be limited\x1b[0m');
+    }
+
+    const embedFn = ollamaAvailable
+      ? async (text: string) => embeddingService.embed(text)
+      : undefined;
+
+    try {
+      console.log(`\x1b[2mConnecting to PostgreSQL at ${storageConfig.host}:${storageConfig.port}/${storageConfig.database}...\x1b[0m`);
+      service = await initUnifiedAuiWithStorage({
+        storageConfig,
+        embedFn,
+      });
+      console.log('\x1b[32mConnected to archive storage\x1b[0m');
+    } catch (error) {
+      console.log(`\x1b[31mFailed to connect to storage: ${(error as Error).message}\x1b[0m`);
+      console.log('\x1b[33mFalling back to no-storage mode\x1b[0m');
+      service = new UnifiedAuiService();
+    }
+  }
+
+  const cli = new HumanizerCli(service, userId, sessionId);
   await cli.start();
 }
 

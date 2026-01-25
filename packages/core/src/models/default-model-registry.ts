@@ -49,6 +49,13 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['nomic-embed-text', 'nomic'],
     description: 'Local embedding model via Ollama',
+    privacyLevel: 'local',
+    privacyInfo: {
+      level: 'local',
+      warning: undefined, // No warning needed - data stays local
+      dataRetention: 'None - processed locally',
+      mayTrainOnData: false,
+    },
     performanceProfile: {
       avgLatencyMs: 50,
       qualityScore: 0.85,
@@ -67,6 +74,13 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['llama3.2', 'llama', 'llama-3b'],
     description: 'Local completion model via Ollama',
+    privacyLevel: 'local',
+    privacyInfo: {
+      level: 'local',
+      warning: undefined,
+      dataRetention: 'None - processed locally',
+      mayTrainOnData: false,
+    },
     performanceProfile: {
       avgLatencyMs: 200,
       qualityScore: 0.75,
@@ -76,7 +90,7 @@ export const DEFAULT_MODELS: VettedModel[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────
-  // OpenAI Models
+  // OpenAI Models (THIRD-PARTY - data sent to OpenAI servers)
   // ─────────────────────────────────────────────────────────────────
   {
     id: 'text-embedding-3-small',
@@ -89,6 +103,14 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['openai-embed-small', 'te3-small'],
     description: 'OpenAI small embedding model',
+    privacyLevel: 'third-party',
+    privacyInfo: {
+      level: 'third-party',
+      warning: 'Your content will be sent to OpenAI servers for processing',
+      dataRetention: '30 days for abuse monitoring (API)',
+      mayTrainOnData: false, // API data not used for training by default
+      privacyPolicyUrl: 'https://openai.com/policies/privacy-policy',
+    },
     performanceProfile: {
       avgLatencyMs: 100,
       qualityScore: 0.90,
@@ -107,6 +129,14 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['ada-002', 'ada'],
     description: 'OpenAI Ada embedding model (legacy)',
+    privacyLevel: 'third-party',
+    privacyInfo: {
+      level: 'third-party',
+      warning: 'Your content will be sent to OpenAI servers for processing',
+      dataRetention: '30 days for abuse monitoring (API)',
+      mayTrainOnData: false,
+      privacyPolicyUrl: 'https://openai.com/policies/privacy-policy',
+    },
     performanceProfile: {
       avgLatencyMs: 100,
       qualityScore: 0.85,
@@ -125,6 +155,14 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['gpt4o-mini', '4o-mini'],
     description: 'OpenAI GPT-4o Mini',
+    privacyLevel: 'third-party',
+    privacyInfo: {
+      level: 'third-party',
+      warning: 'Your content will be sent to OpenAI servers for processing',
+      dataRetention: '30 days for abuse monitoring (API)',
+      mayTrainOnData: false,
+      privacyPolicyUrl: 'https://openai.com/policies/privacy-policy',
+    },
     performanceProfile: {
       avgLatencyMs: 300,
       qualityScore: 0.85,
@@ -143,6 +181,14 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['gpt4o', '4o'],
     description: 'OpenAI GPT-4o',
+    privacyLevel: 'third-party',
+    privacyInfo: {
+      level: 'third-party',
+      warning: 'Your content will be sent to OpenAI servers for processing',
+      dataRetention: '30 days for abuse monitoring (API)',
+      mayTrainOnData: false,
+      privacyPolicyUrl: 'https://openai.com/policies/privacy-policy',
+    },
     performanceProfile: {
       avgLatencyMs: 500,
       qualityScore: 0.92,
@@ -151,7 +197,7 @@ export const DEFAULT_MODELS: VettedModel[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────
-  // Anthropic Models
+  // Anthropic Models (THIRD-PARTY - data sent to Anthropic servers)
   // ─────────────────────────────────────────────────────────────────
   {
     id: 'claude-3-haiku-20240307',
@@ -163,6 +209,14 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['claude-haiku', 'haiku'],
     description: 'Anthropic Claude 3 Haiku',
+    privacyLevel: 'third-party',
+    privacyInfo: {
+      level: 'third-party',
+      warning: 'Your content will be sent to Anthropic servers for processing',
+      dataRetention: '30 days for trust & safety (API)',
+      mayTrainOnData: false,
+      privacyPolicyUrl: 'https://www.anthropic.com/privacy',
+    },
     performanceProfile: {
       avgLatencyMs: 200,
       qualityScore: 0.80,
@@ -180,6 +234,14 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['claude-sonnet', 'sonnet', 'claude-sonnet-4'],
     description: 'Anthropic Claude Sonnet 4',
+    privacyLevel: 'third-party',
+    privacyInfo: {
+      level: 'third-party',
+      warning: 'Your content will be sent to Anthropic servers for processing',
+      dataRetention: '30 days for trust & safety (API)',
+      mayTrainOnData: false,
+      privacyPolicyUrl: 'https://www.anthropic.com/privacy',
+    },
     performanceProfile: {
       avgLatencyMs: 400,
       qualityScore: 0.93,
@@ -197,6 +259,14 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['claude-opus', 'opus', 'claude-opus-4'],
     description: 'Anthropic Claude Opus 4',
+    privacyLevel: 'third-party',
+    privacyInfo: {
+      level: 'third-party',
+      warning: 'Your content will be sent to Anthropic servers for processing',
+      dataRetention: '30 days for trust & safety (API)',
+      mayTrainOnData: false,
+      privacyPolicyUrl: 'https://www.anthropic.com/privacy',
+    },
     performanceProfile: {
       avgLatencyMs: 600,
       qualityScore: 0.97,
@@ -205,7 +275,7 @@ export const DEFAULT_MODELS: VettedModel[] = [
   },
 
   // ─────────────────────────────────────────────────────────────────
-  // Voyage Models
+  // Voyage Models (THIRD-PARTY - data sent to Voyage AI servers)
   // ─────────────────────────────────────────────────────────────────
   {
     id: 'voyage-2',
@@ -218,6 +288,14 @@ export const DEFAULT_MODELS: VettedModel[] = [
     vettingStatus: 'approved',
     aliases: ['voyage'],
     description: 'Voyage AI embedding model',
+    privacyLevel: 'third-party',
+    privacyInfo: {
+      level: 'third-party',
+      warning: 'Your content will be sent to Voyage AI servers for embedding',
+      dataRetention: 'Not specified',
+      mayTrainOnData: false,
+      privacyPolicyUrl: 'https://www.voyageai.com/privacy',
+    },
     performanceProfile: {
       avgLatencyMs: 80,
       qualityScore: 0.92,

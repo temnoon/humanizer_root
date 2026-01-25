@@ -325,4 +325,10 @@ export interface AuiStoreAdapter {
 
   /** Find derived buffers */
   findDerivedBuffers(rootBufferId: string): Promise<ContentBuffer[]>;
+
+  /** Get persona profile for rewriting */
+  getPersonaProfile(id: string): Promise<import('../storage/aui/types.js').PersonaProfile | undefined>;
+
+  /** Get style profile for rewriting */
+  getStyleProfile(id: string): Promise<import('../storage/aui/types.js').StyleProfile | undefined>;
 }

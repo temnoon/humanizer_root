@@ -121,8 +121,6 @@ import {
 export type {
   PersonaHarvestSession,
   ServiceDependencies,
-} from './types.js';
-export {
   StartHarvestResult,
   ExtractTraitsResult,
   FinalizePersonaResult,
