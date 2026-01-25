@@ -2,7 +2,13 @@
  * Ollama LLM Adapter
  *
  * Connects to local Ollama instance for completions and embeddings.
- * Uses nomic-embed-text for embeddings (768 dimensions).
+ *
+ * Model Configuration:
+ * - Default model names are fallbacks from ModelRegistry defaults
+ * - When using with @humanizer/core, prefer models from getModelRegistry()
+ * - Config overrides always take precedence
+ *
+ * @see packages/core/src/models/model-registry.ts for centralized model definitions
  */
 
 import type { LlmAdapter, LlmCompletionOptions, EmbeddingResponse } from './types.js';
@@ -22,10 +28,14 @@ export interface OllamaConfig {
   timeout?: number;
 }
 
+/**
+ * Default config values - used as fallback when ModelRegistry unavailable.
+ * Prefer using createOllamaAdapterFromRegistry() for registry-aware initialization.
+ */
 const DEFAULT_CONFIG: Required<OllamaConfig> = {
   baseUrl: 'http://localhost:11434',
-  model: 'llama3.2:3b',
-  embedModel: 'nomic-embed-text:latest',
+  model: 'llama3.2:3b',               // Fallback - prefer registry lookup
+  embedModel: 'nomic-embed-text:latest',  // Fallback - prefer registry lookup
   timeout: 60000,
 };
 

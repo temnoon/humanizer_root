@@ -13,6 +13,13 @@
 # Houses with inline prompts (to be migrated to prompt-registry)
 packages/core/src/houses/curator.ts:inline-prompt
 packages/core/src/houses/codeguard/architect.ts:inline-prompt
+packages/core/src/houses/harvester.ts:inline-prompt
+packages/core/src/houses/reviewer.ts:inline-prompt
+packages/core/src/houses/builder.ts:inline-prompt
+packages/core/src/aui/unified-aui-service.ts:inline-prompt
+packages/core/src/aui/agentic-loop.ts:inline-prompt
+
+# AI-tell patterns in reviewer (to be migrated to ai-detection-config)
 packages/core/src/houses/reviewer.ts:ai-tell-pattern
 
 # Model Master has legacy model selection logic (to use registry)
@@ -30,3 +37,17 @@ packages/core/src/mcp/handlers/bookmaking.ts:hardcoded-url
 # Explorer and adapters use 'claude-' as source identifiers (not model names)
 packages/core/src/houses/explorer.ts:false-positive-claude
 packages/core/src/adapters/parsers/BrowserPluginParser.ts:false-positive-claude
+
+# Adapters use 'claude-' as content type identifiers (not model names)
+packages/core/src/adapters/providers/claude-adapter.ts:false-positive-claude
+packages/core/src/adapters/types.ts:false-positive-claude
+
+# Fallback model names (intentional, documented)
+packages/core/src/aui/unified-aui-service.ts:hardcoded-model
+packages/core/src/models/embedding-versioning.ts:hardcoded-model
+
+# Embedding service default URL (documented fallback)
+packages/core/src/embeddings/embedding-service.ts:hardcoded-url
+
+# NPE Ollama adapter default URL (documented fallback)
+packages/npe/src/llm/ollama-adapter.ts:hardcoded-url
