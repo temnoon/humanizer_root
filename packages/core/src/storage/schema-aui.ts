@@ -276,6 +276,82 @@ CREATE TABLE IF NOT EXISTS aui_artifacts (
 `;
 
 // ═══════════════════════════════════════════════════════════════════
+// CONTENT BUFFER TABLES (API-First Buffer System)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Content buffers table - immutable content wrappers with provenance
+ *
+ * Each transformation creates a NEW buffer; buffers are never mutated.
+ * Content is addressed by SHA-256 hash for deduplication.
+ */
+export function createAuiContentBuffersTable(dimension: number): string {
+  return `
+CREATE TABLE IF NOT EXISTS aui_content_buffers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  content_hash TEXT NOT NULL,
+  text TEXT NOT NULL,
+  word_count INTEGER NOT NULL,
+  format TEXT NOT NULL CHECK (format IN ('text', 'markdown', 'html', 'code')),
+  state TEXT NOT NULL CHECK (state IN ('transient', 'staged', 'committed', 'archived')),
+  origin JSONB NOT NULL,
+  quality_metrics JSONB,
+  embedding vector(${dimension}),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Index for content deduplication
+CREATE INDEX IF NOT EXISTS idx_aui_content_buffers_hash ON aui_content_buffers(content_hash);
+`;
+}
+
+/**
+ * Provenance chains table - linked list of transformations
+ *
+ * Tracks the full history of a buffer through all operations.
+ */
+export const CREATE_AUI_PROVENANCE_CHAINS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_provenance_chains (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  root_buffer_id UUID NOT NULL,
+  current_buffer_id UUID NOT NULL REFERENCES aui_content_buffers(id) ON DELETE SET NULL,
+  branch_name TEXT NOT NULL DEFAULT 'main',
+  branch_description TEXT,
+  is_main BOOLEAN DEFAULT TRUE,
+  parent_chain_id UUID REFERENCES aui_provenance_chains(id) ON DELETE SET NULL,
+  child_chain_ids UUID[] DEFAULT '{}',
+  transformation_count INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+/**
+ * Buffer operations table - records what happened to buffers
+ *
+ * Each operation is an immutable record in the provenance chain.
+ */
+export const CREATE_AUI_BUFFER_OPERATIONS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_buffer_operations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  chain_id UUID NOT NULL REFERENCES aui_provenance_chains(id) ON DELETE CASCADE,
+  sequence_number INTEGER NOT NULL,
+  operation_type TEXT NOT NULL,
+  performer JSONB NOT NULL,
+  parameters JSONB DEFAULT '{}',
+  before_hash TEXT NOT NULL,
+  after_hash TEXT NOT NULL,
+  delta_hash TEXT,
+  quality_impact JSONB,
+  description TEXT NOT NULL,
+  duration_ms INTEGER,
+  cost_cents INTEGER,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(chain_id, sequence_number)
+);
+`;
+
+// ═══════════════════════════════════════════════════════════════════
 // INDEXES
 // ═══════════════════════════════════════════════════════════════════
 
@@ -341,6 +417,26 @@ CREATE INDEX IF NOT EXISTS idx_aui_styles_persona ON aui_style_profiles(persona_
 CREATE INDEX IF NOT EXISTS idx_aui_styles_name ON aui_style_profiles(persona_id, name);
 CREATE INDEX IF NOT EXISTS idx_aui_styles_default ON aui_style_profiles(persona_id, is_default) WHERE is_default = TRUE;
 CREATE INDEX IF NOT EXISTS idx_aui_styles_updated ON aui_style_profiles(updated_at DESC);
+
+-- Content buffers indexes
+CREATE INDEX IF NOT EXISTS idx_aui_content_buffers_state ON aui_content_buffers(state);
+CREATE INDEX IF NOT EXISTS idx_aui_content_buffers_format ON aui_content_buffers(format);
+CREATE INDEX IF NOT EXISTS idx_aui_content_buffers_created ON aui_content_buffers(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aui_content_buffers_updated ON aui_content_buffers(updated_at DESC);
+
+-- Provenance chains indexes
+CREATE INDEX IF NOT EXISTS idx_aui_provenance_root ON aui_provenance_chains(root_buffer_id);
+CREATE INDEX IF NOT EXISTS idx_aui_provenance_current ON aui_provenance_chains(current_buffer_id);
+CREATE INDEX IF NOT EXISTS idx_aui_provenance_parent ON aui_provenance_chains(parent_chain_id);
+CREATE INDEX IF NOT EXISTS idx_aui_provenance_branch ON aui_provenance_chains(branch_name);
+CREATE INDEX IF NOT EXISTS idx_aui_provenance_created ON aui_provenance_chains(created_at DESC);
+
+-- Buffer operations indexes
+CREATE INDEX IF NOT EXISTS idx_aui_operations_chain ON aui_buffer_operations(chain_id);
+CREATE INDEX IF NOT EXISTS idx_aui_operations_type ON aui_buffer_operations(operation_type);
+CREATE INDEX IF NOT EXISTS idx_aui_operations_before ON aui_buffer_operations(before_hash);
+CREATE INDEX IF NOT EXISTS idx_aui_operations_after ON aui_buffer_operations(after_hash);
+CREATE INDEX IF NOT EXISTS idx_aui_operations_created ON aui_buffer_operations(created_at DESC);
 `;
 
 /**
@@ -353,12 +449,24 @@ CREATE INDEX IF NOT EXISTS idx_aui_clusters_centroid
   WITH (m = 16, ef_construction = 64);
 `;
 
+/**
+ * Create HNSW vector index for content buffer embeddings (optional)
+ */
+export const CREATE_AUI_CONTENT_BUFFER_VECTOR_INDEX = `
+CREATE INDEX IF NOT EXISTS idx_aui_content_buffers_embedding
+  ON aui_content_buffers
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+`;
+
 // ═══════════════════════════════════════════════════════════════════
 // MIGRATION FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Run AUI schema migration to version 3
+ * Run AUI schema migration to version 4
+ *
+ * Version 4 adds: Content buffer system with provenance tracking
  */
 export async function runAuiMigration(
   client: PoolClient,
@@ -368,7 +476,7 @@ export async function runAuiMigration(
   // Create sessions table
   await client.query(CREATE_AUI_SESSIONS_TABLE);
 
-  // Create buffer tables
+  // Create buffer tables (legacy versioned buffers)
   await client.query(CREATE_AUI_BUFFERS_TABLE);
   await client.query(CREATE_AUI_BUFFER_BRANCHES_TABLE);
   await client.query(CREATE_AUI_BUFFER_VERSIONS_TABLE);
@@ -392,16 +500,26 @@ export async function runAuiMigration(
   // Create style profiles table
   await client.query(CREATE_AUI_STYLE_PROFILES_TABLE);
 
+  // Create content buffer tables (API-first buffer system)
+  await client.query(createAuiContentBuffersTable(embeddingDimension));
+  await client.query(CREATE_AUI_PROVENANCE_CHAINS_TABLE);
+  await client.query(CREATE_AUI_BUFFER_OPERATIONS_TABLE);
+
   // Create indexes
   await client.query(CREATE_AUI_INDEXES);
 
-  // Create vector index if enabled
+  // Create vector indexes if enabled
   if (enableVec) {
     try {
       await client.query(CREATE_AUI_CLUSTER_VECTOR_INDEX);
     } catch (error) {
       // Log but don't fail - vector extension might not be available
       console.warn('Could not create cluster vector index:', error);
+    }
+    try {
+      await client.query(CREATE_AUI_CONTENT_BUFFER_VECTOR_INDEX);
+    } catch (error) {
+      console.warn('Could not create content buffer vector index:', error);
     }
   }
 }
@@ -781,4 +899,117 @@ ORDER BY is_default DESC, updated_at DESC
 
 export const CLEAR_DEFAULT_STYLE_PROFILE = `
 UPDATE aui_style_profiles SET is_default = FALSE WHERE persona_id = $1 AND is_default = TRUE
+`;
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTENT BUFFER SQL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════
+
+// Content Buffers
+export const INSERT_AUI_CONTENT_BUFFER = `
+INSERT INTO aui_content_buffers (id, content_hash, text, word_count, format, state, origin, quality_metrics, embedding, created_at, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+RETURNING *
+`;
+
+export const GET_AUI_CONTENT_BUFFER = `SELECT * FROM aui_content_buffers WHERE id = $1`;
+
+export const GET_AUI_CONTENT_BUFFERS_BY_HASH = `SELECT * FROM aui_content_buffers WHERE content_hash = $1`;
+
+export const UPDATE_AUI_CONTENT_BUFFER = `
+UPDATE aui_content_buffers SET
+  state = COALESCE($2, state),
+  quality_metrics = COALESCE($3, quality_metrics),
+  embedding = COALESCE($4, embedding),
+  updated_at = NOW()
+WHERE id = $1
+RETURNING *
+`;
+
+export const DELETE_AUI_CONTENT_BUFFER = `DELETE FROM aui_content_buffers WHERE id = $1`;
+
+export const LIST_AUI_CONTENT_BUFFERS = `
+SELECT * FROM aui_content_buffers
+WHERE ($1::text IS NULL OR state = $1)
+ORDER BY updated_at DESC
+LIMIT $2 OFFSET $3
+`;
+
+export const FIND_SIMILAR_CONTENT_BUFFERS = `
+SELECT *, 1 - (embedding <=> $1::vector) as similarity
+FROM aui_content_buffers
+WHERE embedding IS NOT NULL
+ORDER BY embedding <=> $1::vector
+LIMIT $2
+`;
+
+// Provenance Chains
+export const INSERT_AUI_PROVENANCE_CHAIN = `
+INSERT INTO aui_provenance_chains (id, root_buffer_id, current_buffer_id, branch_name, branch_description, is_main, parent_chain_id, child_chain_ids, transformation_count, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING *
+`;
+
+export const GET_AUI_PROVENANCE_CHAIN = `SELECT * FROM aui_provenance_chains WHERE id = $1`;
+
+export const GET_AUI_PROVENANCE_CHAIN_BY_BUFFER = `
+SELECT * FROM aui_provenance_chains
+WHERE current_buffer_id = $1 OR root_buffer_id = $1
+ORDER BY created_at DESC
+LIMIT 1
+`;
+
+export const UPDATE_AUI_PROVENANCE_CHAIN = `
+UPDATE aui_provenance_chains SET
+  current_buffer_id = COALESCE($2, current_buffer_id),
+  child_chain_ids = COALESCE($3, child_chain_ids),
+  transformation_count = COALESCE($4, transformation_count)
+WHERE id = $1
+RETURNING *
+`;
+
+export const DELETE_AUI_PROVENANCE_CHAIN = `DELETE FROM aui_provenance_chains WHERE id = $1`;
+
+export const LIST_AUI_PROVENANCE_CHAINS = `
+SELECT * FROM aui_provenance_chains
+WHERE ($1::uuid IS NULL OR root_buffer_id = $1)
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`;
+
+export const FIND_DERIVED_CHAINS = `
+SELECT * FROM aui_provenance_chains
+WHERE root_buffer_id = $1 OR parent_chain_id IN (
+  SELECT id FROM aui_provenance_chains WHERE root_buffer_id = $1
+)
+ORDER BY created_at ASC
+`;
+
+// Buffer Operations
+export const INSERT_AUI_BUFFER_OPERATION = `
+INSERT INTO aui_buffer_operations (id, chain_id, sequence_number, operation_type, performer, parameters, before_hash, after_hash, delta_hash, quality_impact, description, duration_ms, cost_cents, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING *
+`;
+
+export const GET_AUI_BUFFER_OPERATION = `SELECT * FROM aui_buffer_operations WHERE id = $1`;
+
+export const GET_AUI_BUFFER_OPERATIONS_BY_CHAIN = `
+SELECT * FROM aui_buffer_operations
+WHERE chain_id = $1
+ORDER BY sequence_number ASC
+`;
+
+export const GET_AUI_BUFFER_OPERATIONS_BY_HASH = `
+SELECT * FROM aui_buffer_operations
+WHERE before_hash = $1 OR after_hash = $1
+ORDER BY created_at DESC
+`;
+
+export const DELETE_AUI_BUFFER_OPERATION = `DELETE FROM aui_buffer_operations WHERE id = $1`;
+
+export const GET_NEXT_OPERATION_SEQUENCE = `
+SELECT COALESCE(MAX(sequence_number), 0) + 1 as next_seq
+FROM aui_buffer_operations
+WHERE chain_id = $1
 `;

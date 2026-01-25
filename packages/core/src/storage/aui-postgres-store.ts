@@ -86,7 +86,38 @@ import {
   DELETE_AUI_STYLE_PROFILE,
   LIST_AUI_STYLE_PROFILES,
   CLEAR_DEFAULT_STYLE_PROFILE,
+  // Content Buffer SQL templates
+  INSERT_AUI_CONTENT_BUFFER,
+  GET_AUI_CONTENT_BUFFER,
+  GET_AUI_CONTENT_BUFFERS_BY_HASH,
+  UPDATE_AUI_CONTENT_BUFFER,
+  DELETE_AUI_CONTENT_BUFFER,
+  LIST_AUI_CONTENT_BUFFERS,
+  FIND_SIMILAR_CONTENT_BUFFERS,
+  INSERT_AUI_PROVENANCE_CHAIN,
+  GET_AUI_PROVENANCE_CHAIN,
+  GET_AUI_PROVENANCE_CHAIN_BY_BUFFER,
+  UPDATE_AUI_PROVENANCE_CHAIN,
+  DELETE_AUI_PROVENANCE_CHAIN,
+  LIST_AUI_PROVENANCE_CHAINS,
+  FIND_DERIVED_CHAINS,
+  INSERT_AUI_BUFFER_OPERATION,
+  GET_AUI_BUFFER_OPERATION,
+  GET_AUI_BUFFER_OPERATIONS_BY_CHAIN,
+  GET_AUI_BUFFER_OPERATIONS_BY_HASH,
+  DELETE_AUI_BUFFER_OPERATION,
+  GET_NEXT_OPERATION_SEQUENCE,
 } from './schema-aui.js';
+import type {
+  ContentBuffer,
+  BufferOrigin,
+  BufferContentFormat,
+  BufferState,
+  ProvenanceChain,
+  ProvenanceBranch,
+  BufferOperation,
+  QualityMetrics,
+} from '../buffer/types.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // DB ROW TYPES
@@ -254,6 +285,50 @@ interface DbStyleProfileRow {
   metadata: Record<string, unknown>;
   created_at: Date;
   updated_at: Date;
+}
+
+interface DbContentBufferRow {
+  id: string;
+  content_hash: string;
+  text: string;
+  word_count: number;
+  format: BufferContentFormat;
+  state: BufferState;
+  origin: BufferOrigin;
+  quality_metrics: QualityMetrics | null;
+  embedding: string | number[] | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+interface DbProvenanceChainRow {
+  id: string;
+  root_buffer_id: string;
+  current_buffer_id: string;
+  branch_name: string;
+  branch_description: string | null;
+  is_main: boolean;
+  parent_chain_id: string | null;
+  child_chain_ids: string[];
+  transformation_count: number;
+  created_at: Date;
+}
+
+interface DbBufferOperationRow {
+  id: string;
+  chain_id: string;
+  sequence_number: number;
+  operation_type: string;
+  performer: BufferOperation['performer'];
+  parameters: Record<string, unknown>;
+  before_hash: string;
+  after_hash: string;
+  delta_hash: string | null;
+  quality_impact: BufferOperation['qualityImpact'] | null;
+  description: string;
+  duration_ms: number | null;
+  cost_cents: number | null;
+  created_at: Date;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1589,6 +1664,289 @@ export class AuiPostgresStore {
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // CONTENT BUFFERS (API-First Buffer System)
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Save a content buffer
+   */
+  async saveContentBuffer(buffer: ContentBuffer): Promise<ContentBuffer> {
+    const now = new Date();
+
+    let embeddingSql: string | null = null;
+    if (buffer.embedding && buffer.embedding.length > 0) {
+      embeddingSql = toSql(buffer.embedding);
+    }
+
+    const result = await this.pool.query(INSERT_AUI_CONTENT_BUFFER, [
+      buffer.id,
+      buffer.contentHash,
+      buffer.text,
+      buffer.wordCount,
+      buffer.format,
+      buffer.state,
+      JSON.stringify(buffer.origin),
+      buffer.qualityMetrics ? JSON.stringify(buffer.qualityMetrics) : null,
+      embeddingSql,
+      new Date(buffer.createdAt),
+      new Date(buffer.updatedAt),
+    ]);
+
+    return this.rowToContentBuffer(result.rows[0] as DbContentBufferRow);
+  }
+
+  /**
+   * Load a content buffer by ID
+   */
+  async loadContentBuffer(bufferId: string): Promise<ContentBuffer | undefined> {
+    const result = await this.pool.query(GET_AUI_CONTENT_BUFFER, [bufferId]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToContentBuffer(result.rows[0] as DbContentBufferRow);
+  }
+
+  /**
+   * Find content buffers by hash (for deduplication)
+   */
+  async findContentBuffersByHash(hash: string): Promise<ContentBuffer[]> {
+    const result = await this.pool.query(GET_AUI_CONTENT_BUFFERS_BY_HASH, [hash]);
+    return result.rows.map((row) => this.rowToContentBuffer(row as DbContentBufferRow));
+  }
+
+  /**
+   * Update a content buffer
+   */
+  async updateContentBuffer(
+    bufferId: string,
+    update: Partial<{
+      state: BufferState;
+      qualityMetrics: QualityMetrics;
+      embedding: number[];
+    }>
+  ): Promise<ContentBuffer | undefined> {
+    let embeddingSql: string | null = null;
+    if (update.embedding && update.embedding.length > 0) {
+      embeddingSql = toSql(update.embedding);
+    }
+
+    const result = await this.pool.query(UPDATE_AUI_CONTENT_BUFFER, [
+      bufferId,
+      update.state ?? null,
+      update.qualityMetrics ? JSON.stringify(update.qualityMetrics) : null,
+      embeddingSql,
+    ]);
+
+    if (result.rows.length === 0) return undefined;
+    return this.rowToContentBuffer(result.rows[0] as DbContentBufferRow);
+  }
+
+  /**
+   * Delete a content buffer
+   */
+  async deleteContentBuffer(bufferId: string): Promise<boolean> {
+    const result = await this.pool.query(DELETE_AUI_CONTENT_BUFFER, [bufferId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * List content buffers
+   */
+  async listContentBuffers(options?: {
+    state?: BufferState;
+    limit?: number;
+    offset?: number;
+  }): Promise<ContentBuffer[]> {
+    const result = await this.pool.query(LIST_AUI_CONTENT_BUFFERS, [
+      options?.state ?? null,
+      options?.limit ?? 100,
+      options?.offset ?? 0,
+    ]);
+    return result.rows.map((row) => this.rowToContentBuffer(row as DbContentBufferRow));
+  }
+
+  /**
+   * Find similar content buffers by embedding
+   */
+  async findSimilarContentBuffers(
+    embedding: number[],
+    limit?: number
+  ): Promise<Array<ContentBuffer & { similarity: number }>> {
+    const vectorSql = toSql(embedding);
+    const result = await this.pool.query(FIND_SIMILAR_CONTENT_BUFFERS, [
+      vectorSql,
+      limit ?? 10,
+    ]);
+
+    return result.rows.map((row) => ({
+      ...this.rowToContentBuffer(row as DbContentBufferRow),
+      similarity: (row as DbContentBufferRow & { similarity: number }).similarity,
+    }));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PROVENANCE CHAINS
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Save a provenance chain
+   */
+  async saveProvenanceChain(chain: ProvenanceChain): Promise<ProvenanceChain> {
+    const now = new Date();
+
+    const result = await this.pool.query(INSERT_AUI_PROVENANCE_CHAIN, [
+      chain.id,
+      chain.rootBufferId,
+      chain.currentBufferId,
+      chain.branch.name,
+      chain.branch.description ?? null,
+      chain.branch.isMain,
+      chain.parentChainId ?? null,
+      chain.childChainIds,
+      chain.transformationCount,
+      now,
+    ]);
+
+    return this.rowToProvenanceChain(result.rows[0] as DbProvenanceChainRow);
+  }
+
+  /**
+   * Load a provenance chain by ID
+   */
+  async loadProvenanceChain(chainId: string): Promise<ProvenanceChain | undefined> {
+    const result = await this.pool.query(GET_AUI_PROVENANCE_CHAIN, [chainId]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToProvenanceChain(result.rows[0] as DbProvenanceChainRow);
+  }
+
+  /**
+   * Get provenance chain for a buffer
+   */
+  async getProvenanceChainByBuffer(bufferId: string): Promise<ProvenanceChain | undefined> {
+    const result = await this.pool.query(GET_AUI_PROVENANCE_CHAIN_BY_BUFFER, [bufferId]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToProvenanceChain(result.rows[0] as DbProvenanceChainRow);
+  }
+
+  /**
+   * Update a provenance chain
+   */
+  async updateProvenanceChain(
+    chainId: string,
+    update: Partial<{
+      currentBufferId: string;
+      childChainIds: string[];
+      transformationCount: number;
+    }>
+  ): Promise<ProvenanceChain | undefined> {
+    const result = await this.pool.query(UPDATE_AUI_PROVENANCE_CHAIN, [
+      chainId,
+      update.currentBufferId ?? null,
+      update.childChainIds ?? null,
+      update.transformationCount ?? null,
+    ]);
+
+    if (result.rows.length === 0) return undefined;
+    return this.rowToProvenanceChain(result.rows[0] as DbProvenanceChainRow);
+  }
+
+  /**
+   * Delete a provenance chain
+   */
+  async deleteProvenanceChain(chainId: string): Promise<boolean> {
+    const result = await this.pool.query(DELETE_AUI_PROVENANCE_CHAIN, [chainId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * Find derived chains from a root buffer
+   */
+  async findDerivedChains(rootBufferId: string): Promise<ProvenanceChain[]> {
+    const result = await this.pool.query(FIND_DERIVED_CHAINS, [rootBufferId]);
+    return result.rows.map((row) => this.rowToProvenanceChain(row as DbProvenanceChainRow));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // BUFFER OPERATIONS
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Save a buffer operation
+   */
+  async saveBufferOperation(
+    chainId: string,
+    operation: BufferOperation
+  ): Promise<BufferOperation> {
+    // Get next sequence number
+    const seqResult = await this.pool.query(GET_NEXT_OPERATION_SEQUENCE, [chainId]);
+    const sequenceNumber = seqResult.rows[0].next_seq as number;
+
+    const result = await this.pool.query(INSERT_AUI_BUFFER_OPERATION, [
+      operation.id,
+      chainId,
+      sequenceNumber,
+      operation.type,
+      JSON.stringify(operation.performer),
+      JSON.stringify(operation.parameters),
+      operation.hashes.beforeHash,
+      operation.hashes.afterHash,
+      operation.hashes.deltaHash ?? null,
+      operation.qualityImpact ? JSON.stringify(operation.qualityImpact) : null,
+      operation.description,
+      operation.durationMs ?? null,
+      operation.costCents ?? null,
+      new Date(operation.timestamp),
+    ]);
+
+    return this.rowToBufferOperation(result.rows[0] as DbBufferOperationRow);
+  }
+
+  /**
+   * Load a buffer operation by ID
+   */
+  async loadBufferOperation(operationId: string): Promise<BufferOperation | undefined> {
+    const result = await this.pool.query(GET_AUI_BUFFER_OPERATION, [operationId]);
+    if (result.rows.length === 0) return undefined;
+    return this.rowToBufferOperation(result.rows[0] as DbBufferOperationRow);
+  }
+
+  /**
+   * Get all operations for a chain (ordered by sequence)
+   */
+  async getOperationsByChain(chainId: string): Promise<BufferOperation[]> {
+    const result = await this.pool.query(GET_AUI_BUFFER_OPERATIONS_BY_CHAIN, [chainId]);
+    return result.rows.map((row) => this.rowToBufferOperation(row as DbBufferOperationRow));
+  }
+
+  /**
+   * Find operations by content hash
+   */
+  async findOperationsByHash(hash: string): Promise<BufferOperation[]> {
+    const result = await this.pool.query(GET_AUI_BUFFER_OPERATIONS_BY_HASH, [hash]);
+    return result.rows.map((row) => this.rowToBufferOperation(row as DbBufferOperationRow));
+  }
+
+  /**
+   * Delete a buffer operation
+   */
+  async deleteBufferOperation(operationId: string): Promise<boolean> {
+    const result = await this.pool.query(DELETE_AUI_BUFFER_OPERATION, [operationId]);
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  /**
+   * Load a full provenance chain with all operations
+   */
+  async loadFullProvenanceChain(chainId: string): Promise<ProvenanceChain | undefined> {
+    const chain = await this.loadProvenanceChain(chainId);
+    if (!chain) return undefined;
+
+    const operations = await this.getOperationsByChain(chainId);
+    return {
+      ...chain,
+      operations,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // CLEANUP
   // ═══════════════════════════════════════════════════════════════════
 
@@ -1829,6 +2187,77 @@ export class AuiPostgresStore {
       metadata: row.metadata ?? {},
       createdAt: row.created_at,
       updatedAt: row.updated_at,
+    };
+  }
+
+  private rowToContentBuffer(row: DbContentBufferRow): ContentBuffer {
+    let embedding: number[] | undefined;
+    if (row.embedding) {
+      if (Array.isArray(row.embedding)) {
+        embedding = row.embedding;
+      } else {
+        embedding = fromSql(row.embedding);
+      }
+    }
+
+    return {
+      id: row.id,
+      contentHash: row.content_hash,
+      text: row.text,
+      wordCount: row.word_count,
+      format: row.format,
+      state: row.state,
+      origin: row.origin,
+      provenanceChain: {
+        // Placeholder - full chain loaded separately
+        id: '',
+        rootBufferId: row.id,
+        currentBufferId: row.id,
+        operations: [],
+        branch: { name: 'main', isMain: true },
+        childChainIds: [],
+        transformationCount: 0,
+      },
+      qualityMetrics: row.quality_metrics ?? undefined,
+      embedding,
+      createdAt: row.created_at.getTime(),
+      updatedAt: row.updated_at.getTime(),
+    };
+  }
+
+  private rowToProvenanceChain(row: DbProvenanceChainRow): ProvenanceChain {
+    return {
+      id: row.id,
+      rootBufferId: row.root_buffer_id,
+      currentBufferId: row.current_buffer_id,
+      operations: [], // Loaded separately via getOperationsByChain
+      branch: {
+        name: row.branch_name,
+        description: row.branch_description ?? undefined,
+        isMain: row.is_main,
+      },
+      parentChainId: row.parent_chain_id ?? undefined,
+      childChainIds: row.child_chain_ids ?? [],
+      transformationCount: row.transformation_count,
+    };
+  }
+
+  private rowToBufferOperation(row: DbBufferOperationRow): BufferOperation {
+    return {
+      id: row.id,
+      type: row.operation_type as BufferOperation['type'],
+      timestamp: row.created_at.getTime(),
+      performer: row.performer,
+      parameters: row.parameters ?? {},
+      hashes: {
+        beforeHash: row.before_hash,
+        afterHash: row.after_hash,
+        deltaHash: row.delta_hash ?? undefined,
+      },
+      qualityImpact: row.quality_impact ?? undefined,
+      description: row.description,
+      durationMs: row.duration_ms ?? undefined,
+      costCents: row.cost_cents ?? undefined,
     };
   }
 }

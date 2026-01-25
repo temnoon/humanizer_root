@@ -131,6 +131,11 @@ export * from './embeddings/index.js';
 export * from './models/index.js';
 
 // ═══════════════════════════════════════════════════════════════════
+// BUFFER - API-First Content Buffer System with Provenance
+// ═══════════════════════════════════════════════════════════════════
+export * from './buffer/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
 // AUI - Agentic User Interface (Phases 1-5)
 // Note: Explicit exports to avoid conflicts with runtime, instruments, etc.
 // ═══════════════════════════════════════════════════════════════════
