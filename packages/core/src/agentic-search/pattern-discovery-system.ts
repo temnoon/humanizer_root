@@ -1257,13 +1257,4 @@ export class PatternSystem {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════
-// EXPORTS
-// ═══════════════════════════════════════════════════════════════════
-
-export {
-  PatternDiscoveryEngine,
-  FeedbackLearner,
-  PatternComposer,
-  PatternSystem,
-};
+// Classes are exported at definition with 'export class'
