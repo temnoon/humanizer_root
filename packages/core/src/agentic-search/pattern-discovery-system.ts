@@ -502,8 +502,9 @@ export class FeedbackLearner {
     existing.push(fullFeedback);
     this.feedback.set(feedback.patternId, existing);
 
-    // Persist to store if available
-    if (this.store) {
+    // Persist to store if available (skip for non-UUID pattern IDs like built-ins)
+    const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(feedback.patternId);
+    if (this.store && isValidUuid) {
       // Get content snapshot for learning
       let contentSnapshot: Record<string, unknown> | undefined;
       try {
@@ -583,8 +584,9 @@ export class FeedbackLearner {
     const existing = this.constraints.get(patternId) || [];
     this.constraints.set(patternId, [...existing, ...newConstraints]);
 
-    // Persist to store if available
-    if (this.store) {
+    // Persist to store if available (skip for non-UUID pattern IDs like built-ins)
+    const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patternId);
+    if (this.store && isValidUuid) {
       for (const constraint of newConstraints) {
         await this.store.saveConstraint({
           id: constraint.id,
@@ -621,6 +623,12 @@ export class FeedbackLearner {
    */
   async loadConstraints(patternId: string): Promise<LearnedConstraint[]> {
     if (!this.store) {
+      return this.constraints.get(patternId) || [];
+    }
+
+    // Built-in patterns use non-UUID IDs - skip store lookup for them
+    const isValidUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(patternId);
+    if (!isValidUuid) {
       return this.constraints.get(patternId) || [];
     }
 
