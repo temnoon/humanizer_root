@@ -11,6 +11,7 @@ export { AUI_HANDLERS } from './aui.js';
 export { ARXIV_HANDLERS } from './arxiv.js';
 export { AGENTIC_SEARCH_HANDLERS } from './agentic-search.js';
 export { UNIFIED_AUI_HANDLERS } from './unified-aui.js';
+export { PATTERN_DISCOVERY_HANDLERS } from './pattern-discovery.js';
 
 import { CODEGUARD_HANDLERS } from './codeguard.js';
 import { SYSTEM_HANDLERS } from './system.js';
@@ -21,6 +22,7 @@ import { AUI_HANDLERS } from './aui.js';
 import { ARXIV_HANDLERS } from './arxiv.js';
 import { AGENTIC_SEARCH_HANDLERS } from './agentic-search.js';
 import { UNIFIED_AUI_HANDLERS } from './unified-aui.js';
+import { PATTERN_DISCOVERY_HANDLERS } from './pattern-discovery.js';
 import type { MCPResult, HandlerContext } from '../types.js';
 
 /**
@@ -41,6 +43,7 @@ export const ALL_HANDLERS: Record<string, MCPHandler> = {
   ...ARXIV_HANDLERS,
   ...AGENTIC_SEARCH_HANDLERS,
   ...UNIFIED_AUI_HANDLERS,
+  ...PATTERN_DISCOVERY_HANDLERS,
 };
 
 /**

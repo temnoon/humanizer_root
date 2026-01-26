@@ -44,7 +44,7 @@ export interface MCPToolDefinition {
   name: string;
   description: string;
   inputSchema: JSONSchema;
-  category?: 'codeguard' | 'hooks' | 'system' | 'book-agent' | 'bookmaking' | 'aui' | 'arxiv' | 'agentic-search';
+  category?: 'codeguard' | 'hooks' | 'system' | 'book-agent' | 'bookmaking' | 'aui' | 'arxiv' | 'agentic-search' | 'pattern-discovery';
 }
 
 /**
