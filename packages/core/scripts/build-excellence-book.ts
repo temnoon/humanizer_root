@@ -6,6 +6,9 @@
  *
  * Usage:
  *   npx tsx scripts/build-excellence-book.ts [--tier excellence|polished|raw_gem] [--theme "topic"]
+ *
+ * With persona rewriting:
+ *   npx tsx scripts/build-excellence-book.ts --persona "Author Name" --voice "warm,reflective,witty"
  */
 
 import { randomUUID } from 'crypto';
@@ -23,6 +26,16 @@ import type { ExcellenceTier } from '../src/pipelines/types.js';
 // CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════
 
+interface PersonaConfig {
+  name: string;
+  voiceTraits: string[];
+  toneMarkers: string[];
+  formalityLevel: number; // 0=casual, 1=formal
+  forbiddenPhrases: string[];
+  preferredPatterns: string[];
+  useContractions: boolean;
+}
+
 interface Config {
   minTier: ExcellenceTier;
   maxPassages: number;
@@ -31,7 +44,38 @@ interface Config {
   minScore: number;
   verbose: boolean;
   outputDir: string;
+  // Persona options
+  persona?: PersonaConfig;
+  ollamaUrl: string;
+  rewriteModel: string;
 }
+
+// Default AI-tell phrases to filter out during persona rewriting
+const DEFAULT_FORBIDDEN_PHRASES = [
+  "I can't help",
+  "I cannot help",
+  "As an AI",
+  "As a language model",
+  "I don't have personal",
+  "I'm not able to",
+  "delve",
+  "dive into",
+  "it's important to note",
+  "it's worth noting",
+  "in conclusion",
+  "to summarize",
+  "certainly",
+  "absolutely",
+  "moreover",
+  "furthermore",
+  "in essence",
+  "fundamentally",
+  "at its core",
+  "rest assured",
+  "I understand",
+  "Great question",
+  "That's a great question",
+];
 
 function parseArgs(): Config {
   const args = process.argv.slice(2);
@@ -43,7 +87,18 @@ function parseArgs(): Config {
     minScore: 75,
     verbose: false,
     outputDir: './humanizer-output',
+    ollamaUrl: 'http://localhost:11434',
+    rewriteModel: 'llama3.2:3b',
   };
+
+  // Persona building args
+  let personaName: string | undefined;
+  let voiceTraits: string[] = [];
+  let toneMarkers: string[] = [];
+  let formalityLevel = 0.5;
+  let forbiddenPhrases: string[] = [];
+  let preferredPatterns: string[] = [];
+  let useContractions = true;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--tier' && args[i + 1]) {
@@ -66,6 +121,32 @@ function parseArgs(): Config {
     } else if (args[i] === '--output' && args[i + 1]) {
       config.outputDir = args[i + 1];
       i++;
+    } else if (args[i] === '--persona' && args[i + 1]) {
+      personaName = args[i + 1];
+      i++;
+    } else if (args[i] === '--voice' && args[i + 1]) {
+      voiceTraits = args[i + 1].split(',').map(s => s.trim());
+      i++;
+    } else if (args[i] === '--tone' && args[i + 1]) {
+      toneMarkers = args[i + 1].split(',').map(s => s.trim());
+      i++;
+    } else if (args[i] === '--formality' && args[i + 1]) {
+      formalityLevel = parseFloat(args[i + 1]);
+      i++;
+    } else if (args[i] === '--forbidden' && args[i + 1]) {
+      forbiddenPhrases = args[i + 1].split(',').map(s => s.trim());
+      i++;
+    } else if (args[i] === '--preferred' && args[i + 1]) {
+      preferredPatterns = args[i + 1].split(',').map(s => s.trim());
+      i++;
+    } else if (args[i] === '--no-contractions') {
+      useContractions = false;
+    } else if (args[i] === '--ollama-url' && args[i + 1]) {
+      config.ollamaUrl = args[i + 1];
+      i++;
+    } else if (args[i] === '--model' && args[i + 1]) {
+      config.rewriteModel = args[i + 1];
+      i++;
     }
   }
 
@@ -78,7 +159,196 @@ function parseArgs(): Config {
     config.minScore = 0; // Raw gems are identified by tier, not score
   }
 
+  // Build persona config if name provided
+  if (personaName) {
+    config.persona = {
+      name: personaName,
+      voiceTraits: voiceTraits.length > 0 ? voiceTraits : ['authentic', 'thoughtful'],
+      toneMarkers: toneMarkers.length > 0 ? toneMarkers : ['warm', 'reflective'],
+      formalityLevel,
+      forbiddenPhrases: [...DEFAULT_FORBIDDEN_PHRASES, ...forbiddenPhrases],
+      preferredPatterns,
+      useContractions,
+    };
+  }
+
   return config;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// STOPWORDS FOR THEME/TITLE EXTRACTION
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Comprehensive stopwords to filter out metadata noise, technical terms,
+ * month names, and other non-meaningful words from theme extraction.
+ */
+const THEME_STOPWORDS = new Set([
+  // Common English stopwords
+  'about', 'which', 'would', 'could', 'should', 'their', 'there', 'these', 'those',
+  'through', 'being', 'between', 'during', 'without', 'however', 'because', 'before',
+  'after', 'while', 'where', 'really', 'actually', 'something', 'nothing', 'anything',
+  'everything', 'someone', 'everyone', 'maybe', 'perhaps', 'though', 'although',
+  'since', 'until', 'unless', 'whether', 'already', 'always', 'never', 'often',
+  'usually', 'sometimes', 'probably', 'certainly', 'definitely', 'exactly',
+
+  // Metadata field names (common source of noise)
+  'recommendshareflag', 'commented', 'metadata', 'content', 'message', 'messages',
+  'conversation', 'conversations', 'author', 'assistant', 'system', 'function',
+  'timestamp', 'created', 'updated', 'source', 'target', 'parent', 'children',
+  'status', 'version', 'mapping', 'mappings', 'value', 'values', 'object', 'objects',
+  'string', 'number', 'boolean', 'default', 'current', 'previous', 'following',
+
+  // Technical/code terms
+  'undefined', 'function', 'return', 'export', 'import', 'const', 'variable',
+  'parameter', 'argument', 'callback', 'promise', 'async', 'await', 'response',
+  'request', 'context', 'component', 'instance', 'prototype', 'constructor',
+
+  // Month names (often appear in dates)
+  'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
+  'september', 'october', 'november', 'december',
+
+  // Day names
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+
+  // Common words that don't carry meaning
+  'different', 'another', 'various', 'several', 'multiple', 'specific', 'particular',
+  'general', 'overall', 'important', 'interesting', 'relevant', 'related',
+  'example', 'examples', 'include', 'includes', 'including', 'especially',
+  'basically', 'essentially', 'primarily', 'mainly', 'simply', 'clearly',
+
+  // ChatGPT/AI conversation artifacts
+  'chatgpt', 'openai', 'anthropic', 'claude', 'assistant', 'model', 'models',
+  'gpt', 'language', 'generate', 'generated', 'generation', 'output', 'outputs',
+  'prompt', 'prompts', 'response', 'responses', 'question', 'questions',
+  'answer', 'answers', 'provide', 'provides', 'providing', 'continue', 'continues',
+]);
+
+/**
+ * Filter words against stopwords and additional criteria
+ */
+function filterThemeWords(words: string[]): string[] {
+  return words.filter(word => {
+    const lower = word.toLowerCase();
+    // Filter stopwords
+    if (THEME_STOPWORDS.has(lower)) return false;
+    // Filter purely numeric
+    if (/^\d+$/.test(word)) return false;
+    // Filter words with unusual characters (likely metadata)
+    if (/[_\-]/.test(word)) return false;
+    // Filter very long words (likely technical/metadata)
+    if (word.length > 20) return false;
+    // Filter words that look like IDs (mix of letters and numbers)
+    if (/^[a-z]+\d+$/i.test(word) || /^\d+[a-z]+$/i.test(word)) return false;
+    return true;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// PERSONA REWRITING
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Build system prompt for persona rewriting
+ */
+function buildPersonaSystemPrompt(persona: PersonaConfig): string {
+  const parts: string[] = [
+    `You are a skilled writer who transforms text to match a specific voice and persona.`,
+    ``,
+    `TARGET PERSONA: ${persona.name}`,
+    ``,
+    `VOICE TRAITS: ${persona.voiceTraits.join(', ')}`,
+    `TONE: ${persona.toneMarkers.join(', ')}`,
+    `FORMALITY: ${persona.formalityLevel} (0=casual, 1=formal)`,
+    ``,
+    `STYLE REQUIREMENTS:`,
+    `- Use contractions: ${persona.useContractions ? 'Yes' : 'No'}`,
+    ``,
+  ];
+
+  if (persona.forbiddenPhrases.length > 0) {
+    parts.push(`FORBIDDEN PHRASES (NEVER use these - they sound artificial):`);
+    for (const phrase of persona.forbiddenPhrases.slice(0, 20)) {
+      parts.push(`- "${phrase}"`);
+    }
+    parts.push(``);
+  }
+
+  if (persona.preferredPatterns.length > 0) {
+    parts.push(`PREFERRED PATTERNS (use naturally when appropriate):`);
+    for (const pattern of persona.preferredPatterns) {
+      parts.push(`- "${pattern}"`);
+    }
+    parts.push(``);
+  }
+
+  parts.push(`YOUR TASK:`);
+  parts.push(`Rewrite the given text to match this persona's voice while preserving the core meaning.`);
+  parts.push(`Make it sound natural, human, and authentic.`);
+  parts.push(`DO NOT add new ideas - only transform the voice and style.`);
+  parts.push(`Output ONLY the rewritten text, nothing else.`);
+
+  return parts.join('\n');
+}
+
+/**
+ * Rewrite a chapter for persona consistency using Ollama
+ */
+async function rewriteChapterForPersona(
+  chapterContent: string,
+  persona: PersonaConfig,
+  ollamaUrl: string,
+  model: string,
+  verbose: boolean
+): Promise<string> {
+  const systemPrompt = buildPersonaSystemPrompt(persona);
+
+  const userPrompt = `Rewrite this chapter in the ${persona.name} voice:\n\n${chapterContent}`;
+
+  try {
+    const response = await fetch(`${ollamaUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        prompt: userPrompt,
+        system: systemPrompt,
+        stream: false,
+        options: {
+          temperature: 0.7,
+          top_p: 0.9,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama request failed: ${response.status}`);
+    }
+
+    const result = await response.json();
+    const rewritten = result.response?.trim();
+
+    if (!rewritten || rewritten.length < chapterContent.length * 0.3) {
+      if (verbose) {
+        console.log('    ⚠ Rewrite too short, keeping original');
+      }
+      return chapterContent;
+    }
+
+    // Check for remaining forbidden phrases
+    const remaining = persona.forbiddenPhrases.filter(
+      phrase => rewritten.toLowerCase().includes(phrase.toLowerCase())
+    );
+
+    if (verbose && remaining.length > 0) {
+      console.log(`    ⚠ ${remaining.length} forbidden phrases still present`);
+    }
+
+    return rewritten;
+  } catch (error) {
+    console.error('    ✗ Rewrite failed:', error instanceof Error ? error.message : error);
+    return chapterContent;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -144,18 +414,13 @@ function generateArc(passages: HarvestedPassage[], arcType: string): NarrativeAr
     });
   }
 
-  // Extract overall themes
+  // Extract overall themes (with comprehensive stopword filtering)
   const allText = passages.map(p => p.text).join(' ');
-  const words = allText.toLowerCase().split(/\s+/).filter(w => w.length > 5);
+  const rawWords = allText.toLowerCase().split(/\s+/).filter(w => w.length > 5);
+  const filteredWords = filterThemeWords(rawWords);
   const wordFreq = new Map<string, number>();
-  const stopWords = new Set([
-    'about', 'which', 'would', 'could', 'should', 'their', 'there', 'these', 'those',
-    'through', 'being', 'between', 'during', 'without', 'however', 'because', 'before',
-  ]);
-  for (const word of words) {
-    if (!stopWords.has(word)) {
-      wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
-    }
+  for (const word of filteredWords) {
+    wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
   }
   const themes = [...wordFreq.entries()]
     .sort((a, b) => b[1] - a[1])
@@ -186,12 +451,13 @@ function generateArc(passages: HarvestedPassage[], arcType: string): NarrativeAr
 }
 
 function generateChapterTitle(passages: HarvestedPassage[], chapterNum: number): string {
-  // Extract key concepts from chapter passages
+  // Extract key concepts from chapter passages (with stopword filtering)
   const allText = passages.map(p => p.text).join(' ');
-  const words = allText.toLowerCase().split(/\s+/).filter(w => w.length > 6);
+  const rawWords = allText.toLowerCase().split(/\s+/).filter(w => w.length > 6);
+  const filteredWords = filterThemeWords(rawWords);
   const wordFreq = new Map<string, number>();
 
-  for (const word of words) {
+  for (const word of filteredWords) {
     wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
   }
 
@@ -208,10 +474,11 @@ function generateChapterTitle(passages: HarvestedPassage[], chapterNum: number):
 
 function extractTheme(passages: HarvestedPassage[]): string {
   const allText = passages.map(p => p.text).join(' ');
-  const words = allText.toLowerCase().split(/\s+/).filter(w => w.length > 5);
+  const rawWords = allText.toLowerCase().split(/\s+/).filter(w => w.length > 5);
+  const filteredWords = filterThemeWords(rawWords);
   const wordFreq = new Map<string, number>();
 
-  for (const word of words) {
+  for (const word of filteredWords) {
     wordFreq.set(word, (wordFreq.get(word) || 0) + 1);
   }
 
@@ -402,14 +669,59 @@ async function buildExcellenceBook() {
   console.log('│ STEP 3: ASSEMBLING BOOK                                                │');
   console.log('└' + '─'.repeat(68) + '┘\n');
 
-  const chapters: BookChapter[] = arc.chapters.map(ch =>
+  let chapters: BookChapter[] = arc.chapters.map(ch =>
     assembleChapter(ch, passages, true)
   );
 
-  const totalWordCount = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
+  let totalWordCount = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
 
   console.log(`  Chapters assembled: ${chapters.length}`);
   console.log(`  Total word count: ${totalWordCount.toLocaleString()}`);
+
+  // ─────────────────────────────────────────────────────────────────
+  // STEP 3.5: Persona Rewriting (optional)
+  // ─────────────────────────────────────────────────────────────────
+  if (config.persona) {
+    console.log('\n┌' + '─'.repeat(68) + '┐');
+    console.log('│ STEP 3.5: PERSONA REWRITING                                            │');
+    console.log('└' + '─'.repeat(68) + '┘\n');
+
+    console.log(`  Persona: ${config.persona.name}`);
+    console.log(`  Voice: ${config.persona.voiceTraits.join(', ')}`);
+    console.log(`  Tone: ${config.persona.toneMarkers.join(', ')}`);
+    console.log(`  Model: ${config.rewriteModel}`);
+    console.log(`  Rewriting ${chapters.length} chapters...\n`);
+
+    const rewrittenChapters: BookChapter[] = [];
+
+    for (let i = 0; i < chapters.length; i++) {
+      const chapter = chapters[i];
+      console.log(`  [${i + 1}/${chapters.length}] ${chapter.title}...`);
+
+      const rewrittenContent = await rewriteChapterForPersona(
+        chapter.content,
+        config.persona,
+        config.ollamaUrl,
+        config.rewriteModel,
+        config.verbose
+      );
+
+      const rewrittenWordCount = rewrittenContent.split(/\s+/).filter(Boolean).length;
+
+      rewrittenChapters.push({
+        ...chapter,
+        content: rewrittenContent,
+        wordCount: rewrittenWordCount,
+      });
+
+      console.log(`    ✓ ${chapter.wordCount} → ${rewrittenWordCount} words`);
+    }
+
+    chapters = rewrittenChapters;
+    totalWordCount = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
+
+    console.log(`\n  ✓ Rewriting complete: ${totalWordCount.toLocaleString()} words total`);
+  }
 
   const book: Book = {
     id: `book-excellence-${Date.now()}`,
@@ -427,6 +739,10 @@ async function buildExcellenceBook() {
       minTier: config.minTier,
       minScore: config.minScore,
       theme: config.theme,
+      // Persona rewriting info
+      personaName: config.persona?.name,
+      personaVoice: config.persona?.voiceTraits.join(', '),
+      rewriteModel: config.persona ? config.rewriteModel : undefined,
     },
   };
 
