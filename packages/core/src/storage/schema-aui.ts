@@ -1835,6 +1835,42 @@ SELECT COUNT(*) as count FROM aui_api_keys
 WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL
 `;
 
+// Admin: List all API keys with optional filters
+export const LIST_AUI_API_KEYS_ADMIN = `
+SELECT id, user_id, tenant_id, name, key_prefix, scopes, rate_limit_rpm,
+       last_used_at, usage_count, expires_at, revoked_at, created_at
+FROM aui_api_keys
+WHERE tenant_id = $1
+  AND ($2::text IS NULL OR user_id = $2)
+  AND (
+    $3::text IS NULL
+    OR ($3 = 'active' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > NOW()))
+    OR ($3 = 'revoked' AND revoked_at IS NOT NULL)
+    OR ($3 = 'expired' AND revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at <= NOW())
+  )
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $5
+`;
+
+export const COUNT_AUI_API_KEYS_ADMIN = `
+SELECT COUNT(*) as count FROM aui_api_keys
+WHERE tenant_id = $1
+  AND ($2::text IS NULL OR user_id = $2)
+  AND (
+    $3::text IS NULL
+    OR ($3 = 'active' AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > NOW()))
+    OR ($3 = 'revoked' AND revoked_at IS NOT NULL)
+    OR ($3 = 'expired' AND revoked_at IS NULL AND expires_at IS NOT NULL AND expires_at <= NOW())
+  )
+`;
+
+// Admin: Revoke any API key by ID (without user_id check)
+export const ADMIN_REVOKE_AUI_API_KEY = `
+UPDATE aui_api_keys SET revoked_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *
+`;
+
 // Tier Defaults
 export const GET_AUI_TIER_DEFAULT = `
 SELECT * FROM aui_tier_defaults

@@ -234,4 +234,27 @@ export {
   type AuiPostgresStoreOptions,
   type AuiArtifact,
   type CreateArtifactOptions,
+
+  // Usage Service (User Accounting)
+  type UsageEntry,
+  type QuotaCheckResult,
+  type UserUsageSummary,
+  type UsageReport as PersistentUsageReport,
+  type UsageServiceOptions,
+  UsageService,
+  initUsageService,
+  getUsageService,
+  resetUsageService,
+
+  // API Key Service
+  type ApiKeyScope,
+  type ApiKeyInfo,
+  type ApiKeyRecord,
+  type CreateKeyResult,
+  type ValidateKeyResult,
+  type ApiKeyServiceOptions,
+  ApiKeyService,
+  initApiKeyService,
+  getApiKeyService,
+  resetApiKeyService,
 } from './aui/index.js';

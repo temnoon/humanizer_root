@@ -25,6 +25,9 @@ import {
   DELETE_AUI_API_KEY,
   COUNT_AUI_API_KEYS,
   GET_AUI_TIER_DEFAULT,
+  LIST_AUI_API_KEYS_ADMIN,
+  COUNT_AUI_API_KEYS_ADMIN,
+  ADMIN_REVOKE_AUI_API_KEY,
 } from '../../storage/schema-aui.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -323,6 +326,61 @@ export class ApiKeyService {
     const tenant = tenantId ?? this.options.defaultTenantId;
     const result = await this.pool.query(COUNT_AUI_API_KEYS, [userId, tenant]);
     return parseInt(result.rows[0].count, 10);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ADMIN METHODS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Admin: List all API keys with optional filters.
+   * Does not include key hashes.
+   */
+  async adminListKeys(options?: {
+    tenantId?: string;
+    userId?: string;
+    status?: 'active' | 'revoked' | 'expired';
+    limit?: number;
+    offset?: number;
+  }): Promise<{ keys: ApiKeyInfo[]; total: number }> {
+    const tenant = options?.tenantId ?? this.options.defaultTenantId;
+    const limit = options?.limit ?? 50;
+    const offset = options?.offset ?? 0;
+
+    const [keysResult, countResult] = await Promise.all([
+      this.pool.query(LIST_AUI_API_KEYS_ADMIN, [
+        tenant,
+        options?.userId ?? null,
+        options?.status ?? null,
+        limit,
+        offset,
+      ]),
+      this.pool.query(COUNT_AUI_API_KEYS_ADMIN, [
+        tenant,
+        options?.userId ?? null,
+        options?.status ?? null,
+      ]),
+    ]);
+
+    return {
+      keys: keysResult.rows.map(row => this.rowToApiKeyInfo(row)),
+      total: parseInt(countResult.rows[0].count, 10),
+    };
+  }
+
+  /**
+   * Admin: Revoke any API key by ID (without user ownership check).
+   */
+  async adminRevokeKey(keyId: string, tenantId?: string): Promise<boolean> {
+    const tenant = tenantId ?? this.options.defaultTenantId;
+    const result = await this.pool.query(ADMIN_REVOKE_AUI_API_KEY, [keyId, tenant]);
+
+    if (result.rowCount && result.rowCount > 0) {
+      this.invalidateCacheForKey(keyId);
+      return true;
+    }
+
+    return false;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

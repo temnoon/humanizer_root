@@ -10,6 +10,7 @@
  */
 
 import { Hono } from 'hono';
+import { getApiKeyService, type ApiKeyScope } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, getAuth, requireTier, type AuthContext } from '../middleware/auth.js';
 
@@ -111,14 +112,28 @@ settingsRouter.put('/password', async (c) => {
  */
 settingsRouter.get('/api-keys', async (c) => {
   const auth = getAuth(c)!;
+  const apiKeyService = getApiKeyService();
 
-  // TODO: Get keys from ApiKeyService
+  if (!apiKeyService) {
+    return c.json({ error: 'API Key service not initialized' }, 503);
+  }
+
+  const keys = await apiKeyService.listKeys(auth.userId, auth.tenantId);
 
   return c.json({
-    keys: [],
-    count: 0,
-    limit: 0, // Max keys for user's tier
-    message: 'API keys endpoint - implementation pending ApiKeyService integration',
+    keys: keys.map(k => ({
+      id: k.id,
+      name: k.name,
+      keyPrefix: k.keyPrefix,
+      scopes: k.scopes,
+      rateLimitRpm: k.rateLimitRpm,
+      lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+      usageCount: k.usageCount,
+      expiresAt: k.expiresAt?.toISOString() ?? null,
+      revokedAt: k.revokedAt?.toISOString() ?? null,
+      createdAt: k.createdAt.toISOString(),
+    })),
+    count: keys.filter(k => !k.revokedAt).length,
   });
 });
 
@@ -138,20 +153,42 @@ settingsRouter.post('/api-keys', async (c) => {
     return c.json({ error: 'Name is required' }, 400);
   }
 
-  // TODO: Create key via ApiKeyService
-  // Note: The full key is returned only once at creation
+  const apiKeyService = getApiKeyService();
 
-  return c.json({
-    key: null, // Would be the full key, shown only once
-    id: null,
-    name: body.name,
-    keyPrefix: null,
-    scopes: body.scopes ?? ['read', 'write'],
-    expiresAt: null,
-    createdAt: new Date().toISOString(),
-    message: 'API key creation endpoint - implementation pending ApiKeyService integration',
-    warning: 'Copy your API key now. You will not be able to see it again.',
-  });
+  if (!apiKeyService) {
+    return c.json({ error: 'API Key service not initialized' }, 503);
+  }
+
+  // Parse expiresIn to Date
+  let expiresAt: Date | undefined;
+  if (body.expiresIn && body.expiresIn !== 'never') {
+    const match = body.expiresIn.match(/^(\d+)d$/);
+    if (match) {
+      const days = parseInt(match[1], 10);
+      expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+    }
+  }
+
+  try {
+    const result = await apiKeyService.createKey(auth.userId, body.name, {
+      tenantId: auth.tenantId,
+      scopes: (body.scopes as ApiKeyScope[]) ?? ['read', 'write'],
+      expiresAt,
+    });
+
+    return c.json({
+      key: result.key,
+      id: result.id,
+      name: body.name,
+      keyPrefix: result.keyPrefix,
+      scopes: body.scopes ?? ['read', 'write'],
+      expiresAt: expiresAt?.toISOString() ?? null,
+      createdAt: new Date().toISOString(),
+      warning: 'Copy your API key now. You will not be able to see it again.',
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
 });
 
 /**
@@ -162,12 +199,21 @@ settingsRouter.delete('/api-keys/:id', async (c) => {
   const auth = getAuth(c)!;
   const keyId = c.req.param('id');
 
-  // TODO: Revoke via ApiKeyService
+  const apiKeyService = getApiKeyService();
+
+  if (!apiKeyService) {
+    return c.json({ error: 'API Key service not initialized' }, 503);
+  }
+
+  const revoked = await apiKeyService.revokeKey(auth.userId, keyId, auth.tenantId);
+
+  if (!revoked) {
+    return c.json({ error: 'Key not found or already revoked' }, 404);
+  }
 
   return c.json({
     keyId,
     revoked: true,
-    message: 'API key revocation endpoint - implementation pending',
   });
 });
 

@@ -292,6 +292,10 @@ export class UnifiedAuiService {
     return this.archiveStore !== null;
   }
 
+  getArchiveStore(): PostgresContentStore | null {
+    return this.archiveStore;
+  }
+
   hasBooksStore(): boolean {
     return this.booksStore !== null && this.booksStore.isAvailable();
   }

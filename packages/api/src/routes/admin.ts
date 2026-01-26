@@ -10,6 +10,7 @@
  */
 
 import { Hono } from 'hono';
+import { getUsageService, getApiKeyService } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, requireAdmin, getAuth, type AuthContext } from '../middleware/auth.js';
 
@@ -266,16 +267,37 @@ adminRouter.delete('/overrides/:userId', async (c) => {
  */
 adminRouter.get('/api-keys', async (c) => {
   const { userId, status, limit = '50', offset = '0' } = c.req.query();
+  const apiKeyService = getApiKeyService();
 
-  // TODO: Query aui_api_keys table with admin view
+  if (!apiKeyService) {
+    return c.json({ error: 'API Key service not initialized' }, 503);
+  }
+
+  const result = await apiKeyService.adminListKeys({
+    userId: userId || undefined,
+    status: (status as 'active' | 'revoked' | 'expired') || undefined,
+    limit: parseInt(limit, 10),
+    offset: parseInt(offset, 10),
+  });
 
   return c.json({
-    keys: [],
-    total: 0,
+    keys: result.keys.map(k => ({
+      id: k.id,
+      userId: k.userId,
+      name: k.name,
+      keyPrefix: k.keyPrefix,
+      scopes: k.scopes,
+      rateLimitRpm: k.rateLimitRpm,
+      lastUsedAt: k.lastUsedAt?.toISOString() ?? null,
+      usageCount: k.usageCount,
+      expiresAt: k.expiresAt?.toISOString() ?? null,
+      revokedAt: k.revokedAt?.toISOString() ?? null,
+      createdAt: k.createdAt.toISOString(),
+    })),
+    total: result.total,
     limit: parseInt(limit, 10),
     offset: parseInt(offset, 10),
     filters: { userId, status },
-    message: 'API keys admin endpoint - implementation pending',
   });
 });
 
@@ -288,14 +310,23 @@ adminRouter.delete('/api-keys/:id', async (c) => {
   const auth = getAuth(c)!;
   const body = await c.req.json<{ reason: string }>().catch(() => ({ reason: 'Admin revocation' }));
 
-  // TODO: Implement via ApiKeyService
+  const apiKeyService = getApiKeyService();
+
+  if (!apiKeyService) {
+    return c.json({ error: 'API Key service not initialized' }, 503);
+  }
+
+  const revoked = await apiKeyService.adminRevokeKey(keyId);
+
+  if (!revoked) {
+    return c.json({ error: 'Key not found or already revoked' }, 404);
+  }
 
   return c.json({
     keyId,
     revoked: true,
     revokedBy: auth.userId,
     reason: body.reason,
-    message: 'API key revocation endpoint - implementation pending',
   });
 });
 
@@ -449,6 +480,7 @@ adminRouter.put('/prompts/:id', async (c) => {
     template: string;
     usedBy?: string[];
     tags?: string[];
+    requiredVariables?: string[];
   }>();
 
   if (!body.template) {
@@ -456,6 +488,17 @@ adminRouter.put('/prompts/:id', async (c) => {
   }
 
   const aui = c.get('aui');
+
+  // Extract variables from template (e.g., {{variable}})
+  const variableRegex = /\{\{([^}]+)\}\}/g;
+  const extractedVariables: string[] = [];
+  let match;
+  while ((match = variableRegex.exec(body.template)) !== null) {
+    const varName = match[1].trim();
+    if (!extractedVariables.includes(varName)) {
+      extractedVariables.push(varName);
+    }
+  }
 
   try {
     await aui.setPrompt({
@@ -465,6 +508,7 @@ adminRouter.put('/prompts/:id', async (c) => {
       template: body.template,
       usedBy: body.usedBy ?? [],
       tags: body.tags ?? [],
+      requiredVariables: body.requiredVariables ?? extractedVariables,
     });
 
     return c.json({

@@ -12,8 +12,16 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
-import { initUnifiedAuiWithStorage, getModelRegistry } from '@humanizer/core';
+import {
+  initUnifiedAuiWithStorage,
+  getModelRegistry,
+  initUsageService,
+  initApiKeyService,
+} from '@humanizer/core';
 import { OllamaAdapter } from '@humanizer/npe';
+
+import { setUsageService } from './middleware/quota-check.js';
+import { setApiKeyService } from './middleware/auth.js';
 
 import { auiMiddleware, setAuiService, type AuiContextVariables } from './middleware/aui-context.js';
 import { devAuth } from './middleware/auth.js';
@@ -214,6 +222,34 @@ async function main(): Promise<void> {
     // Set the global AUI service for middleware
     setAuiService(auiService);
     console.log('AUI service initialized');
+
+    // Initialize usage and API key services with the database pool
+    // Access pool via the archive store that was attached to the AUI service
+    const archiveStore = auiService.getArchiveStore();
+    if (archiveStore) {
+      const pool = archiveStore.getPool();
+
+      // Initialize UsageService for quota tracking
+      const usageService = initUsageService(pool, {
+        defaultTenantId: 'humanizer',
+        defaultUserTier: 'free',
+        cacheTtlMs: 60_000,
+      });
+      setUsageService(usageService);
+      console.log('UsageService initialized');
+
+      // Initialize ApiKeyService for API key authentication
+      const apiKeyService = initApiKeyService(pool, {
+        defaultTenantId: 'humanizer',
+        defaultScopes: ['read', 'write'],
+        defaultRateLimitRpm: 60,
+        keyPrefix: 'hum_',
+      });
+      setApiKeyService(apiKeyService);
+      console.log('ApiKeyService initialized');
+    } else {
+      console.warn('Archive store not available - UsageService and ApiKeyService not initialized');
+    }
 
     // Create and start the app
     const app = createApp();
