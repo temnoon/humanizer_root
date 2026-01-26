@@ -1,0 +1,57 @@
+{
+  "title": "Building Humanizer",
+  "subtitle": "A Development Chronicle",
+  "author": "Tem Noon",
+  "chapters": [
+    {
+      "title": "Genesis: From Chat Archive to Vision",
+      "seed": "carchive origins python flask early architecture conversation parser openai export",
+      "passagesPerChapter": 12
+    },
+    {
+      "title": "The Quantum Turn: Rho and Semantic Operators",
+      "seed": "POVM measurement tetralemma rho semantic operators quantum reading density matrix QBism",
+      "passagesPerChapter": 15
+    },
+    {
+      "title": "Detecting the Machine: AI Writing Tells",
+      "seed": "AI detection GPTZero tell-words Chekhov ratio humanization patterns machine writing detector",
+      "passagesPerChapter": 12
+    },
+    {
+      "title": "The Transformation Engine",
+      "seed": "transformation engine persona style rewriting humanizer personifier profile factory voice",
+      "passagesPerChapter": 15
+    },
+    {
+      "title": "LLM Benchmarks: A Comparative Study",
+      "seed": "LLM benchmark model comparison Claude Opus GPT Gemini Llama creative writing analysis frontier",
+      "passagesPerChapter": 15,
+      "minSimilarity": 0.5
+    },
+    {
+      "title": "Building the Studio",
+      "seed": "React frontend studio workspace buffer archive browser panel UI component",
+      "passagesPerChapter": 15
+    },
+    {
+      "title": "The Debugging Chronicles",
+      "seed": "bug fix debugging session error investigation root cause resolution",
+      "passagesPerChapter": 10,
+      "minScore": 55
+    },
+    {
+      "title": "Making Books from Archives",
+      "seed": "book generation harvest outline draft chapter passage excellence scoring narrative arc",
+      "passagesPerChapter": 12
+    }
+  ],
+  "arc": "chronological",
+  "sourceTypes": [
+    "markdown-memory",
+    "markdown-document"
+  ],
+  "passagesPerChapter": 12,
+  "minSimilarity": 0.55,
+  "minScore": 50
+}
