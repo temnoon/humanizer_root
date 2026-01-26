@@ -25,6 +25,62 @@ import { countWords, ChunkingService, MAX_CHUNK_CHARS } from '../chunking/index.
 import type { StoredNode, ContentLinkType } from '../storage/types.js';
 import { getModelRegistry } from '../models/index.js';
 import { randomUUID } from 'crypto';
+import { EMBEDDING_CONFIG_KEYS, EMBEDDING_DEFAULTS, getEmbeddingDefault } from '../config/embedding-config.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// CONTENT TYPE DETECTION
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Content types affect tokenization efficiency
+ * - Code: ~2-3 chars/token (dense syntax, symbols)
+ * - URLs: ~1-2 chars/token (special chars, base64)
+ * - Prose: ~4-5 chars/token (natural language)
+ */
+type ContentType = 'code' | 'urls' | 'prose' | 'mixed';
+
+/**
+ * Detect content type to choose appropriate chunk size limits.
+ * Tokenization varies significantly by content type.
+ */
+function detectContentType(text: string): ContentType {
+  // Count indicators
+  const codeIndicators = (text.match(/```|import\s+|export\s+|function\s+|const\s+\w+\s*=|class\s+\w+|=>/g) || []).length;
+  const urlIndicators = (text.match(/https?:\/\/|www\.|file:\/\/|[a-zA-Z0-9+/]{20,}={0,2}/g) || []).length;
+  const totalChars = text.length;
+
+  // Thresholds (per 1000 chars)
+  const codeRatio = (codeIndicators * 1000) / totalChars;
+  const urlRatio = (urlIndicators * 1000) / totalChars;
+
+  // URLs are most dangerous for tokenization
+  if (urlRatio > 2) return 'urls';
+  // Code is moderately dangerous
+  if (codeRatio > 5) return 'code';
+  // Mixed if both present but below thresholds
+  if (codeRatio > 1 || urlRatio > 0.5) return 'mixed';
+  // Default to prose (most efficient)
+  return 'prose';
+}
+
+/**
+ * Get max chars for embedding based on content type.
+ * Uses config values with sensible defaults.
+ */
+function getMaxCharsForContentType(contentType: ContentType): number {
+  switch (contentType) {
+    case 'urls':
+      return getEmbeddingDefault<number>(EMBEDDING_CONFIG_KEYS.MAX_CHARS_URLS);
+    case 'code':
+      return getEmbeddingDefault<number>(EMBEDDING_CONFIG_KEYS.MAX_CHARS_CODE);
+    case 'prose':
+      return getEmbeddingDefault<number>(EMBEDDING_CONFIG_KEYS.MAX_CHARS_PROSE);
+    case 'mixed':
+    default:
+      // Use standard MAX_CHUNK_CHARS for mixed content
+      return getEmbeddingDefault<number>(EMBEDDING_CONFIG_KEYS.MAX_CHUNK_CHARS);
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES
@@ -182,8 +238,46 @@ export class EmbeddingService {
 
   /**
    * Generate embedding for a single text
+   *
+   * For long texts that exceed the model's context length, this will
+   * automatically chunk the content, embed ALL chunks, and return a centroid
+   * embedding that represents the full content in the latent space.
+   *
+   * Content-type-aware: adjusts chunk limits based on tokenization efficiency
+   * (code/URLs tokenize poorly, prose tokenizes well).
    */
   async embed(text: string): Promise<number[]> {
+    // Detect content type and get appropriate limit
+    const contentType = detectContentType(text);
+    const maxChars = getMaxCharsForContentType(contentType);
+
+    if (text.length <= maxChars) {
+      return this.embedSingleText(text);
+    }
+
+    // Content exceeds safe limit - chunk and use centroid strategy
+    // This ensures ALL content is represented (no information loss)
+    const chunks = this.chunkLongText(text, maxChars);
+
+    if (this.config.verbose && chunks.length > 1) {
+      console.log(`  Text (${contentType}) split into ${chunks.length} chunks for centroid embedding`);
+    }
+
+    // Embed ALL chunks
+    const chunkEmbeddings: number[][] = [];
+    for (const chunk of chunks) {
+      const embedding = await this.embedSingleText(chunk);
+      chunkEmbeddings.push(embedding);
+    }
+
+    // Return centroid embedding (normalized average of all chunks)
+    return this.computeCentroidEmbedding(chunkEmbeddings);
+  }
+
+  /**
+   * Embed a single text (internal, no chunking)
+   */
+  private async embedSingleText(text: string): Promise<number[]> {
     const response = await fetch(`${this.config.ollamaUrl}/api/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -201,6 +295,43 @@ export class EmbeddingService {
 
     const data = (await response.json()) as { embeddings: number[][] };
     return data.embeddings[0];
+  }
+
+  /**
+   * Chunk long text into smaller pieces at sentence boundaries
+   */
+  private chunkLongText(text: string, maxChars: number): string[] {
+    const chunks: string[] = [];
+    let remaining = text;
+
+    while (remaining.length > 0) {
+      if (remaining.length <= maxChars) {
+        chunks.push(remaining);
+        break;
+      }
+
+      // Find a good break point (sentence end)
+      let breakPoint = maxChars;
+      const searchStart = Math.max(0, maxChars - 500);
+      const searchArea = remaining.substring(searchStart, maxChars);
+
+      // Look for sentence endings
+      const sentenceEnd = searchArea.lastIndexOf('. ');
+      if (sentenceEnd > 0) {
+        breakPoint = searchStart + sentenceEnd + 2;
+      } else {
+        // Fall back to paragraph break
+        const paraEnd = searchArea.lastIndexOf('\n\n');
+        if (paraEnd > 0) {
+          breakPoint = searchStart + paraEnd + 2;
+        }
+      }
+
+      chunks.push(remaining.substring(0, breakPoint).trim());
+      remaining = remaining.substring(breakPoint).trim();
+    }
+
+    return chunks;
   }
 
   /**
@@ -419,21 +550,25 @@ export class EmbeddingService {
       console.log(`  Embedding ${needsEmbedding.length} nodes...`);
     }
 
-    // Use ChunkingService with target chars safe for embedding model
-    // nomic-embed-text has 2048 token context, ~4 chars/token average = 8192 chars max
-    // Use conservative limit of 4000 chars to account for tokenization variance
-    const SAFE_CHARS = 4000;
+    // Use ChunkingService with content-type-aware limits
+    // Limit varies by content type (code/URLs tokenize poorly)
+    const targetChars = getEmbeddingDefault<number>(EMBEDDING_CONFIG_KEYS.TARGET_CHUNK_CHARS);
+    const maxChars = getEmbeddingDefault<number>(EMBEDDING_CONFIG_KEYS.MAX_CHUNK_CHARS);
     const chunker = new ChunkingService({
-      targetChunkChars: 3000, // Target well under the limit
-      maxChunkChars: SAFE_CHARS,    // Hard limit
+      targetChunkChars: targetChars,
+      maxChunkChars: maxChars,
       preserveParagraphs: true,
       preserveSentences: true,
     });
 
-    // Extract texts, chunking long content
+    // Extract texts with content-type-aware chunking
+    // Uses centroid strategy for long content (via embed())
     const texts = needsEmbedding.map((n) => {
       const text = n.text || '';
-      if (text.length <= SAFE_CHARS) {
+      const contentType = detectContentType(text);
+      const safeChars = getMaxCharsForContentType(contentType);
+
+      if (text.length <= safeChars) {
         return text;
       }
 
@@ -444,16 +579,15 @@ export class EmbeddingService {
         format: 'markdown', // Preserves structure better
       });
 
-      // Use first chunk for embedding
-      // (Full pyramid with all chunks via processContent)
+      // Return full text - embed() will handle chunking + centroid
+      // This ensures ALL content is represented
       if (result.chunks.length > 0) {
         if (this.config.verbose) {
-          console.log(`  Chunked ${text.length} chars into ${result.chunks.length} chunks, using first`);
+          console.log(`  Content (${contentType}) ${text.length} chars → ${result.chunks.length} chunks for centroid embedding`);
         }
-        return result.chunks[0].text;
       }
 
-      return text.substring(0, SAFE_CHARS); // Fallback truncation
+      return text; // embed() handles chunking and centroid
     });
 
     const batchResult = await this.embedBatch(texts);
@@ -549,6 +683,9 @@ export class EmbeddingService {
       console.log(`  Processing ${threadGroups.size} threads + ${orphanNodes.length} orphan nodes`);
     }
 
+    // Get max combined content size from config
+    const maxCombinedChars = getEmbeddingDefault<number>(EMBEDDING_CONFIG_KEYS.MAX_COMBINED_CHARS);
+
     // Process each thread group
     for (const [threadId, threadNodes] of threadGroups) {
       // Combine content from all nodes in thread (ordered by position)
@@ -569,6 +706,18 @@ export class EmbeddingService {
         hasApex: false,
         totalWords,
       });
+
+      // VALIDATION: If combined content is too large, embed nodes individually
+      // This prevents memory issues and context overflow in pyramid building
+      if (combinedContent.length > maxCombinedChars) {
+        if (this.config.verbose) {
+          console.log(`  Thread ${threadId.slice(0, 8)} too large (${combinedContent.length} chars), embedding nodes individually`);
+        }
+        // Fall through to simple embedding (handled after pyramid check)
+        const simpleResults = await this.embedNodesSimple(threadNodes, enrichedContent);
+        embeddingItems.push(...simpleResults);
+        continue;
+      }
 
       // Check if thread needs pyramid
       if (totalWords >= MIN_WORDS_FOR_PYRAMID && this.pyramidBuilder) {
@@ -704,7 +853,14 @@ export class EmbeddingService {
   }
 
   /**
-   * Simple embedding for nodes (no pyramid)
+   * Simple embedding for nodes - chunks long content and embeds ALL chunks
+   *
+   * For content exceeding the model's context length:
+   * 1. Chunks the content at natural boundaries
+   * 2. Embeds EVERY chunk (nothing is truncated/lost)
+   * 3. Returns the centroid embedding for the node (average of all chunks)
+   *
+   * This ensures ALL content is represented in the latent space.
    *
    * @param nodes - Nodes to embed
    * @param enrichedContent - Optional enriched content map
@@ -715,37 +871,77 @@ export class EmbeddingService {
   ): Promise<Array<{ nodeId: string; embedding: number[] }>> {
     if (nodes.length === 0) return [];
 
-    const SAFE_CHARS = 4000;
-    const chunker = new ChunkingService({
-      targetChunkChars: 3000,
-      maxChunkChars: SAFE_CHARS,
-      preserveParagraphs: true,
-      preserveSentences: true,
-    });
+    const results: Array<{ nodeId: string; embedding: number[] }> = [];
 
-    const texts = nodes.map((n) => {
+    for (const node of nodes) {
       // Use enriched content if available
-      const enriched = enrichedContent?.get(n.id);
-      const text = enriched?.combined || n.text || '';
-      if (text.length <= SAFE_CHARS) return text;
+      const enriched = enrichedContent?.get(node.id);
+      const text = enriched?.combined || node.text || '';
 
-      const result = chunker.chunk({
-        content: text,
-        parentId: n.id,
-        format: 'markdown',
-      });
+      // Detect content type and get appropriate limit
+      const contentType = detectContentType(text);
+      const maxChars = getMaxCharsForContentType(contentType);
 
-      if (result.chunks.length > 0) {
-        return result.chunks[0].text;
+      if (text.length <= maxChars) {
+        // Content fits in single embedding
+        const embedding = await this.embedSingleText(text);
+        results.push({ nodeId: node.id, embedding });
+      } else {
+        // Content needs to be chunked - embed ALL chunks
+        const chunks = this.chunkLongText(text, maxChars);
+
+        if (this.config.verbose) {
+          console.log(`    Node ${node.id.slice(0, 8)}... (${contentType}) chunked into ${chunks.length} parts for embedding`);
+        }
+
+        // Embed all chunks
+        const chunkEmbeddings: number[][] = [];
+        for (const chunk of chunks) {
+          const embedding = await this.embedSingleText(chunk);
+          chunkEmbeddings.push(embedding);
+        }
+
+        // Create centroid embedding (average of all chunks)
+        // This ensures the full content is represented
+        const centroid = this.computeCentroidEmbedding(chunkEmbeddings);
+        results.push({ nodeId: node.id, embedding: centroid });
       }
-      return text.substring(0, SAFE_CHARS);
-    });
+    }
 
-    const batchResult = await this.embedBatch(texts);
-    return nodes.map((n, i) => ({
-      nodeId: n.id,
-      embedding: batchResult.embeddings[i],
-    }));
+    return results;
+  }
+
+  /**
+   * Compute centroid (average) of multiple embeddings
+   * This creates a single embedding that represents the combined semantic space
+   */
+  private computeCentroidEmbedding(embeddings: number[][]): number[] {
+    if (embeddings.length === 0) return [];
+    if (embeddings.length === 1) return embeddings[0];
+
+    const dimensions = embeddings[0].length;
+    const centroid = new Array(dimensions).fill(0);
+
+    for (const embedding of embeddings) {
+      for (let i = 0; i < dimensions; i++) {
+        centroid[i] += embedding[i];
+      }
+    }
+
+    // Average
+    for (let i = 0; i < dimensions; i++) {
+      centroid[i] /= embeddings.length;
+    }
+
+    // Normalize to unit length for consistent similarity comparisons
+    const magnitude = Math.sqrt(centroid.reduce((sum, v) => sum + v * v, 0));
+    if (magnitude > 0) {
+      for (let i = 0; i < dimensions; i++) {
+        centroid[i] /= magnitude;
+      }
+    }
+
+    return centroid;
   }
 
   /**

@@ -92,6 +92,22 @@ export const EMBEDDING_CONFIG_KEYS = {
 
   /** Minimum words before pyramid building */
   MIN_WORDS_FOR_PYRAMID: 'embedding.minWordsForPyramid',
+
+  // ─────────────────────────────────────────────────────────────────
+  // Content-Type-Aware Limits (token estimation varies by content)
+  // ─────────────────────────────────────────────────────────────────
+
+  /** Max chars for code content (tokenizes poorly: ~2-3 chars/token) */
+  MAX_CHARS_CODE: 'embedding.maxCharsCode',
+
+  /** Max chars for URL-heavy content (tokenizes very poorly: ~1-2 chars/token) */
+  MAX_CHARS_URLS: 'embedding.maxCharsUrls',
+
+  /** Max chars for prose content (tokenizes well: ~4-5 chars/token) */
+  MAX_CHARS_PROSE: 'embedding.maxCharsProse',
+
+  /** Max combined content size before pyramid (prevents memory issues) */
+  MAX_COMBINED_CHARS: 'embedding.maxCombinedChars',
 } as const;
 
 /**
@@ -129,9 +145,19 @@ export const EMBEDDING_DEFAULTS: Record<EmbeddingConfigKey, unknown> = {
   [EMBEDDING_CONFIG_KEYS.CACHE_TTL_MS]: 3600000, // 1 hour
 
   // Chunking configuration
-  [EMBEDDING_CONFIG_KEYS.TARGET_CHUNK_CHARS]: 3000,
-  [EMBEDDING_CONFIG_KEYS.MAX_CHUNK_CHARS]: 4000,
+  // Conservative limits to handle mixed content (code + prose + URLs)
+  [EMBEDDING_CONFIG_KEYS.TARGET_CHUNK_CHARS]: 1500,
+  [EMBEDDING_CONFIG_KEYS.MAX_CHUNK_CHARS]: 2000, // Safe for mixed content ~1000 tokens at 2 chars/token
   [EMBEDDING_CONFIG_KEYS.MIN_WORDS_FOR_PYRAMID]: 1000,
+
+  // Content-type-aware limits (based on tokenization efficiency)
+  // nomic-embed-text has 8192 token context, but trained on 2048
+  // Target ~1500 tokens max to leave buffer for edge cases
+  // These values are VERY conservative to handle worst-case tokenization
+  [EMBEDDING_CONFIG_KEYS.MAX_CHARS_CODE]: 1800, // ~720 tokens at 2.5 chars/token
+  [EMBEDDING_CONFIG_KEYS.MAX_CHARS_URLS]: 1200, // ~800 tokens at 1.5 chars/token
+  [EMBEDDING_CONFIG_KEYS.MAX_CHARS_PROSE]: 3500, // ~875 tokens at 4 chars/token
+  [EMBEDDING_CONFIG_KEYS.MAX_COMBINED_CHARS]: 50000, // Max before splitting threads
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -167,6 +193,12 @@ export const EMBEDDING_CONFIG_CATEGORIES: Record<EmbeddingConfigKey, ConfigCateg
   [EMBEDDING_CONFIG_KEYS.TARGET_CHUNK_CHARS]: 'limits',
   [EMBEDDING_CONFIG_KEYS.MAX_CHUNK_CHARS]: 'limits',
   [EMBEDDING_CONFIG_KEYS.MIN_WORDS_FOR_PYRAMID]: 'limits',
+
+  // Content-type-aware limits
+  [EMBEDDING_CONFIG_KEYS.MAX_CHARS_CODE]: 'limits',
+  [EMBEDDING_CONFIG_KEYS.MAX_CHARS_URLS]: 'limits',
+  [EMBEDDING_CONFIG_KEYS.MAX_CHARS_PROSE]: 'limits',
+  [EMBEDDING_CONFIG_KEYS.MAX_COMBINED_CHARS]: 'limits',
 };
 
 // ═══════════════════════════════════════════════════════════════════════════

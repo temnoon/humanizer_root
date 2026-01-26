@@ -25,16 +25,18 @@ export const CHUNKING_CONFIG_KEYS = {
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Target chunk size in characters (~400-500 words)
+ * Target chunk size in characters (~300-400 words)
  * Based on optimal embedding performance for nomic-embed-text
+ * Conservative to handle mixed content (code + prose + URLs)
  */
-export const TARGET_CHUNK_CHARS = 2000;
+export const TARGET_CHUNK_CHARS = 1500;
 
 /**
  * Maximum chunk size in characters (hard limit)
- * Prevents chunks from exceeding embedding model limits
+ * Very conservative to handle worst-case tokenization (URLs, code)
+ * ~1000 tokens at 2 chars/token average for mixed content
  */
-export const MAX_CHUNK_CHARS = 4000;
+export const MAX_CHUNK_CHARS = 2000;
 
 /**
  * Minimum chunk size in characters
