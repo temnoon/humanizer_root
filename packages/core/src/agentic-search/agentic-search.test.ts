@@ -669,7 +669,7 @@ describe('Constants', () => {
 
   describe('Default Values', () => {
     it('has sensible defaults', () => {
-      expect(DEFAULT_LIMIT).toBe(20);
+      expect(DEFAULT_LIMIT).toBe(60); // 60 * 2 = 120 initial candidates
       expect(DEFAULT_THRESHOLD).toBe(0.3);
       expect(DEFAULT_MIN_WORD_COUNT).toBe(20);
     });

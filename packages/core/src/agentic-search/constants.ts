@@ -9,8 +9,8 @@
 // SEARCH DEFAULTS
 // ═══════════════════════════════════════════════════════════════════
 
-/** Default maximum results to return */
-export const DEFAULT_LIMIT = 20;
+/** Default maximum results to return (storage layer fetches 2x for filtering) */
+export const DEFAULT_LIMIT = 60;
 
 /** Default relevance threshold (0-1) */
 export const DEFAULT_THRESHOLD = 0.3;
