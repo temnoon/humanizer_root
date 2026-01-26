@@ -409,9 +409,90 @@ async function extractMediaTextFromDb() {
   log(`  Total image associations: ${imageAssociations.length}`);
 
   // ─────────────────────────────────────────────────────────────────
-  // Phase 2: Find image description conversations
+  // Phase 2: Custom GPT OCR Transcriptions
   // ─────────────────────────────────────────────────────────────────
-  log('\n[Phase 2] Processing image descriptions...');
+  log('\n[Phase 2] Processing Custom GPT OCR transcriptions...');
+
+  // Find Custom GPT assistant messages with code blocks that follow user image uploads
+  const ocrTranscriptResult = await pool.query(`
+    SELECT DISTINCT ON (a.id)
+      a.id as assistant_id,
+      a.text as assistant_text,
+      a.thread_root_id,
+      a.source_created_at,
+      a.source_metadata->>'conversation_id' as conversation_id,
+      u.id as user_id,
+      u.media_refs as user_media_refs
+    FROM content_nodes a
+    JOIN content_nodes u ON a.thread_root_id = u.thread_root_id
+      AND u.author_role = 'user'
+      AND u.source_created_at < a.source_created_at
+      AND u.media_refs IS NOT NULL
+      AND u.media_refs::text LIKE '%file-%'
+    WHERE a.source_type LIKE '%chatgpt%'
+      AND a.author_role = 'assistant'
+      AND a.source_metadata::text LIKE '%gpt-4-gizmo%'
+      AND a.text LIKE '%\`\`\`%'
+      AND (a.text ILIKE '%transcri%' OR a.text ILIKE '%here is the%text%')
+    ORDER BY a.id, u.source_created_at DESC
+  `);
+
+  log(`  Found ${ocrTranscriptResult.rows.length} Custom GPT OCR transcript messages`);
+
+  let ocrAssociationsCreated = 0;
+  for (const row of ocrTranscriptResult.rows) {
+    // Parse user media refs
+    let userMediaRefs: Array<{ id: string; type?: string; url?: string }> = [];
+    if (Array.isArray(row.user_media_refs)) {
+      userMediaRefs = row.user_media_refs;
+    } else if (typeof row.user_media_refs === 'string') {
+      try { userMediaRefs = JSON.parse(row.user_media_refs); } catch { continue; }
+    } else if (row.user_media_refs && typeof row.user_media_refs === 'object') {
+      userMediaRefs = [row.user_media_refs];
+    }
+
+    // Filter to file-service URLs only
+    const fileRefs = userMediaRefs.filter(r => r.id?.includes('file-') || r.url?.includes('file-'));
+    if (fileRefs.length === 0) continue;
+
+    // Extract code blocks from assistant text
+    const codeBlocks = extractCodeBlocks(row.assistant_text || '');
+    if (codeBlocks.length === 0) continue;
+
+    // Create batch ID for multi-image transcripts
+    const batchId = fileRefs.length > 1 ? randomUUID() : undefined;
+
+    // Link all images to all code blocks (Journal Recognizer can combine multiple images)
+    for (let blockIdx = 0; blockIdx < codeBlocks.length; blockIdx++) {
+      const block = codeBlocks[blockIdx];
+      for (let imgIdx = 0; imgIdx < fileRefs.length; imgIdx++) {
+        const ref = fileRefs[imgIdx];
+        imageAssociations.push({
+          mediaId: ref.id,
+          mediaPointer: ref.url,
+          extractedText: block,
+          associationType: 'ocr',
+          chainPosition: 0,
+          extractionMethod: 'custom-gpt-ocr',
+          confidence: 0.90, // High confidence for dedicated OCR GPTs
+          conversationId: row.conversation_id,
+          messageId: row.assistant_id,
+          batchId,
+          batchPosition: imgIdx,
+          sourceCreatedAt: row.source_created_at?.getTime(),
+        });
+        ocrAssociationsCreated++;
+      }
+    }
+  }
+
+  log(`  Created ${ocrAssociationsCreated} OCR associations from Custom GPTs`);
+  log(`  Total associations so far: ${imageAssociations.length}`);
+
+  // ─────────────────────────────────────────────────────────────────
+  // Phase 4: Find image description conversations
+  // ─────────────────────────────────────────────────────────────────
+  log('\n[Phase 4] Processing image descriptions...');
 
   // Find user messages with images, then get assistant responses
   const userImagesResult = await pool.query(`
@@ -485,7 +566,7 @@ async function extractMediaTextFromDb() {
   log(`  Created ${ocrAssociations.length} OCR associations`);
 
   // ─────────────────────────────────────────────────────────────────
-  // Phase 4: Store all associations
+  // Phase 5: Store all associations
   // ─────────────────────────────────────────────────────────────────
   const allAssociations = [
     ...imageAssociations,
@@ -493,7 +574,7 @@ async function extractMediaTextFromDb() {
     ...ocrAssociations,
   ];
 
-  log(`\n[Phase 3] Storing ${allAssociations.length} associations...`);
+  log(`\n[Phase 5] Storing ${allAssociations.length} associations...`);
 
   if (allAssociations.length > 0) {
     const result = await store.storeMediaTextAssociations(allAssociations);
@@ -501,7 +582,7 @@ async function extractMediaTextFromDb() {
   }
 
   // ─────────────────────────────────────────────────────────────────
-  // Phase 5: Final stats
+  // Phase 6: Final stats
   // ─────────────────────────────────────────────────────────────────
   const finalStats = await pool.query(`
     SELECT
