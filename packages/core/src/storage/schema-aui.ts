@@ -849,14 +849,50 @@ CREATE INDEX IF NOT EXISTS idx_aui_api_keys_user ON aui_api_keys(user_id);
 CREATE INDEX IF NOT EXISTS idx_aui_api_keys_tenant ON aui_api_keys(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_aui_api_keys_hash ON aui_api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_aui_api_keys_prefix ON aui_api_keys(key_prefix);
-CREATE INDEX IF NOT EXISTS idx_aui_api_keys_active ON aui_api_keys(user_id) WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > NOW());
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_not_revoked ON aui_api_keys(user_id, tenant_id) WHERE revoked_at IS NULL;
 
 -- Tier defaults indexes
 CREATE INDEX IF NOT EXISTS idx_aui_tier_defaults_public ON aui_tier_defaults(tenant_id, is_public, priority);
 
 -- User quota overrides indexes
 CREATE INDEX IF NOT EXISTS idx_aui_user_quota_overrides_tenant ON aui_user_quota_overrides(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_aui_user_quota_overrides_active ON aui_user_quota_overrides(user_id) WHERE effective_until IS NULL OR effective_until > NOW();
+
+-- User preferences indexes
+CREATE INDEX IF NOT EXISTS idx_aui_user_preferences_tenant ON aui_user_preferences(tenant_id);
+
+-- Provider cost rates indexes
+CREATE INDEX IF NOT EXISTS idx_aui_provider_cost_rates_active ON aui_provider_cost_rates(provider, model_id) WHERE effective_until IS NULL;
+`;
+
+/**
+ * User accounting specific indexes (for migration)
+ */
+export const CREATE_AUI_USER_ACCOUNTING_INDEXES = `
+-- Usage events indexes
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_user_period ON aui_usage_events(user_id, billing_period);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_tenant_period ON aui_usage_events(tenant_id, billing_period);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_created ON aui_usage_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_session ON aui_usage_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_api_key ON aui_usage_events(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_model ON aui_usage_events(model_id);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_operation ON aui_usage_events(operation_type);
+
+-- User usage snapshots indexes
+CREATE INDEX IF NOT EXISTS idx_aui_user_usage_snapshots_tenant ON aui_user_usage_snapshots(tenant_id, billing_period);
+CREATE INDEX IF NOT EXISTS idx_aui_user_usage_snapshots_updated ON aui_user_usage_snapshots(updated_at DESC);
+
+-- API keys indexes
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_user ON aui_api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_tenant ON aui_api_keys(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_hash ON aui_api_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_prefix ON aui_api_keys(key_prefix);
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_not_revoked ON aui_api_keys(user_id, tenant_id) WHERE revoked_at IS NULL;
+
+-- Tier defaults indexes
+CREATE INDEX IF NOT EXISTS idx_aui_tier_defaults_public ON aui_tier_defaults(tenant_id, is_public, priority);
+
+-- User quota overrides indexes
+CREATE INDEX IF NOT EXISTS idx_aui_user_quota_overrides_tenant ON aui_user_quota_overrides(tenant_id);
 
 -- User preferences indexes
 CREATE INDEX IF NOT EXISTS idx_aui_user_preferences_tenant ON aui_user_preferences(tenant_id);
