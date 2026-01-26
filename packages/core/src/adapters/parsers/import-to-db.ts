@@ -43,6 +43,11 @@ import {
   quickPasteCheck,
   type PasteAnalysisResult,
 } from './paste-detector.js';
+import {
+  MediaTextEnrichmentService,
+  type EnrichedContent,
+  type BatchEnrichmentResult,
+} from './media-text-enrichment.js';
 
 /**
  * Import result statistics
@@ -97,6 +102,16 @@ export interface ImportResult {
     reasonsDetected: string[];
     detectionDurationMs: number;
   };
+  // Content enrichment stats
+  enrichment?: {
+    nodesEnriched: number;
+    nodesSkipped: number;
+    totalTranscripts: number;
+    totalDescriptions: number;
+    totalCaptions: number;
+    avgConfidence: number;
+    enrichmentDurationMs: number;
+  };
 }
 
 /**
@@ -122,6 +137,14 @@ export async function importArchiveToDb(
     detectPaste?: boolean;
     /** Minimum confidence threshold for paste detection (default: 0.5) */
     pasteMinConfidence?: number;
+    /** Enrich content with media-text (OCR, descriptions) before embedding (default: true) */
+    enrichContent?: boolean;
+    /** Include transcripts in enriched content (default: true) */
+    includeTranscripts?: boolean;
+    /** Include descriptions in enriched content (default: true) */
+    includeDescriptions?: boolean;
+    /** Minimum confidence for enrichment inclusion (default: 0.5) */
+    enrichMinConfidence?: number;
   } = {}
 ): Promise<ImportResult> {
   const {
@@ -135,6 +158,10 @@ export async function importArchiveToDb(
     extractMediaText = true,
     detectPaste = true,
     pasteMinConfidence = 0.5,
+    enrichContent = true,
+    includeTranscripts = true,
+    includeDescriptions = true,
+    enrichMinConfidence = 0.5,
   } = options;
   const archiveWithRels = archive as ParsedArchiveWithRelationships;
   const startTime = Date.now();
@@ -291,129 +318,12 @@ export async function importArchiveToDb(
       log(`  Group content: ${relationshipStats.groupContentImported}`);
     }
 
-    // Generate embeddings if enabled
-    let embeddingStats: ImportResult['embeddings'] | undefined;
-    if (generateEmbeddings && messagesImported > 0) {
-      log('\nGenerating embeddings...');
-      const embeddingStartTime = Date.now();
-
-      // Initialize embedding service
-      const embedService = embeddingConfig
-        ? initEmbeddingService({ ...embeddingConfig, verbose })
-        : getEmbeddingService({ verbose });
-
-      // Check Ollama availability
-      const ollamaAvailable = await embedService.isAvailable();
-      if (!ollamaAvailable) {
-        log('  ⚠ Ollama not available, skipping embeddings');
-        embeddingStats = {
-          nodesEmbedded: 0,
-          pyramidsBuilt: 0,
-          embeddingModel: embedService.getEmbedModel(),
-          embeddingDurationMs: 0,
-          ollamaAvailable: false,
-        };
-      } else {
-        // Get all nodes that need embedding
-        const nodesResult = await store.queryNodes({
-          importJobId: job.id,
-          limit: 10000,
-        });
-
-        let nodesEmbedded = 0;
-        let pyramidsBuilt = 0;
-        let pyramidNodesCreated = 0;
-
-        // Embed nodes with automatic pyramid building for large threads
-        const pyramidResult = await embedService.embedNodesWithPyramid(
-          nodesResult.nodes,
-          formatToSourceType(archive.format)
-        );
-
-        pyramidsBuilt = pyramidResult.pyramidsBuilt;
-
-        // Store new pyramid nodes (L0 chunks, L1 summaries, Apex)
-        if (pyramidResult.newNodes.length > 0) {
-          log(`  Creating ${pyramidResult.newNodes.length} pyramid nodes...`);
-          for (const pyramidNode of pyramidResult.newNodes) {
-            try {
-              // Convert PyramidStoredNode to ImportedNode format
-              const importedNode: ImportedNode = {
-                id: pyramidNode.id,
-                uri: `pyramid://${pyramidNode.threadRootId}/${pyramidNode.hierarchyLevel}/${pyramidNode.id}`,
-                contentHash: pyramidNode.contentHash,
-                content: pyramidNode.text,
-                format: 'text',
-                sourceType: pyramidNode.sourceType,
-                sourceAdapter: adapterId,
-                parentUri: pyramidNode.parentNodeId
-                  ? `pyramid://${pyramidNode.threadRootId}/${pyramidNode.hierarchyLevel - 1}/${pyramidNode.parentNodeId}`
-                  : undefined,
-                threadRootUri: `${archive.format}://${pyramidNode.threadRootId}`,
-                position: pyramidNode.position,
-                chunkIndex: pyramidNode.chunkIndex,
-                chunkStartOffset: pyramidNode.chunkStartOffset,
-                chunkEndOffset: pyramidNode.chunkEndOffset,
-                hierarchyLevel: pyramidNode.hierarchyLevel,
-                metadata: {
-                  wordCount: pyramidNode.wordCount,
-                  pyramidLevel: pyramidNode.hierarchyLevel,
-                },
-              };
-
-              await store.storeNode(importedNode, job.id);
-              pyramidNodesCreated++;
-            } catch (err) {
-              if (verbose) {
-                console.error(`  Failed to store pyramid node ${pyramidNode.id}:`, err);
-              }
-            }
-          }
-          log(`  Created ${pyramidNodesCreated} pyramid nodes`);
-        }
-
-        // Store content links for pyramid relationships
-        if (pyramidResult.links.length > 0) {
-          log(`  Creating ${pyramidResult.links.length} pyramid links...`);
-          let linksCreated = 0;
-          for (const link of pyramidResult.links) {
-            try {
-              await store.createLink(link.sourceId, link.targetId, link.linkType);
-              linksCreated++;
-            } catch (err) {
-              // Link may already exist or target doesn't exist
-              if (verbose) {
-                console.debug(`  Link creation skipped: ${link.sourceId} -> ${link.targetId}`);
-              }
-            }
-          }
-          log(`  Created ${linksCreated} pyramid links`);
-        }
-
-        // Store embeddings for all nodes (original + pyramid)
-        if (pyramidResult.embeddingItems.length > 0) {
-          const result = await store.storeEmbeddings(
-            pyramidResult.embeddingItems,
-            embedService.getEmbedModel()
-          );
-          nodesEmbedded = result.stored;
-          log(`  Embedded ${nodesEmbedded} nodes`);
-        }
-
-        embeddingStats = {
-          nodesEmbedded,
-          pyramidsBuilt,
-          embeddingModel: embedService.getEmbedModel(),
-          embeddingDurationMs: Date.now() - embeddingStartTime,
-          ollamaAvailable: true,
-        };
-
-        log(`  ✓ Embeddings complete (${nodesEmbedded} nodes, ${pyramidsBuilt} pyramids, ${(embeddingStats.embeddingDurationMs / 1000).toFixed(1)}s)`);
-      }
-    }
-
-    // Extract media-text associations if enabled
+    // ═══════════════════════════════════════════════════════════════════
+    // PHASE 1: Extract media-text associations (BEFORE embedding)
+    // ═══════════════════════════════════════════════════════════════════
     let mediaTextStats: ImportResult['mediaText'] | undefined;
+    const allAssociations: Omit<import('../../storage/types.js').MediaTextAssociation, 'id' | 'createdAt'>[] = [];
+
     if (extractMediaText) {
       log('\nExtracting media-text associations...');
       const mediaTextStartTime = Date.now();
@@ -499,6 +409,9 @@ export async function importArchiveToDb(
             importJobId: job.id,
           });
 
+          // Collect associations for enrichment
+          allAssociations.push(...result.associations);
+
           // Store associations
           if (result.associations.length > 0) {
             const storeResult = await store.storeMediaTextAssociations(result.associations);
@@ -529,6 +442,189 @@ export async function importArchiveToDb(
         log(`  ✓ Media-text extraction complete (${associationsCreated} associations, ${ocrExtractions} OCR, ${descriptionExtractions} descriptions)`);
       } else {
         log('  No media-text associations found');
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // PHASE 2: Enrich content with media-text (for embedding)
+    // ═══════════════════════════════════════════════════════════════════
+    let enrichmentStats: ImportResult['enrichment'] | undefined;
+    let enrichedContentMap: Map<string, EnrichedContent> | undefined;
+
+    if (enrichContent && allAssociations.length > 0 && messagesImported > 0) {
+      log('\nEnriching content with media-text...');
+      const enrichmentStartTime = Date.now();
+
+      // Get all nodes to enrich
+      const nodesResult = await store.queryNodes({
+        importJobId: job.id,
+        limit: 10000,
+      });
+
+      // Convert stored associations to the full type with required fields
+      const fullAssociations = allAssociations.map((a, i) => ({
+        ...a,
+        id: `temp_${i}`,
+        createdAt: Date.now(),
+      })) as import('../../storage/types.js').MediaTextAssociation[];
+
+      // Enrich content using media-text
+      const enrichmentService = new MediaTextEnrichmentService({
+        includeTranscripts,
+        includeDescriptions,
+        minConfidence: enrichMinConfidence,
+      });
+
+      // Convert StoredNodes to ImportedNodes for enrichment
+      const importedNodes: ImportedNode[] = nodesResult.nodes.map(n => ({
+        id: n.id,
+        uri: n.uri,
+        contentHash: n.contentHash,
+        content: n.text,
+        format: n.format as ImportedNode['format'],
+        sourceType: n.sourceType,
+        threadRootUri: n.threadRootId ? `${archive.format}://${n.threadRootId}` : undefined,
+        metadata: n.sourceMetadata || {},
+      }));
+
+      const enrichmentResult = enrichmentService.enrichBatch(importedNodes, fullAssociations);
+      enrichedContentMap = enrichmentResult.enrichments;
+
+      enrichmentStats = {
+        nodesEnriched: enrichmentResult.stats.nodesEnriched,
+        nodesSkipped: enrichmentResult.stats.nodesSkipped,
+        totalTranscripts: enrichmentResult.stats.totalTranscripts,
+        totalDescriptions: enrichmentResult.stats.totalDescriptions,
+        totalCaptions: enrichmentResult.stats.totalCaptions,
+        avgConfidence: enrichmentResult.stats.avgConfidence,
+        enrichmentDurationMs: Date.now() - enrichmentStartTime,
+      };
+
+      log(`  ✓ Enrichment complete (${enrichmentResult.stats.nodesEnriched} nodes enriched, ${enrichmentResult.stats.totalTranscripts} transcripts, ${enrichmentResult.stats.totalDescriptions} descriptions)`);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // PHASE 3: Generate embeddings (with enriched content)
+    // ═══════════════════════════════════════════════════════════════════
+    let embeddingStats: ImportResult['embeddings'] | undefined;
+    if (generateEmbeddings && messagesImported > 0) {
+      log('\nGenerating embeddings...');
+      const embeddingStartTime = Date.now();
+
+      // Initialize embedding service
+      const embedService = embeddingConfig
+        ? initEmbeddingService({ ...embeddingConfig, verbose })
+        : getEmbeddingService({ verbose });
+
+      // Check Ollama availability
+      const ollamaAvailable = await embedService.isAvailable();
+      if (!ollamaAvailable) {
+        log('  ⚠ Ollama not available, skipping embeddings');
+        embeddingStats = {
+          nodesEmbedded: 0,
+          pyramidsBuilt: 0,
+          embeddingModel: embedService.getEmbedModel(),
+          embeddingDurationMs: 0,
+          ollamaAvailable: false,
+        };
+      } else {
+        // Get all nodes that need embedding
+        const nodesResult = await store.queryNodes({
+          importJobId: job.id,
+          limit: 10000,
+        });
+
+        let nodesEmbedded = 0;
+        let pyramidsBuilt = 0;
+        let pyramidNodesCreated = 0;
+
+        // Embed nodes with automatic pyramid building for large threads
+        // Pass enriched content if available
+        const pyramidResult = await embedService.embedNodesWithPyramid(
+          nodesResult.nodes,
+          formatToSourceType(archive.format),
+          enrichedContentMap ? { enrichedContent: enrichedContentMap } : undefined
+        );
+
+        pyramidsBuilt = pyramidResult.pyramidsBuilt;
+
+        // Store new pyramid nodes (L0 chunks, L1 summaries, Apex)
+        if (pyramidResult.newNodes.length > 0) {
+          log(`  Creating ${pyramidResult.newNodes.length} pyramid nodes...`);
+          for (const pyramidNode of pyramidResult.newNodes) {
+            try {
+              // Convert PyramidStoredNode to ImportedNode format
+              const importedNode: ImportedNode = {
+                id: pyramidNode.id,
+                uri: `pyramid://${pyramidNode.threadRootId}/${pyramidNode.hierarchyLevel}/${pyramidNode.id}`,
+                contentHash: pyramidNode.contentHash,
+                content: pyramidNode.text,
+                format: 'text',
+                sourceType: pyramidNode.sourceType,
+                sourceAdapter: adapterId,
+                parentUri: pyramidNode.parentNodeId
+                  ? `pyramid://${pyramidNode.threadRootId}/${pyramidNode.hierarchyLevel - 1}/${pyramidNode.parentNodeId}`
+                  : undefined,
+                threadRootUri: `${archive.format}://${pyramidNode.threadRootId}`,
+                position: pyramidNode.position,
+                chunkIndex: pyramidNode.chunkIndex,
+                chunkStartOffset: pyramidNode.chunkStartOffset,
+                chunkEndOffset: pyramidNode.chunkEndOffset,
+                hierarchyLevel: pyramidNode.hierarchyLevel,
+                metadata: {
+                  wordCount: pyramidNode.wordCount,
+                  pyramidLevel: pyramidNode.hierarchyLevel,
+                },
+              };
+
+              await store.storeNode(importedNode, job.id);
+              pyramidNodesCreated++;
+            } catch (err) {
+              if (verbose) {
+                console.error(`  Failed to store pyramid node ${pyramidNode.id}:`, err);
+              }
+            }
+          }
+          log(`  Created ${pyramidNodesCreated} pyramid nodes`);
+        }
+
+        // Store content links for pyramid relationships
+        if (pyramidResult.links.length > 0) {
+          log(`  Creating ${pyramidResult.links.length} pyramid links...`);
+          let linksCreated = 0;
+          for (const link of pyramidResult.links) {
+            try {
+              await store.createLink(link.sourceId, link.targetId, link.linkType);
+              linksCreated++;
+            } catch (err) {
+              // Link may already exist or target doesn't exist
+              if (verbose) {
+                console.debug(`  Link creation skipped: ${link.sourceId} -> ${link.targetId}`);
+              }
+            }
+          }
+          log(`  Created ${linksCreated} pyramid links`);
+        }
+
+        // Store embeddings for all nodes (original + pyramid)
+        if (pyramidResult.embeddingItems.length > 0) {
+          const result = await store.storeEmbeddings(
+            pyramidResult.embeddingItems,
+            embedService.getEmbedModel()
+          );
+          nodesEmbedded = result.stored;
+          log(`  Embedded ${nodesEmbedded} nodes`);
+        }
+
+        embeddingStats = {
+          nodesEmbedded,
+          pyramidsBuilt,
+          embeddingModel: embedService.getEmbedModel(),
+          embeddingDurationMs: Date.now() - embeddingStartTime,
+          ollamaAvailable: true,
+        };
+
+        log(`  ✓ Embeddings complete (${nodesEmbedded} nodes, ${pyramidsBuilt} pyramids, ${(embeddingStats.embeddingDurationMs / 1000).toFixed(1)}s)`);
       }
     }
 
@@ -579,6 +675,10 @@ export async function importArchiveToDb(
       log(`  Media-text: ${mediaTextStats.associationsCreated} associations from ${mediaTextStats.gizmosDetected.length} gizmos`);
     }
 
+    if (enrichmentStats) {
+      log(`  Enrichment: ${enrichmentStats.nodesEnriched} nodes, ${enrichmentStats.totalTranscripts} transcripts, ${enrichmentStats.totalDescriptions} descriptions`);
+    }
+
     // Paste detection stats
     const pasteDetectionStats = detectPaste && pasteMessagesAnalyzed > 0
       ? {
@@ -609,6 +709,7 @@ export async function importArchiveToDb(
       dedup: dedupStats,
       mediaText: mediaTextStats,
       pasteDetection: pasteDetectionStats,
+      enrichment: enrichmentStats,
     };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);

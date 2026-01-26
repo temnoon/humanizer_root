@@ -18,6 +18,7 @@
  */
 
 import type { Embedder, Summarizer, PyramidBuildResult, PyramidNode, ApexNode } from '../pyramid/types.js';
+import type { EnrichedContent } from '../adapters/parsers/media-text-enrichment.js';
 import { PyramidBuilder, initPyramidBuilder } from '../pyramid/builder.js';
 import { MIN_WORDS_FOR_PYRAMID } from '../pyramid/constants.js';
 import { countWords, ChunkingService, MAX_CHUNK_CHARS } from '../chunking/index.js';
@@ -488,12 +489,21 @@ export class EmbeddingService {
    *
    * @param nodes - Nodes to embed (typically from a single import job)
    * @param sourceType - Source type for new pyramid nodes
+   * @param options - Optional enriched content and settings
    * @returns Result with embeddings, new nodes, and links to create
    */
   async embedNodesWithPyramid(
     nodes: StoredNode[],
-    sourceType: string = 'pyramid'
+    sourceType: string = 'pyramid',
+    options?: {
+      /** Enriched content from media-text extraction */
+      enrichedContent?: Map<string, EnrichedContent>;
+      /** Use enriched content for embedding (default: true when enrichedContent provided) */
+      useEnrichedForEmbedding?: boolean;
+    }
   ): Promise<PyramidEmbeddingResult> {
+    const enrichedContent = options?.enrichedContent;
+    const useEnriched = options?.useEnrichedForEmbedding ?? !!enrichedContent;
     const startTime = Date.now();
     const embeddingItems: Array<{ nodeId: string; embedding: number[] }> = [];
     const newNodes: PyramidStoredNode[] = [];
@@ -543,7 +553,13 @@ export class EmbeddingService {
     for (const [threadId, threadNodes] of threadGroups) {
       // Combine content from all nodes in thread (ordered by position)
       const sorted = [...threadNodes].sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
-      const combinedContent = sorted.map((n) => n.text || '').join('\n\n');
+      // Use enriched content for embedding if available
+      const combinedContent = useEnriched
+        ? sorted.map((n) => {
+            const enriched = enrichedContent?.get(n.id);
+            return enriched?.combined || n.text || '';
+          }).join('\n\n')
+        : sorted.map((n) => n.text || '').join('\n\n');
       const totalWords = countWords(combinedContent);
 
       // Initialize thread stats
@@ -660,19 +676,19 @@ export class EmbeddingService {
           if (this.config.verbose) {
             console.warn(`  Pyramid build failed for thread ${threadId.slice(0, 8)}:`, err);
           }
-          const fallbackItems = await this.embedNodesSimple(threadNodes);
+          const fallbackItems = await this.embedNodesSimple(threadNodes, enrichedContent);
           embeddingItems.push(...fallbackItems);
         }
       } else {
         // Thread too small for pyramid, use simple embedding
-        const simpleItems = await this.embedNodesSimple(threadNodes);
+        const simpleItems = await this.embedNodesSimple(threadNodes, enrichedContent);
         embeddingItems.push(...simpleItems);
       }
     }
 
     // Process orphan nodes with simple embedding
     if (orphanNodes.length > 0) {
-      const orphanItems = await this.embedNodesSimple(orphanNodes);
+      const orphanItems = await this.embedNodesSimple(orphanNodes, enrichedContent);
       embeddingItems.push(...orphanItems);
     }
 
@@ -689,9 +705,13 @@ export class EmbeddingService {
 
   /**
    * Simple embedding for nodes (no pyramid)
+   *
+   * @param nodes - Nodes to embed
+   * @param enrichedContent - Optional enriched content map
    */
   private async embedNodesSimple(
-    nodes: StoredNode[]
+    nodes: StoredNode[],
+    enrichedContent?: Map<string, EnrichedContent>
   ): Promise<Array<{ nodeId: string; embedding: number[] }>> {
     if (nodes.length === 0) return [];
 
@@ -704,7 +724,9 @@ export class EmbeddingService {
     });
 
     const texts = nodes.map((n) => {
-      const text = n.text || '';
+      // Use enriched content if available
+      const enriched = enrichedContent?.get(n.id);
+      const text = enriched?.combined || n.text || '';
       if (text.length <= SAFE_CHARS) return text;
 
       const result = chunker.chunk({

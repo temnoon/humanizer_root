@@ -31,6 +31,7 @@ export type {
   ChunkingStats,
   ChunkingConfig,
   ChunkingInput,
+  ChunkEnrichedContent,
 } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -88,6 +89,8 @@ export type {
   LineHash,
   ContentHashResult,
   ContentHashOptions,
+  MediaTextForHash,
+  ContentHashWithMediaResult,
 } from './content-hasher.js';
 
 export {
@@ -107,6 +110,7 @@ export {
   hashParagraphs,
   hashLines,
   hashContent,
+  hashContentWithMedia,
   // Duplicate detection
   findCommonHashes,
   hashSetSimilarity,

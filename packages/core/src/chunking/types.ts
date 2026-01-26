@@ -145,6 +145,27 @@ export interface ChunkingConfig {
 }
 
 /**
+ * Enriched content from media-text extraction
+ * (Lightweight version for chunking - full type in adapters/parsers/media-text-enrichment.ts)
+ */
+export interface ChunkEnrichedContent {
+  /** Original node content */
+  original: string;
+
+  /** OCR transcriptions from images/documents */
+  transcripts?: string[];
+
+  /** AI-generated descriptions of media */
+  descriptions?: string[];
+
+  /** User-provided captions */
+  captions?: string[];
+
+  /** All content merged */
+  combined?: string;
+}
+
+/**
  * Input for chunking operations
  */
 export interface ChunkingInput {
@@ -159,4 +180,10 @@ export interface ChunkingInput {
 
   /** Custom configuration overrides */
   config?: Partial<ChunkingConfig>;
+
+  /** Enriched content from media-text extraction */
+  enrichedContent?: ChunkEnrichedContent;
+
+  /** Whether to append media-text to chunk content (default: false) */
+  appendMediaText?: boolean;
 }

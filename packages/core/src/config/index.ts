@@ -306,3 +306,12 @@ export {
   seedExcellenceDefaults,
   getExcellenceTier,
 } from './excellence-config.js';
+
+// Import Configuration (Archive Import with Enrichment)
+export {
+  IMPORT_CONFIG_KEYS,
+  IMPORT_DEFAULTS,
+  VALID_EXCELLENCE_TIERS,
+  getImportDefault,
+  isValidExcellenceTier,
+} from './import-config.js';

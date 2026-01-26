@@ -348,3 +348,102 @@ export function hashSetSimilarity(
 export function getUniqueHashes(hashes: Array<{ hash: string }>): string[] {
   return [...new Set(hashes.map((h) => h.hash))];
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// MEDIA-TEXT ENHANCED HASHING
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Media-text content for combined hashing
+ */
+export interface MediaTextForHash {
+  /** OCR transcriptions from images/documents */
+  transcripts?: string[];
+  /** AI-generated descriptions of media */
+  descriptions?: string[];
+  /** User-provided captions */
+  captions?: string[];
+}
+
+/**
+ * Result from content hashing with media-text
+ */
+export interface ContentHashWithMediaResult extends ContentHashResult {
+  /** Whether media-text was included in hashing */
+  includesMediaText: boolean;
+  /** Count of media-text items included */
+  mediaTextCount: number;
+  /** Combined content that was hashed */
+  combinedContent: string;
+}
+
+/**
+ * Hash content combined with media-text for deduplication.
+ *
+ * Combines the original content with transcripts, descriptions, and captions
+ * to create a more comprehensive hash. This enables:
+ * - Detecting duplicate transcripts across messages
+ * - Finding similar descriptions
+ * - Tracking first-seen provenance for extracted text
+ *
+ * @param content - The original text content
+ * @param mediaText - Optional media-text to include
+ * @param options - Hashing options
+ * @returns Hash result with combined content info
+ */
+export function hashContentWithMedia(
+  content: string,
+  mediaText?: MediaTextForHash,
+  options: ContentHashOptions = {}
+): ContentHashWithMediaResult {
+  const startTime = Date.now();
+  const contentParts: string[] = [content];
+  let mediaTextCount = 0;
+
+  // Add transcripts
+  if (mediaText?.transcripts && mediaText.transcripts.length > 0) {
+    for (const transcript of mediaText.transcripts) {
+      if (transcript.trim().length > 0) {
+        contentParts.push(`[Transcript]\n${transcript}`);
+        mediaTextCount++;
+      }
+    }
+  }
+
+  // Add descriptions
+  if (mediaText?.descriptions && mediaText.descriptions.length > 0) {
+    for (const description of mediaText.descriptions) {
+      if (description.trim().length > 0) {
+        contentParts.push(`[Description]\n${description}`);
+        mediaTextCount++;
+      }
+    }
+  }
+
+  // Add captions
+  if (mediaText?.captions && mediaText.captions.length > 0) {
+    for (const caption of mediaText.captions) {
+      if (caption.trim().length > 0) {
+        contentParts.push(`[Caption]\n${caption}`);
+        mediaTextCount++;
+      }
+    }
+  }
+
+  // Combine all content
+  const combinedContent = contentParts.join('\n\n');
+
+  // Hash the combined content
+  const baseResult = hashContent(combinedContent, options);
+
+  return {
+    ...baseResult,
+    includesMediaText: mediaTextCount > 0,
+    mediaTextCount,
+    combinedContent,
+    stats: {
+      ...baseResult.stats,
+      processingTimeMs: Date.now() - startTime,
+    },
+  };
+}

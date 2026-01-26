@@ -48,3 +48,15 @@ export {
   initExcellencePipeline,
   resetExcellencePipeline,
 } from './excellence-pipeline.js';
+
+// Import Excellence Pipeline
+export type {
+  ImportExcellenceOptions,
+  ImportExcellenceResult,
+} from './import-excellence-pipeline.js';
+export {
+  ImportExcellencePipeline,
+  getImportExcellencePipeline,
+  initImportExcellencePipeline,
+  resetImportExcellencePipeline,
+} from './import-excellence-pipeline.js';
