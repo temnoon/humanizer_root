@@ -44,6 +44,8 @@ interface Config {
   minScore: number;
   verbose: boolean;
   outputDir: string;
+  sourceTypes?: string[]; // Filter to specific source types
+  title?: string; // Custom book title
   // Persona options
   persona?: PersonaConfig;
   ollamaUrl: string;
@@ -146,6 +148,12 @@ function parseArgs(): Config {
       i++;
     } else if (args[i] === '--model' && args[i + 1]) {
       config.rewriteModel = args[i + 1];
+      i++;
+    } else if (args[i] === '--source-type' && args[i + 1]) {
+      config.sourceTypes = args[i + 1].split(',').map(s => s.trim());
+      i++;
+    } else if (args[i] === '--title' && args[i + 1]) {
+      config.title = args[i + 1];
       i++;
     }
   }
@@ -572,6 +580,12 @@ async function buildExcellenceBook() {
   if (config.theme) {
     console.log(`  Theme filter: "${config.theme}"`);
   }
+  if (config.sourceTypes) {
+    console.log(`  Source types: ${config.sourceTypes.join(', ')}`);
+  }
+  if (config.title) {
+    console.log(`  Custom title: "${config.title}"`);
+  }
 
   // Initialize store
   const store = new PostgresContentStore({
@@ -599,8 +613,14 @@ async function buildExcellenceBook() {
   const params: any[] = [config.minTier];
 
   if (config.minScore > 0) {
-    query += ` AND (source_metadata->>'excellenceScore')::int >= $2`;
+    query += ` AND (source_metadata->>'excellenceScore')::int >= $${params.length + 1}`;
     params.push(config.minScore);
+  }
+
+  // Add source type filter
+  if (config.sourceTypes && config.sourceTypes.length > 0) {
+    query += ` AND source_type = ANY($${params.length + 1})`;
+    params.push(config.sourceTypes);
   }
 
   // Add theme filter using ILIKE for each word
@@ -652,6 +672,11 @@ async function buildExcellenceBook() {
   console.log('└' + '─'.repeat(68) + '┘\n');
 
   const arc = generateArc(passages, config.arcType);
+
+  // Override title if custom title provided
+  if (config.title) {
+    arc.title = config.title;
+  }
 
   console.log(`  Title: "${arc.title}"`);
   console.log(`  Arc type: ${arc.arcType}`);

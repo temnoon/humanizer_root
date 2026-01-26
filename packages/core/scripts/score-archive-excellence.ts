@@ -1,9 +1,12 @@
 /**
  * Score Archive Excellence
  *
- * Scores all archive content for excellence using a heuristic scorer.
+ * Scores archive content for excellence using a heuristic scorer.
  * This runs much faster than LLM-based scoring while still providing
  * meaningful quality assessment.
+ *
+ * By default, scores ALL unscored content in the database.
+ * Use --source-type to filter to specific types.
  *
  * Scoring Dimensions:
  * - Insight Density: Novel ideas per paragraph
@@ -13,7 +16,20 @@
  * - Voice Authenticity: Distinctiveness of voice
  *
  * Usage:
- *   npx tsx scripts/score-archive-excellence.ts [--limit N] [--batch N] [--verbose]
+ *   npx tsx scripts/score-archive-excellence.ts [options]
+ *
+ * Options:
+ *   --limit N           Max nodes to process (default: all)
+ *   --batch N           Batch size (default: 500)
+ *   --verbose           Show detailed progress
+ *   --source-type X,Y   Filter to specific source types (comma-separated)
+ *   --include-scored    Re-score content that already has scores
+ *   --no-update         Dry run - don't write scores to database
+ *
+ * Examples:
+ *   npx tsx scripts/score-archive-excellence.ts                     # Score all unscored
+ *   npx tsx scripts/score-archive-excellence.ts --source-type markdown-document
+ *   npx tsx scripts/score-archive-excellence.ts --include-scored    # Rescore everything
  */
 
 import { PostgresContentStore } from '../src/storage/postgres-content-store.js';
@@ -28,7 +44,8 @@ interface Config {
   limit: number;
   verbose: boolean;
   updateMetadata: boolean;
-  sourceTypes: string[];
+  sourceTypes: string[] | null; // null = all source types
+  excludeScored: boolean;
 }
 
 function parseArgs(): Config {
@@ -38,7 +55,8 @@ function parseArgs(): Config {
     limit: 0, // 0 = no limit
     verbose: false,
     updateMetadata: true,
-    sourceTypes: ['chatgpt-message', 'facebook-message', 'archive-message'],
+    sourceTypes: null, // Default: score ALL source types
+    excludeScored: true, // Default: skip already-scored content
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -52,6 +70,13 @@ function parseArgs(): Config {
       config.verbose = true;
     } else if (args[i] === '--no-update') {
       config.updateMetadata = false;
+    } else if (args[i] === '--source-type' && args[i + 1]) {
+      // Filter to specific source types (comma-separated)
+      config.sourceTypes = args[i + 1].split(',').map(s => s.trim());
+      i++;
+    } else if (args[i] === '--include-scored') {
+      // Re-score content that already has scores
+      config.excludeScored = false;
     }
   }
 
@@ -271,7 +296,8 @@ async function scoreArchiveExcellence() {
   console.log(`\n  Batch size: ${config.batchSize}`);
   console.log(`  Limit: ${config.limit || 'no limit'}`);
   console.log(`  Update metadata: ${config.updateMetadata}`);
-  console.log(`  Source types: ${config.sourceTypes.join(', ')}`);
+  console.log(`  Source types: ${config.sourceTypes ? config.sourceTypes.join(', ') : 'ALL'}`);
+  console.log(`  Exclude scored: ${config.excludeScored}`);
 
   // Initialize store
   const store = new PostgresContentStore({
@@ -281,11 +307,25 @@ async function scoreArchiveExcellence() {
   await store.initialize();
   const pool = store.getPool();
 
+  // Build WHERE clause based on config
+  const whereClauses: string[] = [];
+  const queryParams: any[] = [];
+
+  if (config.sourceTypes) {
+    queryParams.push(config.sourceTypes);
+    whereClauses.push(`source_type = ANY($${queryParams.length})`);
+  }
+
+  if (config.excludeScored) {
+    whereClauses.push(`(source_metadata->>'excellenceScore') IS NULL`);
+  }
+
+  const whereClause = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
   // Get total count
   const countResult = await pool.query(`
-    SELECT COUNT(*) as count FROM content_nodes
-    WHERE source_type = ANY($1)
-  `, [config.sourceTypes]);
+    SELECT COUNT(*) as count FROM content_nodes ${whereClause}
+  `, queryParams);
   const totalNodes = parseInt(countResult.rows[0].count, 10);
   const nodesToProcess = config.limit > 0 ? Math.min(config.limit, totalNodes) : totalNodes;
 
@@ -336,14 +376,20 @@ async function scoreArchiveExcellence() {
     const batchStart = Date.now();
     const batchLimit = Math.min(config.batchSize, nodesToProcess - processed);
 
-    // Query batch
+    // Build batch query with same filters
+    const batchParams = [...queryParams];
+    batchParams.push(batchLimit);
+    const limitIdx = batchParams.length;
+    batchParams.push(offset);
+    const offsetIdx = batchParams.length;
+
     const batchResult = await pool.query(`
       SELECT id, text, author_role, source_type, source_metadata
       FROM content_nodes
-      WHERE source_type = ANY($1)
+      ${whereClause}
       ORDER BY created_at DESC
-      LIMIT $2 OFFSET $3
-    `, [config.sourceTypes, batchLimit, offset]);
+      LIMIT $${limitIdx} OFFSET $${offsetIdx}
+    `, batchParams);
 
     if (batchResult.rows.length === 0) break;
 
