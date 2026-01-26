@@ -249,6 +249,106 @@ CREATE TABLE IF NOT EXISTS aui_style_profiles (
 `;
 
 // ═══════════════════════════════════════════════════════════════════
+// PATTERN DISCOVERY TABLES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Patterns table - saved pattern definitions (user-created and promoted)
+ *
+ * Stores both user-described patterns and validated discovered patterns.
+ * Supports atomic patterns (with dimensions) and composed patterns (algebra).
+ */
+export function createAuiPatternsTable(dimension: number): string {
+  return `
+CREATE TABLE IF NOT EXISTS aui_patterns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT,
+  name TEXT NOT NULL,
+  description TEXT,
+  definition JSONB NOT NULL,
+  tags TEXT[] DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('draft', 'active', 'archived')),
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  success_rate REAL,
+  centroid vector(${dimension}),
+  source_discovered_id TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  last_used_at TIMESTAMPTZ,
+  UNIQUE(user_id, name)
+);
+`;
+}
+
+/**
+ * Pattern feedback table - immutable records of user judgments
+ *
+ * Each feedback entry teaches the system about pattern quality.
+ * Content snapshots enable learning even after content changes.
+ */
+export const CREATE_AUI_PATTERN_FEEDBACK_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_pattern_feedback (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pattern_id UUID NOT NULL REFERENCES aui_patterns(id) ON DELETE CASCADE,
+  content_id TEXT NOT NULL,
+  judgment TEXT NOT NULL CHECK (judgment IN ('correct', 'incorrect', 'partial')),
+  explanation TEXT,
+  content_snapshot JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'
+);
+`;
+
+/**
+ * Pattern constraints table - learned refinements from feedback
+ *
+ * Stores rules the system learned to improve pattern matching.
+ * Each constraint has a confidence score and source feedback trail.
+ */
+export const CREATE_AUI_PATTERN_CONSTRAINTS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_pattern_constraints (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  pattern_id UUID NOT NULL REFERENCES aui_patterns(id) ON DELETE CASCADE,
+  constraint_type TEXT NOT NULL CHECK (constraint_type IN ('content', 'semantic', 'metadata', 'structural')),
+  constraint_definition JSONB NOT NULL,
+  description TEXT NOT NULL,
+  confidence REAL NOT NULL DEFAULT 0.5,
+  source_feedback_ids UUID[] DEFAULT '{}',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'
+);
+`;
+
+/**
+ * Discovered patterns table - autonomous pattern discoveries with TTL
+ *
+ * Stores candidate patterns found by autonomous discovery.
+ * Can be promoted to aui_patterns when validated by user.
+ */
+export function createAuiDiscoveredPatternsTable(dimension: number): string {
+  return `
+CREATE TABLE IF NOT EXISTS aui_discovered_patterns (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  observation TEXT NOT NULL,
+  dimensions JSONB NOT NULL DEFAULT '[]',
+  instance_count INTEGER NOT NULL DEFAULT 0,
+  confidence REAL NOT NULL DEFAULT 0.5,
+  discovery_method TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'candidate' CHECK (status IN ('candidate', 'validated', 'rejected', 'promoted')),
+  promoted_to_pattern_id UUID REFERENCES aui_patterns(id) ON DELETE SET NULL,
+  sample_content_ids TEXT[] DEFAULT '{}',
+  centroid vector(${dimension}),
+  discovery_options JSONB,
+  expires_at TIMESTAMPTZ DEFAULT (NOW() + INTERVAL '30 days'),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // ARTIFACT TABLE
 // ═══════════════════════════════════════════════════════════════════
 
@@ -437,6 +537,33 @@ CREATE INDEX IF NOT EXISTS idx_aui_operations_type ON aui_buffer_operations(oper
 CREATE INDEX IF NOT EXISTS idx_aui_operations_before ON aui_buffer_operations(before_hash);
 CREATE INDEX IF NOT EXISTS idx_aui_operations_after ON aui_buffer_operations(after_hash);
 CREATE INDEX IF NOT EXISTS idx_aui_operations_created ON aui_buffer_operations(created_at DESC);
+
+-- Patterns indexes
+CREATE INDEX IF NOT EXISTS idx_aui_patterns_user ON aui_patterns(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_patterns_name ON aui_patterns(user_id, name);
+CREATE INDEX IF NOT EXISTS idx_aui_patterns_status ON aui_patterns(status);
+CREATE INDEX IF NOT EXISTS idx_aui_patterns_tags ON aui_patterns USING gin(tags);
+CREATE INDEX IF NOT EXISTS idx_aui_patterns_updated ON aui_patterns(updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aui_patterns_last_used ON aui_patterns(last_used_at DESC NULLS LAST);
+
+-- Pattern feedback indexes
+CREATE INDEX IF NOT EXISTS idx_aui_pattern_feedback_pattern ON aui_pattern_feedback(pattern_id);
+CREATE INDEX IF NOT EXISTS idx_aui_pattern_feedback_content ON aui_pattern_feedback(content_id);
+CREATE INDEX IF NOT EXISTS idx_aui_pattern_feedback_judgment ON aui_pattern_feedback(pattern_id, judgment);
+CREATE INDEX IF NOT EXISTS idx_aui_pattern_feedback_created ON aui_pattern_feedback(created_at DESC);
+
+-- Pattern constraints indexes
+CREATE INDEX IF NOT EXISTS idx_aui_pattern_constraints_pattern ON aui_pattern_constraints(pattern_id);
+CREATE INDEX IF NOT EXISTS idx_aui_pattern_constraints_type ON aui_pattern_constraints(constraint_type);
+CREATE INDEX IF NOT EXISTS idx_aui_pattern_constraints_active ON aui_pattern_constraints(pattern_id, is_active) WHERE is_active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_aui_pattern_constraints_created ON aui_pattern_constraints(created_at DESC);
+
+-- Discovered patterns indexes
+CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_user ON aui_discovered_patterns(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_status ON aui_discovered_patterns(status);
+CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_method ON aui_discovered_patterns(discovery_method);
+CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_expires ON aui_discovered_patterns(expires_at);
+CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_created ON aui_discovered_patterns(created_at DESC);
 `;
 
 /**
@@ -456,6 +583,26 @@ export const CREATE_AUI_CONTENT_BUFFER_VECTOR_INDEX = `
 CREATE INDEX IF NOT EXISTS idx_aui_content_buffers_embedding
   ON aui_content_buffers
   USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+`;
+
+/**
+ * Create HNSW vector index for pattern centroids (optional)
+ */
+export const CREATE_AUI_PATTERNS_VECTOR_INDEX = `
+CREATE INDEX IF NOT EXISTS idx_aui_patterns_centroid
+  ON aui_patterns
+  USING hnsw (centroid vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+`;
+
+/**
+ * Create HNSW vector index for discovered pattern centroids (optional)
+ */
+export const CREATE_AUI_DISCOVERED_PATTERNS_VECTOR_INDEX = `
+CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_centroid
+  ON aui_discovered_patterns
+  USING hnsw (centroid vector_cosine_ops)
   WITH (m = 16, ef_construction = 64);
 `;
 
@@ -505,6 +652,12 @@ export async function runAuiMigration(
   await client.query(CREATE_AUI_PROVENANCE_CHAINS_TABLE);
   await client.query(CREATE_AUI_BUFFER_OPERATIONS_TABLE);
 
+  // Create pattern discovery tables
+  await client.query(createAuiPatternsTable(embeddingDimension));
+  await client.query(CREATE_AUI_PATTERN_FEEDBACK_TABLE);
+  await client.query(CREATE_AUI_PATTERN_CONSTRAINTS_TABLE);
+  await client.query(createAuiDiscoveredPatternsTable(embeddingDimension));
+
   // Create indexes
   await client.query(CREATE_AUI_INDEXES);
 
@@ -520,6 +673,16 @@ export async function runAuiMigration(
       await client.query(CREATE_AUI_CONTENT_BUFFER_VECTOR_INDEX);
     } catch (error) {
       console.warn('Could not create content buffer vector index:', error);
+    }
+    try {
+      await client.query(CREATE_AUI_PATTERNS_VECTOR_INDEX);
+    } catch (error) {
+      console.warn('Could not create patterns vector index:', error);
+    }
+    try {
+      await client.query(CREATE_AUI_DISCOVERED_PATTERNS_VECTOR_INDEX);
+    } catch (error) {
+      console.warn('Could not create discovered patterns vector index:', error);
     }
   }
 }
@@ -1012,4 +1175,198 @@ export const GET_NEXT_OPERATION_SEQUENCE = `
 SELECT COALESCE(MAX(sequence_number), 0) + 1 as next_seq
 FROM aui_buffer_operations
 WHERE chain_id = $1
+`;
+
+// ═══════════════════════════════════════════════════════════════════
+// PATTERN DISCOVERY SQL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════
+
+// Patterns
+export const INSERT_AUI_PATTERN = `
+INSERT INTO aui_patterns (id, user_id, name, description, definition, tags, status, usage_count, success_rate, centroid, source_discovered_id, metadata, created_at, updated_at, last_used_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+ON CONFLICT (user_id, name) DO UPDATE SET
+  description = EXCLUDED.description,
+  definition = EXCLUDED.definition,
+  tags = EXCLUDED.tags,
+  status = EXCLUDED.status,
+  usage_count = EXCLUDED.usage_count,
+  success_rate = EXCLUDED.success_rate,
+  centroid = EXCLUDED.centroid,
+  metadata = EXCLUDED.metadata,
+  updated_at = NOW()
+RETURNING *
+`;
+
+export const GET_AUI_PATTERN = `SELECT * FROM aui_patterns WHERE id = $1`;
+
+export const GET_AUI_PATTERN_BY_NAME = `SELECT * FROM aui_patterns WHERE user_id = $1 AND name = $2`;
+
+export const UPDATE_AUI_PATTERN = `
+UPDATE aui_patterns SET
+  name = COALESCE($2, name),
+  description = COALESCE($3, description),
+  definition = COALESCE($4, definition),
+  tags = COALESCE($5, tags),
+  status = COALESCE($6, status),
+  usage_count = COALESCE($7, usage_count),
+  success_rate = COALESCE($8, success_rate),
+  centroid = COALESCE($9, centroid),
+  metadata = COALESCE($10, metadata),
+  updated_at = NOW(),
+  last_used_at = COALESCE($11, last_used_at)
+WHERE id = $1
+RETURNING *
+`;
+
+export const INCREMENT_AUI_PATTERN_USAGE = `
+UPDATE aui_patterns SET
+  usage_count = usage_count + 1,
+  last_used_at = NOW(),
+  updated_at = NOW()
+WHERE id = $1
+RETURNING *
+`;
+
+export const DELETE_AUI_PATTERN = `DELETE FROM aui_patterns WHERE id = $1`;
+
+export const LIST_AUI_PATTERNS = `
+SELECT * FROM aui_patterns
+WHERE ($1::text IS NULL OR user_id = $1)
+  AND ($2::text IS NULL OR status = $2)
+ORDER BY usage_count DESC, updated_at DESC
+LIMIT $3 OFFSET $4
+`;
+
+export const LIST_AUI_PATTERNS_BY_TAGS = `
+SELECT * FROM aui_patterns
+WHERE ($1::text IS NULL OR user_id = $1)
+  AND tags && $2::text[]
+ORDER BY usage_count DESC, updated_at DESC
+LIMIT $3 OFFSET $4
+`;
+
+export const FIND_SIMILAR_PATTERNS = `
+SELECT *, 1 - (centroid <=> $1::vector) as similarity
+FROM aui_patterns
+WHERE centroid IS NOT NULL
+  AND ($2::text IS NULL OR user_id = $2)
+ORDER BY centroid <=> $1::vector
+LIMIT $3
+`;
+
+// Pattern Feedback
+export const INSERT_AUI_PATTERN_FEEDBACK = `
+INSERT INTO aui_pattern_feedback (id, pattern_id, content_id, judgment, explanation, content_snapshot, created_at, metadata)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING *
+`;
+
+export const GET_AUI_PATTERN_FEEDBACK = `SELECT * FROM aui_pattern_feedback WHERE id = $1`;
+
+export const LIST_AUI_PATTERN_FEEDBACK = `
+SELECT * FROM aui_pattern_feedback
+WHERE pattern_id = $1
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`;
+
+export const LIST_AUI_PATTERN_FEEDBACK_BY_JUDGMENT = `
+SELECT * FROM aui_pattern_feedback
+WHERE pattern_id = $1 AND judgment = $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4
+`;
+
+export const COUNT_AUI_PATTERN_FEEDBACK = `
+SELECT judgment, COUNT(*) as count
+FROM aui_pattern_feedback
+WHERE pattern_id = $1
+GROUP BY judgment
+`;
+
+export const DELETE_AUI_PATTERN_FEEDBACK = `DELETE FROM aui_pattern_feedback WHERE id = $1`;
+
+// Pattern Constraints
+export const INSERT_AUI_PATTERN_CONSTRAINT = `
+INSERT INTO aui_pattern_constraints (id, pattern_id, constraint_type, constraint_definition, description, confidence, source_feedback_ids, is_active, created_at, metadata)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING *
+`;
+
+export const GET_AUI_PATTERN_CONSTRAINT = `SELECT * FROM aui_pattern_constraints WHERE id = $1`;
+
+export const LIST_AUI_PATTERN_CONSTRAINTS = `
+SELECT * FROM aui_pattern_constraints
+WHERE pattern_id = $1
+  AND ($2::boolean IS NULL OR is_active = $2)
+ORDER BY confidence DESC, created_at DESC
+`;
+
+export const UPDATE_AUI_PATTERN_CONSTRAINT = `
+UPDATE aui_pattern_constraints SET
+  confidence = COALESCE($2, confidence),
+  source_feedback_ids = COALESCE($3, source_feedback_ids),
+  is_active = COALESCE($4, is_active),
+  metadata = COALESCE($5, metadata)
+WHERE id = $1
+RETURNING *
+`;
+
+export const DELETE_AUI_PATTERN_CONSTRAINT = `DELETE FROM aui_pattern_constraints WHERE id = $1`;
+
+export const DEACTIVATE_AUI_PATTERN_CONSTRAINTS = `
+UPDATE aui_pattern_constraints SET is_active = FALSE WHERE pattern_id = $1
+`;
+
+// Discovered Patterns
+export const INSERT_AUI_DISCOVERED_PATTERN = `
+INSERT INTO aui_discovered_patterns (id, user_id, observation, dimensions, instance_count, confidence, discovery_method, status, promoted_to_pattern_id, sample_content_ids, centroid, discovery_options, expires_at, created_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+ON CONFLICT (id) DO UPDATE SET
+  observation = EXCLUDED.observation,
+  dimensions = EXCLUDED.dimensions,
+  instance_count = EXCLUDED.instance_count,
+  confidence = EXCLUDED.confidence,
+  status = EXCLUDED.status,
+  promoted_to_pattern_id = EXCLUDED.promoted_to_pattern_id,
+  sample_content_ids = EXCLUDED.sample_content_ids,
+  centroid = EXCLUDED.centroid,
+  expires_at = EXCLUDED.expires_at
+RETURNING *
+`;
+
+export const GET_AUI_DISCOVERED_PATTERN = `SELECT * FROM aui_discovered_patterns WHERE id = $1`;
+
+export const LIST_AUI_DISCOVERED_PATTERNS = `
+SELECT * FROM aui_discovered_patterns
+WHERE ($1::text IS NULL OR user_id = $1)
+  AND ($2::text IS NULL OR status = $2)
+  AND (expires_at IS NULL OR expires_at > NOW())
+ORDER BY confidence DESC, created_at DESC
+LIMIT $3 OFFSET $4
+`;
+
+export const UPDATE_AUI_DISCOVERED_PATTERN_STATUS = `
+UPDATE aui_discovered_patterns SET
+  status = $2,
+  promoted_to_pattern_id = $3
+WHERE id = $1
+RETURNING *
+`;
+
+export const DELETE_AUI_DISCOVERED_PATTERN = `DELETE FROM aui_discovered_patterns WHERE id = $1`;
+
+export const CLEANUP_EXPIRED_DISCOVERED_PATTERNS = `
+DELETE FROM aui_discovered_patterns WHERE expires_at IS NOT NULL AND expires_at < NOW()
+`;
+
+export const FIND_SIMILAR_DISCOVERED_PATTERNS = `
+SELECT *, 1 - (centroid <=> $1::vector) as similarity
+FROM aui_discovered_patterns
+WHERE centroid IS NOT NULL
+  AND ($2::text IS NULL OR user_id = $2)
+  AND (expires_at IS NULL OR expires_at > NOW())
+ORDER BY centroid <=> $1::vector
+LIMIT $3
 `;

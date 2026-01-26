@@ -7,12 +7,20 @@
  * 3. Pattern composition - combine patterns with algebra
  *
  * This extends ContentPatternMatcher with intelligence and memory.
+ * Supports persistence via PatternStore for surviving server restarts.
  *
  * @module @humanizer/core/agentic-search
  */
 
 import { randomUUID } from 'crypto';
 import type { Pool } from 'pg';
+import type {
+  PatternStore,
+  StoredPattern,
+  StoredPatternFeedback,
+  StoredPatternConstraint,
+  StoredDiscoveredPattern,
+} from '../storage/pattern-store.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // TYPES: PATTERN DISCOVERY
@@ -456,14 +464,27 @@ export class PatternDiscoveryEngine {
 export class FeedbackLearner {
   private pool: Pool;
   private embedFn: (text: string) => Promise<number[]>;
+  private store: PatternStore | null;
 
-  // In-memory feedback store (would persist to DB in production)
+  // In-memory cache (also persisted to store when available)
   private feedback: Map<string, PatternFeedback[]> = new Map();
   private constraints: Map<string, LearnedConstraint[]> = new Map();
 
-  constructor(pool: Pool, embedFn: (text: string) => Promise<number[]>) {
+  constructor(
+    pool: Pool,
+    embedFn: (text: string) => Promise<number[]>,
+    store?: PatternStore
+  ) {
     this.pool = pool;
     this.embedFn = embedFn;
+    this.store = store || null;
+  }
+
+  /**
+   * Set the pattern store (for delayed initialization)
+   */
+  setStore(store: PatternStore): void {
+    this.store = store;
   }
 
   /**
@@ -476,9 +497,36 @@ export class FeedbackLearner {
       givenAt: new Date(),
     };
 
+    // Cache in memory
     const existing = this.feedback.get(feedback.patternId) || [];
     existing.push(fullFeedback);
     this.feedback.set(feedback.patternId, existing);
+
+    // Persist to store if available
+    if (this.store) {
+      // Get content snapshot for learning
+      let contentSnapshot: Record<string, unknown> | undefined;
+      try {
+        const contentResult = await this.pool.query(
+          'SELECT id, text, source_metadata, media_refs FROM content_nodes WHERE id = $1',
+          [feedback.contentId]
+        );
+        if (contentResult.rows[0]) {
+          contentSnapshot = contentResult.rows[0];
+        }
+      } catch {
+        // Ignore snapshot errors
+      }
+
+      await this.store.recordFeedback({
+        id: fullFeedback.id,
+        patternId: feedback.patternId,
+        contentId: feedback.contentId,
+        judgment: feedback.judgment,
+        explanation: feedback.explanation,
+        contentSnapshot,
+      });
+    }
 
     // Trigger learning if we have enough feedback
     if (existing.length >= 3) {
@@ -531,9 +579,32 @@ export class FeedbackLearner {
       newConstraints.push(semanticConstraint);
     }
 
-    // Store learned constraints
+    // Cache constraints in memory
     const existing = this.constraints.get(patternId) || [];
     this.constraints.set(patternId, [...existing, ...newConstraints]);
+
+    // Persist to store if available
+    if (this.store) {
+      for (const constraint of newConstraints) {
+        await this.store.saveConstraint({
+          id: constraint.id,
+          patternId: constraint.patternId,
+          constraintType: constraint.constraint.dimension.type as 'content' | 'semantic' | 'metadata' | 'structural',
+          constraintDefinition: {
+            type: constraint.constraint.type,
+            dimension: {
+              type: constraint.constraint.dimension.type,
+              description: constraint.constraint.dimension.description,
+              query: constraint.constraint.dimension.query,
+              weight: constraint.constraint.dimension.weight,
+            },
+          },
+          description: constraint.description,
+          confidence: constraint.confidence,
+          sourceFeedbackIds: constraint.sourceFeeback,
+        });
+      }
+    }
 
     return newConstraints;
   }
@@ -543,6 +614,40 @@ export class FeedbackLearner {
    */
   getConstraints(patternId: string): LearnedConstraint[] {
     return this.constraints.get(patternId) || [];
+  }
+
+  /**
+   * Load constraints from store
+   */
+  async loadConstraints(patternId: string): Promise<LearnedConstraint[]> {
+    if (!this.store) {
+      return this.constraints.get(patternId) || [];
+    }
+
+    const storedConstraints = await this.store.listConstraints(patternId, { activeOnly: true });
+    const constraints: LearnedConstraint[] = storedConstraints.map(sc => ({
+      id: sc.id,
+      patternId: sc.patternId,
+      description: sc.description,
+      constraint: {
+        type: (sc.constraintDefinition as any).type || 'exclude',
+        dimension: {
+          type: (sc.constraintDefinition as any).dimension?.type || sc.constraintType,
+          description: (sc.constraintDefinition as any).dimension?.description || sc.description,
+          query: (sc.constraintDefinition as any).dimension?.query || {},
+          weight: (sc.constraintDefinition as any).dimension?.weight || 0,
+          learned: true,
+        },
+      },
+      sourceFeeback: sc.sourceFeedbackIds,
+      confidence: sc.confidence,
+      learnedAt: sc.createdAt,
+    }));
+
+    // Update cache
+    this.constraints.set(patternId, constraints);
+
+    return constraints;
   }
 
   /**
@@ -746,9 +851,38 @@ export class FeedbackLearner {
  */
 export class PatternComposer {
   private patterns: Map<string, NamedPattern> = new Map();
+  private store: PatternStore | null = null;
+  private userId: string | null = null;
 
   /**
-   * Register a named pattern
+   * Set the pattern store (for persistence)
+   */
+  setStore(store: PatternStore, userId?: string): void {
+    this.store = store;
+    this.userId = userId || null;
+  }
+
+  /**
+   * Load patterns from store
+   */
+  async loadFromStore(): Promise<void> {
+    if (!this.store) return;
+
+    const storedPatterns = await this.store.listPatterns({
+      userId: this.userId || undefined,
+      status: 'active',
+      limit: 1000,
+    });
+
+    for (const stored of storedPatterns) {
+      const pattern = this.storedToNamed(stored);
+      this.patterns.set(pattern.name, pattern);
+      this.patterns.set(pattern.id, pattern);
+    }
+  }
+
+  /**
+   * Register a named pattern (also persists to store)
    */
   register(pattern: NamedPattern): void {
     this.patterns.set(pattern.name, pattern);
@@ -756,10 +890,53 @@ export class PatternComposer {
   }
 
   /**
+   * Register and persist a pattern
+   */
+  async registerAndPersist(pattern: NamedPattern): Promise<void> {
+    this.register(pattern);
+
+    if (this.store) {
+      await this.store.savePattern({
+        id: pattern.id,
+        userId: this.userId || undefined,
+        name: pattern.name,
+        description: pattern.description,
+        definition: {
+          type: pattern.definition.type,
+          dimensions: pattern.definition.type === 'atomic' ? pattern.definition.dimensions : undefined,
+          operator: pattern.definition.type === 'composed' ? pattern.definition.operator.op : undefined,
+          operands: pattern.definition.type === 'composed'
+            ? pattern.definition.operands.map(() => 'composed')  // Track operator only
+            : undefined,
+        },
+        tags: pattern.tags,
+        status: 'active',
+      });
+    }
+  }
+
+  /**
    * Get a pattern by name or ID
    */
   get(nameOrId: string): NamedPattern | undefined {
     return this.patterns.get(nameOrId);
+  }
+
+  /**
+   * Convert stored pattern to NamedPattern
+   */
+  private storedToNamed(stored: StoredPattern): NamedPattern {
+    return {
+      name: stored.name,
+      id: stored.id,
+      description: stored.description || '',
+      definition: stored.definition as PatternDefinition,
+      usageCount: stored.usageCount,
+      successRate: stored.successRate || undefined,
+      tags: stored.tags,
+      createdAt: stored.createdAt,
+      lastUsedAt: stored.lastUsedAt || undefined,
+    };
   }
 
   /**
@@ -796,6 +973,26 @@ export class PatternComposer {
     };
 
     this.register(composed);
+
+    // Persist async (don't await)
+    if (this.store) {
+      this.store.savePattern({
+        id: composed.id,
+        userId: this.userId || undefined,
+        name: composed.name,
+        description: composed.description,
+        definition: {
+          type: 'composed',
+          operator: operator.op,
+          operands: operandNames,
+        },
+        tags: composed.tags,
+        status: 'active',
+      }).catch(err => {
+        console.warn('Failed to persist composed pattern:', err);
+      });
+    }
+
     return composed;
   }
 
@@ -918,10 +1115,22 @@ export class PatternComposer {
 // ═══════════════════════════════════════════════════════════════════
 
 /**
+ * Options for PatternSystem initialization
+ */
+export interface PatternSystemOptions {
+  /** Pattern store for persistence (optional) */
+  store?: PatternStore;
+  /** User ID for scoping patterns */
+  userId?: string;
+  /** Skip loading from store on init */
+  skipLoad?: boolean;
+}
+
+/**
  * Unified Pattern System
  *
  * Combines discovery, learning, and composition into a single interface
- * for the AUI to use.
+ * for the AUI to use. Supports persistence via PatternStore.
  */
 export class PatternSystem {
   readonly discovery: PatternDiscoveryEngine;
@@ -930,17 +1139,57 @@ export class PatternSystem {
 
   private pool: Pool;
   private embedFn: (text: string) => Promise<number[]>;
+  private store: PatternStore | null;
+  private userId: string | null;
+  private initialized: boolean = false;
 
-  constructor(pool: Pool, embedFn: (text: string) => Promise<number[]>) {
+  constructor(
+    pool: Pool,
+    embedFn: (text: string) => Promise<number[]>,
+    options?: PatternSystemOptions
+  ) {
     this.pool = pool;
     this.embedFn = embedFn;
+    this.store = options?.store || null;
+    this.userId = options?.userId || null;
 
     this.discovery = new PatternDiscoveryEngine(pool, embedFn);
-    this.learner = new FeedbackLearner(pool, embedFn);
+    this.learner = new FeedbackLearner(pool, embedFn, this.store || undefined);
     this.composer = new PatternComposer();
+
+    // Set up store references
+    if (this.store) {
+      this.composer.setStore(this.store, this.userId || undefined);
+    }
 
     // Register built-in patterns
     this.registerBuiltinPatterns();
+
+    // Async init (load from store)
+    if (!options?.skipLoad && this.store) {
+      this.loadFromStore().catch(err => {
+        console.warn('Failed to load patterns from store:', err);
+      });
+    }
+  }
+
+  /**
+   * Load persisted patterns from store
+   */
+  async loadFromStore(): Promise<void> {
+    if (!this.store || this.initialized) return;
+
+    await this.composer.loadFromStore();
+    this.initialized = true;
+  }
+
+  /**
+   * Ensure patterns are loaded
+   */
+  async ensureLoaded(): Promise<void> {
+    if (!this.initialized && this.store) {
+      await this.loadFromStore();
+    }
   }
 
   private registerBuiltinPatterns(): void {
@@ -1083,6 +1332,8 @@ export class PatternSystem {
    * Describe and create a pattern from natural language
    */
   async describe(description: string): Promise<NamedPattern> {
+    await this.ensureLoaded();
+
     // Try to match against existing patterns first
     const existingMatch = this.findSimilarPattern(description);
     if (existingMatch) {
@@ -1106,7 +1357,8 @@ export class PatternSystem {
       createdAt: new Date(),
     };
 
-    this.composer.register(pattern);
+    // Register and persist
+    await this.composer.registerAndPersist(pattern);
     return pattern;
   }
 
@@ -1114,9 +1366,16 @@ export class PatternSystem {
    * Execute a pattern and apply learned constraints
    */
   async execute(patternName: string): Promise<any[]> {
+    await this.ensureLoaded();
+
     const pattern = this.composer.get(patternName);
     if (!pattern) {
       throw new Error(`Pattern not found: ${patternName}`);
+    }
+
+    // Load constraints from store if available
+    if (this.store) {
+      await this.learner.loadConstraints(pattern.id);
     }
 
     // Get dimensions
@@ -1128,9 +1387,16 @@ export class PatternSystem {
     // Execute query
     const results = await this.executeQuery(dimensions);
 
-    // Update usage
+    // Update usage in memory
     pattern.usageCount++;
     pattern.lastUsedAt = new Date();
+
+    // Update usage in store
+    if (this.store) {
+      await this.store.incrementPatternUsage(pattern.id).catch(() => {
+        // Ignore increment errors for built-in patterns
+      });
+    }
 
     return results;
   }

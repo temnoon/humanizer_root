@@ -147,6 +147,23 @@ export {
 // AUI Schema
 export { runAuiMigration } from './schema-aui.js';
 
+// Pattern Store (pattern discovery persistence)
+export {
+  PatternStore,
+  initPatternStore,
+  getPatternStore,
+  type StoredPattern,
+  type StoredPatternFeedback,
+  type StoredPatternConstraint,
+  type StoredDiscoveredPattern,
+  type CreatePatternInput,
+  type CreatePatternFeedbackInput,
+  type CreatePatternConstraintInput,
+  type CreateDiscoveredPatternInput,
+  type PatternDefinition,
+  type PatternDimension,
+} from './pattern-store.js';
+
 // Legacy SQLite exports (DEPRECATED - kept for reference only)
 // NOTE: The old content-store.ts and schema.ts files are kept in the repo
 // for reference but are no longer used. They will be removed in a future version.

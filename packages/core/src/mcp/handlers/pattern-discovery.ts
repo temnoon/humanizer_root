@@ -3,11 +3,13 @@
  *
  * MCP handler implementations for the Pattern Discovery System.
  * Provides lazy initialization and follows the established handler pattern.
+ * Uses PatternStore for persistence so patterns survive server restarts.
  */
 
 import type { MCPResult, HandlerContext } from '../types.js';
 import { getContentStore } from '../../storage/index.js';
 import { PatternSystem } from '../../agentic-search/pattern-discovery-system.js';
+import { PatternStore, initPatternStore, getPatternStore } from '../../storage/pattern-store.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // LAZY-LOADED DEPENDENCIES
@@ -16,6 +18,7 @@ import { PatternSystem } from '../../agentic-search/pattern-discovery-system.js'
 let OllamaAdapter: typeof import('@humanizer/npe').OllamaAdapter | null = null;
 let adapter: InstanceType<typeof import('@humanizer/npe').OllamaAdapter> | null = null;
 let patternSystem: PatternSystem | null = null;
+let patternStore: PatternStore | null = null;
 
 async function ensureNpeLoaded(): Promise<void> {
   if (!OllamaAdapter) {
@@ -41,12 +44,28 @@ async function getEmbedder(): Promise<(text: string) => Promise<number[]>> {
   };
 }
 
+async function getPatternStoreInstance(): Promise<PatternStore> {
+  if (!patternStore) {
+    const store = getContentStore();
+    const pool = store.getPool();
+    patternStore = initPatternStore(pool);
+  }
+  return patternStore;
+}
+
 async function getPatternSystem(): Promise<PatternSystem> {
   if (!patternSystem) {
     const store = getContentStore();
     const pool = store.getPool();
     const embedFn = await getEmbedder();
-    patternSystem = new PatternSystem(pool, embedFn);
+    const patternStoreInstance = await getPatternStoreInstance();
+
+    patternSystem = new PatternSystem(pool, embedFn, {
+      store: patternStoreInstance,
+    });
+
+    // Ensure patterns are loaded from store
+    await patternSystem.ensureLoaded();
   }
   return patternSystem;
 }
