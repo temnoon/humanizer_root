@@ -573,6 +573,7 @@ import { BOOKMAKING_TOOLS } from './bookmaking.js';
 import { ALL_AUI_TOOLS } from './aui.js';
 import { ARXIV_TOOLS } from './arxiv.js';
 import { AGENTIC_SEARCH_TOOLS } from './agentic-search.js';
+import { PATTERN_DISCOVERY_TOOLS } from './pattern-discovery.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // ALL TOOLS
@@ -591,6 +592,7 @@ export const ALL_TOOLS: MCPToolDefinition[] = [
   ...ALL_AUI_TOOLS,
   ...ARXIV_TOOLS,
   ...AGENTIC_SEARCH_TOOLS,
+  ...PATTERN_DISCOVERY_TOOLS,
 ];
 
 /**
