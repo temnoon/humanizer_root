@@ -292,3 +292,42 @@ export {
   setTaskEmbeddingService,
   resetTaskEmbeddingService,
 } from './task-embedding-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// USAGE SERVICE (User Accounting)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type UsageEntry,
+  type QuotaCheckResult,
+  type UserUsageSummary,
+  type UsageReport as PersistentUsageReport,
+  type UsageServiceOptions,
+
+  // Service
+  UsageService,
+  initUsageService,
+  getUsageService,
+  resetUsageService,
+} from './service/usage-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API KEY SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type ApiKeyScope,
+  type ApiKeyInfo,
+  type ApiKeyRecord,
+  type CreateKeyResult,
+  type ValidateKeyResult,
+  type ApiKeyServiceOptions,
+
+  // Service
+  ApiKeyService,
+  initApiKeyService,
+  getApiKeyService,
+  resetApiKeyService,
+} from './service/api-key-service.js';

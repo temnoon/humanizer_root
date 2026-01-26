@@ -452,6 +452,272 @@ CREATE TABLE IF NOT EXISTS aui_buffer_operations (
 `;
 
 // ═══════════════════════════════════════════════════════════════════
+// USER ACCOUNTING TABLES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Usage events table - granular audit log of all LLM operations
+ *
+ * Each LLM call creates a single usage_event record with token counts,
+ * costs, and performance metrics. Used for billing, analytics, and debugging.
+ */
+export const CREATE_AUI_USAGE_EVENTS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_usage_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+  user_id TEXT NOT NULL,
+
+  -- Operation details
+  operation_type TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  model_provider TEXT NOT NULL,
+
+  -- Token usage
+  tokens_input INTEGER NOT NULL DEFAULT 0,
+  tokens_output INTEGER NOT NULL DEFAULT 0,
+  tokens_total INTEGER GENERATED ALWAYS AS (tokens_input + tokens_output) STORED,
+
+  -- Cost tracking (millicents: 1 USD = 100,000 millicents for precision)
+  provider_cost_millicents INTEGER NOT NULL DEFAULT 0,
+  user_charge_millicents INTEGER NOT NULL DEFAULT 0,
+
+  -- Performance metrics
+  latency_ms INTEGER,
+  status TEXT NOT NULL DEFAULT 'completed' CHECK (status IN ('completed', 'failed', 'timeout', 'rate_limited')),
+  error TEXT,
+
+  -- Context
+  session_id UUID,
+  request_id TEXT,
+  api_key_id UUID,
+
+  -- Billing period (YYYY-MM format for efficient aggregation)
+  billing_period TEXT NOT NULL,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+/**
+ * User usage snapshots table - aggregated usage per billing period
+ *
+ * Pre-aggregated usage data for fast quota checks and billing.
+ * Updated incrementally as usage_events are recorded.
+ */
+export const CREATE_AUI_USER_USAGE_SNAPSHOTS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_user_usage_snapshots (
+  user_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+  billing_period TEXT NOT NULL,
+
+  -- Usage totals
+  tokens_used INTEGER NOT NULL DEFAULT 0,
+  requests_count INTEGER NOT NULL DEFAULT 0,
+  cost_millicents INTEGER NOT NULL DEFAULT 0,
+
+  -- Limits (cached from tier at period start)
+  tokens_limit INTEGER NOT NULL,
+  requests_limit INTEGER NOT NULL,
+  cost_limit_millicents INTEGER NOT NULL,
+
+  -- Breakdown by model (JSONB for flexibility)
+  by_model JSONB DEFAULT '{}',
+  -- Breakdown by operation type
+  by_operation JSONB DEFAULT '{}',
+
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  PRIMARY KEY (user_id, tenant_id, billing_period)
+);
+`;
+
+/**
+ * API keys table - user-owned API keys for programmatic access
+ *
+ * Keys are hashed using SHA-256; only the prefix is stored for identification.
+ * Full key is shown only once at creation time.
+ */
+export const CREATE_AUI_API_KEYS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_api_keys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+
+  name TEXT NOT NULL,
+  key_prefix TEXT NOT NULL,
+  key_hash TEXT NOT NULL,
+
+  scopes TEXT[] DEFAULT '{}',
+  rate_limit_rpm INTEGER DEFAULT 60,
+
+  last_used_at TIMESTAMPTZ,
+  usage_count INTEGER DEFAULT 0,
+
+  expires_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE(tenant_id, key_prefix)
+);
+`;
+
+/**
+ * Tier defaults table - configuration for each subscription tier
+ *
+ * Defines limits and quotas for each tier. Used as the source of truth
+ * for quota enforcement. Admin-editable via admin interface.
+ */
+export const CREATE_AUI_TIER_DEFAULTS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_tier_defaults (
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+  tier TEXT NOT NULL,
+
+  -- Monthly limits
+  tokens_per_month INTEGER NOT NULL,
+  requests_per_month INTEGER NOT NULL,
+  cost_cents_per_month INTEGER NOT NULL,
+
+  -- Rate limits
+  requests_per_minute INTEGER NOT NULL,
+
+  -- API key limits
+  max_api_keys INTEGER NOT NULL,
+
+  -- Feature flags (JSONB for flexibility)
+  features JSONB DEFAULT '{}',
+
+  -- Display
+  display_name TEXT NOT NULL,
+  description TEXT,
+  price_monthly_cents INTEGER DEFAULT 0,
+  price_annual_cents INTEGER DEFAULT 0,
+  priority INTEGER DEFAULT 100,
+  is_public BOOLEAN DEFAULT TRUE,
+
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  PRIMARY KEY (tenant_id, tier)
+);
+`;
+
+/**
+ * User quota overrides table - per-user limit adjustments
+ *
+ * Allows admins to grant specific users different limits than their tier.
+ * Used for special cases, promotions, or enterprise custom deals.
+ */
+export const CREATE_AUI_USER_QUOTA_OVERRIDES_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_user_quota_overrides (
+  user_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+
+  -- Override values (NULL means use tier default)
+  tokens_per_month INTEGER,
+  requests_per_month INTEGER,
+  cost_cents_per_month INTEGER,
+
+  -- Audit trail
+  reason TEXT NOT NULL,
+  granted_by TEXT,
+
+  effective_until TIMESTAMPTZ,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  PRIMARY KEY (user_id, tenant_id)
+);
+`;
+
+/**
+ * User preferences table - per-user settings and customizations
+ *
+ * Stores user preferences for models, prompts, UI settings, etc.
+ * All values are JSONB for flexibility as preferences evolve.
+ */
+export const CREATE_AUI_USER_PREFERENCES_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_user_preferences (
+  user_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+
+  -- Model preferences (default model, temperature, etc.)
+  model_preferences JSONB DEFAULT '{}',
+
+  -- Custom prompt templates (for PRO+ users)
+  prompt_customizations JSONB DEFAULT '{}',
+
+  -- Default transformation settings
+  transformation_defaults JSONB DEFAULT '{}',
+
+  -- UI preferences (theme, layout, etc.)
+  ui_preferences JSONB DEFAULT '{}',
+
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  PRIMARY KEY (user_id, tenant_id)
+);
+`;
+
+/**
+ * Provider cost rates table - tracks provider pricing over time
+ *
+ * Stores historical pricing for accurate cost calculation.
+ * New rates are added as rows; effective_until marks when a rate expires.
+ */
+export const CREATE_AUI_PROVIDER_COST_RATES_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_provider_cost_rates (
+  provider TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+
+  -- Cost per million tokens (in millicents for precision)
+  input_cost_per_mtok INTEGER NOT NULL,
+  output_cost_per_mtok INTEGER NOT NULL,
+
+  effective_from TIMESTAMPTZ NOT NULL,
+  effective_until TIMESTAMPTZ,
+
+  PRIMARY KEY (provider, model_id, effective_from)
+);
+`;
+
+/**
+ * Seed tier defaults with initial values
+ */
+export const SEED_AUI_TIER_DEFAULTS = `
+INSERT INTO aui_tier_defaults (tenant_id, tier, tokens_per_month, requests_per_month, cost_cents_per_month, requests_per_minute, max_api_keys, display_name, description, price_monthly_cents, priority, is_public)
+VALUES
+  ('humanizer', 'free', 10000, 20, 0, 5, 0, 'Free', 'Basic access with limited usage', 0, 100, true),
+  ('humanizer', 'member', 100000, 500, 500, 20, 2, 'Member', 'For active community members', 999, 90, true),
+  ('humanizer', 'pro', 500000, 2000, 2000, 60, 10, 'Pro', 'Full access for creators', 1999, 80, true),
+  ('humanizer', 'premium', -1, -1, 10000, 120, 50, 'Premium', 'Unlimited access for power users', 4999, 70, true),
+  ('humanizer', 'admin', -1, -1, -1, -1, -1, 'Admin', 'System administrators', 0, 0, false)
+ON CONFLICT (tenant_id, tier) DO NOTHING;
+`;
+
+/**
+ * Seed provider cost rates with current pricing
+ */
+export const SEED_AUI_PROVIDER_COST_RATES = `
+INSERT INTO aui_provider_cost_rates (provider, model_id, input_cost_per_mtok, output_cost_per_mtok, effective_from)
+VALUES
+  -- Ollama (local) - no API cost
+  ('ollama', 'llama3.2:3b', 0, 0, NOW()),
+  ('ollama', 'llama3.3:70b', 0, 0, NOW()),
+  ('ollama', 'nomic-embed-text:latest', 0, 0, NOW()),
+
+  -- Anthropic Claude (costs in millicents per million tokens)
+  ('anthropic', 'claude-haiku-4-5-20251001', 100000, 500000, NOW()),
+  ('anthropic', 'claude-sonnet-4-20250514', 300000, 1500000, NOW()),
+  ('anthropic', 'claude-opus-4-5-20251101', 1500000, 7500000, NOW()),
+
+  -- OpenAI
+  ('openai', 'gpt-4o', 250000, 1000000, NOW()),
+  ('openai', 'gpt-4o-mini', 15000, 60000, NOW())
+ON CONFLICT (provider, model_id, effective_from) DO NOTHING;
+`;
+
+// ═══════════════════════════════════════════════════════════════════
 // INDEXES
 // ═══════════════════════════════════════════════════════════════════
 
@@ -564,6 +830,39 @@ CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_status ON aui_discovered_
 CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_method ON aui_discovered_patterns(discovery_method);
 CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_expires ON aui_discovered_patterns(expires_at);
 CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_created ON aui_discovered_patterns(created_at DESC);
+
+-- Usage events indexes
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_user_period ON aui_usage_events(user_id, billing_period);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_tenant_period ON aui_usage_events(tenant_id, billing_period);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_created ON aui_usage_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_session ON aui_usage_events(session_id);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_api_key ON aui_usage_events(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_model ON aui_usage_events(model_id);
+CREATE INDEX IF NOT EXISTS idx_aui_usage_events_operation ON aui_usage_events(operation_type);
+
+-- User usage snapshots indexes
+CREATE INDEX IF NOT EXISTS idx_aui_user_usage_snapshots_tenant ON aui_user_usage_snapshots(tenant_id, billing_period);
+CREATE INDEX IF NOT EXISTS idx_aui_user_usage_snapshots_updated ON aui_user_usage_snapshots(updated_at DESC);
+
+-- API keys indexes
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_user ON aui_api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_tenant ON aui_api_keys(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_hash ON aui_api_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_prefix ON aui_api_keys(key_prefix);
+CREATE INDEX IF NOT EXISTS idx_aui_api_keys_active ON aui_api_keys(user_id) WHERE revoked_at IS NULL AND (expires_at IS NULL OR expires_at > NOW());
+
+-- Tier defaults indexes
+CREATE INDEX IF NOT EXISTS idx_aui_tier_defaults_public ON aui_tier_defaults(tenant_id, is_public, priority);
+
+-- User quota overrides indexes
+CREATE INDEX IF NOT EXISTS idx_aui_user_quota_overrides_tenant ON aui_user_quota_overrides(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_user_quota_overrides_active ON aui_user_quota_overrides(user_id) WHERE effective_until IS NULL OR effective_until > NOW();
+
+-- User preferences indexes
+CREATE INDEX IF NOT EXISTS idx_aui_user_preferences_tenant ON aui_user_preferences(tenant_id);
+
+-- Provider cost rates indexes
+CREATE INDEX IF NOT EXISTS idx_aui_provider_cost_rates_active ON aui_provider_cost_rates(provider, model_id) WHERE effective_until IS NULL;
 `;
 
 /**
@@ -611,9 +910,9 @@ CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_centroid
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Run AUI schema migration to version 4
+ * Run AUI schema migration to version 5
  *
- * Version 4 adds: Content buffer system with provenance tracking
+ * Version 5 adds: User accounting system (usage events, API keys, tier defaults, preferences)
  */
 export async function runAuiMigration(
   client: PoolClient,
@@ -658,8 +957,21 @@ export async function runAuiMigration(
   await client.query(CREATE_AUI_PATTERN_CONSTRAINTS_TABLE);
   await client.query(createAuiDiscoveredPatternsTable(embeddingDimension));
 
+  // Create user accounting tables (v5)
+  await client.query(CREATE_AUI_USAGE_EVENTS_TABLE);
+  await client.query(CREATE_AUI_USER_USAGE_SNAPSHOTS_TABLE);
+  await client.query(CREATE_AUI_API_KEYS_TABLE);
+  await client.query(CREATE_AUI_TIER_DEFAULTS_TABLE);
+  await client.query(CREATE_AUI_USER_QUOTA_OVERRIDES_TABLE);
+  await client.query(CREATE_AUI_USER_PREFERENCES_TABLE);
+  await client.query(CREATE_AUI_PROVIDER_COST_RATES_TABLE);
+
   // Create indexes
   await client.query(CREATE_AUI_INDEXES);
+
+  // Seed tier defaults and cost rates
+  await client.query(SEED_AUI_TIER_DEFAULTS);
+  await client.query(SEED_AUI_PROVIDER_COST_RATES);
 
   // Create vector indexes if enabled
   if (enableVec) {
@@ -1369,4 +1681,287 @@ WHERE centroid IS NOT NULL
   AND (expires_at IS NULL OR expires_at > NOW())
 ORDER BY centroid <=> $1::vector
 LIMIT $3
+`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// USER ACCOUNTING SQL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Usage Events
+export const INSERT_AUI_USAGE_EVENT = `
+INSERT INTO aui_usage_events (
+  id, tenant_id, user_id, operation_type, model_id, model_provider,
+  tokens_input, tokens_output, provider_cost_millicents, user_charge_millicents,
+  latency_ms, status, error, session_id, request_id, api_key_id, billing_period, created_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+RETURNING *
+`;
+
+export const GET_AUI_USAGE_EVENTS = `
+SELECT * FROM aui_usage_events
+WHERE user_id = $1 AND billing_period = $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4
+`;
+
+export const GET_AUI_USAGE_EVENTS_BY_SESSION = `
+SELECT * FROM aui_usage_events
+WHERE session_id = $1
+ORDER BY created_at DESC
+`;
+
+export const GET_AUI_USAGE_EVENTS_AGGREGATE = `
+SELECT
+  billing_period,
+  COUNT(*) as request_count,
+  SUM(tokens_input) as total_input_tokens,
+  SUM(tokens_output) as total_output_tokens,
+  SUM(tokens_total) as total_tokens,
+  SUM(provider_cost_millicents) as total_provider_cost,
+  SUM(user_charge_millicents) as total_user_charge,
+  AVG(latency_ms)::integer as avg_latency_ms,
+  model_id,
+  operation_type
+FROM aui_usage_events
+WHERE user_id = $1
+  AND ($2::text IS NULL OR billing_period = $2)
+  AND created_at >= $3
+  AND created_at <= $4
+GROUP BY billing_period, model_id, operation_type
+ORDER BY billing_period DESC
+`;
+
+export const GET_AUI_USAGE_EVENTS_BY_TENANT = `
+SELECT
+  user_id,
+  billing_period,
+  COUNT(*) as request_count,
+  SUM(tokens_total) as total_tokens,
+  SUM(provider_cost_millicents) as total_provider_cost,
+  SUM(user_charge_millicents) as total_user_charge
+FROM aui_usage_events
+WHERE tenant_id = $1 AND billing_period = $2
+GROUP BY user_id, billing_period
+ORDER BY total_tokens DESC
+`;
+
+// User Usage Snapshots
+export const UPSERT_AUI_USER_USAGE_SNAPSHOT = `
+INSERT INTO aui_user_usage_snapshots (
+  user_id, tenant_id, billing_period,
+  tokens_used, requests_count, cost_millicents,
+  tokens_limit, requests_limit, cost_limit_millicents,
+  by_model, by_operation, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+ON CONFLICT (user_id, tenant_id, billing_period)
+DO UPDATE SET
+  tokens_used = aui_user_usage_snapshots.tokens_used + EXCLUDED.tokens_used,
+  requests_count = aui_user_usage_snapshots.requests_count + EXCLUDED.requests_count,
+  cost_millicents = aui_user_usage_snapshots.cost_millicents + EXCLUDED.cost_millicents,
+  by_model = aui_user_usage_snapshots.by_model || EXCLUDED.by_model,
+  by_operation = aui_user_usage_snapshots.by_operation || EXCLUDED.by_operation,
+  updated_at = NOW()
+RETURNING *
+`;
+
+export const GET_AUI_USER_USAGE_SNAPSHOT = `
+SELECT * FROM aui_user_usage_snapshots
+WHERE user_id = $1 AND tenant_id = $2 AND billing_period = $3
+`;
+
+export const GET_AUI_USER_USAGE_HISTORY = `
+SELECT * FROM aui_user_usage_snapshots
+WHERE user_id = $1 AND tenant_id = $2
+ORDER BY billing_period DESC
+LIMIT $3
+`;
+
+export const INCREMENT_AUI_USER_USAGE = `
+UPDATE aui_user_usage_snapshots SET
+  tokens_used = tokens_used + $4,
+  requests_count = requests_count + 1,
+  cost_millicents = cost_millicents + $5,
+  updated_at = NOW()
+WHERE user_id = $1 AND tenant_id = $2 AND billing_period = $3
+RETURNING *
+`;
+
+// API Keys
+export const INSERT_AUI_API_KEY = `
+INSERT INTO aui_api_keys (
+  id, user_id, tenant_id, name, key_prefix, key_hash,
+  scopes, rate_limit_rpm, expires_at, created_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, user_id, tenant_id, name, key_prefix, scopes, rate_limit_rpm, expires_at, created_at
+`;
+
+export const GET_AUI_API_KEY_BY_HASH = `
+SELECT * FROM aui_api_keys
+WHERE key_hash = $1
+  AND revoked_at IS NULL
+  AND (expires_at IS NULL OR expires_at > NOW())
+`;
+
+export const GET_AUI_API_KEY_BY_PREFIX = `
+SELECT * FROM aui_api_keys
+WHERE tenant_id = $1 AND key_prefix = $2
+`;
+
+export const LIST_AUI_API_KEYS = `
+SELECT id, user_id, tenant_id, name, key_prefix, scopes, rate_limit_rpm,
+       last_used_at, usage_count, expires_at, revoked_at, created_at
+FROM aui_api_keys
+WHERE user_id = $1 AND tenant_id = $2
+ORDER BY created_at DESC
+`;
+
+export const REVOKE_AUI_API_KEY = `
+UPDATE aui_api_keys SET revoked_at = NOW()
+WHERE id = $1 AND user_id = $2 AND tenant_id = $3
+RETURNING *
+`;
+
+export const UPDATE_AUI_API_KEY_USAGE = `
+UPDATE aui_api_keys SET
+  last_used_at = NOW(),
+  usage_count = usage_count + 1
+WHERE id = $1
+`;
+
+export const DELETE_AUI_API_KEY = `DELETE FROM aui_api_keys WHERE id = $1 AND user_id = $2`;
+
+export const COUNT_AUI_API_KEYS = `
+SELECT COUNT(*) as count FROM aui_api_keys
+WHERE user_id = $1 AND tenant_id = $2 AND revoked_at IS NULL
+`;
+
+// Tier Defaults
+export const GET_AUI_TIER_DEFAULT = `
+SELECT * FROM aui_tier_defaults
+WHERE tenant_id = $1 AND tier = $2
+`;
+
+export const LIST_AUI_TIER_DEFAULTS = `
+SELECT * FROM aui_tier_defaults
+WHERE tenant_id = $1
+  AND ($2::boolean IS NULL OR is_public = $2)
+ORDER BY priority ASC
+`;
+
+export const UPSERT_AUI_TIER_DEFAULT = `
+INSERT INTO aui_tier_defaults (
+  tenant_id, tier, tokens_per_month, requests_per_month, cost_cents_per_month,
+  requests_per_minute, max_api_keys, features, display_name, description,
+  price_monthly_cents, price_annual_cents, priority, is_public, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+ON CONFLICT (tenant_id, tier)
+DO UPDATE SET
+  tokens_per_month = EXCLUDED.tokens_per_month,
+  requests_per_month = EXCLUDED.requests_per_month,
+  cost_cents_per_month = EXCLUDED.cost_cents_per_month,
+  requests_per_minute = EXCLUDED.requests_per_minute,
+  max_api_keys = EXCLUDED.max_api_keys,
+  features = EXCLUDED.features,
+  display_name = EXCLUDED.display_name,
+  description = EXCLUDED.description,
+  price_monthly_cents = EXCLUDED.price_monthly_cents,
+  price_annual_cents = EXCLUDED.price_annual_cents,
+  priority = EXCLUDED.priority,
+  is_public = EXCLUDED.is_public,
+  updated_at = NOW()
+RETURNING *
+`;
+
+export const DELETE_AUI_TIER_DEFAULT = `
+DELETE FROM aui_tier_defaults WHERE tenant_id = $1 AND tier = $2
+`;
+
+// User Quota Overrides
+export const GET_AUI_USER_QUOTA_OVERRIDE = `
+SELECT * FROM aui_user_quota_overrides
+WHERE user_id = $1 AND tenant_id = $2
+  AND (effective_until IS NULL OR effective_until > NOW())
+`;
+
+export const UPSERT_AUI_USER_QUOTA_OVERRIDE = `
+INSERT INTO aui_user_quota_overrides (
+  user_id, tenant_id, tokens_per_month, requests_per_month, cost_cents_per_month,
+  reason, granted_by, effective_until, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+ON CONFLICT (user_id, tenant_id)
+DO UPDATE SET
+  tokens_per_month = EXCLUDED.tokens_per_month,
+  requests_per_month = EXCLUDED.requests_per_month,
+  cost_cents_per_month = EXCLUDED.cost_cents_per_month,
+  reason = EXCLUDED.reason,
+  granted_by = EXCLUDED.granted_by,
+  effective_until = EXCLUDED.effective_until,
+  updated_at = NOW()
+RETURNING *
+`;
+
+export const DELETE_AUI_USER_QUOTA_OVERRIDE = `
+DELETE FROM aui_user_quota_overrides WHERE user_id = $1 AND tenant_id = $2
+`;
+
+export const LIST_AUI_USER_QUOTA_OVERRIDES = `
+SELECT * FROM aui_user_quota_overrides
+WHERE tenant_id = $1
+  AND (effective_until IS NULL OR effective_until > NOW())
+ORDER BY created_at DESC
+LIMIT $2 OFFSET $3
+`;
+
+// User Preferences
+export const GET_AUI_USER_PREFERENCES = `
+SELECT * FROM aui_user_preferences
+WHERE user_id = $1 AND tenant_id = $2
+`;
+
+export const UPSERT_AUI_USER_PREFERENCES = `
+INSERT INTO aui_user_preferences (
+  user_id, tenant_id, model_preferences, prompt_customizations,
+  transformation_defaults, ui_preferences, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+ON CONFLICT (user_id, tenant_id)
+DO UPDATE SET
+  model_preferences = COALESCE(EXCLUDED.model_preferences, aui_user_preferences.model_preferences),
+  prompt_customizations = COALESCE(EXCLUDED.prompt_customizations, aui_user_preferences.prompt_customizations),
+  transformation_defaults = COALESCE(EXCLUDED.transformation_defaults, aui_user_preferences.transformation_defaults),
+  ui_preferences = COALESCE(EXCLUDED.ui_preferences, aui_user_preferences.ui_preferences),
+  updated_at = NOW()
+RETURNING *
+`;
+
+export const DELETE_AUI_USER_PREFERENCES = `
+DELETE FROM aui_user_preferences WHERE user_id = $1 AND tenant_id = $2
+`;
+
+// Provider Cost Rates
+export const GET_AUI_PROVIDER_COST_RATE = `
+SELECT * FROM aui_provider_cost_rates
+WHERE provider = $1 AND model_id = $2
+  AND effective_from <= NOW()
+  AND (effective_until IS NULL OR effective_until > NOW())
+ORDER BY effective_from DESC
+LIMIT 1
+`;
+
+export const LIST_AUI_PROVIDER_COST_RATES = `
+SELECT * FROM aui_provider_cost_rates
+WHERE ($1::text IS NULL OR provider = $1)
+  AND (effective_until IS NULL OR effective_until > NOW())
+ORDER BY provider, model_id, effective_from DESC
+`;
+
+export const INSERT_AUI_PROVIDER_COST_RATE = `
+INSERT INTO aui_provider_cost_rates (
+  provider, model_id, input_cost_per_mtok, output_cost_per_mtok, effective_from, effective_until
+) VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING *
+`;
+
+export const UPDATE_AUI_PROVIDER_COST_RATE_END = `
+UPDATE aui_provider_cost_rates SET effective_until = $3
+WHERE provider = $1 AND model_id = $2 AND effective_until IS NULL
 `;

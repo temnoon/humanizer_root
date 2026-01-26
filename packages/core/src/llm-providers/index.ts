@@ -36,3 +36,17 @@ export {
   initializeProviders,
   resetProviderManager,
 } from './provider-manager.js';
+
+// Usage Recording Wrapper
+export type {
+  UsageRecorder,
+  UsageMetadata,
+  LlmRequestWithMeta,
+  UsageWrapperOptions,
+} from './usage-wrapper.js';
+
+export {
+  wrapWithUsageRecording,
+  wrapProviderManagerWithUsage,
+  createRequestEnhancer,
+} from './usage-wrapper.js';
