@@ -31,6 +31,8 @@ import { setApiKeyService } from './middleware/auth.js';
 
 import { auiMiddleware, setAuiService, type AuiContextVariables } from './middleware/aui-context.js';
 import { devAuth } from './middleware/auth.js';
+import { usageContextMiddleware } from './middleware/usage-context.js';
+import { wrapEmbedFnWithUsageRecording, wrapLlmAdapterWithUsageRecording } from './middleware/usage-recording.js';
 import { sessionsRouter } from './routes/sessions.js';
 import { buffersRouter } from './routes/buffers.js';
 import { searchRouter } from './routes/search.js';
@@ -129,14 +131,15 @@ export function createApp(): Hono<{ Variables: AuiContextVariables }> {
     })
   );
 
-  // Apply auth and AUI middleware to all API routes
+  // Apply auth, usage context, and AUI middleware to all API routes
   // devAuth() allows anonymous access in development, requires auth in production
-  app.use('/sessions/*', devAuth(), auiMiddleware);
-  app.use('/search/*', devAuth(), auiMiddleware);
-  app.use('/clusters/*', devAuth(), auiMiddleware);
-  app.use('/books/*', devAuth(), auiMiddleware);
-  app.use('/admin/*', devAuth(), auiMiddleware);
-  app.use('/settings/*', devAuth(), auiMiddleware);
+  // usageContextMiddleware() propagates user info for usage tracking
+  app.use('/sessions/*', devAuth(), usageContextMiddleware(), auiMiddleware);
+  app.use('/search/*', devAuth(), usageContextMiddleware(), auiMiddleware);
+  app.use('/clusters/*', devAuth(), usageContextMiddleware(), auiMiddleware);
+  app.use('/books/*', devAuth(), usageContextMiddleware(), auiMiddleware);
+  app.use('/admin/*', devAuth(), usageContextMiddleware(), auiMiddleware);
+  app.use('/settings/*', devAuth(), usageContextMiddleware(), auiMiddleware);
 
   // Mount routers
   app.route('/sessions', sessionsRouter);
@@ -249,11 +252,19 @@ async function main(): Promise<void> {
       console.warn(`Warning: Ollama not available at ${ollamaUrl}. Search will not work.`);
     }
 
-    // Create embedding function that uses the adapter
-    const embedFn = async (text: string): Promise<number[]> => {
+    // Create embedding function that uses the adapter, wrapped with usage recording
+    // The wrapper gets UsageService lazily, so it's safe to create before UsageService init
+    const rawEmbedFn = async (text: string): Promise<number[]> => {
       const result = await ollamaAdapter.embed(text);
       return result.embedding;
     };
+
+    const embedFn = wrapEmbedFnWithUsageRecording(rawEmbedFn, {
+      embedModelId: embedModel.id,
+      provider: 'ollama',
+    });
+
+    console.log('Embedding function wrapped with usage recording');
 
     // Create config manager seeded with all prompts
     console.log('Initializing ConfigManager with prompt registry...');
