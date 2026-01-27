@@ -16,7 +16,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { MainWorkspace, type WorkspaceContent } from './components/workspace';
 import { CornerAssistant } from './components/CornerAssistant';
 import { LoginModal, UserMenu } from './components/auth';
-import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts, AdminModels, AdminTiers, AdminProviders, AdminFeatures, AdminApiKeys, AdminUsage } from './components/admin';
+import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts, AdminModels, AdminTiers, AdminProviders, AdminFeatures, AdminApiKeys, AdminUsage, AdminCosts, AdminSubscriptions, AdminAudit } from './components/admin';
 import type { SearchResult } from './contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -251,19 +251,13 @@ function AdminStatus() {
 
 // AdminFeatures is now imported from ./components/admin
 
-function AdminSubscriptions() {
-  return <AdminPlaceholder title="Subscriptions" />;
-}
+// AdminSubscriptions is now imported from ./components/admin
 
-function AdminCosts() {
-  return <AdminPlaceholder title="Cost Tracking" />;
-}
+// AdminCosts is now imported from ./components/admin
 
 // AdminUsage is now imported from ./components/admin
 
-function AdminAudit() {
-  return <AdminPlaceholder title="Audit Log" />;
-}
+// AdminAudit is now imported from ./components/admin
 
 // ═══════════════════════════════════════════════════════════════════════════
 // APP ROUTES - Router configuration

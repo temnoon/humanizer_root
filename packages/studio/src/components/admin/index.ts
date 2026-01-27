@@ -17,3 +17,6 @@ export { AdminProviders } from './AdminProviders';
 export { AdminFeatures } from './AdminFeatures';
 export { AdminApiKeys } from './AdminApiKeys';
 export { AdminUsage } from './AdminUsage';
+export { AdminCosts } from './AdminCosts';
+export { AdminSubscriptions } from './AdminSubscriptions';
+export { AdminAudit } from './AdminAudit';
