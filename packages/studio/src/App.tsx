@@ -16,7 +16,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { MainWorkspace, type WorkspaceContent } from './components/workspace';
 import { CornerAssistant } from './components/CornerAssistant';
 import { LoginModal, UserMenu } from './components/auth';
-import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts, AdminModels, AdminTiers, AdminProviders, AdminFeatures } from './components/admin';
+import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts, AdminModels, AdminTiers, AdminProviders, AdminFeatures, AdminApiKeys, AdminUsage } from './components/admin';
 import type { SearchResult } from './contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -239,9 +239,7 @@ function AdminStatus() {
 
 // AdminUsers is now imported from ./components/admin
 
-function AdminApiKeys() {
-  return <AdminPlaceholder title="API Keys Management" />;
-}
+// AdminApiKeys is now imported from ./components/admin
 
 // AdminTiers is now imported from ./components/admin
 
@@ -261,9 +259,7 @@ function AdminCosts() {
   return <AdminPlaceholder title="Cost Tracking" />;
 }
 
-function AdminUsage() {
-  return <AdminPlaceholder title="Usage Analytics" />;
-}
+// AdminUsage is now imported from ./components/admin
 
 function AdminAudit() {
   return <AdminPlaceholder title="Audit Log" />;

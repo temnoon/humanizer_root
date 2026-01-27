@@ -15,3 +15,5 @@ export { AdminModels } from './AdminModels';
 export { AdminTiers } from './AdminTiers';
 export { AdminProviders } from './AdminProviders';
 export { AdminFeatures } from './AdminFeatures';
+export { AdminApiKeys } from './AdminApiKeys';
+export { AdminUsage } from './AdminUsage';
