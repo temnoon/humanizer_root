@@ -611,20 +611,29 @@ adminRouter.get('/analytics/revenue', async (c) => {
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const end = endDate ? new Date(endDate) : new Date();
 
-  // TODO: Query usage_events for revenue data
+  try {
+    const usageService = requireUsageService();
+    const analytics = await usageService.getRevenueAnalytics({
+      startDate: start,
+      endDate: end,
+    });
 
-  return c.json({
-    period: {
-      start: start.toISOString(),
-      end: end.toISOString(),
-    },
-    totalRevenueMillicents: 0,
-    totalCostMillicents: 0,
-    marginMillicents: 0,
-    marginPercent: 0,
-    byTier: {},
-    message: 'Revenue analytics endpoint - implementation pending',
-  });
+    return c.json({
+      period: {
+        start: analytics.period.start.toISOString(),
+        end: analytics.period.end.toISOString(),
+      },
+      totalRevenueMillicents: analytics.totalRevenueMillicents,
+      totalCostMillicents: analytics.totalCostMillicents,
+      marginMillicents: analytics.marginMillicents,
+      marginPercent: analytics.marginPercent,
+      totalRequests: analytics.totalRequests,
+      totalTokens: analytics.totalTokens,
+      byPeriod: analytics.byPeriod,
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 503);
+  }
 });
 
 /**
@@ -632,23 +641,34 @@ adminRouter.get('/analytics/revenue', async (c) => {
  * Get provider cost analytics
  */
 adminRouter.get('/analytics/costs', async (c) => {
-  const { startDate, endDate } = c.req.query();
+  const { startDate, endDate, includeDaily } = c.req.query();
 
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const end = endDate ? new Date(endDate) : new Date();
 
-  // TODO: Query usage_events for cost breakdown
+  try {
+    const usageService = requireUsageService();
+    const analytics = await usageService.getCostAnalytics({
+      startDate: start,
+      endDate: end,
+      includeDaily: includeDaily === 'true',
+    });
 
-  return c.json({
-    period: {
-      start: start.toISOString(),
-      end: end.toISOString(),
-    },
-    byProvider: {},
-    byModel: {},
-    totalProviderCostMillicents: 0,
-    message: 'Cost analytics endpoint - implementation pending',
-  });
+    return c.json({
+      period: {
+        start: analytics.period.start.toISOString(),
+        end: analytics.period.end.toISOString(),
+      },
+      totalProviderCostMillicents: analytics.totalProviderCostMillicents,
+      totalTokens: analytics.totalTokens,
+      totalRequests: analytics.totalRequests,
+      byProvider: analytics.byProvider,
+      byModel: analytics.byModel,
+      ...(analytics.byDay && { byDay: analytics.byDay }),
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 503);
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

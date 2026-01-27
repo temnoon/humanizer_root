@@ -2150,6 +2150,86 @@ WHERE provider = $1 AND model_id = $2 AND effective_until IS NULL
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// ANALYTICS SQL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get cost analytics grouped by provider and model
+ */
+export const GET_AUI_COST_ANALYTICS = `
+SELECT
+  model_provider,
+  model_id,
+  COUNT(*) as request_count,
+  SUM(tokens_input) as total_input_tokens,
+  SUM(tokens_output) as total_output_tokens,
+  SUM(tokens_total) as total_tokens,
+  SUM(provider_cost_millicents) as total_provider_cost,
+  AVG(latency_ms)::integer as avg_latency_ms
+FROM aui_usage_events
+WHERE tenant_id = $1
+  AND created_at >= $2
+  AND created_at <= $3
+GROUP BY model_provider, model_id
+ORDER BY total_provider_cost DESC
+`;
+
+/**
+ * Get revenue analytics with margin calculation
+ */
+export const GET_AUI_REVENUE_ANALYTICS = `
+SELECT
+  SUM(user_charge_millicents) as total_revenue,
+  SUM(provider_cost_millicents) as total_cost,
+  SUM(user_charge_millicents) - SUM(provider_cost_millicents) as total_margin,
+  COUNT(*) as total_requests,
+  SUM(tokens_total) as total_tokens
+FROM aui_usage_events
+WHERE tenant_id = $1
+  AND created_at >= $2
+  AND created_at <= $3
+`;
+
+/**
+ * Get revenue analytics grouped by user tier
+ * Note: Requires joining with user tier information
+ */
+export const GET_AUI_REVENUE_BY_PERIOD = `
+SELECT
+  billing_period,
+  SUM(user_charge_millicents) as revenue,
+  SUM(provider_cost_millicents) as cost,
+  SUM(user_charge_millicents) - SUM(provider_cost_millicents) as margin,
+  COUNT(*) as requests,
+  COUNT(DISTINCT user_id) as unique_users
+FROM aui_usage_events
+WHERE tenant_id = $1
+  AND created_at >= $2
+  AND created_at <= $3
+GROUP BY billing_period
+ORDER BY billing_period DESC
+`;
+
+/**
+ * Get cost analytics grouped by day for charting
+ */
+export const GET_AUI_COST_BY_DAY = `
+SELECT
+  DATE(created_at) as date,
+  model_provider,
+  SUM(provider_cost_millicents) as provider_cost,
+  SUM(user_charge_millicents) as user_charge,
+  COUNT(*) as requests,
+  SUM(tokens_total) as tokens
+FROM aui_usage_events
+WHERE tenant_id = $1
+  AND created_at >= $2
+  AND created_at <= $3
+GROUP BY DATE(created_at), model_provider
+ORDER BY date DESC, provider_cost DESC
+`;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // FEATURE FLAGS SQL TEMPLATES
 // ═══════════════════════════════════════════════════════════════════════════
 

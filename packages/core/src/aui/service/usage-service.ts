@@ -33,6 +33,10 @@ import {
   LIST_AUI_PROVIDER_COST_RATES,
   INSERT_AUI_PROVIDER_COST_RATE,
   UPDATE_AUI_PROVIDER_COST_RATE_END,
+  GET_AUI_COST_ANALYTICS,
+  GET_AUI_REVENUE_ANALYTICS,
+  GET_AUI_REVENUE_BY_PERIOD,
+  GET_AUI_COST_BY_DAY,
 } from '../../storage/schema-aui.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -207,6 +211,60 @@ export interface ProviderCostRateInput {
   inputCostPerMtok: number;
   outputCostPerMtok: number;
   effectiveFrom?: Date;
+}
+
+/**
+ * Cost analytics result grouped by provider/model
+ */
+export interface CostAnalytics {
+  period: { start: Date; end: Date };
+  totalProviderCostMillicents: number;
+  totalTokens: number;
+  totalRequests: number;
+  byProvider: Record<string, {
+    costMillicents: number;
+    tokens: number;
+    requests: number;
+    avgLatencyMs: number;
+  }>;
+  byModel: Record<string, {
+    provider: string;
+    costMillicents: number;
+    inputTokens: number;
+    outputTokens: number;
+    tokens: number;
+    requests: number;
+    avgLatencyMs: number;
+  }>;
+  byDay?: Array<{
+    date: string;
+    provider: string;
+    providerCostMillicents: number;
+    userChargeMillicents: number;
+    requests: number;
+    tokens: number;
+  }>;
+}
+
+/**
+ * Revenue analytics result
+ */
+export interface RevenueAnalytics {
+  period: { start: Date; end: Date };
+  totalRevenueMillicents: number;
+  totalCostMillicents: number;
+  marginMillicents: number;
+  marginPercent: number;
+  totalRequests: number;
+  totalTokens: number;
+  byPeriod: Array<{
+    billingPeriod: string;
+    revenueMillicents: number;
+    costMillicents: number;
+    marginMillicents: number;
+    requests: number;
+    uniqueUsers: number;
+  }>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -734,6 +792,164 @@ export class UsageService {
       outputCostPerMtok: parseInt(row.output_cost_per_mtok, 10),
       effectiveFrom: new Date(row.effective_from),
       effectiveUntil: row.effective_until ? new Date(row.effective_until) : undefined,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ANALYTICS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get cost analytics grouped by provider and model.
+   */
+  async getCostAnalytics(options: {
+    startDate: Date;
+    endDate?: Date;
+    includeDaily?: boolean;
+    tenantId?: string;
+  }): Promise<CostAnalytics> {
+    const tenant = options.tenantId ?? this.options.defaultTenantId;
+    const endDate = options.endDate ?? new Date();
+
+    // Get cost breakdown by provider/model
+    const result = await this.pool.query(GET_AUI_COST_ANALYTICS, [
+      tenant,
+      options.startDate,
+      endDate,
+    ]);
+
+    // Aggregate by provider
+    const byProvider: CostAnalytics['byProvider'] = {};
+    const byModel: CostAnalytics['byModel'] = {};
+    let totalCost = 0;
+    let totalTokens = 0;
+    let totalRequests = 0;
+
+    for (const row of result.rows) {
+      const provider = row.model_provider;
+      const modelId = row.model_id;
+      const cost = parseInt(row.total_provider_cost ?? '0', 10);
+      const tokens = parseInt(row.total_tokens ?? '0', 10);
+      const requests = parseInt(row.request_count ?? '0', 10);
+      const avgLatency = parseInt(row.avg_latency_ms ?? '0', 10);
+      const inputTokens = parseInt(row.total_input_tokens ?? '0', 10);
+      const outputTokens = parseInt(row.total_output_tokens ?? '0', 10);
+
+      totalCost += cost;
+      totalTokens += tokens;
+      totalRequests += requests;
+
+      // Aggregate by provider
+      if (!byProvider[provider]) {
+        byProvider[provider] = { costMillicents: 0, tokens: 0, requests: 0, avgLatencyMs: 0 };
+      }
+      byProvider[provider].costMillicents += cost;
+      byProvider[provider].tokens += tokens;
+      byProvider[provider].requests += requests;
+      // Weighted average for latency
+      const existingWeight = byProvider[provider].requests - requests;
+      byProvider[provider].avgLatencyMs = existingWeight > 0
+        ? Math.round((byProvider[provider].avgLatencyMs * existingWeight + avgLatency * requests) / byProvider[provider].requests)
+        : avgLatency;
+
+      // Store by model
+      byModel[modelId] = {
+        provider,
+        costMillicents: cost,
+        inputTokens,
+        outputTokens,
+        tokens,
+        requests,
+        avgLatencyMs: avgLatency,
+      };
+    }
+
+    const analytics: CostAnalytics = {
+      period: { start: options.startDate, end: endDate },
+      totalProviderCostMillicents: totalCost,
+      totalTokens,
+      totalRequests,
+      byProvider,
+      byModel,
+    };
+
+    // Optionally include daily breakdown
+    if (options.includeDaily) {
+      const dailyResult = await this.pool.query(GET_AUI_COST_BY_DAY, [
+        tenant,
+        options.startDate,
+        endDate,
+      ]);
+
+      analytics.byDay = dailyResult.rows.map((row) => ({
+        date: row.date instanceof Date ? row.date.toISOString().split('T')[0] : String(row.date),
+        provider: row.model_provider,
+        providerCostMillicents: parseInt(row.provider_cost ?? '0', 10),
+        userChargeMillicents: parseInt(row.user_charge ?? '0', 10),
+        requests: parseInt(row.requests ?? '0', 10),
+        tokens: parseInt(row.tokens ?? '0', 10),
+      }));
+    }
+
+    return analytics;
+  }
+
+  /**
+   * Get revenue analytics with margin calculations.
+   */
+  async getRevenueAnalytics(options: {
+    startDate: Date;
+    endDate?: Date;
+    tenantId?: string;
+  }): Promise<RevenueAnalytics> {
+    const tenant = options.tenantId ?? this.options.defaultTenantId;
+    const endDate = options.endDate ?? new Date();
+
+    // Get totals
+    const totalsResult = await this.pool.query(GET_AUI_REVENUE_ANALYTICS, [
+      tenant,
+      options.startDate,
+      endDate,
+    ]);
+
+    const totals = totalsResult.rows[0] ?? {
+      total_revenue: '0',
+      total_cost: '0',
+      total_margin: '0',
+      total_requests: '0',
+      total_tokens: '0',
+    };
+
+    const totalRevenue = parseInt(totals.total_revenue ?? '0', 10);
+    const totalCost = parseInt(totals.total_cost ?? '0', 10);
+    const margin = parseInt(totals.total_margin ?? '0', 10);
+    const marginPercent = totalRevenue > 0 ? (margin / totalRevenue) * 100 : 0;
+
+    // Get breakdown by period
+    const periodResult = await this.pool.query(GET_AUI_REVENUE_BY_PERIOD, [
+      tenant,
+      options.startDate,
+      endDate,
+    ]);
+
+    const byPeriod = periodResult.rows.map((row) => ({
+      billingPeriod: row.billing_period,
+      revenueMillicents: parseInt(row.revenue ?? '0', 10),
+      costMillicents: parseInt(row.cost ?? '0', 10),
+      marginMillicents: parseInt(row.margin ?? '0', 10),
+      requests: parseInt(row.requests ?? '0', 10),
+      uniqueUsers: parseInt(row.unique_users ?? '0', 10),
+    }));
+
+    return {
+      period: { start: options.startDate, end: endDate },
+      totalRevenueMillicents: totalRevenue,
+      totalCostMillicents: totalCost,
+      marginMillicents: margin,
+      marginPercent: Math.round(marginPercent * 100) / 100,
+      totalRequests: parseInt(totals.total_requests ?? '0', 10),
+      totalTokens: parseInt(totals.total_tokens ?? '0', 10),
+      byPeriod,
     };
   }
 

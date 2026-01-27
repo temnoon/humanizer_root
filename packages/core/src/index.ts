@@ -247,6 +247,8 @@ export {
   type QuotaOverrideInput,
   type ProviderCostRate,
   type ProviderCostRateInput,
+  type CostAnalytics,
+  type RevenueAnalytics,
   UsageService,
   initUsageService,
   getUsageService,
