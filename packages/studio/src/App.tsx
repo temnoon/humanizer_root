@@ -16,7 +16,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { MainWorkspace, type WorkspaceContent } from './components/workspace';
 import { CornerAssistant } from './components/CornerAssistant';
 import { LoginModal, UserMenu } from './components/auth';
-import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts } from './components/admin';
+import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts, AdminModels } from './components/admin';
 import type { SearchResult } from './contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -247,9 +247,7 @@ function AdminTiers() {
   return <AdminPlaceholder title="Tiers & Quotas" />;
 }
 
-function AdminModels() {
-  return <AdminPlaceholder title="Model Configuration" />;
-}
+// AdminModels is now imported from ./components/admin
 
 // AdminPrompts is now imported from ./components/admin
 

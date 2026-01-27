@@ -1209,19 +1209,293 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────
+   ADMIN MODELS PAGE
+   Model registry management interface
+   ───────────────────────────────────────────────────────────────────── */
+
+.admin-models {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  height: 100%;
+}
+
+.admin-models__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-models__title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--studio-text);
+  margin: 0;
+}
+
+.admin-models__stats {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.admin-models__stat {
+  font-size: 0.875rem;
+  color: var(--studio-text-secondary);
+}
+
+.admin-models__layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+  flex: 1;
+  min-height: 0;
+}
+
+.admin-models__list-panel,
+.admin-models__detail-panel {
+  background: var(--studio-panel-bg);
+  border: 1px solid var(--studio-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-models__filters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--studio-border);
+}
+
+.admin-models__filter-row {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.admin-models__filter-row .admin-form__select {
+  flex: 1;
+}
+
+.admin-models__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm);
+}
+
+.admin-models__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  width: 100%;
+  padding: var(--space-md);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.admin-models__item:hover {
+  background: var(--studio-surface);
+  border-color: var(--studio-border);
+}
+
+.admin-models__item--selected {
+  background: var(--studio-surface);
+  border-color: var(--studio-primary);
+}
+
+.admin-models__item-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-models__item-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.admin-models__item-name {
+  font-weight: 500;
+  color: var(--studio-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-models__item-id {
+  font-size: 0.75rem;
+  color: var(--studio-text-tertiary);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-models__item-tags {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+}
+
+.admin-models__item-status {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.admin-models__item-status--available {
+  background: var(--studio-success-bg);
+  color: var(--studio-success);
+}
+
+.admin-models__item-status--unavailable {
+  background: var(--studio-warning-bg);
+  color: var(--studio-warning);
+}
+
+.admin-models__item-status--deprecated {
+  background: var(--studio-error-bg);
+  color: var(--studio-error);
+}
+
+/* Model Detail */
+.admin-model-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.admin-model-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border-bottom: 1px solid var(--studio-border);
+}
+
+.admin-model-detail__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--studio-text);
+  margin: 0;
+}
+
+.admin-model-detail__id {
+  font-size: 0.75rem;
+  color: var(--studio-text-tertiary);
+  font-family: var(--font-mono);
+  margin-top: var(--space-xs);
+}
+
+.admin-model-detail__status {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.admin-model-detail__status--available {
+  background: var(--studio-success-bg);
+  color: var(--studio-success);
+}
+
+.admin-model-detail__status--unavailable {
+  background: var(--studio-warning-bg);
+  color: var(--studio-warning);
+}
+
+.admin-model-detail__status--deprecated {
+  background: var(--studio-error-bg);
+  color: var(--studio-error);
+}
+
+.admin-model-detail__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.admin-model-detail__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.admin-model-detail__section-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--studio-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.admin-model-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+}
+
+.admin-model-detail__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.admin-model-detail__label {
+  font-size: 0.75rem;
+  color: var(--studio-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.admin-model-detail__value {
+  font-size: 0.875rem;
+  color: var(--studio-text);
+}
+
+.admin-model-detail__actions {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
    RESPONSIVE ADJUSTMENTS
    ───────────────────────────────────────────────────────────────────── */
 
 @media (max-width: 768px) {
-  .admin-users__layout {
+  .admin-users__layout,
+  .admin-models__layout,
+  .admin-prompts__layout {
     grid-template-columns: 1fr;
   }
 
-  .admin-users__detail-panel {
+  .admin-users__detail-panel,
+  .admin-models__detail-panel,
+  .admin-prompts__detail-panel {
     display: none;
   }
 
-  .admin-users__detail-panel--visible {
+  .admin-users__detail-panel--visible,
+  .admin-models__detail-panel--visible,
+  .admin-prompts__detail-panel--visible {
     display: flex;
     position: fixed;
     inset: 0;
@@ -1229,7 +1503,9 @@
     border-radius: 0;
   }
 
-  .admin-user-detail__grid {
+  .admin-user-detail__grid,
+  .admin-model-detail__grid,
+  .admin-prompt-detail__grid {
     grid-template-columns: 1fr;
   }
 }
