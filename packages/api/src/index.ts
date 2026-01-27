@@ -17,6 +17,9 @@ import {
   getModelRegistry,
   initUsageService,
   initApiKeyService,
+  InMemoryConfigManager,
+  ALL_PROMPTS,
+  type PromptDefinition,
 } from '@humanizer/core';
 import { OllamaAdapter } from '@humanizer/npe';
 
@@ -160,6 +163,54 @@ export function createApp(): Hono<{ Variables: AuiContextVariables }> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// CONFIG MANAGER HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Extract variable names from a template string.
+ * Variables are in {{variableName}} format.
+ */
+function extractTemplateVariables(template: string): string[] {
+  const regex = /\{\{([^}]+)\}\}/g;
+  const vars: string[] = [];
+  let match;
+  while ((match = regex.exec(template)) !== null) {
+    const varName = match[1].trim();
+    if (!vars.includes(varName)) {
+      vars.push(varName);
+    }
+  }
+  return vars;
+}
+
+/**
+ * Convert PromptDefinition to the format expected by InMemoryConfigManager.
+ */
+function convertPromptDefinitionToTemplate(def: PromptDefinition) {
+  return {
+    id: def.id,
+    name: def.name,
+    template: def.template,
+    description: def.description,
+    requiredVariables: extractTemplateVariables(def.template),
+    usedBy: def.usedBy,
+    tags: def.deprecated ? ['deprecated'] : undefined,
+  };
+}
+
+/**
+ * Create a ConfigManager seeded with all prompts from the prompt registry.
+ */
+async function createSeededConfigManager(): Promise<InMemoryConfigManager> {
+  const configManager = new InMemoryConfigManager({
+    userId: 'system',
+    seedPrompts: ALL_PROMPTS.map(convertPromptDefinitionToTemplate),
+  });
+  await configManager.initialize();
+  return configManager;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // SERVER STARTUP
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -201,9 +252,15 @@ async function main(): Promise<void> {
       return result.embedding;
     };
 
+    // Create config manager seeded with all prompts
+    console.log('Initializing ConfigManager with prompt registry...');
+    const configManager = await createSeededConfigManager();
+    console.log(`ConfigManager initialized with ${ALL_PROMPTS.length} prompts`);
+
     // Initialize the AUI service with PostgreSQL storage and embedding function
     const auiService = await initUnifiedAuiWithStorage({
       embedFn: ollamaAvailable ? embedFn : undefined,
+      configManager,
       storageConfig: {
         host: config.postgres.host,
         port: config.postgres.port,
