@@ -339,6 +339,72 @@ export interface AdminCostAnalytics {
   daily: Array<{ date: string; cost: number; charged: number }>;
 }
 
+// Settings types (user-facing)
+export interface SettingsApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  scopes: string[];
+  lastUsedAt: string | null;
+  usageCount: number;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export interface SettingsUsageSummary {
+  period: string;
+  usage: {
+    tokensUsed: number;
+    requestsCount: number;
+    costMillicents: number;
+  };
+  limits: {
+    tokensLimit: number;
+    requestsLimit: number;
+    costLimitMillicents: number;
+  };
+  tier: string;
+  percentUsed: number;
+  withinLimits: boolean;
+  byModel: Record<string, number>;
+  byOperation: Record<string, number>;
+}
+
+export interface SettingsUsageHistory {
+  period: string;
+  tokens: number;
+  requests: number;
+  costMillicents: number;
+}
+
+export interface SettingsPreferences {
+  modelPreferences: {
+    defaultModel?: string;
+    temperature?: number;
+    maxTokens?: number;
+  };
+  transformationDefaults: {
+    persona?: string;
+    style?: string;
+  };
+  uiPreferences: {
+    theme?: 'light' | 'dark' | 'system';
+    compactMode?: boolean;
+    showTokenCount?: boolean;
+  };
+}
+
+export interface SettingsCustomPrompt {
+  id: string;
+  name: string;
+  description?: string;
+  template: string;
+  variables: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ApiClient {
   // Sessions
   listSessions: () => Promise<{ sessions: SessionSummary[]; count: number }>;
@@ -436,6 +502,33 @@ export interface ApiClient {
     // Audit
     listAuditEvents: (params?: AdminAuditListParams) => Promise<{ events: AdminAuditEvent[]; total: number }>;
     getAuditEvent: (eventId: string) => Promise<AdminAuditEvent>;
+  };
+
+  // Settings (user-facing)
+  settings: {
+    // Profile
+    getProfile: () => Promise<{ userId: string; email: string; role: string }>;
+    updateProfile: (params: { displayName?: string; timezone?: string }) => Promise<void>;
+    changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+
+    // API Keys
+    listApiKeys: () => Promise<{ keys: SettingsApiKey[]; count: number }>;
+    createApiKey: (params: { name: string; scopes?: string[]; expiresIn?: string }) => Promise<{ key: string; id: string; keyPrefix: string }>;
+    revokeApiKey: (keyId: string) => Promise<void>;
+
+    // Usage
+    getUsage: () => Promise<SettingsUsageSummary>;
+    getUsageHistory: (periods?: number) => Promise<{ history: SettingsUsageHistory[] }>;
+
+    // Preferences
+    getPreferences: () => Promise<{ preferences: SettingsPreferences }>;
+    updatePreferences: (params: Partial<SettingsPreferences>) => Promise<void>;
+
+    // Custom Prompts (PRO+)
+    listCustomPrompts: () => Promise<{ prompts: SettingsCustomPrompt[]; limit: number }>;
+    createCustomPrompt: (params: { name: string; description?: string; template: string }) => Promise<SettingsCustomPrompt>;
+    updateCustomPrompt: (promptId: string, params: { name?: string; description?: string; template?: string }) => Promise<SettingsCustomPrompt>;
+    deleteCustomPrompt: (promptId: string) => Promise<void>;
   };
 }
 
@@ -596,6 +689,43 @@ export function ApiProvider({ baseUrl = 'http://localhost:3030', children }: Api
         // Audit
         listAuditEvents: (params) => client.get('admin/audit', { searchParams: params as Record<string, string | number> ?? {} }).json(),
         getAuditEvent: (eventId) => client.get(`admin/audit/${eventId}`).json(),
+      },
+
+      // Settings (user-facing)
+      settings: {
+        // Profile
+        getProfile: () => client.get('settings/profile').json(),
+        updateProfile: async (params) => {
+          await client.put('settings/profile', { json: params });
+        },
+        changePassword: async (currentPassword, newPassword) => {
+          await client.put('settings/password', { json: { currentPassword, newPassword } });
+        },
+
+        // API Keys
+        listApiKeys: () => client.get('settings/api-keys').json(),
+        createApiKey: (params) => client.post('settings/api-keys', { json: params }).json(),
+        revokeApiKey: async (keyId) => {
+          await client.delete(`settings/api-keys/${keyId}`);
+        },
+
+        // Usage
+        getUsage: () => client.get('settings/usage').json(),
+        getUsageHistory: (periods = 6) => client.get('settings/usage/history', { searchParams: { periods } }).json(),
+
+        // Preferences
+        getPreferences: () => client.get('settings/preferences').json(),
+        updatePreferences: async (params) => {
+          await client.put('settings/preferences', { json: params });
+        },
+
+        // Custom Prompts (PRO+)
+        listCustomPrompts: () => client.get('settings/prompts').json(),
+        createCustomPrompt: (params) => client.post('settings/prompts', { json: params }).json<{ prompt: SettingsCustomPrompt }>().then(r => r.prompt),
+        updateCustomPrompt: (promptId, params) => client.put(`settings/prompts/${promptId}`, { json: params }).json<{ prompt: SettingsCustomPrompt }>().then(r => r.prompt),
+        deleteCustomPrompt: async (promptId) => {
+          await client.delete(`settings/prompts/${promptId}`);
+        },
       },
     }),
     [client]

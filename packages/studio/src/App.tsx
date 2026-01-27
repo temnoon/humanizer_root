@@ -17,6 +17,7 @@ import { MainWorkspace, type WorkspaceContent } from './components/workspace';
 import { CornerAssistant } from './components/CornerAssistant';
 import { LoginModal, UserMenu } from './components/auth';
 import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts, AdminModels, AdminTiers, AdminProviders, AdminFeatures, AdminApiKeys, AdminUsage, AdminCosts, AdminSubscriptions, AdminAudit } from './components/admin';
+import { SettingsLayout, SettingsProfile, SettingsApiKeys, SettingsUsage, SettingsPreferences, SettingsPrompts } from './components/settings';
 import type { SearchResult } from './contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -97,6 +98,16 @@ function StudioContent() {
         </div>
 
         <div className="studio-topbar__right">
+          {/* Settings link for authenticated users */}
+          {isAuthenticated && (
+            <button
+              className="btn btn--ghost btn--sm"
+              onClick={() => navigate('/settings')}
+            >
+              Settings
+            </button>
+          )}
+
           {/* Admin link for admin users */}
           {isAdmin && (
             <button
@@ -284,6 +295,15 @@ function AppRoutes() {
         <Route path="costs" element={<AdminCosts />} />
         <Route path="analytics/usage" element={<AdminUsage />} />
         <Route path="audit" element={<AdminAudit />} />
+      </Route>
+
+      {/* Settings Routes */}
+      <Route path="/settings" element={<SettingsLayout />}>
+        <Route index element={<SettingsProfile />} />
+        <Route path="api-keys" element={<SettingsApiKeys />} />
+        <Route path="usage" element={<SettingsUsage />} />
+        <Route path="preferences" element={<SettingsPreferences />} />
+        <Route path="prompts" element={<SettingsPrompts />} />
       </Route>
     </Routes>
   );
