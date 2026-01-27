@@ -1,0 +1,149 @@
+/* ═══════════════════════════════════════════════════════════════════
+   WELCOME SCREEN - Initial landing state
+   Displayed when no content is loaded
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────
+   HERO TEXT
+   Large welcome message
+   ───────────────────────────────────────────────────────────────────── */
+
+.welcome-screen__hero {
+  font-size: clamp(1.5rem, 4vw, 2.5rem);
+  font-weight: 300;
+  line-height: 1.2;
+  color: var(--studio-text);
+  margin-bottom: var(--space-md);
+}
+
+.welcome-screen__hero-line {
+  display: block;
+}
+
+.welcome-screen__hero-line--emphasis {
+  font-style: italic;
+  color: var(--studio-accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   TAGLINE
+   Subtitle beneath hero
+   ───────────────────────────────────────────────────────────────────── */
+
+.welcome-screen__tagline {
+  font-size: 1rem;
+  font-style: italic;
+  color: var(--studio-text-secondary);
+  margin-bottom: var(--space-xl);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   DIVIDER
+   Decorative separator
+   ───────────────────────────────────────────────────────────────────── */
+
+.welcome-screen__divider {
+  border: none;
+  border-top: 1px solid var(--studio-border);
+  margin: var(--space-xl) auto;
+  width: 100px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   QUOTE
+   Rotating inspirational quotes
+   ───────────────────────────────────────────────────────────────────── */
+
+.welcome-screen__quote {
+  margin: var(--space-xl) 0;
+  padding: var(--space-md);
+  opacity: 1;
+  transition: opacity 1.2s ease-in-out;
+}
+
+.welcome-screen__quote--fading {
+  opacity: 0;
+}
+
+.welcome-screen__quote-text {
+  font-size: 0.9375rem;
+  font-style: italic;
+  line-height: 1.6;
+  color: var(--studio-text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.welcome-screen__quote-attribution {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--studio-text-tertiary);
+  font-style: normal;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   KEYWORD ANIMATIONS
+   Text emphasis transitions
+   ───────────────────────────────────────────────────────────────────── */
+
+.welcome-screen__keyword {
+  transition: all 0.5s ease-out;
+}
+
+.welcome-screen__keyword--italic {
+  font-style: italic;
+}
+
+.welcome-screen__keyword--italic-bold {
+  font-style: italic;
+  font-weight: 600;
+}
+
+.welcome-screen__keyword--bold-underline {
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   INSTRUCTIONS
+   Getting started guidance
+   ───────────────────────────────────────────────────────────────────── */
+
+.welcome-screen__instruction {
+  margin-bottom: var(--space-lg);
+}
+
+.welcome-screen__instruction p {
+  font-size: 1rem;
+  color: var(--studio-text-secondary);
+}
+
+.welcome-screen__hint {
+  font-size: 0.875rem;
+  color: var(--studio-text-tertiary);
+  margin-top: var(--space-xs);
+}
+
+.welcome-screen__nav-hint {
+  font-size: 0.75rem;
+  color: var(--studio-text-tertiary);
+  margin-top: var(--space-xl);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .welcome-screen__hero {
+    font-size: clamp(1.25rem, 5vw, 1.75rem);
+  }
+
+  .welcome-screen__quote {
+    padding: var(--space-sm);
+  }
+
+  .welcome-screen__divider {
+    width: 60px;
+  }
+}

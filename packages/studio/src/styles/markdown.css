@@ -1,0 +1,324 @@
+/**
+ * Markdown Content Styles
+ *
+ * Beautiful typography for rendered markdown content.
+ * Supports GitHub Flavored Markdown, Reddit extensions, and KaTeX math.
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BASE CONTENT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-content {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--studio-text);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.md-content > *:first-child {
+  margin-top: 0;
+}
+
+.md-content > *:last-child {
+  margin-bottom: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HEADINGS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-content h1,
+.md-content h2,
+.md-content h3,
+.md-content h4,
+.md-content h5,
+.md-content h6 {
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--studio-text);
+}
+
+.md-content h1 { font-size: 2em; }
+.md-content h2 { font-size: 1.5em; }
+.md-content h3 { font-size: 1.25em; }
+.md-content h4 { font-size: 1.125em; }
+.md-content h5 { font-size: 1em; }
+.md-content h6 { font-size: 0.875em; color: var(--studio-text-secondary); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PARAGRAPHS & TEXT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-content p {
+  margin-top: 0;
+  margin-bottom: 1em;
+}
+
+.md-content strong {
+  font-weight: 600;
+}
+
+.md-content em {
+  font-style: italic;
+}
+
+.md-content del {
+  text-decoration: line-through;
+  color: var(--studio-text-secondary);
+}
+
+.md-content mark {
+  background-color: rgba(255, 235, 59, 0.4);
+  padding: 0.1em 0.2em;
+  border-radius: var(--radius-sm);
+}
+
+.md-content sup {
+  font-size: 0.75em;
+  vertical-align: super;
+}
+
+.md-content sub {
+  font-size: 0.75em;
+  vertical-align: sub;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LINKS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-link {
+  color: var(--studio-accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.15s ease;
+}
+
+.md-link:hover {
+  border-bottom-color: var(--studio-accent);
+}
+
+.md-link:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 2px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   BLOCKQUOTES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-blockquote {
+  margin: 1em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid var(--studio-border);
+  background-color: var(--studio-quote-bg);
+  color: var(--studio-text-secondary);
+  font-style: italic;
+}
+
+.md-blockquote p:last-child {
+  margin-bottom: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LISTS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-content ul,
+.md-content ol {
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.md-content li {
+  margin: 0.25em 0;
+}
+
+.md-content li > ul,
+.md-content li > ol {
+  margin: 0.25em 0;
+}
+
+/* Task lists (GFM) */
+.md-task-item {
+  list-style: none;
+  margin-left: -1.5em;
+}
+
+.md-task-item input[type="checkbox"] {
+  margin-right: 0.5em;
+  cursor: default;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CODE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-code {
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  background-color: var(--studio-quote-bg);
+  border-radius: var(--radius-sm);
+}
+
+.md-code--inline {
+  padding: 0.2em 0.4em;
+  color: var(--studio-text);
+}
+
+.md-code-block {
+  margin: 1em 0;
+  padding: 1em;
+  background-color: var(--studio-quote-bg);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+}
+
+.md-code-block .md-code {
+  display: block;
+  background: none;
+  padding: 0;
+}
+
+/* Syntax highlighting theme (dark mode aware) */
+.md-code-block .hljs-keyword { color: #8959a8; }
+.md-code-block .hljs-string { color: #718c00; }
+.md-code-block .hljs-number { color: #f5871f; }
+.md-code-block .hljs-comment { color: var(--studio-text-tertiary); font-style: italic; }
+.md-code-block .hljs-function { color: #4271ae; }
+.md-code-block .hljs-class { color: #c82829; }
+
+[data-theme="dark"] .md-code-block .hljs-keyword { color: #c792ea; }
+[data-theme="dark"] .md-code-block .hljs-string { color: #c3e88d; }
+[data-theme="dark"] .md-code-block .hljs-number { color: #f78c6c; }
+[data-theme="dark"] .md-code-block .hljs-function { color: #82aaff; }
+[data-theme="dark"] .md-code-block .hljs-class { color: #ff5370; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TABLES (GFM)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-table-wrapper {
+  margin: 1em 0;
+  overflow-x: auto;
+}
+
+.md-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375em;
+}
+
+.md-table th,
+.md-table td {
+  padding: 0.75em 1em;
+  text-align: left;
+  border: 1px solid var(--studio-border);
+}
+
+.md-table th {
+  font-weight: 600;
+  background-color: var(--studio-quote-bg);
+}
+
+.md-table tr:nth-child(even) td {
+  background-color: rgba(var(--studio-bg-rgb), 0.5);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   IMAGES
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-image {
+  max-width: 100%;
+  height: auto;
+  margin: 1em 0;
+  border-radius: var(--radius-md);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DIVIDERS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.md-divider {
+  margin: 2em 0;
+  border: none;
+  border-top: 1px solid var(--studio-border);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   REDDIT EXTENSIONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Spoiler text */
+.md-spoiler {
+  background-color: var(--studio-text);
+  color: transparent;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  padding: 0.1em 0.3em;
+  transition: all 0.2s ease;
+}
+
+.md-spoiler:hover,
+.md-spoiler:focus {
+  background-color: var(--studio-quote-bg);
+  color: var(--studio-text);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   KATEX MATH
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Display math */
+.md-content .katex-display {
+  margin: 1.5em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.5em 0;
+}
+
+/* Inline math */
+.md-content .katex {
+  font-size: 1.1em;
+}
+
+/* Math error styling */
+.md-content .katex-error {
+  color: var(--studio-error);
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .md-content {
+    font-size: 0.9375rem;
+  }
+
+  .md-content h1 { font-size: 1.75em; }
+  .md-content h2 { font-size: 1.375em; }
+  .md-content h3 { font-size: 1.125em; }
+
+  .md-table {
+    font-size: 0.875em;
+  }
+
+  .md-table th,
+  .md-table td {
+    padding: 0.5em;
+  }
+
+  .md-code-block {
+    padding: 0.75em;
+    font-size: 0.8125em;
+  }
+}

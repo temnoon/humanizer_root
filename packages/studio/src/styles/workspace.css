@@ -1,0 +1,130 @@
+/* ═══════════════════════════════════════════════════════════════════
+   WORKSPACE - Content display area
+   Main content container within the studio
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────
+   WORKSPACE CONTAINER
+   ───────────────────────────────────────────────────────────────────── */
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100vh;
+  background: var(--studio-bg);
+}
+
+/* Empty state - centered content */
+.workspace--empty {
+  justify-content: center;
+  align-items: center;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   WORKSPACE PLACEHOLDER
+   Empty state container
+   ───────────────────────────────────────────────────────────────────── */
+
+.workspace__placeholder {
+  max-width: min(600px, 90vw);
+  text-align: center;
+  padding: var(--space-2xl);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   WORKSPACE HEADER
+   ───────────────────────────────────────────────────────────────────── */
+
+.workspace__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--studio-border);
+  background: var(--studio-panel-bg);
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   WORKSPACE BREADCRUMB
+   ───────────────────────────────────────────────────────────────────── */
+
+.workspace__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--studio-quote-bg);
+  border-bottom: 1px solid var(--studio-border);
+  font-size: 0.875rem;
+  color: var(--studio-text-secondary);
+  flex-shrink: 0;
+}
+
+.workspace__breadcrumb-sep {
+  color: var(--studio-text-tertiary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   WORKSPACE ARTICLE
+   Main content display area
+   ───────────────────────────────────────────────────────────────────── */
+
+.workspace__article {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg);
+  max-width: min(700px, 100%);
+  margin: 0 auto;
+  width: 100%;
+  line-height: var(--studio-line-height, 1.7);
+}
+
+.workspace__article p {
+  margin-bottom: var(--space-md);
+}
+
+.workspace__article h1,
+.workspace__article h2,
+.workspace__article h3 {
+  margin-top: var(--space-lg);
+  margin-bottom: var(--space-md);
+}
+
+.workspace__article h1 { font-size: 1.75rem; }
+.workspace__article h2 { font-size: 1.375rem; }
+.workspace__article h3 { font-size: 1.125rem; }
+
+/* ─────────────────────────────────────────────────────────────────────
+   WORKSPACE STATS
+   Statistics footer
+   ───────────────────────────────────────────────────────────────────── */
+
+.workspace__stats {
+  display: flex;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
+  margin-top: var(--space-md);
+  border-top: 1px solid var(--studio-border);
+  flex-wrap: wrap;
+}
+
+.workspace__stat {
+  font-size: 0.75rem;
+  color: var(--studio-text-tertiary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 480px) {
+  .workspace__article {
+    padding: var(--space-md);
+  }
+
+  .workspace__placeholder {
+    padding: var(--space-lg);
+  }
+}

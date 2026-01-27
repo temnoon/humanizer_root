@@ -1,0 +1,234 @@
+/* ═══════════════════════════════════════════════════════════════════
+   TOPBAR - Fixed, auto-hiding navigation bar
+   Uses BEM naming: .studio-topbar, .studio-topbar__element
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────
+   TOPBAR CONTAINER
+   Fixed positioning with backdrop blur
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio-topbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-lg);
+  min-height: 60px;
+  background: rgba(var(--studio-panel-bg-rgb), 0.95);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--studio-border);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease,
+    background 0.3s ease;
+}
+
+/* Hidden state for auto-hide behavior */
+.studio-topbar--hidden {
+  opacity: 0;
+  transform: translateY(-100%);
+  pointer-events: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   TOPBAR SECTIONS
+   Left, center, right layout
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio-topbar__left,
+.studio-topbar__center,
+.studio-topbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.studio-topbar__left {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+}
+
+.studio-topbar__center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+.studio-topbar__right {
+  flex: 0 0 auto;
+  justify-content: flex-end;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   TOPBAR ELEMENTS
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio-topbar__logo {
+  font-size: 1.125rem;
+  font-weight: normal;
+  letter-spacing: 0.05em;
+  color: var(--studio-text);
+}
+
+.studio-topbar__title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--studio-text-secondary);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-topbar__title-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   TOPBAR NAVIGATION
+   Nav buttons group
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio-topbar__nav-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-shrink: 0;
+}
+
+.studio-topbar__nav {
+  min-width: var(--touch-target-min, 44px);
+  min-height: var(--touch-target-min, 44px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  color: var(--studio-text-secondary);
+  background: transparent;
+  border: 1px solid var(--studio-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.studio-topbar__nav:hover:not(:disabled) {
+  background: var(--studio-hover);
+  color: var(--studio-text);
+}
+
+.studio-topbar__nav:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   TOPBAR BUTTONS
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio-topbar__btn {
+  min-height: var(--touch-target-min, 44px);
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  color: var(--studio-text-secondary);
+  background: transparent;
+  border: 1px solid var(--studio-border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.studio-topbar__btn:hover {
+  background: var(--studio-hover);
+  color: var(--studio-text);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   TOPBAR BREADCRUMB
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio-topbar__breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+}
+
+.studio-topbar__breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.studio-topbar__breadcrumb-sep {
+  color: var(--studio-text-tertiary);
+  flex-shrink: 0;
+}
+
+.studio-topbar__breadcrumb-link {
+  background: none;
+  border: none;
+  padding: var(--space-xs) var(--space-sm);
+  font-size: inherit;
+  font-family: inherit;
+  color: var(--studio-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: color 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.studio-topbar__breadcrumb-link:hover {
+  color: var(--studio-text);
+  background: var(--studio-hover);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .studio-topbar {
+    padding: var(--space-sm) var(--space-md);
+    min-height: 52px;
+  }
+
+  .studio-topbar__logo {
+    font-size: 1rem;
+  }
+
+  .studio-topbar__breadcrumb-link {
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .studio-topbar__center {
+    position: static;
+    transform: none;
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .studio-topbar__breadcrumb-link {
+    max-width: 80px;
+  }
+}

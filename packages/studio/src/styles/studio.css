@@ -1,0 +1,71 @@
+/* ═══════════════════════════════════════════════════════════════════
+   STUDIO - Root container with theme variables
+   The .studio class is the theme boundary for all content
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────
+   STUDIO CONTAINER
+   Primary layout container - receives all theme variables
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio {
+  min-height: 100vh;
+  background: var(--studio-bg);
+  color: var(--studio-text);
+  font-family: var(--font-display);
+  position: relative;
+  overflow: hidden;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   STUDIO MAIN
+   Content area within studio
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio__main {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   STUDIO CONTENT
+   Main scrollable content area below topbar
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding-top: 60px; /* Space for fixed topbar */
+}
+
+/* When topbar is hidden, remove padding */
+.studio__content--full {
+  padding-top: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   STUDIO FOOTER
+   Optional footer area
+   ───────────────────────────────────────────────────────────────────── */
+
+.studio__footer {
+  flex-shrink: 0;
+  padding: var(--space-md);
+  border-top: 1px solid var(--studio-border);
+  background: var(--studio-panel-bg);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   RESPONSIVE
+   ───────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 767px) {
+  .studio__content {
+    padding-top: 52px; /* Smaller topbar on mobile */
+  }
+}

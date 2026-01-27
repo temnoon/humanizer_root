@@ -1,0 +1,52 @@
+/**
+ * Humanizer Platinum Studio - Core Styles
+ *
+ * Theme-first architecture: .studio class receives all theme variables.
+ * 3-mode theme: light, sepia (default), dark
+ *
+ * File Organization:
+ * - theme.css          : Theme variables (colors, fonts, spacing)
+ * - base.css           : Reset, html, body, #root
+ * - studio.css         : .studio container
+ * - topbar.css         : Fixed navigation bar
+ * - workspace.css      : Content display area
+ * - welcome.css        : Welcome/landing screen
+ * - buttons.css        : Button components
+ * - corner-assistant.css : AUI chat button
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOUNDATION
+   Theme variables must load first - all other files depend on these
+   ═══════════════════════════════════════════════════════════════════════════ */
+@import './theme.css';
+@import './base.css';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LAYOUT
+   Core layout containers
+   ═══════════════════════════════════════════════════════════════════════════ */
+@import './studio.css';
+@import './topbar.css';
+@import './workspace.css';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FEATURES
+   Feature-specific styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+@import './welcome.css';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPONENTS
+   Reusable UI components
+   ═══════════════════════════════════════════════════════════════════════════ */
+@import './buttons.css';
+@import './markdown.css';
+@import './corner-assistant.css';
+@import './auth.css';
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ADMIN
+   Administrative interface styles
+   ═══════════════════════════════════════════════════════════════════════════ */
+@import './admin.css';

@@ -1,0 +1,262 @@
+/* ═══════════════════════════════════════════════════════════════════
+   THEME SYSTEM - Light, Dark, Sepia (default)
+   Foundation for all Platinum Studio styling
+   All other CSS files depend on these variables
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────
+   DESIGN TOKENS (Theme-independent)
+   ───────────────────────────────────────────────────────────────────── */
+:root {
+  /* Spacing tokens */
+  --space-xs: 0.25rem;   /* 4px */
+  --space-sm: 0.5rem;    /* 8px */
+  --space-md: 1rem;      /* 16px */
+  --space-lg: 1.5rem;    /* 24px */
+  --space-xl: 2rem;      /* 32px */
+  --space-2xl: 3rem;     /* 48px */
+  --space-3xl: 4rem;     /* 64px */
+
+  /* Radius tokens */
+  --radius-sm: 0.25rem;  /* 4px */
+  --radius-md: 0.5rem;   /* 8px */
+  --radius-lg: 0.75rem;  /* 12px */
+  --radius-xl: 1rem;     /* 16px */
+  --radius-full: 9999px;
+
+  /* Typography */
+  --font-display: Georgia, 'Times New Roman', serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
+
+  /* Touch targets (WCAG 2.1 AA) */
+  --touch-target-min: 44px;
+
+  /* Line height */
+  --studio-line-height: 1.6;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   SEPIA THEME (Default)
+   Warm, paper-like tones for comfortable reading
+   ───────────────────────────────────────────────────────────────────── */
+:root,
+[data-theme="sepia"] {
+  --studio-bg: #f8f4e9;
+  --studio-bg-rgb: 248, 244, 233;
+  --studio-text: #433422;
+  --studio-text-secondary: #6b5c4a;
+  --studio-text-tertiary: #8a7a66;
+
+  /* Accent: Light amber (~70% lightness) with dark text */
+  --studio-accent: hsl(38, 70%, 70%);
+  --studio-accent-hover: hsl(38, 70%, 62%);
+  --studio-accent-text: hsl(38, 50%, 20%);
+
+  /* Surfaces */
+  --studio-quote-bg: #f0e8d6;
+  --studio-border: #d4c4a8;
+  --studio-panel-bg: #fffdf8;
+  --studio-panel-bg-rgb: 255, 253, 248;
+  --studio-hover: rgba(139, 105, 20, 0.1);
+  --studio-surface: #fdfbf7;
+
+  /* Semantic colors */
+  --studio-success: #2e7d32;
+  --studio-success-bg: rgba(46, 125, 50, 0.12);
+  --studio-error: #c62828;
+  --studio-error-bg: rgba(198, 40, 40, 0.12);
+  --studio-warning: #ef6c00;
+  --studio-warning-bg: rgba(239, 108, 0, 0.12);
+  --studio-info: #1565c0;
+  --studio-info-bg: rgba(21, 101, 192, 0.12);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   LIGHT THEME
+   Clean, high-contrast white theme
+   ───────────────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --studio-bg: #ffffff;
+  --studio-bg-rgb: 255, 255, 255;
+  --studio-text: #1a1a2e;
+  --studio-text-secondary: #4a4a5c;
+  --studio-text-tertiary: #7a7a8c;
+
+  /* Accent: Light pastel blue with dark text */
+  --studio-accent: #bbd2ff;
+  --studio-accent-hover: #a8c5f7;
+  --studio-accent-text: #1a1a2e;
+
+  /* Surfaces */
+  --studio-quote-bg: #f5f5f7;
+  --studio-border: #e0e0e5;
+  --studio-panel-bg: #ffffff;
+  --studio-panel-bg-rgb: 255, 255, 255;
+  --studio-hover: rgba(37, 99, 235, 0.08);
+  --studio-surface: #fafafa;
+
+  /* Semantic colors */
+  --studio-success: #16a34a;
+  --studio-success-bg: rgba(22, 163, 74, 0.1);
+  --studio-error: #dc2626;
+  --studio-error-bg: rgba(220, 38, 38, 0.1);
+  --studio-warning: #d97706;
+  --studio-warning-bg: rgba(217, 119, 6, 0.1);
+  --studio-info: #2563eb;
+  --studio-info-bg: rgba(37, 99, 235, 0.1);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   DARK THEME
+   Low-light reading mode
+   ───────────────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --studio-bg: #0f0f14;
+  --studio-bg-rgb: 15, 15, 20;
+  --studio-text: #e8e8ed;
+  --studio-text-secondary: #a0a0b0;
+  --studio-text-tertiary: #6b6b7a;
+
+  /* Accent: Dark blue (~35% lightness) with light text */
+  --studio-accent: hsl(220, 70%, 35%);
+  --studio-accent-hover: hsl(220, 70%, 42%);
+  --studio-accent-text: #ffffff;
+
+  /* Surfaces */
+  --studio-quote-bg: #1a1a24;
+  --studio-border: #2a2a38;
+  --studio-panel-bg: #16161d;
+  --studio-panel-bg-rgb: 22, 22, 29;
+  --studio-hover: rgba(96, 165, 250, 0.12);
+  --studio-surface: #1a1a24;
+
+  /* Semantic colors */
+  --studio-success: #4ade80;
+  --studio-success-bg: rgba(74, 222, 128, 0.15);
+  --studio-error: #f87171;
+  --studio-error-bg: rgba(248, 113, 113, 0.15);
+  --studio-warning: #fbbf24;
+  --studio-warning-bg: rgba(251, 191, 36, 0.15);
+  --studio-info: #60a5fa;
+  --studio-info-bg: rgba(96, 165, 250, 0.15);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   THEME TOGGLE COMPONENT
+   Segmented control for theme switching
+   ═══════════════════════════════════════════════════════════════════ */
+
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  background: var(--studio-quote-bg);
+  border: 1px solid var(--studio-border);
+  border-radius: var(--radius-md);
+}
+
+.theme-toggle__btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  color: var(--studio-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.theme-toggle__btn:hover {
+  background: var(--studio-hover);
+  color: var(--studio-text);
+}
+
+.theme-toggle__btn--active {
+  background: var(--studio-panel-bg);
+  color: var(--studio-accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   TYPOGRAPHY VARIATIONS
+   Data attribute-based font customization
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Font family */
+[data-font="sans-serif"] { font-family: var(--font-body); }
+[data-font="serif"] { font-family: var(--font-display); }
+[data-font="mono"] { font-family: var(--font-mono); }
+
+/* Font size */
+[data-size="small"] { font-size: 14px; }
+[data-size="medium"] { font-size: 16px; }
+[data-size="large"] { font-size: 18px; }
+
+/* Line height / spacing */
+[data-spacing="tight"] { --studio-line-height: 1.4; }
+[data-spacing="normal"] { --studio-line-height: 1.6; }
+[data-spacing="relaxed"] { --studio-line-height: 1.8; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   ACCENT COLOR VARIATIONS
+   Customizable accent colors per theme
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Amber (default for sepia) */
+[data-accent="amber"] {
+  --studio-accent: hsl(38, 70%, 70%);
+  --studio-accent-hover: hsl(38, 70%, 62%);
+  --studio-accent-text: hsl(38, 50%, 20%);
+}
+
+/* Blue */
+[data-accent="blue"] {
+  --studio-accent: hsl(220, 84%, 77%);
+  --studio-accent-hover: hsl(220, 84%, 70%);
+  --studio-accent-text: hsl(220, 60%, 25%);
+}
+
+/* Green */
+[data-accent="green"] {
+  --studio-accent: hsl(145, 60%, 65%);
+  --studio-accent-hover: hsl(145, 60%, 55%);
+  --studio-accent-text: hsl(145, 50%, 20%);
+}
+
+/* Purple */
+[data-accent="purple"] {
+  --studio-accent: hsl(270, 60%, 70%);
+  --studio-accent-hover: hsl(270, 60%, 62%);
+  --studio-accent-text: hsl(270, 50%, 25%);
+}
+
+/* Dark theme accent overrides - dark backgrounds with light text */
+[data-theme="dark"][data-accent="amber"] {
+  --studio-accent: hsl(38, 70%, 35%);
+  --studio-accent-hover: hsl(38, 70%, 42%);
+  --studio-accent-text: #ffffff;
+}
+
+[data-theme="dark"][data-accent="blue"] {
+  --studio-accent: hsl(220, 70%, 35%);
+  --studio-accent-hover: hsl(220, 70%, 42%);
+  --studio-accent-text: #ffffff;
+}
+
+[data-theme="dark"][data-accent="green"] {
+  --studio-accent: hsl(145, 60%, 32%);
+  --studio-accent-hover: hsl(145, 60%, 40%);
+  --studio-accent-text: #ffffff;
+}
+
+[data-theme="dark"][data-accent="purple"] {
+  --studio-accent: hsl(270, 60%, 38%);
+  --studio-accent-hover: hsl(270, 60%, 45%);
+  --studio-accent-text: #ffffff;
+}
