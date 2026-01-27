@@ -12,3 +12,4 @@ export { AdminDashboard } from './AdminDashboard';
 export { AdminUsers } from './AdminUsers';
 export { AdminPrompts } from './AdminPrompts';
 export { AdminModels } from './AdminModels';
+export { AdminTiers } from './AdminTiers';
