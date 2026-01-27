@@ -215,6 +215,26 @@ export interface AdminUserListParams {
   offset?: number;
 }
 
+export interface AdminPrompt {
+  id: string;
+  name: string;
+  description?: string;
+  template: string;
+  version?: number;
+  usedBy?: string[];
+  tags?: string[];
+  requiredVariables?: string[];
+}
+
+export interface AdminPromptUpdateParams {
+  name?: string;
+  description?: string;
+  template: string;
+  usedBy?: string[];
+  tags?: string[];
+  requiredVariables?: string[];
+}
+
 export interface ApiClient {
   // Sessions
   listSessions: () => Promise<{ sessions: SessionSummary[]; count: number }>;
@@ -273,6 +293,9 @@ export interface ApiClient {
     getUser: (userId: string) => Promise<AdminUser>;
     updateUserRole: (userId: string, role: string, reason: string) => Promise<void>;
     banUser: (userId: string, reason: string, duration?: string) => Promise<void>;
+    listPrompts: () => Promise<{ prompts: AdminPrompt[] }>;
+    getPrompt: (id: string) => Promise<AdminPrompt>;
+    updatePrompt: (id: string, params: AdminPromptUpdateParams) => Promise<void>;
   };
 }
 
@@ -381,6 +404,11 @@ export function ApiProvider({ baseUrl = 'http://localhost:3030', children }: Api
         },
         banUser: async (userId, reason, duration) => {
           await client.post(`admin/users/${userId}/ban`, { json: { reason, duration } });
+        },
+        listPrompts: () => client.get('admin/prompts').json(),
+        getPrompt: (id) => client.get(`admin/prompts/${id}`).json<{ prompt: AdminPrompt }>().then(r => r.prompt),
+        updatePrompt: async (id, params) => {
+          await client.put(`admin/prompts/${id}`, { json: params });
         },
       },
     }),

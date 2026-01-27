@@ -883,6 +883,272 @@
 }
 
 /* ─────────────────────────────────────────────────────────────────────
+   ADMIN PROMPTS PAGE
+   Prompt management interface
+   ───────────────────────────────────────────────────────────────────── */
+
+.admin-prompts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  height: 100%;
+}
+
+.admin-prompts__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.admin-prompts__title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--studio-text);
+  margin: 0;
+}
+
+.admin-prompts__stats {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.admin-prompts__stat {
+  font-size: 0.875rem;
+  color: var(--studio-text-secondary);
+}
+
+.admin-prompts__layout {
+  display: grid;
+  grid-template-columns: 350px 1fr;
+  gap: var(--space-md);
+  flex: 1;
+  min-height: 0;
+}
+
+.admin-prompts__list-panel,
+.admin-prompts__detail-panel {
+  background: var(--studio-panel-bg);
+  border: 1px solid var(--studio-border);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-prompts__filters {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--studio-border);
+}
+
+.admin-prompts__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-sm);
+}
+
+.admin-prompts__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  transition: background-color 0.15s ease;
+}
+
+.admin-prompts__item:hover {
+  background: var(--studio-hover);
+}
+
+.admin-prompts__item--selected {
+  background: var(--studio-accent);
+  color: var(--studio-accent-text);
+}
+
+.admin-prompts__item--selected:hover {
+  background: var(--studio-accent-hover);
+}
+
+.admin-prompts__item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-prompts__item-name {
+  font-size: 0.875rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-prompts__item-id {
+  font-size: 0.75rem;
+  color: var(--studio-text-tertiary);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-prompts__item--selected .admin-prompts__item-id {
+  color: inherit;
+  opacity: 0.8;
+}
+
+.admin-prompts__item-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 4px;
+}
+
+.admin-prompts__item-version {
+  font-size: 0.75rem;
+  color: var(--studio-text-tertiary);
+  flex-shrink: 0;
+}
+
+.admin-prompts__item--selected .admin-prompts__item-version {
+  color: inherit;
+  opacity: 0.8;
+}
+
+/* Prompt Detail View */
+.admin-prompt-detail {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.admin-prompt-detail__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--studio-border);
+}
+
+.admin-prompt-detail__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--studio-text);
+  margin: 0;
+}
+
+.admin-prompt-detail__id {
+  font-size: 0.75rem;
+  color: var(--studio-text-tertiary);
+  font-family: var(--font-mono);
+  margin-top: 2px;
+}
+
+.admin-prompt-detail__actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.admin-prompt-detail__content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-lg);
+}
+
+.admin-prompt-detail__section {
+  margin-bottom: var(--space-lg);
+}
+
+.admin-prompt-detail__section--full {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-prompt-detail__section-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--studio-text-tertiary);
+  margin: 0 0 var(--space-sm);
+}
+
+.admin-prompt-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-md);
+}
+
+.admin-prompt-detail__field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.admin-prompt-detail__label {
+  font-size: 0.75rem;
+  color: var(--studio-text-tertiary);
+}
+
+.admin-prompt-detail__value {
+  font-size: 0.875rem;
+  color: var(--studio-text);
+}
+
+.admin-prompt-detail__description {
+  font-size: 0.875rem;
+  color: var(--studio-text-secondary);
+  margin: 0;
+}
+
+.admin-prompt-detail__variables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.admin-prompt-detail__no-vars {
+  font-size: 0.875rem;
+  color: var(--studio-text-tertiary);
+  font-style: italic;
+}
+
+.admin-prompt-detail__template {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  background: var(--studio-quote-bg);
+  border: 1px solid var(--studio-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  flex: 1;
+  min-height: 200px;
+}
+
+.admin-prompt-detail__template-input {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  min-height: 300px;
+  resize: vertical;
+}
+
+.admin-prompt-detail__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+/* ─────────────────────────────────────────────────────────────────────
    ADMIN MODALS
    Modal dialogs for admin actions
    ───────────────────────────────────────────────────────────────────── */
