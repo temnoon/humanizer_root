@@ -139,12 +139,14 @@ export class ApiKeyService {
       scopes?: ApiKeyScope[];
       rateLimitRpm?: number;
       expiresAt?: Date;
+      userTier?: string; // User's current tier for limit checking
     }
   ): Promise<CreateKeyResult> {
     const tenantId = options?.tenantId ?? this.options.defaultTenantId;
+    const userTier = options?.userTier ?? 'free';
 
     // Check if user has reached max API keys for their tier
-    await this.checkApiKeyLimit(userId, tenantId);
+    await this.checkApiKeyLimit(userId, tenantId, userTier);
 
     // Generate secure random key
     const rawKey = randomBytes(this.options.keyLength).toString('base64url');
@@ -407,9 +409,9 @@ export class ApiKeyService {
   /**
    * Check if user has reached their API key limit.
    */
-  private async checkApiKeyLimit(userId: string, tenantId: string): Promise<void> {
+  private async checkApiKeyLimit(userId: string, tenantId: string, userTier: string): Promise<void> {
     // Get user's tier max_api_keys
-    const tierResult = await this.pool.query(GET_AUI_TIER_DEFAULT, [tenantId, 'free']);
+    const tierResult = await this.pool.query(GET_AUI_TIER_DEFAULT, [tenantId, userTier]);
     const maxKeys = tierResult.rows[0]?.max_api_keys ?? 0;
 
     if (maxKeys === -1) {

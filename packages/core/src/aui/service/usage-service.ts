@@ -25,6 +25,7 @@ import {
   GET_AUI_TIER_DEFAULT,
   GET_AUI_USER_QUOTA_OVERRIDE,
   GET_AUI_PROVIDER_COST_RATE,
+  LIST_AUI_TIER_DEFAULTS,
 } from '../../storage/schema-aui.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -109,6 +110,27 @@ export interface UsageServiceOptions {
   defaultTenantId?: string;
   defaultUserTier?: string;
   cacheTtlMs?: number;
+}
+
+/**
+ * Tier information for admin and user display
+ */
+export interface TierInfo {
+  id: string;
+  name: string;
+  description?: string;
+  limits: {
+    tokensPerMonth: number;
+    requestsPerMonth: number;
+    costCentsPerMonth: number;
+    requestsPerMinute: number;
+    maxApiKeys: number;
+  };
+  features: string[];
+  priceMonthly?: number;
+  priceAnnual?: number;
+  priority: number;
+  isPublic: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -411,6 +433,84 @@ export class UsageService {
       byUser,
       byModel,
       byOperation,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TIER MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * List all available tiers for a tenant.
+   */
+  async listTiers(tenantId?: string, publicOnly = false): Promise<TierInfo[]> {
+    const tenant = tenantId ?? this.options.defaultTenantId;
+    // Pass publicOnly as second parameter, or null to get all tiers
+    const result = await this.pool.query(LIST_AUI_TIER_DEFAULTS, [tenant, publicOnly ? true : null]);
+
+    const tiers: TierInfo[] = result.rows
+      .map((row) => ({
+        id: row.tier,
+        name: row.display_name ?? row.tier,
+        description: row.description ?? undefined,
+        limits: {
+          tokensPerMonth: parseInt(row.tokens_per_month, 10),
+          requestsPerMonth: parseInt(row.requests_per_month, 10),
+          costCentsPerMonth: parseInt(row.cost_cents_per_month, 10),
+          requestsPerMinute: parseInt(row.requests_per_minute, 10),
+          maxApiKeys: parseInt(row.max_api_keys, 10),
+        },
+        features: row.features ?? [],
+        priceMonthly: row.price_monthly_cents ? parseInt(row.price_monthly_cents, 10) : undefined,
+        priceAnnual: row.price_annual_cents ? parseInt(row.price_annual_cents, 10) : undefined,
+        priority: parseInt(row.priority, 10),
+        isPublic: row.is_public,
+      }));
+
+    return tiers.sort((a, b) => a.priority - b.priority);
+  }
+
+  /**
+   * Get cost report for admin analytics.
+   * Wrapper over getUsageReport with CostReport formatting.
+   */
+  async getCostReport(options: {
+    startDate: Date;
+    endDate?: Date;
+    groupBy?: 'day' | 'week' | 'month';
+    tenantId?: string;
+  }): Promise<{
+    totalCostCents: number;
+    totalTokens: number;
+    totalRequests: number;
+    byModel: Map<string, { tokens: number; cost: number }>;
+    byOperation: Map<string, { tokens: number; cost: number }>;
+    byPeriod: Map<string, { tokens: number; cost: number }>;
+  }> {
+    const report = await this.getUsageReport({
+      startDate: options.startDate,
+      endDate: options.endDate,
+      tenantId: options.tenantId,
+    });
+
+    // Convert millicents to cents
+    return {
+      totalCostCents: Math.round(report.totalUserChargeMillicents / 1000),
+      totalTokens: report.totalTokens,
+      totalRequests: report.totalRequests,
+      byModel: new Map(
+        Array.from(report.byModel.entries()).map(([k, v]) => [
+          k,
+          { tokens: v.tokens, cost: Math.round(v.cost / 1000) },
+        ])
+      ),
+      byOperation: new Map(
+        Array.from(report.byOperation.entries()).map(([k, v]) => [
+          k,
+          { tokens: v.tokens, cost: Math.round(v.cost / 1000) },
+        ])
+      ),
+      byPeriod: new Map(), // TODO: Implement period grouping
     };
   }
 

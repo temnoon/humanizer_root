@@ -131,9 +131,17 @@ function getJwtSecret(): string {
  * Require authentication middleware.
  * Supports both JWT Bearer tokens and API keys via X-API-Key header.
  * Returns 401 if no valid credentials present.
+ * Will pass through if auth context is already set (e.g., by devAuth()).
  */
 export function requireAuth(): MiddlewareHandler {
   return async (c, next) => {
+    // Check if auth is already set (e.g., by devAuth())
+    const existingAuth = c.get('auth') as AuthContext | undefined;
+    if (existingAuth) {
+      await next();
+      return;
+    }
+
     // Check for API key first (X-API-Key header)
     const apiKeyHeader = c.req.header('X-API-Key');
     if (apiKeyHeader) {

@@ -304,6 +304,7 @@ export {
   type UserUsageSummary,
   type UsageReport as PersistentUsageReport,
   type UsageServiceOptions,
+  type TierInfo,
 
   // Service
   UsageService,

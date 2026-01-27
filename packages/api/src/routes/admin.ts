@@ -14,6 +14,15 @@ import { getUsageService, getApiKeyService } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, requireAdmin, getAuth, type AuthContext } from '../middleware/auth.js';
 
+// Helper to get UsageService with error handling
+function requireUsageService() {
+  const service = getUsageService();
+  if (!service) {
+    throw new Error('Usage service not initialized');
+  }
+  return service;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════
@@ -61,28 +70,38 @@ adminRouter.get('/users', async (c) => {
  */
 adminRouter.get('/users/:id', async (c) => {
   const userId = c.req.param('id');
-  const aui = c.get('aui');
 
-  // Get user usage
-  const usage = await aui.getUsage(userId);
+  try {
+    const usageService = requireUsageService();
 
-  // TODO: Get user profile from auth database
+    // Get user usage
+    const usage = await usageService.getUsage(userId);
 
-  return c.json({
-    userId,
-    usage: {
-      tokensUsed: usage.tokensUsed,
-      requestsCount: usage.requestsCount,
-      costAccruedCents: usage.costAccruedCents,
-      period: usage.period,
-    },
-    message: 'User detail endpoint - full profile pending auth-api integration',
-  });
+    // TODO: Get user profile from auth database
+
+    return c.json({
+      userId,
+      usage: usage
+        ? {
+            tokensUsed: usage.tokensUsed,
+            requestsCount: usage.requestsCount,
+            costMillicents: usage.costMillicents,
+            period: usage.billingPeriod,
+          }
+        : null,
+      message: 'User detail endpoint - full profile pending auth-api integration',
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 503);
+  }
 });
 
 /**
  * PUT /admin/users/:id/role
  * Change user role/tier
+ *
+ * Note: This endpoint is a stub. User roles are managed via auth-api/Stripe.
+ * This endpoint can be used to set quota overrides for the user.
  */
 adminRouter.put('/users/:id/role', async (c) => {
   const userId = c.req.param('id');
@@ -92,21 +111,18 @@ adminRouter.put('/users/:id/role', async (c) => {
     return c.json({ error: 'Role is required' }, 400);
   }
 
-  const aui = c.get('aui');
   const auth = getAuth(c)!;
 
-  try {
-    await aui.setUserTier(userId, body.role);
+  // TODO: Implement via auth-api integration or set quota override
+  // For now, return success stub
 
-    return c.json({
-      userId,
-      role: body.role,
-      updatedBy: auth.userId,
-      updatedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    return c.json({ error: (error as Error).message }, 400);
-  }
+  return c.json({
+    userId,
+    role: body.role,
+    updatedBy: auth.userId,
+    updatedAt: new Date().toISOString(),
+    message: 'User role change endpoint - implementation pending auth-api integration',
+  });
 });
 
 /**
@@ -141,22 +157,26 @@ adminRouter.post('/users/:id/ban', async (c) => {
  * List all tier configurations
  */
 adminRouter.get('/tiers', async (c) => {
-  const aui = c.get('aui');
-  const tiers = await aui.listTiers();
+  try {
+    const usageService = requireUsageService();
+    const tiers = await usageService.listTiers();
 
-  return c.json({
-    tiers: tiers.map(t => ({
-      id: t.id,
-      name: t.name,
-      description: t.description,
-      limits: t.limits,
-      features: t.features,
-      priceMonthly: t.priceMonthly,
-      priceAnnual: t.priceAnnual,
-      priority: t.priority,
-      isPublic: t.isPublic,
-    })),
-  });
+    return c.json({
+      tiers: tiers.map((t) => ({
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        limits: t.limits,
+        features: t.features,
+        priceMonthly: t.priceMonthly,
+        priceAnnual: t.priceAnnual,
+        priority: t.priority,
+        isPublic: t.isPublic,
+      })),
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 503);
+  }
 });
 
 /**
@@ -340,29 +360,33 @@ adminRouter.delete('/api-keys/:id', async (c) => {
  */
 adminRouter.get('/analytics/usage', async (c) => {
   const { startDate, endDate, groupBy = 'day' } = c.req.query();
-  const aui = c.get('aui');
 
   const start = startDate ? new Date(startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
   const end = endDate ? new Date(endDate) : new Date();
 
-  const report = await aui.getCostReport({
-    startDate: start,
-    endDate: end,
-    groupBy: groupBy as 'day' | 'week' | 'month',
-  });
+  try {
+    const usageService = requireUsageService();
+    const report = await usageService.getCostReport({
+      startDate: start,
+      endDate: end,
+      groupBy: groupBy as 'day' | 'week' | 'month',
+    });
 
-  return c.json({
-    period: {
-      start: start.toISOString(),
-      end: end.toISOString(),
-    },
-    totalCostCents: report.totalCostCents,
-    totalTokens: report.totalTokens,
-    totalRequests: report.totalRequests,
-    byModel: Object.fromEntries(report.byModel),
-    byOperation: Object.fromEntries(report.byOperation),
-    byPeriod: Object.fromEntries(report.byPeriod),
-  });
+    return c.json({
+      period: {
+        start: start.toISOString(),
+        end: end.toISOString(),
+      },
+      totalCostCents: report.totalCostCents,
+      totalTokens: report.totalTokens,
+      totalRequests: report.totalRequests,
+      byModel: Object.fromEntries(report.byModel),
+      byOperation: Object.fromEntries(report.byOperation),
+      byPeriod: Object.fromEntries(report.byPeriod),
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 503);
+  }
 });
 
 /**

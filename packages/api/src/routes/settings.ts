@@ -10,7 +10,7 @@
  */
 
 import { Hono } from 'hono';
-import { getApiKeyService, type ApiKeyScope } from '@humanizer/core';
+import { getApiKeyService, getUsageService, type ApiKeyScope } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, getAuth, requireTier, type AuthContext } from '../middleware/auth.js';
 
@@ -174,6 +174,7 @@ settingsRouter.post('/api-keys', async (c) => {
       tenantId: auth.tenantId,
       scopes: (body.scopes as ApiKeyScope[]) ?? ['read', 'write'],
       expiresAt,
+      userTier: auth.role, // Pass user's role as tier for limit checking
     });
 
     return c.json({
@@ -227,31 +228,41 @@ settingsRouter.delete('/api-keys/:id', async (c) => {
  */
 settingsRouter.get('/usage', async (c) => {
   const auth = getAuth(c)!;
-  const aui = c.get('aui');
+  const usageService = getUsageService();
 
-  const usage = await aui.getUsage(auth.userId);
-  const limits = await aui.checkLimits(auth.userId);
+  if (!usageService) {
+    return c.json({ error: 'Usage service not initialized' }, 503);
+  }
+
+  // Get current billing period usage
+  const usage = await usageService.getUsage(auth.userId);
+
+  // Get quota check for limits and tier info
+  const quotaCheck = await usageService.canPerform(auth.userId, 0, auth.tenantId);
+
+  // Calculate percentage used
+  const percentUsed = usage
+    ? Math.round((usage.tokensUsed / usage.tokensLimit) * 100)
+    : 0;
 
   return c.json({
-    period: usage.period,
+    period: usage?.billingPeriod ?? new Date().toISOString().substring(0, 7),
     usage: {
-      tokensUsed: usage.tokensUsed,
-      requestsCount: usage.requestsCount,
-      costAccruedCents: usage.costAccruedCents,
+      tokensUsed: usage?.tokensUsed ?? 0,
+      requestsCount: usage?.requestsCount ?? 0,
+      costMillicents: usage?.costMillicents ?? 0,
     },
     limits: {
-      tokensPerDay: limits.tier.limits.tokensPerDay,
-      tokensPerMonth: limits.tier.limits.tokensPerMonth,
-      requestsPerMinute: limits.tier.limits.requestsPerMinute,
+      tokensLimit: usage?.tokensLimit ?? quotaCheck.usage.tokensLimit,
+      requestsLimit: usage?.requestsLimit ?? quotaCheck.usage.requestsLimit,
+      costLimitMillicents: usage?.costLimitMillicents ?? 0,
     },
-    tier: {
-      id: limits.tier.id,
-      name: limits.tier.name,
-    },
-    withinLimits: limits.withinLimits,
-    warnings: limits.warnings,
-    byModel: Object.fromEntries(usage.byModel),
-    byOperation: Object.fromEntries(usage.byOperation),
+    tier: quotaCheck.tier,
+    percentUsed,
+    withinLimits: quotaCheck.allowed,
+    warnings: quotaCheck.reason ? [quotaCheck.reason] : [],
+    byModel: usage?.byModel ?? {},
+    byOperation: usage?.byOperation ?? {},
   });
 });
 

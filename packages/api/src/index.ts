@@ -129,8 +129,8 @@ export function createApp(): Hono<{ Variables: AuiContextVariables }> {
   app.use('/search/*', devAuth(), auiMiddleware);
   app.use('/clusters/*', devAuth(), auiMiddleware);
   app.use('/books/*', devAuth(), auiMiddleware);
-  app.use('/admin/*', auiMiddleware);
-  app.use('/settings/*', auiMiddleware);
+  app.use('/admin/*', devAuth(), auiMiddleware);
+  app.use('/settings/*', devAuth(), auiMiddleware);
 
   // Mount routers
   app.route('/sessions', sessionsRouter);
