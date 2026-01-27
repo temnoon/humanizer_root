@@ -10,7 +10,7 @@
  */
 
 import { Hono } from 'hono';
-import { getApiKeyService, getUsageService, type ApiKeyScope } from '@humanizer/core';
+import { getApiKeyService, getUsageService, getPreferencesService, type ApiKeyScope } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, getAuth, requireTier, type AuthContext } from '../middleware/auth.js';
 
@@ -273,14 +273,26 @@ settingsRouter.get('/usage', async (c) => {
 settingsRouter.get('/usage/history', async (c) => {
   const auth = getAuth(c)!;
   const { periods = '6' } = c.req.query();
+  const periodsNum = parseInt(periods, 10);
 
-  // TODO: Get historical usage from UsageService
+  const usageService = getUsageService();
+
+  if (!usageService) {
+    return c.json({ error: 'Usage service not initialized' }, 503);
+  }
+
+  const history = await usageService.getUsageHistory(auth.userId, periodsNum, auth.tenantId);
 
   return c.json({
     userId: auth.userId,
-    history: [],
-    periodsRequested: parseInt(periods, 10),
-    message: 'Usage history endpoint - implementation pending UsageService integration',
+    history: history.map((h) => ({
+      period: h.billingPeriod,
+      tokens: h.totalTokens,
+      requests: h.totalRequests,
+      costMillicents: h.userChargeMillicents,
+    })),
+    periodsRequested: periodsNum,
+    periodsReturned: history.length,
   });
 });
 
@@ -294,17 +306,22 @@ settingsRouter.get('/usage/history', async (c) => {
  */
 settingsRouter.get('/preferences', async (c) => {
   const auth = getAuth(c)!;
+  const preferencesService = getPreferencesService();
 
-  // TODO: Get from aui_user_preferences table
+  if (!preferencesService) {
+    return c.json({ error: 'Preferences service not initialized' }, 503);
+  }
+
+  const prefs = await preferencesService.getPreferences(auth.userId, auth.tenantId);
 
   return c.json({
     userId: auth.userId,
     preferences: {
-      modelPreferences: {},
-      transformationDefaults: {},
-      uiPreferences: {},
+      modelPreferences: prefs.modelPreferences,
+      transformationDefaults: prefs.transformationDefaults,
+      uiPreferences: prefs.uiPreferences,
     },
-    message: 'Preferences endpoint - implementation pending',
+    updatedAt: prefs.updatedAt.toISOString(),
   });
 });
 
@@ -331,13 +348,23 @@ settingsRouter.put('/preferences', async (c) => {
     };
   }>();
 
-  // TODO: Save to aui_user_preferences table
+  const preferencesService = getPreferencesService();
+
+  if (!preferencesService) {
+    return c.json({ error: 'Preferences service not initialized' }, 503);
+  }
+
+  const updated = await preferencesService.updatePreferences(auth.userId, body, auth.tenantId);
 
   return c.json({
     userId: auth.userId,
     updated: true,
-    preferences: body,
-    message: 'Preferences update endpoint - implementation pending',
+    preferences: {
+      modelPreferences: updated.modelPreferences,
+      transformationDefaults: updated.transformationDefaults,
+      uiPreferences: updated.uiPreferences,
+    },
+    updatedAt: updated.updatedAt.toISOString(),
   });
 });
 
@@ -351,15 +378,28 @@ settingsRouter.put('/preferences', async (c) => {
  */
 settingsRouter.get('/prompts', requireTier('pro'), async (c) => {
   const auth = getAuth(c)!;
+  const preferencesService = getPreferencesService();
 
-  // TODO: Get from aui_user_preferences.prompt_customizations
+  if (!preferencesService) {
+    return c.json({ error: 'Preferences service not initialized' }, 503);
+  }
+
+  const prompts = await preferencesService.listCustomPrompts(auth.userId, auth.tenantId);
+  const maxPrompts = auth.role === 'premium' ? 50 : 10; // Premium gets more
 
   return c.json({
     userId: auth.userId,
-    prompts: [],
-    count: 0,
-    limit: 10, // Max custom prompts for pro tier
-    message: 'Custom prompts endpoint - implementation pending',
+    prompts: prompts.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      template: p.template,
+      variables: p.variables,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    })),
+    count: prompts.length,
+    limit: maxPrompts,
   });
 });
 
@@ -380,20 +420,36 @@ settingsRouter.post('/prompts', requireTier('pro'), async (c) => {
     return c.json({ error: 'Name and template are required' }, 400);
   }
 
-  // TODO: Save to aui_user_preferences.prompt_customizations
+  const preferencesService = getPreferencesService();
 
-  return c.json({
-    userId: auth.userId,
-    prompt: {
-      id: null, // Would be generated
-      name: body.name,
-      description: body.description,
-      template: body.template,
-      variables: body.variables ?? [],
-      createdAt: new Date().toISOString(),
-    },
-    message: 'Custom prompt creation endpoint - implementation pending',
-  });
+  if (!preferencesService) {
+    return c.json({ error: 'Preferences service not initialized' }, 503);
+  }
+
+  const maxPrompts = auth.role === 'premium' ? 50 : 10;
+
+  try {
+    const prompt = await preferencesService.createCustomPrompt(
+      auth.userId,
+      body,
+      auth.tenantId,
+      maxPrompts
+    );
+
+    return c.json({
+      userId: auth.userId,
+      prompt: {
+        id: prompt.id,
+        name: prompt.name,
+        description: prompt.description,
+        template: prompt.template,
+        variables: prompt.variables,
+        createdAt: prompt.createdAt,
+      },
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 400);
+  }
 });
 
 /**
@@ -410,15 +466,36 @@ settingsRouter.put('/prompts/:id', requireTier('pro'), async (c) => {
     variables?: string[];
   }>();
 
-  // TODO: Update in aui_user_preferences.prompt_customizations
+  const preferencesService = getPreferencesService();
 
-  return c.json({
-    userId: auth.userId,
-    promptId,
-    updated: true,
-    changes: body,
-    message: 'Custom prompt update endpoint - implementation pending',
-  });
+  if (!preferencesService) {
+    return c.json({ error: 'Preferences service not initialized' }, 503);
+  }
+
+  try {
+    const updated = await preferencesService.updateCustomPrompt(
+      auth.userId,
+      promptId,
+      body,
+      auth.tenantId
+    );
+
+    return c.json({
+      userId: auth.userId,
+      promptId,
+      updated: true,
+      prompt: {
+        id: updated.id,
+        name: updated.name,
+        description: updated.description,
+        template: updated.template,
+        variables: updated.variables,
+        updatedAt: updated.updatedAt,
+      },
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 404);
+  }
 });
 
 /**
@@ -429,13 +506,26 @@ settingsRouter.delete('/prompts/:id', requireTier('pro'), async (c) => {
   const auth = getAuth(c)!;
   const promptId = c.req.param('id');
 
-  // TODO: Remove from aui_user_preferences.prompt_customizations
+  const preferencesService = getPreferencesService();
+
+  if (!preferencesService) {
+    return c.json({ error: 'Preferences service not initialized' }, 503);
+  }
+
+  const deleted = await preferencesService.deleteCustomPrompt(
+    auth.userId,
+    promptId,
+    auth.tenantId
+  );
+
+  if (!deleted) {
+    return c.json({ error: 'Prompt not found' }, 404);
+  }
 
   return c.json({
     userId: auth.userId,
     promptId,
     deleted: true,
-    message: 'Custom prompt deletion endpoint - implementation pending',
   });
 });
 

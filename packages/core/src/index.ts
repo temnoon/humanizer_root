@@ -249,10 +249,24 @@ export {
   type ProviderCostRateInput,
   type CostAnalytics,
   type RevenueAnalytics,
+  type UsageHistoryEntry,
   UsageService,
   initUsageService,
   getUsageService,
   resetUsageService,
+
+  // Preferences Service
+  type ModelPreferences,
+  type TransformationDefaults,
+  type UiPreferences,
+  type CustomPrompt,
+  type UserPreferences,
+  type PreferencesUpdateInput,
+  type CustomPromptInput,
+  PreferencesService,
+  initPreferencesService,
+  getPreferencesService,
+  resetPreferencesService,
 
   // API Key Service
   type ApiKeyScope,

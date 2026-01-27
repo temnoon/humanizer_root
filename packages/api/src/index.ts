@@ -19,6 +19,7 @@ import {
   initApiKeyService,
   initFeatureFlagService,
   initAuditService,
+  initPreferencesService,
   InMemoryConfigManager,
   ALL_PROMPTS,
   type PromptDefinition,
@@ -314,6 +315,10 @@ async function main(): Promise<void> {
       // Initialize AuditService for audit logging
       initAuditService(pool, 'humanizer');
       console.log('AuditService initialized');
+
+      // Initialize PreferencesService for user settings
+      initPreferencesService(pool, 'humanizer');
+      console.log('PreferencesService initialized');
     } else {
       console.warn('Archive store not available - services not initialized');
     }

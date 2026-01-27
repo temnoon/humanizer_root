@@ -37,6 +37,7 @@ import {
   GET_AUI_REVENUE_ANALYTICS,
   GET_AUI_REVENUE_BY_PERIOD,
   GET_AUI_COST_BY_DAY,
+  GET_AUI_USER_USAGE_HISTORY,
 } from '../../storage/schema-aui.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -265,6 +266,17 @@ export interface RevenueAnalytics {
     requests: number;
     uniqueUsers: number;
   }>;
+}
+
+/**
+ * Usage history entry for a billing period
+ */
+export interface UsageHistoryEntry {
+  billingPeriod: string;
+  totalTokens: number;
+  totalRequests: number;
+  providerCostMillicents: number;
+  userChargeMillicents: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -503,6 +515,27 @@ export class UsageService {
 
     const row = result.rows[0];
     return this.rowToUsageSummary(row);
+  }
+
+  /**
+   * Get usage history for a user across multiple billing periods.
+   */
+  async getUsageHistory(
+    userId: string,
+    periods = 6,
+    tenantId?: string
+  ): Promise<UsageHistoryEntry[]> {
+    const tenant = tenantId ?? this.options.defaultTenantId;
+
+    const result = await this.pool.query(GET_AUI_USER_USAGE_HISTORY, [userId, tenant, periods]);
+
+    return result.rows.map((row) => ({
+      billingPeriod: row.billing_period,
+      totalTokens: parseInt(row.total_tokens ?? '0', 10),
+      totalRequests: parseInt(row.request_count ?? '0', 10),
+      providerCostMillicents: parseInt(row.total_provider_cost ?? '0', 10),
+      userChargeMillicents: parseInt(row.total_user_charge ?? '0', 10),
+    }));
   }
 
   /**

@@ -312,6 +312,7 @@ export {
   type ProviderCostRateInput,
   type CostAnalytics,
   type RevenueAnalytics,
+  type UsageHistoryEntry,
 
   // Service
   UsageService,
@@ -319,6 +320,27 @@ export {
   getUsageService,
   resetUsageService,
 } from './service/usage-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PREFERENCES SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type ModelPreferences,
+  type TransformationDefaults,
+  type UiPreferences,
+  type CustomPrompt,
+  type UserPreferences,
+  type PreferencesUpdateInput,
+  type CustomPromptInput,
+
+  // Service
+  PreferencesService,
+  initPreferencesService,
+  getPreferencesService,
+  resetPreferencesService,
+} from './service/preferences-service.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // API KEY SERVICE
