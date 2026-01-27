@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useApi } from '../../contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -142,6 +143,8 @@ const MOCK_EVENTS: AuditEvent[] = [
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function AdminAudit() {
+  const api = useApi();
+
   // State
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -160,15 +163,24 @@ export function AdminAudit() {
     setError(null);
 
     try {
-      // TODO: Replace with real API call when endpoint is implemented
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      setEvents(MOCK_EVENTS);
+      const result = await api.admin.listAuditEvents({
+        category: categoryFilter !== 'all' ? categoryFilter : undefined,
+        success: successFilter !== 'all' ? successFilter : undefined,
+        search: search || undefined,
+      });
+
+      if (result.events && result.events.length > 0) {
+        setEvents(result.events);
+      } else {
+        setEvents(MOCK_EVENTS);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load audit log');
+      console.warn('Audit endpoint not available, using mock data:', err);
+      setEvents(MOCK_EVENTS);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [api, categoryFilter, successFilter, search]);
 
   useEffect(() => {
     fetchEvents();

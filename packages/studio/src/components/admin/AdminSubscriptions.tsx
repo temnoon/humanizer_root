@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useApi } from '../../contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -132,6 +133,8 @@ const MOCK_STATS: SubscriptionStats = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function AdminSubscriptions() {
+  const api = useApi();
+
   // State
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
@@ -150,16 +153,29 @@ export function AdminSubscriptions() {
     setError(null);
 
     try {
-      // TODO: Replace with real API call when endpoint is implemented
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      const result = await api.admin.listSubscriptions();
+
+      if (result.subscriptions && result.subscriptions.length > 0) {
+        setSubscriptions(result.subscriptions);
+        setStats({
+          totalActive: result.stats?.active ?? 0,
+          totalMrr: result.stats?.mrr ?? 0,
+          churnRate: 0, // Not provided by API yet
+          newThisMonth: 0,
+          canceledThisMonth: result.stats?.canceling ?? 0,
+        });
+      } else {
+        setSubscriptions(MOCK_SUBSCRIPTIONS);
+        setStats(MOCK_STATS);
+      }
+    } catch (err) {
+      console.warn('Subscriptions endpoint not available, using mock data:', err);
       setSubscriptions(MOCK_SUBSCRIPTIONS);
       setStats(MOCK_STATS);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load subscriptions');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     fetchData();

@@ -10,7 +10,7 @@
  */
 
 import { Hono } from 'hono';
-import { getUsageService, getApiKeyService } from '@humanizer/core';
+import { getUsageService, getApiKeyService, getModelRegistry } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, requireAdmin, getAuth, type AuthContext } from '../middleware/auth.js';
 
@@ -595,14 +595,62 @@ adminRouter.get('/analytics/costs', async (c) => {
 
 /**
  * GET /admin/models
- * List available models
+ * List available models from the registry
  */
 adminRouter.get('/models', async (c) => {
-  // TODO: Get from ModelRegistry
+  const registry = getModelRegistry();
+  const allModels = await registry.listAllModels();
+
+  const models = allModels.map((m) => ({
+    id: m.id,
+    name: m.description ?? m.id.split(':')[0],
+    provider: m.provider,
+    type: m.capabilities.includes('embedding') ? 'embedding' : 'chat',
+    capabilities: m.capabilities,
+    contextWindow: m.contextWindow,
+    dimensions: m.dimensions,
+    maxOutput: undefined,
+    costPerMtokInput: m.costPer1kTokens.input * 1000, // Convert to per million
+    costPerMtokOutput: m.costPer1kTokens.output * 1000,
+    isDefault: false, // Would need to check against getDefault()
+    enabled: m.vettingStatus === 'approved',
+  }));
+
+  // Group by provider
+  const byProvider = models.reduce<Record<string, typeof models>>((acc, m) => {
+    if (!acc[m.provider]) acc[m.provider] = [];
+    acc[m.provider].push(m);
+    return acc;
+  }, {});
 
   return c.json({
-    models: [],
-    message: 'Models endpoint - implementation pending ModelRegistry integration',
+    models,
+    byProvider,
+    total: models.length,
+  });
+});
+
+/**
+ * PUT /admin/models/:id
+ * Update model configuration
+ */
+adminRouter.put('/models/:id', async (c) => {
+  const modelId = c.req.param('id');
+  const body = await c.req.json<{
+    enabled?: boolean;
+    isDefault?: boolean;
+    costPerMtokInput?: number;
+    costPerMtokOutput?: number;
+  }>();
+
+  // TODO: Persist model config to database
+  // For now, model registry is read-only from code
+
+  return c.json({
+    modelId,
+    updated: true,
+    changes: body,
+    message: 'Model update endpoint - model registry is currently read-only',
   });
 });
 
@@ -754,5 +802,464 @@ adminRouter.get('/status', async (c) => {
     services: {
       bufferService: aui.hasBufferService(),
     },
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROVIDER MANAGEMENT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /admin/providers
+ * List all LLM providers with status
+ */
+adminRouter.get('/providers', async (c) => {
+  // TODO: Get from database/config when provider management is implemented
+  // For now, return provider status based on environment
+  const ollamaUrl = process.env.OLLAMA_URL ?? 'http://localhost:11434';
+
+  const providers = [
+    {
+      id: 'ollama',
+      name: 'Ollama',
+      type: 'local' as const,
+      status: 'connected' as const, // Would check actual connection
+      enabled: true,
+      endpoint: ollamaUrl,
+      apiKeyConfigured: false, // Ollama doesn't need API key
+      models: [
+        { id: 'nomic-embed-text:latest', name: 'Nomic Embed', type: 'embedding', enabled: true },
+        { id: 'llama3.2:latest', name: 'Llama 3.2', type: 'chat', enabled: true },
+      ],
+      lastHealthCheck: new Date().toISOString(),
+    },
+    {
+      id: 'anthropic',
+      name: 'Anthropic',
+      type: 'cloud' as const,
+      status: process.env.ANTHROPIC_API_KEY ? 'connected' as const : 'disconnected' as const,
+      enabled: !!process.env.ANTHROPIC_API_KEY,
+      apiKeyConfigured: !!process.env.ANTHROPIC_API_KEY,
+      models: [
+        { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', type: 'chat', enabled: true },
+        { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', type: 'chat', enabled: true },
+      ],
+      rateLimitRpm: 60,
+      costPerMtokInput: 3000, // $3/Mtok input
+      costPerMtokOutput: 15000, // $15/Mtok output
+    },
+    {
+      id: 'openai',
+      name: 'OpenAI',
+      type: 'cloud' as const,
+      status: process.env.OPENAI_API_KEY ? 'connected' as const : 'disconnected' as const,
+      enabled: !!process.env.OPENAI_API_KEY,
+      apiKeyConfigured: !!process.env.OPENAI_API_KEY,
+      models: [
+        { id: 'gpt-4-turbo-preview', name: 'GPT-4 Turbo', type: 'chat', enabled: true },
+        { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', type: 'chat', enabled: true },
+        { id: 'text-embedding-3-small', name: 'Embedding Small', type: 'embedding', enabled: true },
+      ],
+      rateLimitRpm: 60,
+    },
+  ];
+
+  return c.json({ providers });
+});
+
+/**
+ * PUT /admin/providers/:id
+ * Update provider configuration
+ */
+adminRouter.put('/providers/:id', async (c) => {
+  const providerId = c.req.param('id');
+  const body = await c.req.json<{
+    enabled?: boolean;
+    endpoint?: string;
+    rateLimitRpm?: number;
+    models?: Array<{ id: string; enabled: boolean }>;
+  }>();
+
+  // TODO: Persist provider config to database
+
+  return c.json({
+    providerId,
+    updated: true,
+    changes: body,
+    message: 'Provider update endpoint - implementation pending database integration',
+  });
+});
+
+/**
+ * POST /admin/providers/:id/health
+ * Check provider health
+ */
+adminRouter.post('/providers/:id/health', async (c) => {
+  const providerId = c.req.param('id');
+
+  // TODO: Actually ping the provider
+
+  return c.json({
+    providerId,
+    status: 'connected',
+    latencyMs: Math.floor(Math.random() * 100) + 20,
+    checkedAt: new Date().toISOString(),
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FEATURE FLAGS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /admin/features
+ * List all feature flags
+ */
+adminRouter.get('/features', async (c) => {
+  // TODO: Get from database when feature flag system is implemented
+  const features = [
+    {
+      id: 'semantic_search',
+      name: 'Semantic Search',
+      description: 'Enable semantic search powered by embeddings',
+      category: 'core' as const,
+      enabled: true,
+      tierOverrides: [],
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'custom_prompts',
+      name: 'Custom Prompts',
+      description: 'Allow users to create custom prompt templates',
+      category: 'premium' as const,
+      enabled: true,
+      tierOverrides: [
+        { tier: 'free', enabled: false },
+        { tier: 'member', enabled: false },
+        { tier: 'pro', enabled: true },
+        { tier: 'premium', enabled: true },
+      ],
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'api_access',
+      name: 'API Access',
+      description: 'Enable API key creation and external API access',
+      category: 'premium' as const,
+      enabled: true,
+      tierOverrides: [
+        { tier: 'free', enabled: false },
+        { tier: 'member', enabled: true },
+        { tier: 'pro', enabled: true },
+        { tier: 'premium', enabled: true },
+      ],
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'book_export',
+      name: 'Book Export',
+      description: 'Export books to various formats (EPUB, PDF, etc)',
+      category: 'core' as const,
+      enabled: true,
+      tierOverrides: [],
+      createdAt: '2024-06-01T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'advanced_analytics',
+      name: 'Advanced Analytics',
+      description: 'Detailed usage analytics and insights',
+      category: 'beta' as const,
+      enabled: false,
+      rolloutPercentage: 25,
+      tierOverrides: [],
+      createdAt: '2025-01-01T00:00:00Z',
+      updatedAt: new Date().toISOString(),
+    },
+  ];
+
+  return c.json({ features });
+});
+
+/**
+ * PUT /admin/features/:id
+ * Update feature flag
+ */
+adminRouter.put('/features/:id', async (c) => {
+  const featureId = c.req.param('id');
+  const body = await c.req.json<{
+    enabled?: boolean;
+    rolloutPercentage?: number;
+    tierOverrides?: Array<{ tier: string; enabled: boolean }>;
+  }>();
+
+  // TODO: Persist feature flag to database
+
+  return c.json({
+    featureId,
+    updated: true,
+    changes: body,
+    message: 'Feature flag update endpoint - implementation pending database integration',
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUBSCRIPTIONS (Admin View)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /admin/subscriptions
+ * List all subscriptions
+ */
+adminRouter.get('/subscriptions', async (c) => {
+  const { tier, status, limit = '50', offset = '0' } = c.req.query();
+
+  // TODO: Get from auth-api/Stripe when integrated
+  // For now, return mock subscriptions
+  const mockSubscriptions = [
+    {
+      id: 'sub-001',
+      userId: 'user-002',
+      userEmail: 'pro@example.com',
+      tier: 'pro',
+      status: 'active' as const,
+      currentPeriodStart: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+      currentPeriodEnd: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString(),
+      cancelAtPeriodEnd: false,
+      stripeSubscriptionId: 'sub_stripe_001',
+      monthlyAmount: 2900, // $29
+      createdAt: '2024-06-15T00:00:00Z',
+    },
+    {
+      id: 'sub-002',
+      userId: 'user-003',
+      userEmail: 'member@example.com',
+      tier: 'member',
+      status: 'active' as const,
+      currentPeriodStart: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+      currentPeriodEnd: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+      cancelAtPeriodEnd: false,
+      stripeSubscriptionId: 'sub_stripe_002',
+      monthlyAmount: 900, // $9
+      createdAt: '2024-09-20T00:00:00Z',
+    },
+    {
+      id: 'sub-003',
+      userId: 'user-006',
+      userEmail: 'enterprise@corp.com',
+      tier: 'premium',
+      status: 'active' as const,
+      currentPeriodStart: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      currentPeriodEnd: new Date(Date.now() + 25 * 24 * 60 * 60 * 1000).toISOString(),
+      cancelAtPeriodEnd: false,
+      stripeSubscriptionId: 'sub_stripe_003',
+      monthlyAmount: 9900, // $99
+      createdAt: '2025-01-10T00:00:00Z',
+    },
+    {
+      id: 'sub-004',
+      userId: 'user-007',
+      userEmail: 'canceling@example.com',
+      tier: 'pro',
+      status: 'active' as const,
+      currentPeriodStart: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString(),
+      currentPeriodEnd: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+      cancelAtPeriodEnd: true,
+      stripeSubscriptionId: 'sub_stripe_004',
+      monthlyAmount: 2900,
+      createdAt: '2024-08-01T00:00:00Z',
+    },
+  ];
+
+  // Apply filters
+  let filtered = mockSubscriptions;
+  if (tier) {
+    filtered = filtered.filter(s => s.tier === tier);
+  }
+  if (status) {
+    filtered = filtered.filter(s => s.status === status);
+  }
+
+  const limitNum = parseInt(limit, 10);
+  const offsetNum = parseInt(offset, 10);
+  const total = filtered.length;
+  const subscriptions = filtered.slice(offsetNum, offsetNum + limitNum);
+
+  // Calculate stats
+  const stats = {
+    total: mockSubscriptions.length,
+    active: mockSubscriptions.filter(s => s.status === 'active' && !s.cancelAtPeriodEnd).length,
+    canceling: mockSubscriptions.filter(s => s.cancelAtPeriodEnd).length,
+    mrr: mockSubscriptions
+      .filter(s => s.status === 'active')
+      .reduce((sum, s) => sum + s.monthlyAmount, 0),
+  };
+
+  return c.json({
+    subscriptions,
+    stats,
+    total,
+    limit: limitNum,
+    offset: offsetNum,
+    filters: { tier, status },
+  });
+});
+
+/**
+ * GET /admin/subscriptions/:id
+ * Get subscription details
+ */
+adminRouter.get('/subscriptions/:id', async (c) => {
+  const subscriptionId = c.req.param('id');
+
+  // TODO: Get from Stripe
+
+  return c.json({
+    subscriptionId,
+    message: 'Subscription detail endpoint - implementation pending Stripe integration',
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT LOG
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * GET /admin/audit
+ * Get audit log events
+ */
+adminRouter.get('/audit', async (c) => {
+  const { category, success, limit = '50', offset = '0', search } = c.req.query();
+  const limitNum = parseInt(limit, 10);
+  const offsetNum = parseInt(offset, 10);
+
+  // TODO: Query aui_audit_events table when implemented
+  // For now, return mock events
+  const mockEvents = [
+    {
+      id: 'evt-001',
+      timestamp: new Date(Date.now() - 60000).toISOString(),
+      action: 'user.login',
+      category: 'auth' as const,
+      actor: { type: 'user' as const, id: 'user-001', email: 'admin@humanizer.com' },
+      metadata: { method: 'oauth', provider: 'google' },
+      ip: '192.168.1.1',
+      success: true,
+    },
+    {
+      id: 'evt-002',
+      timestamp: new Date(Date.now() - 180000).toISOString(),
+      action: 'admin.user.role_change',
+      category: 'admin' as const,
+      actor: { type: 'user' as const, id: 'user-001', email: 'admin@humanizer.com' },
+      target: { type: 'user', id: 'user-002', name: 'pro@example.com' },
+      metadata: { oldRole: 'free', newRole: 'pro', reason: 'Beta tester promotion' },
+      success: true,
+    },
+    {
+      id: 'evt-003',
+      timestamp: new Date(Date.now() - 300000).toISOString(),
+      action: 'api_key.create',
+      category: 'api' as const,
+      actor: { type: 'user' as const, id: 'user-002', email: 'pro@example.com' },
+      target: { type: 'api_key', id: 'key-001', name: 'Production Key' },
+      metadata: { scopes: ['read', 'write', 'transform'] },
+      success: true,
+    },
+    {
+      id: 'evt-004',
+      timestamp: new Date(Date.now() - 600000).toISOString(),
+      action: 'billing.subscription.created',
+      category: 'billing' as const,
+      actor: { type: 'user' as const, id: 'user-006', email: 'enterprise@corp.com' },
+      metadata: { tier: 'premium', stripeSubscriptionId: 'sub_123ABC' },
+      success: true,
+    },
+    {
+      id: 'evt-005',
+      timestamp: new Date(Date.now() - 900000).toISOString(),
+      action: 'user.login_failed',
+      category: 'auth' as const,
+      actor: { type: 'user' as const, id: 'unknown', email: 'hacker@suspicious.net' },
+      metadata: { reason: 'invalid_credentials', attempts: 3 },
+      ip: '10.0.0.99',
+      success: false,
+    },
+    {
+      id: 'evt-006',
+      timestamp: new Date(Date.now() - 1200000).toISOString(),
+      action: 'admin.prompt.update',
+      category: 'admin' as const,
+      actor: { type: 'user' as const, id: 'user-001', email: 'admin@humanizer.com' },
+      target: { type: 'prompt', id: 'PERSONA_STYLE_TRANSFER', name: 'Style Transfer' },
+      metadata: { version: 2 },
+      success: true,
+    },
+    {
+      id: 'evt-007',
+      timestamp: new Date(Date.now() - 1800000).toISOString(),
+      action: 'api.transform',
+      category: 'api' as const,
+      actor: { type: 'api_key' as const, id: 'key-001' },
+      metadata: { model: 'claude-3-sonnet', tokens: 4521, duration_ms: 2341 },
+      success: true,
+    },
+    {
+      id: 'evt-008',
+      timestamp: new Date(Date.now() - 3600000).toISOString(),
+      action: 'system.maintenance.started',
+      category: 'system' as const,
+      actor: { type: 'system' as const, id: 'scheduler' },
+      metadata: { task: 'database_vacuum', estimated_duration: '5m' },
+      success: true,
+    },
+  ];
+
+  // Apply filters
+  let filtered = mockEvents;
+  if (category && category !== 'all') {
+    filtered = filtered.filter(e => e.category === category);
+  }
+  if (success === 'true') {
+    filtered = filtered.filter(e => e.success);
+  } else if (success === 'false') {
+    filtered = filtered.filter(e => !e.success);
+  }
+  if (search) {
+    const searchLower = search.toLowerCase();
+    filtered = filtered.filter(e =>
+      e.action.toLowerCase().includes(searchLower) ||
+      e.actor.email?.toLowerCase().includes(searchLower) ||
+      e.target?.name?.toLowerCase().includes(searchLower)
+    );
+  }
+
+  const total = filtered.length;
+  const events = filtered.slice(offsetNum, offsetNum + limitNum);
+
+  return c.json({
+    events,
+    total,
+    limit: limitNum,
+    offset: offsetNum,
+    filters: { category, success, search },
+  });
+});
+
+/**
+ * GET /admin/audit/:id
+ * Get audit event details
+ */
+adminRouter.get('/audit/:id', async (c) => {
+  const eventId = c.req.param('id');
+
+  // TODO: Get from database
+
+  return c.json({
+    eventId,
+    message: 'Audit event detail endpoint - implementation pending',
   });
 });

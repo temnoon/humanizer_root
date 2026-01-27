@@ -191,8 +191,7 @@ export function AdminApiKeys() {
     if (!selectedKeyId) return;
 
     try {
-      // TODO: Call real API when endpoint is implemented
-      // await api.admin.revokeApiKey(selectedKeyId);
+      await api.admin.revokeApiKey(selectedKeyId, 'Admin revocation');
 
       setKeys((prev) =>
         prev.map((key) =>

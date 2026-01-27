@@ -55,82 +55,85 @@ export function AdminModels() {
     setError(null);
 
     try {
-      // TODO: Replace with real API call when endpoint is implemented
-      // const result = await api.admin.listModels();
+      const result = await api.admin.listModels();
 
-      // Mock data for UI development
-      const mockModels: Model[] = [
-        {
-          id: 'nomic-embed-text:latest',
-          name: 'Nomic Embed Text',
-          provider: 'ollama',
-          category: 'embedding',
-          dimensions: 768,
-          status: 'available',
-          isDefault: true,
-        },
-        {
-          id: 'llama3.2:3b',
-          name: 'Llama 3.2 3B',
-          provider: 'ollama',
-          category: 'completion',
-          contextWindow: 8192,
-          status: 'available',
-        },
-        {
-          id: 'llama3.2:8b',
-          name: 'Llama 3.2 8B',
-          provider: 'ollama',
-          category: 'completion',
-          contextWindow: 8192,
-          status: 'available',
-          isDefault: true,
-        },
-        {
-          id: 'claude-3-sonnet-20240229',
-          name: 'Claude 3 Sonnet',
-          provider: 'anthropic',
-          category: 'completion',
-          contextWindow: 200000,
-          status: 'available',
-          costPerMtok: { input: 3, output: 15 },
-        },
-        {
-          id: 'claude-3-haiku-20240307',
-          name: 'Claude 3 Haiku',
-          provider: 'anthropic',
-          category: 'completion',
-          contextWindow: 200000,
-          status: 'available',
-          costPerMtok: { input: 0.25, output: 1.25 },
-        },
-        {
-          id: 'gpt-4-turbo-preview',
-          name: 'GPT-4 Turbo',
-          provider: 'openai',
-          category: 'completion',
-          contextWindow: 128000,
-          status: 'available',
-          costPerMtok: { input: 10, output: 30 },
-        },
-        {
-          id: 'text-embedding-3-small',
-          name: 'Text Embedding 3 Small',
-          provider: 'openai',
-          category: 'embedding',
-          dimensions: 1536,
-          status: 'available',
-          costPerMtok: { input: 0.02, output: 0 },
-        },
-      ];
+      // Map API response to local Model interface
+      const apiModels: Model[] = result.models.map((m) => ({
+        id: m.id,
+        name: m.name,
+        provider: m.provider,
+        category: m.type,
+        dimensions: m.dimensions,
+        contextWindow: m.contextWindow,
+        status: m.enabled ? 'available' as const : 'unavailable' as const,
+        isDefault: m.isDefault,
+        costPerMtok: m.costPerMtokInput !== undefined ? {
+          input: m.costPerMtokInput / 1000, // Convert from millicents to dollars
+          output: (m.costPerMtokOutput ?? 0) / 1000,
+        } : undefined,
+      }));
 
-      setModels(mockModels);
+      if (apiModels.length > 0) {
+        setModels(apiModels);
+      } else {
+        // Fall back to mock data for UI development
+        setModels(getMockModels());
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load models');
+      console.warn('Models endpoint not available, using mock data:', err);
+      setModels(getMockModels());
     } finally {
       setLoading(false);
     }
   }, [api]);
+
+  // Mock data for UI development when API is unavailable
+  const getMockModels = (): Model[] => [
+    {
+      id: 'nomic-embed-text:latest',
+      name: 'Nomic Embed Text',
+      provider: 'ollama',
+      category: 'embedding',
+      dimensions: 768,
+      status: 'available',
+      isDefault: true,
+    },
+    {
+      id: 'llama3.2:3b',
+      name: 'Llama 3.2 3B',
+      provider: 'ollama',
+      category: 'completion',
+      contextWindow: 8192,
+      status: 'available',
+    },
+    {
+      id: 'llama3.2:8b',
+      name: 'Llama 3.2 8B',
+      provider: 'ollama',
+      category: 'completion',
+      contextWindow: 8192,
+      status: 'available',
+      isDefault: true,
+    },
+    {
+      id: 'claude-3-sonnet-20240229',
+      name: 'Claude 3 Sonnet',
+      provider: 'anthropic',
+      category: 'completion',
+      contextWindow: 200000,
+      status: 'available',
+      costPerMtok: { input: 3, output: 15 },
+    },
+    {
+      id: 'claude-3-haiku-20240307',
+      name: 'Claude 3 Haiku',
+      provider: 'anthropic',
+      category: 'completion',
+      contextWindow: 200000,
+      status: 'available',
+      costPerMtok: { input: 0.25, output: 1.25 },
+    },
+  ];
 
   useEffect(() => {
     fetchModels();

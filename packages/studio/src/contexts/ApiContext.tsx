@@ -235,6 +235,110 @@ export interface AdminPromptUpdateParams {
   requiredVariables?: string[];
 }
 
+export interface AdminModel {
+  id: string;
+  name: string;
+  provider: string;
+  type: string;
+  capabilities?: string[];
+  contextWindow?: number;
+  dimensions?: number;
+  maxOutput?: number;
+  costPerMtokInput?: number;
+  costPerMtokOutput?: number;
+  isDefault?: boolean;
+  enabled: boolean;
+}
+
+export interface AdminProvider {
+  id: string;
+  name: string;
+  type: 'local' | 'cloud';
+  status: 'connected' | 'disconnected' | 'error';
+  enabled: boolean;
+  endpoint?: string;
+  apiKeyConfigured: boolean;
+  models: Array<{ id: string; name: string; type: string; enabled: boolean }>;
+  lastHealthCheck?: string;
+  errorMessage?: string;
+  rateLimitRpm?: number;
+  costPerMtokInput?: number;
+  costPerMtokOutput?: number;
+}
+
+export interface AdminFeature {
+  id: string;
+  name: string;
+  description: string;
+  category: 'core' | 'premium' | 'beta' | 'experimental';
+  enabled: boolean;
+  tierOverrides: Array<{ tier: string; enabled: boolean }>;
+  rolloutPercentage?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminSubscription {
+  id: string;
+  userId: string;
+  userEmail: string;
+  tier: string;
+  status: 'active' | 'past_due' | 'canceled' | 'trialing';
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  cancelAtPeriodEnd: boolean;
+  stripeSubscriptionId: string;
+  monthlyAmount: number;
+  createdAt: string;
+}
+
+export interface AdminSubscriptionListParams {
+  tier?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AdminAuditEvent {
+  id: string;
+  timestamp: string;
+  action: string;
+  category: 'auth' | 'admin' | 'billing' | 'api' | 'system';
+  actor: {
+    type: 'user' | 'system' | 'api_key';
+    id: string;
+    email?: string;
+  };
+  target?: {
+    type: string;
+    id: string;
+    name?: string;
+  };
+  metadata: Record<string, unknown>;
+  ip?: string;
+  userAgent?: string;
+  success: boolean;
+}
+
+export interface AdminAuditListParams {
+  category?: string;
+  success?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AdminCostAnalytics {
+  period: { start: string; end: string };
+  totalProviderCostMillicents: number;
+  totalChargedMillicents: number;
+  marginMillicents: number;
+  marginPercent: number;
+  byProvider: Record<string, { cost: number; requests: number; tokens: number }>;
+  byModel: Record<string, { cost: number; requests: number; tokens: number }>;
+  daily: Array<{ date: string; cost: number; charged: number }>;
+}
+
 export interface ApiClient {
   // Sessions
   listSessions: () => Promise<{ sessions: SessionSummary[]; count: number }>;
@@ -285,17 +389,53 @@ export interface ApiClient {
 
   // Admin
   admin: {
+    // Status
     getStatus: () => Promise<AdminStatus>;
-    getUsage: () => Promise<AdminUsageStats>;
-    listApiKeys: () => Promise<{ keys: AdminApiKey[]; total: number }>;
-    listTiers: () => Promise<{ tiers: AdminTier[] }>;
+
+    // Users
     listUsers: (params?: AdminUserListParams) => Promise<{ users: AdminUser[]; total: number }>;
     getUser: (userId: string) => Promise<AdminUser>;
     updateUserRole: (userId: string, role: string, reason: string) => Promise<void>;
     banUser: (userId: string, reason: string, duration?: string) => Promise<void>;
+
+    // Tiers
+    listTiers: () => Promise<{ tiers: AdminTier[] }>;
+    updateTier: (tierId: string, params: Partial<AdminTier>) => Promise<void>;
+
+    // API Keys
+    listApiKeys: (params?: { userId?: string; status?: string; limit?: number; offset?: number }) => Promise<{ keys: AdminApiKey[]; total: number }>;
+    revokeApiKey: (keyId: string, reason?: string) => Promise<void>;
+
+    // Models
+    listModels: () => Promise<{ models: AdminModel[]; byProvider: Record<string, AdminModel[]>; total: number }>;
+    updateModel: (modelId: string, params: { enabled?: boolean; isDefault?: boolean }) => Promise<void>;
+
+    // Prompts
     listPrompts: () => Promise<{ prompts: AdminPrompt[] }>;
     getPrompt: (id: string) => Promise<AdminPrompt>;
     updatePrompt: (id: string, params: AdminPromptUpdateParams) => Promise<void>;
+
+    // Providers
+    listProviders: () => Promise<{ providers: AdminProvider[] }>;
+    updateProvider: (providerId: string, params: Partial<AdminProvider>) => Promise<void>;
+    checkProviderHealth: (providerId: string) => Promise<{ status: string; latencyMs: number; checkedAt: string }>;
+
+    // Features
+    listFeatures: () => Promise<{ features: AdminFeature[] }>;
+    updateFeature: (featureId: string, params: { enabled?: boolean; rolloutPercentage?: number; tierOverrides?: Array<{ tier: string; enabled: boolean }> }) => Promise<void>;
+
+    // Subscriptions
+    listSubscriptions: (params?: AdminSubscriptionListParams) => Promise<{ subscriptions: AdminSubscription[]; stats: { total: number; active: number; canceling: number; mrr: number }; total: number }>;
+    getSubscription: (subscriptionId: string) => Promise<AdminSubscription>;
+
+    // Analytics
+    getUsage: (params?: { startDate?: string; endDate?: string; groupBy?: string }) => Promise<AdminUsageStats & { byModel?: Record<string, unknown>; byOperation?: Record<string, unknown>; byPeriod?: Record<string, unknown> }>;
+    getCostAnalytics: (params?: { startDate?: string; endDate?: string }) => Promise<AdminCostAnalytics>;
+    getRevenueAnalytics: (params?: { startDate?: string; endDate?: string }) => Promise<{ period: { start: string; end: string }; totalRevenueMillicents: number; totalCostMillicents: number; marginMillicents: number; byTier: Record<string, unknown> }>;
+
+    // Audit
+    listAuditEvents: (params?: AdminAuditListParams) => Promise<{ events: AdminAuditEvent[]; total: number }>;
+    getAuditEvent: (eventId: string) => Promise<AdminAuditEvent>;
   };
 }
 
@@ -393,10 +533,10 @@ export function ApiProvider({ baseUrl = 'http://localhost:3030', children }: Api
 
       // Admin
       admin: {
+        // Status
         getStatus: () => client.get('admin/status').json(),
-        getUsage: () => client.get('admin/analytics/usage').json(),
-        listApiKeys: () => client.get('admin/api-keys').json(),
-        listTiers: () => client.get('admin/tiers').json(),
+
+        // Users
         listUsers: (params) => client.get('admin/users', { searchParams: params as Record<string, string | number> }).json(),
         getUser: (userId) => client.get(`admin/users/${userId}`).json(),
         updateUserRole: async (userId, role, reason) => {
@@ -405,11 +545,57 @@ export function ApiProvider({ baseUrl = 'http://localhost:3030', children }: Api
         banUser: async (userId, reason, duration) => {
           await client.post(`admin/users/${userId}/ban`, { json: { reason, duration } });
         },
+
+        // Tiers
+        listTiers: () => client.get('admin/tiers').json(),
+        updateTier: async (tierId, params) => {
+          await client.put(`admin/tiers/${tierId}`, { json: params });
+        },
+
+        // API Keys
+        listApiKeys: (params) => client.get('admin/api-keys', { searchParams: params as Record<string, string | number> ?? {} }).json(),
+        revokeApiKey: async (keyId, reason) => {
+          await client.delete(`admin/api-keys/${keyId}`, { json: { reason: reason ?? 'Admin revocation' } });
+        },
+
+        // Models
+        listModels: () => client.get('admin/models').json(),
+        updateModel: async (modelId, params) => {
+          await client.put(`admin/models/${modelId}`, { json: params });
+        },
+
+        // Prompts
         listPrompts: () => client.get('admin/prompts').json(),
         getPrompt: (id) => client.get(`admin/prompts/${id}`).json<{ prompt: AdminPrompt }>().then(r => r.prompt),
         updatePrompt: async (id, params) => {
           await client.put(`admin/prompts/${id}`, { json: params });
         },
+
+        // Providers
+        listProviders: () => client.get('admin/providers').json(),
+        updateProvider: async (providerId, params) => {
+          await client.put(`admin/providers/${providerId}`, { json: params });
+        },
+        checkProviderHealth: (providerId) => client.post(`admin/providers/${providerId}/health`).json(),
+
+        // Features
+        listFeatures: () => client.get('admin/features').json(),
+        updateFeature: async (featureId, params) => {
+          await client.put(`admin/features/${featureId}`, { json: params });
+        },
+
+        // Subscriptions
+        listSubscriptions: (params) => client.get('admin/subscriptions', { searchParams: params as Record<string, string | number> ?? {} }).json(),
+        getSubscription: (subscriptionId) => client.get(`admin/subscriptions/${subscriptionId}`).json(),
+
+        // Analytics
+        getUsage: (params) => client.get('admin/analytics/usage', { searchParams: params as Record<string, string | number> ?? {} }).json(),
+        getCostAnalytics: (params) => client.get('admin/analytics/costs', { searchParams: params as Record<string, string | number> ?? {} }).json(),
+        getRevenueAnalytics: (params) => client.get('admin/analytics/revenue', { searchParams: params as Record<string, string | number> ?? {} }).json(),
+
+        // Audit
+        listAuditEvents: (params) => client.get('admin/audit', { searchParams: params as Record<string, string | number> ?? {} }).json(),
+        getAuditEvent: (eventId) => client.get(`admin/audit/${eventId}`).json(),
       },
     }),
     [client]

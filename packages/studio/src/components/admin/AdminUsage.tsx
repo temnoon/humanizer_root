@@ -110,11 +110,28 @@ export function AdminUsage() {
     try {
       // Try real API first
       const result = await api.admin.getUsage();
-      // Merge with mock data for extended fields
+      // Merge with mock data for extended fields that aren't returned by API
       const mockData = generateMockData();
+
+      // Convert API byModel (Record) to array format if needed
+      let byModelArray = mockData.byModel;
+      if (result.byModel && typeof result.byModel === 'object' && !Array.isArray(result.byModel)) {
+        byModelArray = Object.entries(result.byModel as Record<string, { tokens?: number; requests?: number; cost?: number }>)
+          .map(([name, data]) => ({
+            name,
+            requests: data.requests ?? 0,
+            tokens: data.tokens ?? 0,
+            cost: data.cost ?? 0,
+          }));
+      }
+
       setStats({
         ...mockData,
-        ...result,
+        totalTokens: result.totalTokens ?? mockData.totalTokens,
+        totalRequests: result.totalRequests ?? mockData.totalRequests,
+        totalCostCents: result.totalCostCents ?? mockData.totalCostCents,
+        userCount: result.userCount ?? mockData.userCount,
+        byModel: byModelArray.length > 0 ? byModelArray : mockData.byModel,
       });
     } catch (err) {
       // Fall back to mock data if API fails

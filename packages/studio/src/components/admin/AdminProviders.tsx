@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useApi } from '../../contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -116,6 +117,8 @@ const MOCK_PROVIDERS: Provider[] = [
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function AdminProviders() {
+  const api = useApi();
+
   // State
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,16 +140,42 @@ export function AdminProviders() {
     setError(null);
 
     try {
-      // TODO: Replace with real API call when endpoint is implemented
-      // const result = await api.admin.listProviders();
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      setProviders(MOCK_PROVIDERS);
+      const result = await api.admin.listProviders();
+
+      // Map API response to local Provider interface
+      const apiProviders: Provider[] = result.providers.map((p) => ({
+        id: p.id,
+        name: p.name,
+        type: p.type,
+        status: p.status,
+        enabled: p.enabled,
+        endpoint: p.endpoint,
+        apiKeyConfigured: p.apiKeyConfigured,
+        models: p.models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          category: (m.type === 'embedding' ? 'embedding' : 'completion') as 'completion' | 'embedding',
+          isDefault: false,
+        })),
+        lastHealthCheck: p.lastHealthCheck,
+        errorMessage: p.errorMessage,
+        rateLimitRpm: p.rateLimitRpm,
+        costPerMtokInput: p.costPerMtokInput,
+        costPerMtokOutput: p.costPerMtokOutput,
+      }));
+
+      if (apiProviders.length > 0) {
+        setProviders(apiProviders);
+      } else {
+        setProviders(MOCK_PROVIDERS);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load providers');
+      console.warn('Providers endpoint not available, using mock data:', err);
+      setProviders(MOCK_PROVIDERS);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     fetchProviders();

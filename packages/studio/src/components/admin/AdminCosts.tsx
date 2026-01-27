@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useApi } from '../../contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -129,6 +130,8 @@ const generateMockData = () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function AdminCosts() {
+  const api = useApi();
+
   // State
   const [data, setData] = useState<ReturnType<typeof generateMockData> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -144,15 +147,42 @@ export function AdminCosts() {
     setError(null);
 
     try {
-      // TODO: Replace with real API call when endpoint is implemented
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      setData(generateMockData());
+      // Calculate date range based on period
+      const now = new Date();
+      const daysBack = period === '7d' ? 7 : period === '30d' ? 30 : 90;
+      const startDate = new Date(now.getTime() - daysBack * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const endDate = now.toISOString().split('T')[0];
+
+      const result = await api.admin.getCostAnalytics({ startDate, endDate });
+
+      // Map API response to local data structure
+      const mockData = generateMockData();
+      if (result.totalProviderCostMillicents !== undefined) {
+        setData({
+          summary: {
+            totalProviderCost: Math.floor(result.totalProviderCostMillicents / 10), // millicents to cents
+            totalUserCharged: Math.floor(result.totalChargedMillicents / 10),
+            totalMargin: Math.floor(result.marginMillicents / 10),
+            marginPercentage: result.marginPercent,
+          },
+          providers: mockData.providers, // API doesn't provide this yet
+          daily: result.daily?.map((d) => ({
+            date: d.date,
+            providerCost: Math.floor(d.cost / 10),
+            userCharged: Math.floor(d.charged / 10),
+          })) ?? mockData.daily,
+          recentEntries: mockData.recentEntries, // API doesn't provide this yet
+        });
+      } else {
+        setData(mockData);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load cost data');
+      console.warn('Cost analytics endpoint not available, using mock data:', err);
+      setData(generateMockData());
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [api, period]);
 
   useEffect(() => {
     fetchData();

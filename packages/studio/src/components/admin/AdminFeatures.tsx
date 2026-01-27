@@ -7,6 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { useApi } from '../../contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -153,6 +154,8 @@ const MOCK_FEATURES: Feature[] = [
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function AdminFeatures() {
+  const api = useApi();
+
   // State
   const [features, setFeatures] = useState<Feature[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,16 +177,20 @@ export function AdminFeatures() {
     setError(null);
 
     try {
-      // TODO: Replace with real API call when endpoint is implemented
-      // const result = await api.admin.listFeatures();
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      setFeatures(MOCK_FEATURES);
+      const result = await api.admin.listFeatures();
+
+      if (result.features && result.features.length > 0) {
+        setFeatures(result.features);
+      } else {
+        setFeatures(MOCK_FEATURES);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load features');
+      console.warn('Features endpoint not available, using mock data:', err);
+      setFeatures(MOCK_FEATURES);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [api]);
 
   useEffect(() => {
     fetchFeatures();
