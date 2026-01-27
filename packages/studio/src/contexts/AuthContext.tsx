@@ -170,26 +170,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     async function init() {
-      const { token, user } = loadAuth();
+      // Check for OAuth callback tokens in URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const oauthToken = urlParams.get('access_token');
+      const oauthError = urlParams.get('error');
 
-      if (!token) {
+      // Clear URL params after reading
+      if (oauthToken || oauthError) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+
+      if (oauthError) {
+        setState({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: `OAuth login failed: ${oauthError}`,
+        });
+        return;
+      }
+
+      // Use OAuth token from URL or load from storage
+      const tokenToUse = oauthToken ?? loadAuth().token;
+
+      if (!tokenToUse) {
         setState(prev => ({ ...prev, isLoading: false }));
         return;
       }
 
       // Validate token is still valid
-      const validatedUser = await validateToken(token);
+      const validatedUser = await validateToken(tokenToUse);
 
       if (validatedUser) {
         setState({
           user: validatedUser,
-          token,
+          token: tokenToUse,
           isAuthenticated: true,
           isLoading: false,
           error: null,
         });
-        // Update stored user in case it changed
-        saveAuth(token, validatedUser);
+        // Save to storage (especially important for OAuth tokens)
+        saveAuth(tokenToUse, validatedUser);
       } else {
         // Token expired or invalid
         clearAuth();

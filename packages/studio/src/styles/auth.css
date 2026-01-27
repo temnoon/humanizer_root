@@ -397,3 +397,68 @@
 @keyframes auth-spin {
   to { transform: rotate(360deg); }
 }
+
+/* ─────────────────────────────────────────────────────────────────────
+   OAUTH SECTION
+   ───────────────────────────────────────────────────────────────────── */
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin: var(--space-lg) 0;
+}
+
+.auth-divider__line {
+  flex: 1;
+  height: 1px;
+  background: var(--studio-border);
+}
+
+.auth-divider__text {
+  font-size: 0.8125rem;
+  color: var(--studio-text-tertiary);
+  white-space: nowrap;
+}
+
+.auth-oauth {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.auth-oauth__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  min-height: var(--touch-target-min);
+  background: var(--studio-surface);
+  border: 1px solid var(--studio-border);
+  border-radius: var(--radius-md);
+  color: var(--studio-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.auth-oauth__btn:hover {
+  background: var(--studio-hover);
+  border-color: var(--studio-text-tertiary);
+}
+
+.auth-oauth__btn:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 2px;
+}
+
+.auth-oauth__icon {
+  font-size: 1.25rem;
+}
+
+.auth-oauth__name {
+  font-weight: 500;
+}

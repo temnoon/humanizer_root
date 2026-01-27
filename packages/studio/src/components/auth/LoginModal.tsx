@@ -1,11 +1,11 @@
 /**
  * Login Modal Component
  *
- * Modal dialog for user authentication with email/password.
+ * Modal dialog for user authentication with email/password and OAuth.
  * Supports both login and registration modes.
  */
 
-import { useState, useCallback, FormEvent } from 'react';
+import { useState, useCallback, useEffect, FormEvent } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -17,6 +17,28 @@ interface LoginModalProps {
 }
 
 type AuthMode = 'login' | 'register';
+
+// OAuth provider display info
+const OAUTH_PROVIDERS = [
+  {
+    id: 'google',
+    name: 'Google',
+    icon: '🔵',
+    color: '#4285F4',
+  },
+  {
+    id: 'github',
+    name: 'GitHub',
+    icon: '⚫',
+    color: '#333',
+  },
+  {
+    id: 'discord',
+    name: 'Discord',
+    icon: '💜',
+    color: '#5865F2',
+  },
+];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // COMPONENT
@@ -170,6 +192,32 @@ export function LoginModal({ onClose }: LoginModalProps) {
             </button>
           </div>
         </form>
+
+        {/* OAuth Divider */}
+        <div className="auth-divider">
+          <span className="auth-divider__line" />
+          <span className="auth-divider__text">or continue with</span>
+          <span className="auth-divider__line" />
+        </div>
+
+        {/* OAuth Buttons */}
+        <div className="auth-oauth">
+          {OAUTH_PROVIDERS.map((provider) => (
+            <button
+              key={provider.id}
+              type="button"
+              className="btn auth-oauth__btn"
+              onClick={() => {
+                const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3030';
+                window.location.href = `${apiUrl}/auth/oauth/${provider.id}`;
+              }}
+              disabled={isLoading}
+            >
+              <span className="auth-oauth__icon">{provider.icon}</span>
+              <span className="auth-oauth__name">{provider.name}</span>
+            </button>
+          ))}
+        </div>
 
         <div className="auth-modal__toggle">
           {mode === 'login' ? (
