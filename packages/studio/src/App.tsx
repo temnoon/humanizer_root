@@ -16,7 +16,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { MainWorkspace, type WorkspaceContent } from './components/workspace';
 import { CornerAssistant } from './components/CornerAssistant';
 import { LoginModal, UserMenu } from './components/auth';
-import { AdminLayout, AdminDashboard } from './components/admin';
+import { AdminLayout, AdminDashboard, AdminUsers } from './components/admin';
 import type { SearchResult } from './contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -237,9 +237,7 @@ function AdminStatus() {
   );
 }
 
-function AdminUsers() {
-  return <AdminPlaceholder title="User Management" />;
-}
+// AdminUsers is now imported from ./components/admin
 
 function AdminApiKeys() {
   return <AdminPlaceholder title="API Keys Management" />;

@@ -190,6 +190,31 @@ export interface AdminTier {
   maxApiKeys: number;
 }
 
+export interface AdminUser {
+  id: string;
+  email: string;
+  role: string;
+  tenantId: string;
+  createdAt: string;
+  lastActiveAt?: string | null;
+  bannedAt?: string | null;
+  banReason?: string | null;
+  usage?: {
+    tokensUsed: number;
+    requestsCount: number;
+    costMillicents: number;
+    period: string;
+  } | null;
+}
+
+export interface AdminUserListParams {
+  search?: string;
+  tier?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface ApiClient {
   // Sessions
   listSessions: () => Promise<{ sessions: SessionSummary[]; count: number }>;
@@ -244,6 +269,10 @@ export interface ApiClient {
     getUsage: () => Promise<AdminUsageStats>;
     listApiKeys: () => Promise<{ keys: AdminApiKey[]; total: number }>;
     listTiers: () => Promise<{ tiers: AdminTier[] }>;
+    listUsers: (params?: AdminUserListParams) => Promise<{ users: AdminUser[]; total: number }>;
+    getUser: (userId: string) => Promise<AdminUser>;
+    updateUserRole: (userId: string, role: string, reason: string) => Promise<void>;
+    banUser: (userId: string, reason: string, duration?: string) => Promise<void>;
   };
 }
 
@@ -345,6 +374,14 @@ export function ApiProvider({ baseUrl = 'http://localhost:3030', children }: Api
         getUsage: () => client.get('admin/analytics/usage').json(),
         listApiKeys: () => client.get('admin/api-keys').json(),
         listTiers: () => client.get('admin/tiers').json(),
+        listUsers: (params) => client.get('admin/users', { searchParams: params as Record<string, string | number> }).json(),
+        getUser: (userId) => client.get(`admin/users/${userId}`).json(),
+        updateUserRole: async (userId, role, reason) => {
+          await client.put(`admin/users/${userId}/role`, { json: { role, reason } });
+        },
+        banUser: async (userId, reason, duration) => {
+          await client.post(`admin/users/${userId}/ban`, { json: { reason, duration } });
+        },
       },
     }),
     [client]

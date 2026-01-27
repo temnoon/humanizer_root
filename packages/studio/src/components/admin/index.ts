@@ -9,3 +9,4 @@
 export { AdminLayout } from './AdminLayout';
 export { AdminNav } from './AdminNav';
 export { AdminDashboard } from './AdminDashboard';
+export { AdminUsers } from './AdminUsers';
