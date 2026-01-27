@@ -300,4 +300,17 @@ export {
   AuditService,
   initAuditService,
   getAuditService,
+
+  // User Service
+  type UserServiceTier,
+  type OAuthConnection,
+  type User,
+  type CreateUserInput,
+  type UpdateUserInput,
+  type ListUsersOptions,
+  type UserServiceOptions,
+  UserService,
+  initUserService,
+  getUserService,
+  resetUserService,
 } from './aui/index.js';

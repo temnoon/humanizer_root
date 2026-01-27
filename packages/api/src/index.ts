@@ -20,6 +20,7 @@ import {
   initFeatureFlagService,
   initAuditService,
   initPreferencesService,
+  initUserService,
   InMemoryConfigManager,
   ALL_PROMPTS,
   type PromptDefinition,
@@ -40,6 +41,7 @@ import { clustersRouter } from './routes/clusters.js';
 import { booksRouter } from './routes/books.js';
 import { adminRouter } from './routes/admin.js';
 import { settingsRouter } from './routes/settings.js';
+import { authRouter } from './routes/auth.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -142,6 +144,7 @@ export function createApp(): Hono<{ Variables: AuiContextVariables }> {
   app.use('/settings/*', devAuth(), usageContextMiddleware(), auiMiddleware);
 
   // Mount routers
+  app.route('/auth', authRouter); // Auth routes handle their own authentication
   app.route('/sessions', sessionsRouter);
   app.route('/sessions', buffersRouter); // Buffer routes are under /sessions/:id/buffers
   app.route('/search', searchRouter);
@@ -330,6 +333,14 @@ async function main(): Promise<void> {
       // Initialize PreferencesService for user settings
       initPreferencesService(pool, 'humanizer');
       console.log('PreferencesService initialized');
+
+      // Initialize UserService for user management
+      initUserService(pool, {
+        defaultTenantId: 'humanizer',
+        passwordMinLength: 8,
+        tokenExpiryHours: 24,
+      });
+      console.log('UserService initialized');
     } else {
       console.warn('Archive store not available - services not initialized');
     }

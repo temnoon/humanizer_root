@@ -787,6 +787,85 @@ CREATE TABLE IF NOT EXISTS aui_audit_events (
 );
 `;
 
+// ═══════════════════════════════════════════════════════════════════
+// USERS TABLE
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Users table - stores user accounts and profile information
+ *
+ * Supports email/password authentication with bcrypt-hashed passwords.
+ * Tracks user tier, ban status, and activity for admin management.
+ */
+export const CREATE_AUI_USERS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+
+  -- Auth credentials
+  email TEXT NOT NULL,
+  password_hash TEXT,  -- NULL for OAuth-only users
+  email_verified_at TIMESTAMPTZ,
+
+  -- Profile
+  display_name TEXT,
+  avatar_url TEXT,
+
+  -- Tier and permissions
+  tier TEXT NOT NULL DEFAULT 'free',
+
+  -- Account status
+  banned_at TIMESTAMPTZ,
+  ban_reason TEXT,
+  ban_expires_at TIMESTAMPTZ,
+
+  -- OAuth connections (JSONB array of {provider, provider_id, email})
+  oauth_connections JSONB DEFAULT '[]',
+
+  -- Activity tracking
+  last_login_at TIMESTAMPTZ,
+  last_active_at TIMESTAMPTZ,
+  login_count INTEGER DEFAULT 0,
+
+  -- Metadata
+  metadata JSONB DEFAULT '{}',
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE(tenant_id, email)
+);
+`;
+
+/**
+ * Password reset tokens table
+ */
+export const CREATE_AUI_PASSWORD_RESET_TOKENS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_password_reset_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES aui_users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+/**
+ * Email verification tokens table
+ */
+export const CREATE_AUI_EMAIL_VERIFICATION_TOKENS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_email_verification_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES aui_users(id) ON DELETE CASCADE,
+  token_hash TEXT NOT NULL,
+  new_email TEXT,  -- For email change verification
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
 /**
  * Seed provider cost rates with current pricing
  */
@@ -968,6 +1047,21 @@ CREATE INDEX IF NOT EXISTS idx_aui_audit_events_actor ON aui_audit_events(actor_
 CREATE INDEX IF NOT EXISTS idx_aui_audit_events_target ON aui_audit_events(target_type, target_id);
 CREATE INDEX IF NOT EXISTS idx_aui_audit_events_created ON aui_audit_events(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_aui_audit_events_success ON aui_audit_events(success);
+
+-- Users indexes
+CREATE INDEX IF NOT EXISTS idx_aui_users_email ON aui_users(tenant_id, email);
+CREATE INDEX IF NOT EXISTS idx_aui_users_tier ON aui_users(tenant_id, tier);
+CREATE INDEX IF NOT EXISTS idx_aui_users_created ON aui_users(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aui_users_last_active ON aui_users(last_active_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aui_users_banned ON aui_users(banned_at) WHERE banned_at IS NOT NULL;
+
+-- Password reset tokens indexes
+CREATE INDEX IF NOT EXISTS idx_aui_password_reset_user ON aui_password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_password_reset_expires ON aui_password_reset_tokens(expires_at);
+
+-- Email verification tokens indexes
+CREATE INDEX IF NOT EXISTS idx_aui_email_verify_user ON aui_email_verification_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_email_verify_expires ON aui_email_verification_tokens(expires_at);
 `;
 
 /**
@@ -1111,6 +1205,11 @@ export async function runAuiMigration(
   // Create feature flags and audit tables (v6)
   await client.query(CREATE_AUI_FEATURE_FLAGS_TABLE);
   await client.query(CREATE_AUI_AUDIT_EVENTS_TABLE);
+
+  // Create user authentication tables (v8)
+  await client.query(CREATE_AUI_USERS_TABLE);
+  await client.query(CREATE_AUI_PASSWORD_RESET_TOKENS_TABLE);
+  await client.query(CREATE_AUI_EMAIL_VERIFICATION_TOKENS_TABLE);
 
   // Create indexes
   await client.query(CREATE_AUI_INDEXES);
@@ -2341,4 +2440,171 @@ LIMIT $4 OFFSET $5
 export const CLEANUP_OLD_AUDIT_EVENTS = `
 DELETE FROM aui_audit_events
 WHERE tenant_id = $1 AND created_at < $2
+`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// USERS SQL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const INSERT_AUI_USER = `
+INSERT INTO aui_users (
+  id, tenant_id, email, password_hash, email_verified_at, display_name,
+  avatar_url, tier, oauth_connections, metadata, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+RETURNING *
+`;
+
+export const GET_AUI_USER_BY_ID = `
+SELECT * FROM aui_users WHERE id = $1 AND tenant_id = $2
+`;
+
+export const GET_AUI_USER_BY_EMAIL = `
+SELECT * FROM aui_users WHERE email = $1 AND tenant_id = $2
+`;
+
+export const UPDATE_AUI_USER = `
+UPDATE aui_users SET
+  display_name = COALESCE($3, display_name),
+  avatar_url = COALESCE($4, avatar_url),
+  tier = COALESCE($5, tier),
+  metadata = COALESCE($6, metadata),
+  updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *
+`;
+
+export const UPDATE_AUI_USER_PASSWORD = `
+UPDATE aui_users SET
+  password_hash = $3,
+  updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *
+`;
+
+export const UPDATE_AUI_USER_EMAIL_VERIFIED = `
+UPDATE aui_users SET
+  email_verified_at = NOW(),
+  updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *
+`;
+
+export const UPDATE_AUI_USER_LOGIN = `
+UPDATE aui_users SET
+  last_login_at = NOW(),
+  last_active_at = NOW(),
+  login_count = login_count + 1,
+  updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *
+`;
+
+export const UPDATE_AUI_USER_ACTIVITY = `
+UPDATE aui_users SET
+  last_active_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+`;
+
+export const BAN_AUI_USER = `
+UPDATE aui_users SET
+  banned_at = NOW(),
+  ban_reason = $3,
+  ban_expires_at = $4,
+  updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *
+`;
+
+export const UNBAN_AUI_USER = `
+UPDATE aui_users SET
+  banned_at = NULL,
+  ban_reason = NULL,
+  ban_expires_at = NULL,
+  updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *
+`;
+
+export const UPDATE_AUI_USER_TIER = `
+UPDATE aui_users SET
+  tier = $3,
+  updated_at = NOW()
+WHERE id = $1 AND tenant_id = $2
+RETURNING *
+`;
+
+export const LIST_AUI_USERS = `
+SELECT * FROM aui_users
+WHERE tenant_id = $1
+  AND ($2::text IS NULL OR tier = $2)
+  AND ($3::text IS NULL OR email ILIKE '%' || $3 || '%' OR display_name ILIKE '%' || $3 || '%')
+  AND ($4::text IS NULL OR (
+    CASE $4
+      WHEN 'active' THEN banned_at IS NULL
+      WHEN 'banned' THEN banned_at IS NOT NULL
+      ELSE TRUE
+    END
+  ))
+ORDER BY created_at DESC
+LIMIT $5 OFFSET $6
+`;
+
+export const COUNT_AUI_USERS = `
+SELECT COUNT(*) as count FROM aui_users
+WHERE tenant_id = $1
+  AND ($2::text IS NULL OR tier = $2)
+  AND ($3::text IS NULL OR email ILIKE '%' || $3 || '%' OR display_name ILIKE '%' || $3 || '%')
+  AND ($4::text IS NULL OR (
+    CASE $4
+      WHEN 'active' THEN banned_at IS NULL
+      WHEN 'banned' THEN banned_at IS NOT NULL
+      ELSE TRUE
+    END
+  ))
+`;
+
+export const DELETE_AUI_USER = `
+DELETE FROM aui_users WHERE id = $1 AND tenant_id = $2
+`;
+
+// Password reset tokens
+export const INSERT_AUI_PASSWORD_RESET_TOKEN = `
+INSERT INTO aui_password_reset_tokens (user_id, token_hash, expires_at)
+VALUES ($1, $2, $3)
+RETURNING *
+`;
+
+export const GET_AUI_PASSWORD_RESET_TOKEN = `
+SELECT * FROM aui_password_reset_tokens
+WHERE token_hash = $1 AND expires_at > NOW() AND used_at IS NULL
+`;
+
+export const USE_AUI_PASSWORD_RESET_TOKEN = `
+UPDATE aui_password_reset_tokens SET used_at = NOW() WHERE id = $1
+`;
+
+export const CLEANUP_AUI_PASSWORD_RESET_TOKENS = `
+DELETE FROM aui_password_reset_tokens
+WHERE expires_at < NOW() OR used_at IS NOT NULL
+`;
+
+// Email verification tokens
+export const INSERT_AUI_EMAIL_VERIFICATION_TOKEN = `
+INSERT INTO aui_email_verification_tokens (user_id, token_hash, new_email, expires_at)
+VALUES ($1, $2, $3, $4)
+RETURNING *
+`;
+
+export const GET_AUI_EMAIL_VERIFICATION_TOKEN = `
+SELECT * FROM aui_email_verification_tokens
+WHERE token_hash = $1 AND expires_at > NOW() AND used_at IS NULL
+`;
+
+export const USE_AUI_EMAIL_VERIFICATION_TOKEN = `
+UPDATE aui_email_verification_tokens SET used_at = NOW() WHERE id = $1
+`;
+
+export const CLEANUP_AUI_EMAIL_VERIFICATION_TOKENS = `
+DELETE FROM aui_email_verification_tokens
+WHERE expires_at < NOW() OR used_at IS NOT NULL
 `;

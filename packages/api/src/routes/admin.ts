@@ -16,6 +16,7 @@ import {
   getModelRegistry,
   getFeatureFlagService,
   getAuditService,
+  getUserService,
 } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, requireAdmin, getAuth, type AuthContext } from '../middleware/auth.js';
@@ -53,211 +54,118 @@ adminRouter.use('*', requireAuth(), requireAdmin());
 /**
  * GET /admin/users
  * List all users with filters
- *
- * Note: Currently returns mock data. Real integration with auth-api pending.
  */
 adminRouter.get('/users', async (c) => {
   const { tier, status, limit = '50', offset = '0', search } = c.req.query();
   const limitNum = parseInt(limit, 10);
   const offsetNum = parseInt(offset, 10);
 
-  // Mock user data for UI development
-  // In production, this would query auth-api
-  const mockUsers = [
-    {
-      id: 'user-001',
-      email: 'admin@humanizer.com',
-      role: 'admin',
-      tenantId: 'humanizer',
-      createdAt: '2024-01-01T00:00:00Z',
-      lastActiveAt: new Date().toISOString(),
-      bannedAt: null,
-    },
-    {
-      id: 'user-002',
-      email: 'pro@example.com',
-      role: 'pro',
-      tenantId: 'humanizer',
-      createdAt: '2024-06-15T00:00:00Z',
-      lastActiveAt: new Date(Date.now() - 3600000).toISOString(),
-      bannedAt: null,
-    },
-    {
-      id: 'user-003',
-      email: 'member@example.com',
-      role: 'member',
-      tenantId: 'humanizer',
-      createdAt: '2024-09-20T00:00:00Z',
-      lastActiveAt: new Date(Date.now() - 86400000).toISOString(),
-      bannedAt: null,
-    },
-    {
-      id: 'user-004',
-      email: 'free@example.com',
-      role: 'free',
-      tenantId: 'humanizer',
-      createdAt: '2025-01-10T00:00:00Z',
-      lastActiveAt: new Date(Date.now() - 172800000).toISOString(),
-      bannedAt: null,
-    },
-    {
-      id: 'user-005',
-      email: 'banned@example.com',
-      role: 'free',
-      tenantId: 'humanizer',
-      createdAt: '2024-11-01T00:00:00Z',
-      lastActiveAt: '2025-01-15T00:00:00Z',
-      bannedAt: '2025-01-20T00:00:00Z',
-      banReason: 'Terms of service violation',
-    },
-  ];
+  const userService = getUserService();
 
-  // Apply filters
-  let filteredUsers = mockUsers;
-
-  if (search) {
-    const searchLower = search.toLowerCase();
-    filteredUsers = filteredUsers.filter(u =>
-      u.email.toLowerCase().includes(searchLower)
-    );
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
   }
 
-  if (tier) {
-    filteredUsers = filteredUsers.filter(u => u.role === tier);
+  try {
+    const result = await userService.listUsers({
+      tier: tier as 'free' | 'member' | 'pro' | 'premium' | 'admin' | undefined,
+      status: status as 'active' | 'banned' | undefined,
+      search: search || undefined,
+      limit: limitNum,
+      offset: offsetNum,
+    });
+
+    return c.json({
+      users: result.users.map((u) => ({
+        id: u.id,
+        email: u.email,
+        displayName: u.displayName,
+        role: u.tier,
+        tenantId: u.tenantId,
+        createdAt: u.createdAt.toISOString(),
+        lastActiveAt: u.lastActiveAt?.toISOString() ?? null,
+        bannedAt: u.bannedAt?.toISOString() ?? null,
+        banReason: u.banReason,
+      })),
+      total: result.total,
+      limit: limitNum,
+      offset: offsetNum,
+      filters: { tier, status, search },
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 500);
   }
-
-  if (status === 'active') {
-    filteredUsers = filteredUsers.filter(u => !u.bannedAt);
-  } else if (status === 'banned') {
-    filteredUsers = filteredUsers.filter(u => !!u.bannedAt);
-  }
-
-  const total = filteredUsers.length;
-  const users = filteredUsers.slice(offsetNum, offsetNum + limitNum);
-
-  return c.json({
-    users,
-    total,
-    limit: limitNum,
-    offset: offsetNum,
-    filters: { tier, status, search },
-  });
 });
 
 /**
  * GET /admin/users/:id
  * Get detailed user information
- *
- * Note: Currently combines mock profile data with real usage data.
  */
 adminRouter.get('/users/:id', async (c) => {
   const userId = c.req.param('id');
 
-  // Mock user profiles (in production, query auth-api)
-  const mockProfiles: Record<string, {
-    id: string;
-    email: string;
-    role: string;
-    tenantId: string;
-    createdAt: string;
-    lastActiveAt: string | null;
-    bannedAt: string | null;
-    banReason?: string;
-  }> = {
-    'user-001': {
-      id: 'user-001',
-      email: 'admin@humanizer.com',
-      role: 'admin',
-      tenantId: 'humanizer',
-      createdAt: '2024-01-01T00:00:00Z',
-      lastActiveAt: new Date().toISOString(),
-      bannedAt: null,
-    },
-    'user-002': {
-      id: 'user-002',
-      email: 'pro@example.com',
-      role: 'pro',
-      tenantId: 'humanizer',
-      createdAt: '2024-06-15T00:00:00Z',
-      lastActiveAt: new Date(Date.now() - 3600000).toISOString(),
-      bannedAt: null,
-    },
-    'user-003': {
-      id: 'user-003',
-      email: 'member@example.com',
-      role: 'member',
-      tenantId: 'humanizer',
-      createdAt: '2024-09-20T00:00:00Z',
-      lastActiveAt: new Date(Date.now() - 86400000).toISOString(),
-      bannedAt: null,
-    },
-    'user-004': {
-      id: 'user-004',
-      email: 'free@example.com',
-      role: 'free',
-      tenantId: 'humanizer',
-      createdAt: '2025-01-10T00:00:00Z',
-      lastActiveAt: new Date(Date.now() - 172800000).toISOString(),
-      bannedAt: null,
-    },
-    'user-005': {
-      id: 'user-005',
-      email: 'banned@example.com',
-      role: 'free',
-      tenantId: 'humanizer',
-      createdAt: '2024-11-01T00:00:00Z',
-      lastActiveAt: '2025-01-15T00:00:00Z',
-      bannedAt: '2025-01-20T00:00:00Z',
-      banReason: 'Terms of service violation',
-    },
-  };
+  const userService = getUserService();
 
-  const profile = mockProfiles[userId];
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
+  }
 
-  if (!profile) {
+  const user = await userService.getUserById(userId);
+
+  if (!user) {
     return c.json({ error: 'User not found' }, 404);
   }
 
+  // Get usage data
+  let usage: {
+    tokensUsed: number;
+    requestsCount: number;
+    costMillicents: number;
+    period: string;
+  } | null = null;
+
   try {
     const usageService = requireUsageService();
-    const usage = await usageService.getUsage(userId);
-
-    return c.json({
-      ...profile,
-      usage: usage
-        ? {
-            tokensUsed: usage.tokensUsed,
-            requestsCount: usage.requestsCount,
-            costMillicents: usage.costMillicents,
-            period: usage.billingPeriod,
-          }
-        : {
-            tokensUsed: Math.floor(Math.random() * 50000),
-            requestsCount: Math.floor(Math.random() * 100),
-            costMillicents: Math.floor(Math.random() * 5000),
-            period: new Date().toISOString().substring(0, 7),
-          },
-    });
+    const usageData = await usageService.getUsage(userId);
+    if (usageData) {
+      usage = {
+        tokensUsed: usageData.tokensUsed,
+        requestsCount: usageData.requestsCount,
+        costMillicents: usageData.costMillicents,
+        period: usageData.billingPeriod,
+      };
+    }
   } catch {
-    // If usage service fails, still return profile with mock usage
-    return c.json({
-      ...profile,
-      usage: {
-        tokensUsed: Math.floor(Math.random() * 50000),
-        requestsCount: Math.floor(Math.random() * 100),
-        costMillicents: Math.floor(Math.random() * 5000),
-        period: new Date().toISOString().substring(0, 7),
-      },
-    });
+    // Usage service not available, continue without usage data
   }
+
+  return c.json({
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    role: user.tier,
+    tenantId: user.tenantId,
+    emailVerified: !!user.emailVerifiedAt,
+    createdAt: user.createdAt.toISOString(),
+    lastActiveAt: user.lastActiveAt?.toISOString() ?? null,
+    lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
+    loginCount: user.loginCount,
+    bannedAt: user.bannedAt?.toISOString() ?? null,
+    banReason: user.banReason,
+    banExpiresAt: user.banExpiresAt?.toISOString() ?? null,
+    usage: usage ?? {
+      tokensUsed: 0,
+      requestsCount: 0,
+      costMillicents: 0,
+      period: new Date().toISOString().substring(0, 7),
+    },
+  });
 });
 
 /**
  * PUT /admin/users/:id/role
  * Change user role/tier
- *
- * Note: This endpoint is a stub. User roles are managed via auth-api/Stripe.
- * This endpoint can be used to set quota overrides for the user.
  */
 adminRouter.put('/users/:id/role', async (c) => {
   const userId = c.req.param('id');
@@ -267,18 +175,35 @@ adminRouter.put('/users/:id/role', async (c) => {
     return c.json({ error: 'Role is required' }, 400);
   }
 
+  const validRoles = ['free', 'member', 'pro', 'premium', 'admin'];
+  if (!validRoles.includes(body.role)) {
+    return c.json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` }, 400);
+  }
+
+  const userService = getUserService();
+
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
+  }
+
   const auth = getAuth(c)!;
 
-  // TODO: Implement via auth-api integration or set quota override
-  // For now, return success stub
+  try {
+    const user = await userService.changeTier(
+      userId,
+      body.role as 'free' | 'member' | 'pro' | 'premium' | 'admin'
+    );
 
-  return c.json({
-    userId,
-    role: body.role,
-    updatedBy: auth.userId,
-    updatedAt: new Date().toISOString(),
-    message: 'User role change endpoint - implementation pending auth-api integration',
-  });
+    return c.json({
+      userId: user.id,
+      role: user.tier,
+      updatedBy: auth.userId,
+      updatedAt: user.updatedAt.toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to change role';
+    return c.json({ error: message }, message.includes('not found') ? 404 : 500);
+  }
 });
 
 /**
@@ -293,15 +218,71 @@ adminRouter.post('/users/:id/ban', async (c) => {
     return c.json({ error: 'Reason is required' }, 400);
   }
 
-  // TODO: Implement user banning in auth-api
+  const userService = getUserService();
 
-  return c.json({
-    userId,
-    banned: true,
-    reason: body.reason,
-    duration: body.duration ?? 'permanent',
-    message: 'User ban endpoint - implementation pending auth-api integration',
-  });
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
+  }
+
+  // Parse duration to expiration date
+  let expiresAt: Date | undefined;
+  if (body.duration && body.duration !== 'permanent') {
+    const match = body.duration.match(/^(\d+)([dhwmy])$/);
+    if (match) {
+      const value = parseInt(match[1], 10);
+      const unit = match[2];
+      expiresAt = new Date();
+      switch (unit) {
+        case 'd': expiresAt.setDate(expiresAt.getDate() + value); break;
+        case 'h': expiresAt.setHours(expiresAt.getHours() + value); break;
+        case 'w': expiresAt.setDate(expiresAt.getDate() + value * 7); break;
+        case 'm': expiresAt.setMonth(expiresAt.getMonth() + value); break;
+        case 'y': expiresAt.setFullYear(expiresAt.getFullYear() + value); break;
+      }
+    }
+  }
+
+  try {
+    const user = await userService.banUser(userId, body.reason, expiresAt);
+
+    return c.json({
+      userId: user.id,
+      banned: true,
+      reason: body.reason,
+      bannedAt: user.bannedAt?.toISOString(),
+      expiresAt: user.banExpiresAt?.toISOString() ?? null,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to ban user';
+    return c.json({ error: message }, message.includes('not found') ? 404 : 500);
+  }
+});
+
+/**
+ * POST /admin/users/:id/unban
+ * Unban a user
+ */
+adminRouter.post('/users/:id/unban', async (c) => {
+  const userId = c.req.param('id');
+
+  const userService = getUserService();
+
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
+  }
+
+  try {
+    const user = await userService.unbanUser(userId);
+
+    return c.json({
+      userId: user.id,
+      banned: false,
+      unbannedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to unban user';
+    return c.json({ error: message }, message.includes('not found') ? 404 : 500);
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -10,7 +10,7 @@
  */
 
 import { Hono } from 'hono';
-import { getApiKeyService, getUsageService, getPreferencesService, type ApiKeyScope } from '@humanizer/core';
+import { getApiKeyService, getUsageService, getPreferencesService, getUserService, type ApiKeyScope } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, getAuth, requireTier, type AuthContext } from '../middleware/auth.js';
 
@@ -41,14 +41,35 @@ settingsRouter.use('*', requireAuth());
  */
 settingsRouter.get('/profile', async (c) => {
   const auth = getAuth(c)!;
+  const userService = getUserService();
+
+  if (!userService) {
+    // Fallback to auth context if service not available
+    return c.json({
+      userId: auth.userId,
+      email: auth.email,
+      tier: auth.role,
+      tenantId: auth.tenantId,
+    });
+  }
+
+  const user = await userService.getUserById(auth.userId, auth.tenantId);
+
+  if (!user) {
+    return c.json({ error: 'User not found' }, 404);
+  }
 
   return c.json({
-    userId: auth.userId,
-    email: auth.email,
-    role: auth.role,
-    tenantId: auth.tenantId,
-    // TODO: Add more profile fields from auth-api
-    message: 'Profile endpoint - full profile pending auth-api integration',
+    userId: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl,
+    tier: user.tier,
+    tenantId: user.tenantId,
+    emailVerified: !!user.emailVerifiedAt,
+    createdAt: user.createdAt.toISOString(),
+    lastActiveAt: user.lastActiveAt?.toISOString() ?? null,
+    metadata: user.metadata,
   });
 });
 
@@ -60,18 +81,35 @@ settingsRouter.put('/profile', async (c) => {
   const auth = getAuth(c)!;
   const body = await c.req.json<{
     displayName?: string;
-    timezone?: string;
-    language?: string;
+    avatarUrl?: string;
+    metadata?: Record<string, unknown>;
   }>();
 
-  // TODO: Update profile via auth-api
+  const userService = getUserService();
 
-  return c.json({
-    userId: auth.userId,
-    updated: true,
-    changes: body,
-    message: 'Profile update endpoint - implementation pending auth-api integration',
-  });
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
+  }
+
+  try {
+    const user = await userService.updateUser(auth.userId, {
+      displayName: body.displayName,
+      avatarUrl: body.avatarUrl,
+      metadata: body.metadata,
+    }, auth.tenantId);
+
+    return c.json({
+      userId: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      tier: user.tier,
+      updatedAt: user.updatedAt.toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update profile';
+    return c.json({ error: message }, message.includes('not found') ? 404 : 500);
+  }
 });
 
 /**
@@ -93,13 +131,29 @@ settingsRouter.put('/password', async (c) => {
     return c.json({ error: 'New password must be at least 8 characters' }, 400);
   }
 
-  // TODO: Validate current password and update via auth-api
+  const userService = getUserService();
 
-  return c.json({
-    userId: auth.userId,
-    passwordChanged: true,
-    message: 'Password change endpoint - implementation pending auth-api integration',
-  });
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
+  }
+
+  try {
+    await userService.changePassword(
+      auth.userId,
+      body.currentPassword,
+      body.newPassword,
+      auth.tenantId
+    );
+
+    return c.json({
+      userId: auth.userId,
+      passwordChanged: true,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to change password';
+    const status = message.includes('incorrect') ? 401 : message.includes('not found') ? 404 : 400;
+    return c.json({ error: message }, status);
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

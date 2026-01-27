@@ -22,7 +22,7 @@ import type { Pool, PoolClient } from 'pg';
 // ═══════════════════════════════════════════════════════════════════
 
 /** Current schema version */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 // ═══════════════════════════════════════════════════════════════════
 // EXTENSION SETUP
@@ -695,12 +695,47 @@ async function runMigrations(
     // Update schema version to 7
     await client.query(
       "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
+      ['7']
+    );
+  }
+
+  // Migration to version 8: Add user authentication tables
+  if (fromVersion < 8) {
+    const {
+      CREATE_AUI_USERS_TABLE,
+      CREATE_AUI_PASSWORD_RESET_TOKENS_TABLE,
+      CREATE_AUI_EMAIL_VERIFICATION_TOKENS_TABLE,
+    } = await import('./schema-aui.js');
+
+    // Create user tables
+    await client.query(CREATE_AUI_USERS_TABLE);
+    await client.query(CREATE_AUI_PASSWORD_RESET_TOKENS_TABLE);
+    await client.query(CREATE_AUI_EMAIL_VERIFICATION_TOKENS_TABLE);
+
+    // Create user indexes
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_aui_users_email ON aui_users(tenant_id, email);
+      CREATE INDEX IF NOT EXISTS idx_aui_users_tier ON aui_users(tenant_id, tier);
+      CREATE INDEX IF NOT EXISTS idx_aui_users_created ON aui_users(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_aui_users_last_active ON aui_users(last_active_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_aui_users_banned ON aui_users(banned_at) WHERE banned_at IS NOT NULL;
+
+      CREATE INDEX IF NOT EXISTS idx_aui_password_reset_user ON aui_password_reset_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_aui_password_reset_expires ON aui_password_reset_tokens(expires_at);
+
+      CREATE INDEX IF NOT EXISTS idx_aui_email_verify_user ON aui_email_verification_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_aui_email_verify_expires ON aui_email_verification_tokens(expires_at);
+    `);
+
+    // Update schema version to 8
+    await client.query(
+      "INSERT INTO schema_meta (key, value) VALUES ('schema_version', $1) ON CONFLICT (key) DO UPDATE SET value = $1",
       [SCHEMA_VERSION.toString()]
     );
   }
 
   // Future migrations would go here:
-  // if (fromVersion < 8) { ... }
+  // if (fromVersion < 9) { ... }
 }
 
 // ═══════════════════════════════════════════════════════════════════

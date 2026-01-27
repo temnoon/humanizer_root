@@ -398,3 +398,24 @@ export {
   initAuditService,
   getAuditService,
 } from './service/audit-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// USER SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type UserTier as UserServiceTier,
+  type OAuthConnection,
+  type User,
+  type CreateUserInput,
+  type UpdateUserInput,
+  type ListUsersOptions,
+  type UserServiceOptions,
+
+  // Service
+  UserService,
+  initUserService,
+  getUserService,
+  resetUserService,
+} from './service/user-service.js';
