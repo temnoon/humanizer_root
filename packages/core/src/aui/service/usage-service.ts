@@ -26,6 +26,13 @@ import {
   GET_AUI_USER_QUOTA_OVERRIDE,
   GET_AUI_PROVIDER_COST_RATE,
   LIST_AUI_TIER_DEFAULTS,
+  UPSERT_AUI_TIER_DEFAULT,
+  LIST_AUI_USER_QUOTA_OVERRIDES,
+  UPSERT_AUI_USER_QUOTA_OVERRIDE,
+  DELETE_AUI_USER_QUOTA_OVERRIDE,
+  LIST_AUI_PROVIDER_COST_RATES,
+  INSERT_AUI_PROVIDER_COST_RATE,
+  UPDATE_AUI_PROVIDER_COST_RATE_END,
 } from '../../storage/schema-aui.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -131,6 +138,75 @@ export interface TierInfo {
   priceAnnual?: number;
   priority: number;
   isPublic: boolean;
+}
+
+/**
+ * Input for updating tier configuration
+ */
+export interface TierUpdateInput {
+  tokensPerMonth?: number;
+  requestsPerMonth?: number;
+  costCentsPerMonth?: number;
+  requestsPerMinute?: number;
+  maxApiKeys?: number;
+  features?: string[];
+  displayName?: string;
+  description?: string;
+  priceMonthly?: number;
+  priceAnnual?: number;
+  priority?: number;
+  isPublic?: boolean;
+}
+
+/**
+ * Quota override for a specific user
+ */
+export interface QuotaOverride {
+  userId: string;
+  tenantId: string;
+  tokensPerMonth?: number;
+  requestsPerMonth?: number;
+  costCentsPerMonth?: number;
+  reason: string;
+  grantedBy?: string;
+  effectiveUntil?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Input for setting quota override
+ */
+export interface QuotaOverrideInput {
+  tokensPerMonth?: number;
+  requestsPerMonth?: number;
+  costCentsPerMonth?: number;
+  reason: string;
+  grantedBy?: string;
+  effectiveUntil?: Date;
+}
+
+/**
+ * Provider cost rate for billing calculations
+ */
+export interface ProviderCostRate {
+  provider: string;
+  modelId: string;
+  inputCostPerMtok: number;
+  outputCostPerMtok: number;
+  effectiveFrom: Date;
+  effectiveUntil?: Date;
+}
+
+/**
+ * Input for adding provider cost rate
+ */
+export interface ProviderCostRateInput {
+  provider: string;
+  modelId: string;
+  inputCostPerMtok: number;
+  outputCostPerMtok: number;
+  effectiveFrom?: Date;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -471,6 +547,197 @@ export class UsageService {
   }
 
   /**
+   * Update a tier's configuration.
+   */
+  async updateTier(tierId: string, input: TierUpdateInput, tenantId?: string): Promise<TierInfo> {
+    const tenant = tenantId ?? this.options.defaultTenantId;
+
+    // Get existing tier to merge with updates
+    const existingResult = await this.pool.query(GET_AUI_TIER_DEFAULT, [tenant, tierId]);
+    if (existingResult.rows.length === 0) {
+      throw new Error(`Tier ${tierId} not found`);
+    }
+
+    const existing = existingResult.rows[0];
+
+    const result = await this.pool.query(UPSERT_AUI_TIER_DEFAULT, [
+      tenant,
+      tierId,
+      input.tokensPerMonth ?? existing.tokens_per_month,
+      input.requestsPerMonth ?? existing.requests_per_month,
+      input.costCentsPerMonth ?? existing.cost_cents_per_month,
+      input.requestsPerMinute ?? existing.requests_per_minute,
+      input.maxApiKeys ?? existing.max_api_keys,
+      input.features ?? existing.features ?? [],
+      input.displayName ?? existing.display_name,
+      input.description ?? existing.description,
+      input.priceMonthly ?? existing.price_monthly_cents,
+      input.priceAnnual ?? existing.price_annual_cents,
+      input.priority ?? existing.priority,
+      input.isPublic ?? existing.is_public,
+    ]);
+
+    const row = result.rows[0];
+    return {
+      id: row.tier,
+      name: row.display_name ?? row.tier,
+      description: row.description ?? undefined,
+      limits: {
+        tokensPerMonth: parseInt(row.tokens_per_month, 10),
+        requestsPerMonth: parseInt(row.requests_per_month, 10),
+        costCentsPerMonth: parseInt(row.cost_cents_per_month, 10),
+        requestsPerMinute: parseInt(row.requests_per_minute, 10),
+        maxApiKeys: parseInt(row.max_api_keys, 10),
+      },
+      features: row.features ?? [],
+      priceMonthly: row.price_monthly_cents ? parseInt(row.price_monthly_cents, 10) : undefined,
+      priceAnnual: row.price_annual_cents ? parseInt(row.price_annual_cents, 10) : undefined,
+      priority: parseInt(row.priority, 10),
+      isPublic: row.is_public,
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // QUOTA OVERRIDE MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * List all active quota overrides.
+   */
+  async listQuotaOverrides(
+    options: { limit?: number; offset?: number; tenantId?: string } = {}
+  ): Promise<{ overrides: QuotaOverride[]; total: number }> {
+    const tenant = options.tenantId ?? this.options.defaultTenantId;
+    const limit = options.limit ?? 50;
+    const offset = options.offset ?? 0;
+
+    const result = await this.pool.query(LIST_AUI_USER_QUOTA_OVERRIDES, [tenant, limit, offset]);
+
+    // Get total count (simple query since we have the results)
+    const countResult = await this.pool.query(
+      `SELECT COUNT(*) as count FROM aui_user_quota_overrides
+       WHERE tenant_id = $1 AND (effective_until IS NULL OR effective_until > NOW())`,
+      [tenant]
+    );
+
+    return {
+      overrides: result.rows.map(this.rowToQuotaOverride),
+      total: parseInt(countResult.rows[0]?.count ?? '0', 10),
+    };
+  }
+
+  /**
+   * Set or update a quota override for a user.
+   */
+  async setQuotaOverride(
+    userId: string,
+    input: QuotaOverrideInput,
+    tenantId?: string
+  ): Promise<QuotaOverride> {
+    const tenant = tenantId ?? this.options.defaultTenantId;
+
+    const result = await this.pool.query(UPSERT_AUI_USER_QUOTA_OVERRIDE, [
+      userId,
+      tenant,
+      input.tokensPerMonth ?? null,
+      input.requestsPerMonth ?? null,
+      input.costCentsPerMonth ?? null,
+      input.reason,
+      input.grantedBy ?? null,
+      input.effectiveUntil ?? null,
+    ]);
+
+    // Invalidate any cached snapshots for this user
+    this.invalidateSnapshotCache(userId, tenant, this.getCurrentBillingPeriod());
+
+    return this.rowToQuotaOverride(result.rows[0]);
+  }
+
+  /**
+   * Get a specific user's quota override.
+   */
+  async getQuotaOverride(userId: string, tenantId?: string): Promise<QuotaOverride | null> {
+    const tenant = tenantId ?? this.options.defaultTenantId;
+
+    const result = await this.pool.query(GET_AUI_USER_QUOTA_OVERRIDE, [userId, tenant]);
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.rowToQuotaOverride(result.rows[0]);
+  }
+
+  /**
+   * Remove a quota override for a user.
+   */
+  async removeQuotaOverride(userId: string, tenantId?: string): Promise<boolean> {
+    const tenant = tenantId ?? this.options.defaultTenantId;
+
+    const result = await this.pool.query(DELETE_AUI_USER_QUOTA_OVERRIDE, [userId, tenant]);
+
+    // Invalidate any cached snapshots for this user
+    this.invalidateSnapshotCache(userId, tenant, this.getCurrentBillingPeriod());
+
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PROVIDER COST MANAGEMENT
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * List provider cost rates.
+   */
+  async listProviderCosts(provider?: string): Promise<ProviderCostRate[]> {
+    const result = await this.pool.query(LIST_AUI_PROVIDER_COST_RATES, [provider ?? null]);
+
+    return result.rows.map((row) => ({
+      provider: row.provider,
+      modelId: row.model_id,
+      inputCostPerMtok: parseInt(row.input_cost_per_mtok, 10),
+      outputCostPerMtok: parseInt(row.output_cost_per_mtok, 10),
+      effectiveFrom: new Date(row.effective_from),
+      effectiveUntil: row.effective_until ? new Date(row.effective_until) : undefined,
+    }));
+  }
+
+  /**
+   * Add a new provider cost rate.
+   * If a rate already exists for this provider/model, the old one is end-dated.
+   */
+  async addProviderCost(input: ProviderCostRateInput): Promise<ProviderCostRate> {
+    const effectiveFrom = input.effectiveFrom ?? new Date();
+
+    // End-date any existing rate for this provider/model
+    await this.pool.query(UPDATE_AUI_PROVIDER_COST_RATE_END, [
+      input.provider,
+      input.modelId,
+      effectiveFrom,
+    ]);
+
+    // Insert new rate
+    const result = await this.pool.query(INSERT_AUI_PROVIDER_COST_RATE, [
+      input.provider,
+      input.modelId,
+      input.inputCostPerMtok,
+      input.outputCostPerMtok,
+      effectiveFrom,
+      null, // effective_until
+    ]);
+
+    const row = result.rows[0];
+    return {
+      provider: row.provider,
+      modelId: row.model_id,
+      inputCostPerMtok: parseInt(row.input_cost_per_mtok, 10),
+      outputCostPerMtok: parseInt(row.output_cost_per_mtok, 10),
+      effectiveFrom: new Date(row.effective_from),
+      effectiveUntil: row.effective_until ? new Date(row.effective_until) : undefined,
+    };
+  }
+
+  /**
    * Get cost report for admin analytics.
    * Wrapper over getUsageReport with CostReport formatting.
    */
@@ -704,6 +971,24 @@ export class UsageService {
       byModel: (row.by_model as Record<string, { tokens: number; requests: number; cost: number }>) ?? {},
       byOperation:
         (row.by_operation as Record<string, { tokens: number; requests: number; cost: number }>) ?? {},
+      updatedAt: new Date(row.updated_at as string),
+    };
+  }
+
+  /**
+   * Convert database row to QuotaOverride.
+   */
+  private rowToQuotaOverride(row: Record<string, unknown>): QuotaOverride {
+    return {
+      userId: row.user_id as string,
+      tenantId: row.tenant_id as string,
+      tokensPerMonth: row.tokens_per_month as number | undefined,
+      requestsPerMonth: row.requests_per_month as number | undefined,
+      costCentsPerMonth: row.cost_cents_per_month as number | undefined,
+      reason: row.reason as string,
+      grantedBy: row.granted_by as string | undefined,
+      effectiveUntil: row.effective_until ? new Date(row.effective_until as string) : undefined,
+      createdAt: new Date(row.created_at as string),
       updatedAt: new Date(row.updated_at as string),
     };
   }

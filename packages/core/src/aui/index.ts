@@ -305,6 +305,11 @@ export {
   type UsageReport as PersistentUsageReport,
   type UsageServiceOptions,
   type TierInfo,
+  type TierUpdateInput,
+  type QuotaOverride,
+  type QuotaOverrideInput,
+  type ProviderCostRate,
+  type ProviderCostRateInput,
 
   // Service
   UsageService,

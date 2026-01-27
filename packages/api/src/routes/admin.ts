@@ -352,16 +352,35 @@ adminRouter.put('/tiers/:tier', async (c) => {
     priceMonthly?: number;
     priceAnnual?: number;
     isPublic?: boolean;
+    features?: string[];
+    priority?: number;
   }>();
 
-  // TODO: Implement tier update via UsageService
+  try {
+    const usageService = requireUsageService();
+    const updated = await usageService.updateTier(tierId, body);
 
-  return c.json({
-    tier: tierId,
-    updated: true,
-    changes: body,
-    message: 'Tier update endpoint - implementation pending database integration',
-  });
+    return c.json({
+      tier: updated.id,
+      updated: true,
+      config: {
+        name: updated.name,
+        description: updated.description,
+        limits: updated.limits,
+        features: updated.features,
+        priceMonthly: updated.priceMonthly,
+        priceAnnual: updated.priceAnnual,
+        priority: updated.priority,
+        isPublic: updated.isPublic,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    if (message.includes('not found')) {
+      return c.json({ error: message }, 404);
+    }
+    return c.json({ error: message }, 500);
+  }
 });
 
 /**
@@ -370,16 +389,32 @@ adminRouter.put('/tiers/:tier', async (c) => {
  */
 adminRouter.get('/overrides', async (c) => {
   const { limit = '50', offset = '0' } = c.req.query();
+  const limitNum = parseInt(limit, 10);
+  const offsetNum = parseInt(offset, 10);
 
-  // TODO: Query aui_user_quota_overrides table
+  try {
+    const usageService = requireUsageService();
+    const result = await usageService.listQuotaOverrides({ limit: limitNum, offset: offsetNum });
 
-  return c.json({
-    overrides: [],
-    total: 0,
-    limit: parseInt(limit, 10),
-    offset: parseInt(offset, 10),
-    message: 'Quota overrides endpoint - implementation pending',
-  });
+    return c.json({
+      overrides: result.overrides.map((o) => ({
+        userId: o.userId,
+        tokensPerMonth: o.tokensPerMonth,
+        requestsPerMonth: o.requestsPerMonth,
+        costCentsPerMonth: o.costCentsPerMonth,
+        reason: o.reason,
+        grantedBy: o.grantedBy,
+        effectiveUntil: o.effectiveUntil?.toISOString() ?? null,
+        createdAt: o.createdAt.toISOString(),
+        updatedAt: o.updatedAt.toISOString(),
+      })),
+      total: result.total,
+      limit: limitNum,
+      offset: offsetNum,
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 503);
+  }
 });
 
 /**
@@ -401,20 +436,33 @@ adminRouter.put('/overrides/:userId', async (c) => {
     return c.json({ error: 'Reason is required' }, 400);
   }
 
-  // TODO: Implement via UsageService
-
-  return c.json({
-    userId,
-    override: {
+  try {
+    const usageService = requireUsageService();
+    const override = await usageService.setQuotaOverride(userId, {
       tokensPerMonth: body.tokensPerMonth,
       requestsPerMonth: body.requestsPerMonth,
       costCentsPerMonth: body.costCentsPerMonth,
       reason: body.reason,
-      effectiveUntil: body.effectiveUntil,
       grantedBy: auth.userId,
-    },
-    message: 'Quota override endpoint - implementation pending',
-  });
+      effectiveUntil: body.effectiveUntil ? new Date(body.effectiveUntil) : undefined,
+    });
+
+    return c.json({
+      userId,
+      override: {
+        tokensPerMonth: override.tokensPerMonth,
+        requestsPerMonth: override.requestsPerMonth,
+        costCentsPerMonth: override.costCentsPerMonth,
+        reason: override.reason,
+        effectiveUntil: override.effectiveUntil?.toISOString() ?? null,
+        grantedBy: override.grantedBy,
+        createdAt: override.createdAt.toISOString(),
+        updatedAt: override.updatedAt.toISOString(),
+      },
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 500);
+  }
 });
 
 /**
@@ -424,13 +472,21 @@ adminRouter.put('/overrides/:userId', async (c) => {
 adminRouter.delete('/overrides/:userId', async (c) => {
   const userId = c.req.param('userId');
 
-  // TODO: Implement via UsageService
+  try {
+    const usageService = requireUsageService();
+    const removed = await usageService.removeQuotaOverride(userId);
 
-  return c.json({
-    userId,
-    removed: true,
-    message: 'Quota override removal endpoint - implementation pending',
-  });
+    if (!removed) {
+      return c.json({ error: 'Override not found' }, 404);
+    }
+
+    return c.json({
+      userId,
+      removed: true,
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 500);
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -753,12 +809,26 @@ adminRouter.put('/prompts/:id', async (c) => {
  * List provider cost rates
  */
 adminRouter.get('/provider-costs', async (c) => {
-  // TODO: Query aui_provider_cost_rates table
+  const { provider } = c.req.query();
 
-  return c.json({
-    rates: [],
-    message: 'Provider costs endpoint - implementation pending',
-  });
+  try {
+    const usageService = requireUsageService();
+    const rates = await usageService.listProviderCosts(provider || undefined);
+
+    return c.json({
+      rates: rates.map((r) => ({
+        provider: r.provider,
+        modelId: r.modelId,
+        inputCostPerMtok: r.inputCostPerMtok,
+        outputCostPerMtok: r.outputCostPerMtok,
+        effectiveFrom: r.effectiveFrom.toISOString(),
+        effectiveUntil: r.effectiveUntil?.toISOString() ?? null,
+      })),
+      total: rates.length,
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 503);
+  }
 });
 
 /**
@@ -771,19 +841,40 @@ adminRouter.post('/provider-costs', async (c) => {
     modelId: string;
     inputCostPerMtok: number;
     outputCostPerMtok: number;
+    effectiveFrom?: string;
   }>();
 
   if (!body.provider || !body.modelId) {
     return c.json({ error: 'Provider and modelId are required' }, 400);
   }
 
-  // TODO: Insert into aui_provider_cost_rates table
+  if (typeof body.inputCostPerMtok !== 'number' || typeof body.outputCostPerMtok !== 'number') {
+    return c.json({ error: 'inputCostPerMtok and outputCostPerMtok are required' }, 400);
+  }
 
-  return c.json({
-    created: true,
-    rate: body,
-    message: 'Provider cost creation endpoint - implementation pending',
-  });
+  try {
+    const usageService = requireUsageService();
+    const rate = await usageService.addProviderCost({
+      provider: body.provider,
+      modelId: body.modelId,
+      inputCostPerMtok: body.inputCostPerMtok,
+      outputCostPerMtok: body.outputCostPerMtok,
+      effectiveFrom: body.effectiveFrom ? new Date(body.effectiveFrom) : undefined,
+    });
+
+    return c.json({
+      created: true,
+      rate: {
+        provider: rate.provider,
+        modelId: rate.modelId,
+        inputCostPerMtok: rate.inputCostPerMtok,
+        outputCostPerMtok: rate.outputCostPerMtok,
+        effectiveFrom: rate.effectiveFrom.toISOString(),
+      },
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 500);
+  }
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
