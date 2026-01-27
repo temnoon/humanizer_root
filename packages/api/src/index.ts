@@ -17,6 +17,8 @@ import {
   getModelRegistry,
   initUsageService,
   initApiKeyService,
+  initFeatureFlagService,
+  initAuditService,
   InMemoryConfigManager,
   ALL_PROMPTS,
   type PromptDefinition,
@@ -304,8 +306,16 @@ async function main(): Promise<void> {
       });
       setApiKeyService(apiKeyService);
       console.log('ApiKeyService initialized');
+
+      // Initialize FeatureFlagService for feature toggles
+      initFeatureFlagService(pool, 'humanizer');
+      console.log('FeatureFlagService initialized');
+
+      // Initialize AuditService for audit logging
+      initAuditService(pool, 'humanizer');
+      console.log('AuditService initialized');
     } else {
-      console.warn('Archive store not available - UsageService and ApiKeyService not initialized');
+      console.warn('Archive store not available - services not initialized');
     }
 
     // Create and start the app

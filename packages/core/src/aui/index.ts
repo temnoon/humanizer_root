@@ -332,3 +332,40 @@ export {
   getApiKeyService,
   resetApiKeyService,
 } from './service/api-key-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FEATURE FLAG SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type FeatureFlag,
+  type FeatureFlagInput,
+  type FeatureFlagCheckResult,
+
+  // Service
+  FeatureFlagService,
+  initFeatureFlagService,
+  getFeatureFlagService,
+} from './service/feature-flag-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type AuditCategory,
+  type ActorType,
+  type AuditActor,
+  type AuditTarget,
+  type AuditEvent,
+  type AuditEventInput,
+  type AuditListOptions,
+  type AuditListResult,
+
+  // Service
+  AuditService,
+  initAuditService,
+  getAuditService,
+} from './service/audit-service.js';

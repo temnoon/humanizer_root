@@ -258,4 +258,25 @@ export {
   initApiKeyService,
   getApiKeyService,
   resetApiKeyService,
+
+  // Feature Flag Service
+  type FeatureFlag,
+  type FeatureFlagInput,
+  type FeatureFlagCheckResult,
+  FeatureFlagService,
+  initFeatureFlagService,
+  getFeatureFlagService,
+
+  // Audit Service
+  type AuditCategory,
+  type ActorType,
+  type AuditActor,
+  type AuditTarget,
+  type AuditEvent,
+  type AuditEventInput,
+  type AuditListOptions,
+  type AuditListResult,
+  AuditService,
+  initAuditService,
+  getAuditService,
 } from './aui/index.js';

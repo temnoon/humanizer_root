@@ -695,6 +695,98 @@ VALUES
 ON CONFLICT (tenant_id, tier) DO NOTHING;
 `;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// FEATURE FLAGS TABLE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Feature flags table - system-wide and tier-specific feature toggles
+ *
+ * Enables A/B testing, gradual rollouts, and tier-based feature gating.
+ */
+export const CREATE_AUI_FEATURE_FLAGS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_feature_flags (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT NOT NULL DEFAULT 'core' CHECK (category IN ('core', 'premium', 'beta', 'experimental')),
+
+  -- Global toggle
+  enabled BOOLEAN NOT NULL DEFAULT TRUE,
+
+  -- Gradual rollout (0-100)
+  rollout_percentage INTEGER DEFAULT 100,
+
+  -- Tier-specific overrides (JSONB array of {tier, enabled})
+  tier_overrides JSONB DEFAULT '[]',
+
+  -- Metadata
+  created_by TEXT,
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE(tenant_id, id)
+);
+`;
+
+/**
+ * Seed default feature flags
+ */
+export const SEED_AUI_FEATURE_FLAGS = `
+INSERT INTO aui_feature_flags (id, tenant_id, name, description, category, enabled, tier_overrides)
+VALUES
+  ('semantic_search', 'humanizer', 'Semantic Search', 'Enable semantic search powered by embeddings', 'core', true, '[]'),
+  ('custom_prompts', 'humanizer', 'Custom Prompts', 'Allow users to create custom prompt templates', 'premium', true, '[{"tier":"free","enabled":false},{"tier":"member","enabled":false},{"tier":"pro","enabled":true},{"tier":"premium","enabled":true}]'),
+  ('api_access', 'humanizer', 'API Access', 'Enable API key creation and external API access', 'premium', true, '[{"tier":"free","enabled":false},{"tier":"member","enabled":true},{"tier":"pro","enabled":true},{"tier":"premium","enabled":true}]'),
+  ('book_export', 'humanizer', 'Book Export', 'Export books to various formats (EPUB, PDF, etc)', 'core', true, '[]'),
+  ('advanced_analytics', 'humanizer', 'Advanced Analytics', 'Detailed usage analytics and insights', 'beta', false, '[]')
+ON CONFLICT (tenant_id, id) DO NOTHING;
+`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT EVENTS TABLE
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Audit events table - immutable log of all significant system events
+ *
+ * Records user actions, admin operations, API usage, and system events
+ * for security auditing, debugging, and compliance.
+ */
+export const CREATE_AUI_AUDIT_EVENTS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_audit_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+
+  -- What happened
+  action TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('auth', 'admin', 'billing', 'api', 'system')),
+
+  -- Who did it
+  actor_type TEXT NOT NULL CHECK (actor_type IN ('user', 'system', 'api_key')),
+  actor_id TEXT NOT NULL,
+  actor_email TEXT,
+
+  -- What it affected (optional)
+  target_type TEXT,
+  target_id TEXT,
+  target_name TEXT,
+
+  -- Context
+  metadata JSONB DEFAULT '{}',
+  ip_address TEXT,
+  user_agent TEXT,
+
+  -- Result
+  success BOOLEAN NOT NULL DEFAULT TRUE,
+  error_message TEXT,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
 /**
  * Seed provider cost rates with current pricing
  */
@@ -862,6 +954,20 @@ CREATE INDEX IF NOT EXISTS idx_aui_user_preferences_tenant ON aui_user_preferenc
 
 -- Provider cost rates indexes
 CREATE INDEX IF NOT EXISTS idx_aui_provider_cost_rates_active ON aui_provider_cost_rates(provider, model_id) WHERE effective_until IS NULL;
+
+-- Feature flags indexes
+CREATE INDEX IF NOT EXISTS idx_aui_feature_flags_tenant ON aui_feature_flags(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_feature_flags_category ON aui_feature_flags(category);
+CREATE INDEX IF NOT EXISTS idx_aui_feature_flags_enabled ON aui_feature_flags(tenant_id, enabled);
+
+-- Audit events indexes
+CREATE INDEX IF NOT EXISTS idx_aui_audit_events_tenant ON aui_audit_events(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_audit_events_action ON aui_audit_events(action);
+CREATE INDEX IF NOT EXISTS idx_aui_audit_events_category ON aui_audit_events(category);
+CREATE INDEX IF NOT EXISTS idx_aui_audit_events_actor ON aui_audit_events(actor_type, actor_id);
+CREATE INDEX IF NOT EXISTS idx_aui_audit_events_target ON aui_audit_events(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_aui_audit_events_created ON aui_audit_events(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aui_audit_events_success ON aui_audit_events(success);
 `;
 
 /**
@@ -1002,12 +1108,17 @@ export async function runAuiMigration(
   await client.query(CREATE_AUI_USER_PREFERENCES_TABLE);
   await client.query(CREATE_AUI_PROVIDER_COST_RATES_TABLE);
 
+  // Create feature flags and audit tables (v6)
+  await client.query(CREATE_AUI_FEATURE_FLAGS_TABLE);
+  await client.query(CREATE_AUI_AUDIT_EVENTS_TABLE);
+
   // Create indexes
   await client.query(CREATE_AUI_INDEXES);
 
-  // Seed tier defaults and cost rates
+  // Seed tier defaults, cost rates, and feature flags
   await client.query(SEED_AUI_TIER_DEFAULTS);
   await client.query(SEED_AUI_PROVIDER_COST_RATES);
+  await client.query(SEED_AUI_FEATURE_FLAGS);
 
   // Create vector indexes if enabled
   if (enableVec) {
@@ -2036,4 +2147,118 @@ RETURNING *
 export const UPDATE_AUI_PROVIDER_COST_RATE_END = `
 UPDATE aui_provider_cost_rates SET effective_until = $3
 WHERE provider = $1 AND model_id = $2 AND effective_until IS NULL
+`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FEATURE FLAGS SQL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const GET_AUI_FEATURE_FLAG = `
+SELECT * FROM aui_feature_flags
+WHERE tenant_id = $1 AND id = $2
+`;
+
+export const LIST_AUI_FEATURE_FLAGS = `
+SELECT * FROM aui_feature_flags
+WHERE tenant_id = $1
+ORDER BY category, id
+`;
+
+export const UPSERT_AUI_FEATURE_FLAG = `
+INSERT INTO aui_feature_flags (
+  id, tenant_id, name, description, category, enabled, rollout_percentage,
+  tier_overrides, created_by, metadata, created_at, updated_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+ON CONFLICT (tenant_id, id)
+DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  category = EXCLUDED.category,
+  enabled = EXCLUDED.enabled,
+  rollout_percentage = EXCLUDED.rollout_percentage,
+  tier_overrides = EXCLUDED.tier_overrides,
+  metadata = EXCLUDED.metadata,
+  updated_at = NOW()
+RETURNING *
+`;
+
+export const DELETE_AUI_FEATURE_FLAG = `
+DELETE FROM aui_feature_flags WHERE tenant_id = $1 AND id = $2
+`;
+
+export const CHECK_AUI_FEATURE_ENABLED = `
+SELECT
+  f.id,
+  f.enabled,
+  f.rollout_percentage,
+  f.tier_overrides
+FROM aui_feature_flags f
+WHERE f.tenant_id = $1 AND f.id = $2
+`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUDIT EVENTS SQL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const INSERT_AUI_AUDIT_EVENT = `
+INSERT INTO aui_audit_events (
+  id, tenant_id, action, category, actor_type, actor_id, actor_email,
+  target_type, target_id, target_name, metadata, ip_address, user_agent,
+  success, error_message, created_at
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+RETURNING *
+`;
+
+export const GET_AUI_AUDIT_EVENT = `
+SELECT * FROM aui_audit_events
+WHERE id = $1 AND tenant_id = $2
+`;
+
+export const LIST_AUI_AUDIT_EVENTS = `
+SELECT * FROM aui_audit_events
+WHERE tenant_id = $1
+  AND ($2::text IS NULL OR category = $2)
+  AND ($3::boolean IS NULL OR success = $3)
+  AND ($4::timestamptz IS NULL OR created_at >= $4)
+  AND ($5::timestamptz IS NULL OR created_at <= $5)
+ORDER BY created_at DESC
+LIMIT $6 OFFSET $7
+`;
+
+export const COUNT_AUI_AUDIT_EVENTS = `
+SELECT COUNT(*) as count FROM aui_audit_events
+WHERE tenant_id = $1
+  AND ($2::text IS NULL OR category = $2)
+  AND ($3::boolean IS NULL OR success = $3)
+`;
+
+export const SEARCH_AUI_AUDIT_EVENTS = `
+SELECT * FROM aui_audit_events
+WHERE tenant_id = $1
+  AND (
+    action ILIKE '%' || $2 || '%'
+    OR actor_email ILIKE '%' || $2 || '%'
+    OR target_name ILIKE '%' || $2 || '%'
+  )
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4
+`;
+
+export const LIST_AUI_AUDIT_EVENTS_BY_ACTOR = `
+SELECT * FROM aui_audit_events
+WHERE tenant_id = $1 AND actor_type = $2 AND actor_id = $3
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $5
+`;
+
+export const LIST_AUI_AUDIT_EVENTS_BY_TARGET = `
+SELECT * FROM aui_audit_events
+WHERE tenant_id = $1 AND target_type = $2 AND target_id = $3
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $5
+`;
+
+export const CLEANUP_OLD_AUDIT_EVENTS = `
+DELETE FROM aui_audit_events
+WHERE tenant_id = $1 AND created_at < $2
 `;

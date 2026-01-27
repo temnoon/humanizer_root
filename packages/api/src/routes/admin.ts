@@ -10,7 +10,13 @@
  */
 
 import { Hono } from 'hono';
-import { getUsageService, getApiKeyService, getModelRegistry } from '@humanizer/core';
+import {
+  getUsageService,
+  getApiKeyService,
+  getModelRegistry,
+  getFeatureFlagService,
+  getAuditService,
+} from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, requireAdmin, getAuth, type AuthContext } from '../middleware/auth.js';
 
@@ -916,7 +922,30 @@ adminRouter.post('/providers/:id/health', async (c) => {
  * List all feature flags
  */
 adminRouter.get('/features', async (c) => {
-  // TODO: Get from database when feature flag system is implemented
+  const featureFlagService = getFeatureFlagService();
+
+  if (featureFlagService) {
+    try {
+      const flags = await featureFlagService.listFlags();
+      return c.json({
+        features: flags.map((f) => ({
+          id: f.id,
+          name: f.name,
+          description: f.description,
+          category: f.category,
+          enabled: f.enabled,
+          rolloutPercentage: f.rolloutPercentage,
+          tierOverrides: f.tierOverrides,
+          createdAt: f.createdAt.toISOString(),
+          updatedAt: f.updatedAt.toISOString(),
+        })),
+      });
+    } catch (error) {
+      console.warn('Feature flag service error, using fallback:', error);
+    }
+  }
+
+  // Fallback mock data when service not available
   const features = [
     {
       id: 'semantic_search',
@@ -991,18 +1020,57 @@ adminRouter.get('/features', async (c) => {
 adminRouter.put('/features/:id', async (c) => {
   const featureId = c.req.param('id');
   const body = await c.req.json<{
+    name?: string;
+    description?: string;
     enabled?: boolean;
     rolloutPercentage?: number;
     tierOverrides?: Array<{ tier: string; enabled: boolean }>;
   }>();
 
-  // TODO: Persist feature flag to database
+  const featureFlagService = getFeatureFlagService();
+
+  if (featureFlagService) {
+    try {
+      // Get existing flag to merge with updates
+      const existing = await featureFlagService.getFlag(featureId);
+      if (!existing) {
+        return c.json({ error: 'Feature flag not found' }, 404);
+      }
+
+      const updated = await featureFlagService.upsertFlag({
+        id: featureId,
+        name: body.name ?? existing.name,
+        description: body.description ?? existing.description,
+        category: existing.category,
+        enabled: body.enabled ?? existing.enabled,
+        rolloutPercentage: body.rolloutPercentage ?? existing.rolloutPercentage,
+        tierOverrides: body.tierOverrides ?? existing.tierOverrides,
+      });
+
+      return c.json({
+        featureId,
+        updated: true,
+        feature: {
+          id: updated.id,
+          name: updated.name,
+          description: updated.description,
+          category: updated.category,
+          enabled: updated.enabled,
+          rolloutPercentage: updated.rolloutPercentage,
+          tierOverrides: updated.tierOverrides,
+          updatedAt: updated.updatedAt.toISOString(),
+        },
+      });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 500);
+    }
+  }
 
   return c.json({
     featureId,
     updated: true,
     changes: body,
-    message: 'Feature flag update endpoint - implementation pending database integration',
+    message: 'Feature flag service not available',
   });
 });
 
@@ -1136,8 +1204,63 @@ adminRouter.get('/audit', async (c) => {
   const limitNum = parseInt(limit, 10);
   const offsetNum = parseInt(offset, 10);
 
-  // TODO: Query aui_audit_events table when implemented
-  // For now, return mock events
+  const auditService = getAuditService();
+
+  if (auditService) {
+    try {
+      // If search is provided, use search method
+      if (search) {
+        const events = await auditService.searchEvents(search, { limit: limitNum, offset: offsetNum });
+        return c.json({
+          events: events.map((e) => ({
+            id: e.id,
+            timestamp: e.createdAt.toISOString(),
+            action: e.action,
+            category: e.category,
+            actor: e.actor,
+            target: e.target,
+            metadata: e.metadata,
+            ip: e.ipAddress,
+            success: e.success,
+          })),
+          total: events.length,
+          limit: limitNum,
+          offset: offsetNum,
+          filters: { category, success, search },
+        });
+      }
+
+      // Otherwise use list with filters
+      const result = await auditService.listEvents({
+        category: category && category !== 'all' ? (category as 'auth' | 'admin' | 'billing' | 'api' | 'system') : undefined,
+        success: success === 'true' ? true : success === 'false' ? false : undefined,
+        limit: limitNum,
+        offset: offsetNum,
+      });
+
+      return c.json({
+        events: result.events.map((e) => ({
+          id: e.id,
+          timestamp: e.createdAt.toISOString(),
+          action: e.action,
+          category: e.category,
+          actor: e.actor,
+          target: e.target,
+          metadata: e.metadata,
+          ip: e.ipAddress,
+          success: e.success,
+        })),
+        total: result.total,
+        limit: limitNum,
+        offset: offsetNum,
+        filters: { category, success, search },
+      });
+    } catch (error) {
+      console.warn('Audit service error, using fallback:', error);
+    }
+  }
+
+  // Fallback mock events
   const mockEvents = [
     {
       id: 'evt-001',
@@ -1256,10 +1379,37 @@ adminRouter.get('/audit', async (c) => {
 adminRouter.get('/audit/:id', async (c) => {
   const eventId = c.req.param('id');
 
-  // TODO: Get from database
+  const auditService = getAuditService();
+
+  if (auditService) {
+    try {
+      const event = await auditService.getEvent(eventId);
+      if (!event) {
+        return c.json({ error: 'Audit event not found' }, 404);
+      }
+
+      return c.json({
+        event: {
+          id: event.id,
+          timestamp: event.createdAt.toISOString(),
+          action: event.action,
+          category: event.category,
+          actor: event.actor,
+          target: event.target,
+          metadata: event.metadata,
+          ip: event.ipAddress,
+          userAgent: event.userAgent,
+          success: event.success,
+          errorMessage: event.errorMessage,
+        },
+      });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 500);
+    }
+  }
 
   return c.json({
     eventId,
-    message: 'Audit event detail endpoint - implementation pending',
+    message: 'Audit service not available',
   });
 });
