@@ -317,7 +317,8 @@ export type MediaTextAssociationType =
   | 'title'            // Extracted title
   | 'alt-text'         // Alt text for accessibility
   | 'generated-from'   // Image generated from this text
-  | 'echo-of';         // Echo/variation of source image
+  | 'echo-of'          // Echo/variation of source image
+  | 'transcript';      // Audio/video transcription (Whisper)
 
 /**
  * A media-text association linking an image to extracted text

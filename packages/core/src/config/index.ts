@@ -315,3 +315,14 @@ export {
   getImportDefault,
   isValidExcellenceTier,
 } from './import-config.js';
+
+// Service Configuration (Tenant, Auth, Usage, API Keys)
+export {
+  SERVICE_CONFIG_KEYS,
+  SERVICE_DEFAULTS,
+  SERVICE_CONFIG_CATEGORIES,
+  type ServiceConfigKey,
+  getServiceConfigCategory,
+  getServiceDefault,
+  seedServiceDefaults,
+} from './service-config.js';

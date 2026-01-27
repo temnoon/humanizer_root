@@ -24,6 +24,14 @@ import {
   InMemoryConfigManager,
   ALL_PROMPTS,
   type PromptDefinition,
+  type ApiKeyScope,
+  // Configuration keys and defaults
+  EMBEDDING_CONFIG_KEYS,
+  EMBEDDING_DEFAULTS,
+  STORAGE_CONFIG_KEYS,
+  STORAGE_STATIC_DEFAULTS,
+  SERVICE_CONFIG_KEYS,
+  SERVICE_DEFAULTS,
 } from '@humanizer/core';
 import { OllamaAdapter } from '@humanizer/npe';
 
@@ -71,15 +79,8 @@ function getConfig(): ServerConfig {
       user: process.env.POSTGRES_USER ?? 'postgres',
       password: process.env.POSTGRES_PASSWORD,
     },
-    corsOrigins: process.env.CORS_ORIGINS?.split(',') ?? [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:5175',
-      'http://localhost:5176',
-      'http://localhost:5177',
-      'http://localhost:5178',
-      'http://localhost:5179',
-    ],
+    corsOrigins: process.env.CORS_ORIGINS?.split(',') ??
+      (SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.CORS_DEV_ORIGINS] as string[]),
   };
 }
 
@@ -232,18 +233,21 @@ async function main(): Promise<void> {
     // Get embedding model from registry
     // Use nomic-embed-text for local privacy (Ollama) - matches existing 768-dim embeddings
     const registry = getModelRegistry();
-    const embedModelId = process.env.EMBEDDING_MODEL ?? 'nomic-embed-text:latest';
+    const embedModelId = process.env.EMBEDDING_MODEL ??
+      (EMBEDDING_DEFAULTS[EMBEDDING_CONFIG_KEYS.DEFAULT_MODEL] as string);
     const embedModel = await registry.get(embedModelId);
 
     if (!embedModel) {
       throw new Error(`Embedding model ${embedModelId} not found in registry`);
     }
 
-    const embeddingDimension = embedModel.dimensions ?? 768;
+    const embeddingDimension = embedModel.dimensions ??
+      (EMBEDDING_DEFAULTS[EMBEDDING_CONFIG_KEYS.DIMENSIONS] as number);
     console.log(`Using embedding model: ${embedModel.id} (${embeddingDimension} dimensions, ${embedModel.provider})`);
 
     // Create Ollama adapter with registry-derived model
-    const ollamaUrl = process.env.OLLAMA_URL ?? 'http://localhost:11434';
+    const ollamaUrl = process.env.OLLAMA_URL ??
+      (EMBEDDING_DEFAULTS[EMBEDDING_CONFIG_KEYS.OLLAMA_URL] as string);
     const ollamaAdapter = new OllamaAdapter({
       baseUrl: ollamaUrl,
       embedModel: embedModel.id,
@@ -284,9 +288,9 @@ async function main(): Promise<void> {
         database: config.postgres.database,
         user: config.postgres.user,
         password: config.postgres.password,
-        maxConnections: 10,
-        idleTimeoutMs: 30000,
-        connectionTimeoutMs: 10000,
+        maxConnections: STORAGE_STATIC_DEFAULTS[STORAGE_CONFIG_KEYS.MAX_CONNECTIONS] as number,
+        idleTimeoutMs: STORAGE_STATIC_DEFAULTS[STORAGE_CONFIG_KEYS.IDLE_TIMEOUT_MS] as number,
+        connectionTimeoutMs: STORAGE_STATIC_DEFAULTS[STORAGE_CONFIG_KEYS.CONNECTION_TIMEOUT_MS] as number,
         embeddingDimension,
         enableFTS: true,
         enableVec: true,
@@ -305,19 +309,19 @@ async function main(): Promise<void> {
 
       // Initialize UsageService for quota tracking
       const usageService = initUsageService(pool, {
-        defaultTenantId: 'humanizer',
-        defaultUserTier: 'free',
-        cacheTtlMs: 60_000,
+        defaultTenantId: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.DEFAULT_TENANT_ID] as string,
+        defaultUserTier: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.DEFAULT_USER_TIER] as string,
+        cacheTtlMs: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.USAGE_CACHE_TTL_MS] as number,
       });
       setUsageService(usageService);
       console.log('UsageService initialized');
 
       // Initialize ApiKeyService for API key authentication
       const apiKeyService = initApiKeyService(pool, {
-        defaultTenantId: 'humanizer',
-        defaultScopes: ['read', 'write'],
-        defaultRateLimitRpm: 60,
-        keyPrefix: 'hum_',
+        defaultTenantId: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.DEFAULT_TENANT_ID] as string,
+        defaultScopes: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.API_KEY_DEFAULT_SCOPES] as ApiKeyScope[],
+        defaultRateLimitRpm: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.API_KEY_DEFAULT_RATE_LIMIT_RPM] as number,
+        keyPrefix: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.API_KEY_PREFIX] as string,
       });
       setApiKeyService(apiKeyService);
       console.log('ApiKeyService initialized');
@@ -336,9 +340,9 @@ async function main(): Promise<void> {
 
       // Initialize UserService for user management
       initUserService(pool, {
-        defaultTenantId: 'humanizer',
-        passwordMinLength: 8,
-        tokenExpiryHours: 24,
+        defaultTenantId: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.DEFAULT_TENANT_ID] as string,
+        passwordMinLength: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.PASSWORD_MIN_LENGTH] as number,
+        tokenExpiryHours: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.TOKEN_EXPIRY_HOURS] as number,
       });
       console.log('UserService initialized');
     } else {

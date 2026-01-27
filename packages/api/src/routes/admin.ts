@@ -17,6 +17,8 @@ import {
   getFeatureFlagService,
   getAuditService,
   getUserService,
+  EMBEDDING_CONFIG_KEYS,
+  EMBEDDING_DEFAULTS,
 } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, requireAdmin, getAuth, type AuthContext } from '../middleware/auth.js';
@@ -914,7 +916,8 @@ adminRouter.get('/status', async (c) => {
 adminRouter.get('/providers', async (c) => {
   // TODO: Get from database/config when provider management is implemented
   // For now, return provider status based on environment
-  const ollamaUrl = process.env.OLLAMA_URL ?? 'http://localhost:11434';
+  const ollamaUrl = process.env.OLLAMA_URL ??
+    (EMBEDDING_DEFAULTS[EMBEDDING_CONFIG_KEYS.OLLAMA_URL] as string);
 
   const providers = [
     {

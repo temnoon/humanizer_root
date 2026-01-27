@@ -253,11 +253,118 @@ for pattern in "${THRESHOLD_PATTERNS[@]}"; do
 done
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CHECK 6: AI Detection Patterns Outside Config
+# CHECK 6: Hardcoded Temperature Values
 # ═══════════════════════════════════════════════════════════════════════════════
 
 echo ""
-echo "6. Checking for hardcoded AI-tell patterns..."
+echo "6. Checking for hardcoded temperature values..."
+
+# Common temperature values that should be in config or prompt requirements
+TEMP_PATTERNS=(
+  "temperature: 0\.[0-9]"
+  "temperature = 0\.[0-9]"
+)
+
+for pattern in "${TEMP_PATTERNS[@]}"; do
+  matches=$(grep -rEn "$pattern" packages/core/src packages/npe/src 2>/dev/null | grep -vE "$EXCLUDE_PATTERNS|prompt-registry|\.test\.|benchmark" | grep -vE "$FALLBACK_EXCLUDE" || true)
+  if [ -n "$matches" ]; then
+    # Check if matches are known debt
+    NEW_VIOLATIONS=0
+    while IFS= read -r match; do
+      file_path=$(echo "$match" | cut -d: -f1)
+      if ! is_known_debt "$file_path" "hardcoded-temperature"; then
+        ((NEW_VIOLATIONS++))
+      fi
+    done <<< "$matches"
+
+    if [ $NEW_VIOLATIONS -gt 0 ]; then
+      echo -e "${RED}❌ Found hardcoded temperature (not tracked): $pattern${NC}"
+      echo "$matches" | head -5
+      ((VIOLATIONS++))
+    else
+      echo -e "${YELLOW}⚠️  Known debt - hardcoded temperature (tracked)${NC}"
+      ((WARNINGS++))
+    fi
+  fi
+done
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CHECK 7: Hardcoded maxTokens Values
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "7. Checking for hardcoded maxTokens values..."
+
+MAXTOKENS_PATTERNS=(
+  "maxTokens: [0-9]+"
+  "max_tokens: [0-9]+"
+)
+
+for pattern in "${MAXTOKENS_PATTERNS[@]}"; do
+  matches=$(grep -rEn "$pattern" packages/core/src packages/npe/src 2>/dev/null | grep -vE "$EXCLUDE_PATTERNS|prompt-registry|\.test\.|benchmark|embedding-config" | grep -vE "$FALLBACK_EXCLUDE" || true)
+  if [ -n "$matches" ]; then
+    # Check if matches are known debt
+    NEW_VIOLATIONS=0
+    while IFS= read -r match; do
+      file_path=$(echo "$match" | cut -d: -f1)
+      if ! is_known_debt "$file_path" "hardcoded-maxtokens"; then
+        ((NEW_VIOLATIONS++))
+      fi
+    done <<< "$matches"
+
+    if [ $NEW_VIOLATIONS -gt 0 ]; then
+      echo -e "${RED}❌ Found hardcoded maxTokens (not tracked): $pattern${NC}"
+      echo "$matches" | head -5
+      ((VIOLATIONS++))
+    else
+      echo -e "${YELLOW}⚠️  Known debt - hardcoded maxTokens (tracked)${NC}"
+      ((WARNINGS++))
+    fi
+  fi
+done
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CHECK 8: Hardcoded Similarity Thresholds
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "8. Checking for hardcoded similarity thresholds..."
+
+SIMILARITY_PATTERNS=(
+  "minSimilarity[:\s]*[=:][:\s]*0\.[0-9]"
+  "similarityThreshold[:\s]*[=:][:\s]*0\.[0-9]"
+  "threshold[:\s]*[=:][:\s]*0\.[0-9]"
+)
+
+for pattern in "${SIMILARITY_PATTERNS[@]}"; do
+  matches=$(grep -rEn "$pattern" packages/core/src packages/npe/src 2>/dev/null | grep -vE "$EXCLUDE_PATTERNS|embedding-config|retrieval/constants|\.test\.|benchmark" | grep -vE "$FALLBACK_EXCLUDE" || true)
+  if [ -n "$matches" ]; then
+    # Check if matches are known debt
+    NEW_VIOLATIONS=0
+    while IFS= read -r match; do
+      file_path=$(echo "$match" | cut -d: -f1)
+      if ! is_known_debt "$file_path" "hardcoded-similarity"; then
+        ((NEW_VIOLATIONS++))
+      fi
+    done <<< "$matches"
+
+    if [ $NEW_VIOLATIONS -gt 0 ]; then
+      echo -e "${RED}❌ Found hardcoded similarity threshold (not tracked): $pattern${NC}"
+      echo "$matches" | head -5
+      ((VIOLATIONS++))
+    else
+      echo -e "${YELLOW}⚠️  Known debt - hardcoded similarity threshold (tracked)${NC}"
+      ((WARNINGS++))
+    fi
+  fi
+done
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CHECK 9: AI Detection Patterns Outside Config
+# ═══════════════════════════════════════════════════════════════════════════════
+
+echo ""
+echo "9. Checking for hardcoded AI-tell patterns..."
 
 AI_TELL_PATTERNS=(
   "/\\\\bdelve\\\\b/"

@@ -314,3 +314,8 @@ export {
   getUserService,
   resetUserService,
 } from './aui/index.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// SERVICES - Standalone services (transcription, etc.)
+// ═══════════════════════════════════════════════════════════════════
+export * from './services/index.js';
