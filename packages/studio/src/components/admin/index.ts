@@ -13,3 +13,5 @@ export { AdminUsers } from './AdminUsers';
 export { AdminPrompts } from './AdminPrompts';
 export { AdminModels } from './AdminModels';
 export { AdminTiers } from './AdminTiers';
+export { AdminProviders } from './AdminProviders';
+export { AdminFeatures } from './AdminFeatures';

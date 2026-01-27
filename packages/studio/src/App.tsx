@@ -16,7 +16,7 @@ import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { MainWorkspace, type WorkspaceContent } from './components/workspace';
 import { CornerAssistant } from './components/CornerAssistant';
 import { LoginModal, UserMenu } from './components/auth';
-import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts, AdminModels, AdminTiers } from './components/admin';
+import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts, AdminModels, AdminTiers, AdminProviders, AdminFeatures } from './components/admin';
 import type { SearchResult } from './contexts/ApiContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -249,13 +249,9 @@ function AdminApiKeys() {
 
 // AdminPrompts is now imported from ./components/admin
 
-function AdminProviders() {
-  return <AdminPlaceholder title="Provider Configuration" />;
-}
+// AdminProviders is now imported from ./components/admin
 
-function AdminFeatures() {
-  return <AdminPlaceholder title="Feature Flags" />;
-}
+// AdminFeatures is now imported from ./components/admin
 
 function AdminSubscriptions() {
   return <AdminPlaceholder title="Subscriptions" />;
