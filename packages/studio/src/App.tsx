@@ -14,7 +14,10 @@ import { ApiProvider, useApi } from './contexts/ApiContext';
 import { AuthProvider, useAuth, useIsAdmin } from './contexts/AuthContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { BufferSyncProvider, useBufferSync } from './contexts/BufferSyncContext';
+import { PanelProvider, usePanels, usePanelState } from './contexts/PanelContext';
 import { MainWorkspace, type WorkspaceContent } from './components/workspace';
+import { ArchivePane } from './components/archive/ArchivePane';
+import { ToolsPane } from './components/tools/ToolsPane';
 import { CornerAssistant } from './components/CornerAssistant';
 import { LoginModal, UserMenu } from './components/auth';
 import { AdminLayout, AdminDashboard, AdminUsers, AdminPrompts, AdminModels, AdminTiers, AdminProviders, AdminFeatures, AdminApiKeys, AdminUsage, AdminCosts, AdminSubscriptions, AdminAudit } from './components/admin';
@@ -33,6 +36,9 @@ function StudioContent() {
   const [topbarVisible, setTopbarVisible] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
+  // Panel state for 3-panel layout
+  const { state: panelState, toggleArchive, toggleTools } = usePanels();
+
   // Use BufferSync for session and content management
   const {
     sessionId,
@@ -40,6 +46,30 @@ function StudioContent() {
     workingContent,
     importArchiveNode,
   } = useBufferSync();
+
+  // Keyboard shortcuts for panel toggling
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Tab: Toggle focus between panels
+      if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        // Let default Tab behavior work for accessibility
+        return;
+      }
+      // Cmd+[ or Ctrl+[: Toggle archive panel
+      if ((e.metaKey || e.ctrlKey) && e.key === '[') {
+        e.preventDefault();
+        toggleArchive();
+      }
+      // Cmd+] or Ctrl+]: Toggle tools panel
+      if ((e.metaKey || e.ctrlKey) && e.key === ']') {
+        e.preventDefault();
+        toggleTools();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [toggleArchive, toggleTools]);
 
   // Convert buffer content to workspace content for display
   const content: WorkspaceContent | null = workingContent.length > 0
@@ -177,13 +207,58 @@ function StudioContent() {
         </div>
       </header>
 
-      {/* Main workspace */}
-      <main className="studio__main">
-        <MainWorkspace
-          content={content}
-          onFindSimilar={handleFindSimilar}
-        />
-      </main>
+      {/* 3-Panel Layout: Archive | Workspace | Tools */}
+      <div
+        className={`studio-layout ${
+          !panelState.archiveOpen && !panelState.toolsOpen
+            ? 'studio-layout--both-collapsed'
+            : !panelState.archiveOpen
+            ? 'studio-layout--archive-collapsed'
+            : !panelState.toolsOpen
+            ? 'studio-layout--tools-collapsed'
+            : ''
+        }`}
+      >
+        {/* Archive Panel (Left) */}
+        <div className={`panel panel--archive ${!panelState.archiveOpen ? 'panel--collapsed' : ''}`}>
+          <ArchivePane />
+        </div>
+
+        {/* Main Workspace (Center) */}
+        <div className="panel panel--workspace">
+          <MainWorkspace
+            content={content}
+            onFindSimilar={handleFindSimilar}
+          />
+        </div>
+
+        {/* Tools Panel (Right) */}
+        <div className={`panel panel--tools ${!panelState.toolsOpen ? 'panel--collapsed' : ''}`}>
+          <ToolsPane />
+        </div>
+      </div>
+
+      {/* Edge toggle buttons for collapsed panels */}
+      {!panelState.archiveOpen && (
+        <button
+          className="panel-toggle panel-toggle--archive"
+          onClick={toggleArchive}
+          aria-label="Open archive panel"
+          title="Open Archive (Cmd+[)"
+        >
+          ›
+        </button>
+      )}
+      {!panelState.toolsOpen && (
+        <button
+          className="panel-toggle panel-toggle--tools"
+          onClick={toggleTools}
+          aria-label="Open tools panel"
+          title="Open Tools (Cmd+])"
+        >
+          ‹
+        </button>
+      )}
 
       {/* Floating corner assistant for AUI */}
       <CornerAssistant
@@ -334,7 +409,9 @@ export function App() {
         <AuthProvider>
           <ApiProvider>
             <BufferSyncProvider>
-              <AppRoutes />
+              <PanelProvider>
+                <AppRoutes />
+              </PanelProvider>
             </BufferSyncProvider>
           </ApiProvider>
         </AuthProvider>

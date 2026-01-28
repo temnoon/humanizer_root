@@ -10,14 +10,30 @@
 
 .studio {
   min-height: 100vh;
+  height: 100vh;
   background: var(--studio-bg);
   color: var(--studio-text);
   font-family: var(--font-display);
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   transition:
     background-color 0.3s ease,
     color 0.3s ease;
+}
+
+/* The 3-panel layout fills remaining space below topbar */
+.studio .studio-layout {
+  flex: 1;
+  margin-top: 60px; /* Space for fixed topbar */
+  min-height: 0; /* Allow flex child to shrink */
+}
+
+@media (max-width: 767px) {
+  .studio .studio-layout {
+    margin-top: 52px; /* Smaller topbar on mobile */
+  }
 }
 
 /* ─────────────────────────────────────────────────────────────────────
