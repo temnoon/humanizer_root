@@ -1,7 +1,8 @@
 # Buffer-Centric Architecture Plan
 
 **Created**: January 28, 2026
-**Status**: Implementation Plan
+**Status**: ✅ COMPLETE
+**Completed**: January 28, 2026
 **Priority**: CRITICAL - This is the foundation for GUI/AUI sync
 
 ---
@@ -312,13 +313,13 @@ try {
 
 ## 8. Success Criteria
 
-- [ ] All displayed content comes from buffer
-- [ ] Archive selection populates buffer
-- [ ] Transformations update buffer
-- [ ] Undo/redo works via buffer history
-- [ ] AUI commands reflect in GUI immediately
-- [ ] GUI actions reflect in AUI context
-- [ ] No content state in individual components
+- [x] All displayed content comes from buffer
+- [x] Archive selection populates buffer
+- [x] Transformations update buffer
+- [x] Undo/redo works via buffer history
+- [x] AUI commands reflect in GUI immediately (via polling)
+- [x] GUI actions reflect in AUI context
+- [x] No content state in individual components
 
 ---
 
