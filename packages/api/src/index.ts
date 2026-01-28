@@ -59,6 +59,7 @@ import { booksRouter } from './routes/books.js';
 import { adminRouter } from './routes/admin.js';
 import { settingsRouter } from './routes/settings.js';
 import { authRouter } from './routes/auth.js';
+import { archiveRouter } from './routes/archive.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -161,6 +162,7 @@ export function createApp(): Hono<{ Variables: AuiContextVariables }> {
   app.route('/sessions', sessionsRouter);
   app.route('/sessions', buffersRouter); // Buffer routes are under /sessions/:id/buffers
   app.route('/search', searchRouter);
+  app.route('/archive', archiveRouter); // UCG archive browse/query
   app.route('/clusters', clustersRouter);
   app.route('/books', booksRouter);
   app.route('/admin', adminRouter);

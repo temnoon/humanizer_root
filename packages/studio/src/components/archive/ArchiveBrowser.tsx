@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useApi, type ArchiveNode as ApiArchiveNode, type ArchiveSource } from '../../contexts/ApiContext';
 import { useBufferSync, type ArchiveNode } from '../../contexts/BufferSyncContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -54,14 +55,25 @@ export interface TreeNode {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MOCK DATA (Replace with actual API calls)
+// API INTEGRATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function fetchArchiveTree(archiveId: string | undefined): Promise<TreeNode[]> {
-  // TODO: Replace with actual API call
-  // This would call: GET /api/archive/{archiveId}/tree
-  // Returns hierarchical tree of conversations -> messages -> media
-  return [];
+// Convert API node to TreeNode
+function apiNodeToTreeNode(node: ApiArchiveNode, level: number): TreeNode {
+  return {
+    id: node.id,
+    type: node.parentNodeId ? 'message' : 'conversation',
+    label: node.title || node.text.substring(0, 80) + (node.text.length > 80 ? '...' : ''),
+    level,
+    messageCount: undefined, // Will be populated for conversations
+    createdAt: node.sourceCreatedAt ? new Date(node.sourceCreatedAt) : undefined,
+    source: node.sourceType,
+    mediaType: node.mediaRefs?.[0]?.type as 'image' | 'audio' | 'video' | 'document' | undefined,
+    hasTranscript: false, // TODO: Check for transcript associations
+    transcriptCount: 0,
+    transcriptStatus: 'none',
+    contextMessage: node.text,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -75,36 +87,94 @@ export function ArchiveBrowser({
   onRequestTranscription,
   className = '',
 }: ArchiveBrowserProps): React.ReactElement {
+  const api = useApi();
   const { importArchiveNode } = useBufferSync();
 
+  const [sources, setSources] = useState<ArchiveSource[]>([]);
+  const [selectedSource, setSelectedSource] = useState<string | null>(null);
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchFilter, setSearchFilter] = useState('');
 
-  // Load tree data
+  // Load available sources on mount
   useEffect(() => {
-    if (archiveId) {
-      setIsLoading(true);
-      fetchArchiveTree(archiveId)
-        .then(setTree)
-        .finally(() => setIsLoading(false));
-    }
-  }, [archiveId]);
+    api.archive.getSources()
+      .then((result) => {
+        setSources(result.sources);
+        // Auto-select first source if none selected
+        if (result.sources.length > 0 && !selectedSource) {
+          setSelectedSource(result.sources[0].sourceType);
+        }
+      })
+      .catch((err) => console.error('Failed to load sources:', err));
+  }, [api.archive]);
 
-  // Toggle node expansion
-  const toggleExpand = useCallback((nodeId: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(nodeId)) {
+  // Load threads when source changes
+  useEffect(() => {
+    if (!selectedSource) {
+      setTree([]);
+      return;
+    }
+
+    setIsLoading(true);
+    api.archive.getThreads({ sourceType: selectedSource, limit: 100 })
+      .then((result) => {
+        const treeNodes: TreeNode[] = result.threads.map((thread) => ({
+          id: thread.id,
+          type: 'conversation' as const,
+          label: thread.title,
+          level: 0,
+          messageCount: undefined,
+          createdAt: thread.sourceCreatedAt ? new Date(thread.sourceCreatedAt) : undefined,
+          source: thread.sourceType,
+        }));
+        setTree(treeNodes);
+      })
+      .catch((err) => console.error('Failed to load threads:', err))
+      .finally(() => setIsLoading(false));
+  }, [selectedSource, api.archive]);
+
+  // Toggle node expansion - loads children from API when expanding
+  const toggleExpand = useCallback(async (nodeId: string) => {
+    const isCurrentlyExpanded = expandedIds.has(nodeId);
+
+    if (isCurrentlyExpanded) {
+      // Collapse - just remove from expanded set
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
         next.delete(nodeId);
-      } else {
-        next.add(nodeId);
+        return next;
+      });
+    } else {
+      // Expand - load children if not already loaded
+      const node = tree.find((n) => n.id === nodeId);
+      if (node && node.type === 'conversation' && !node.children) {
+        try {
+          const result = await api.archive.getThread(nodeId);
+          const childNodes: TreeNode[] = result.nodes
+            .filter((n) => n.id !== nodeId) // Exclude the root
+            .map((n) => apiNodeToTreeNode(n, 1));
+
+          // Update tree with children
+          setTree((prev) =>
+            prev.map((n) =>
+              n.id === nodeId ? { ...n, children: childNodes, messageCount: childNodes.length } : n
+            )
+          );
+        } catch (err) {
+          console.error('Failed to load thread:', err);
+        }
       }
-      return next;
-    });
-  }, []);
+
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        next.add(nodeId);
+        return next;
+      });
+    }
+  }, [expandedIds, tree, api.archive]);
 
   // Select node and import to buffer
   const handleSelect = useCallback(
@@ -328,6 +398,30 @@ export function ArchiveBrowser({
 
   return (
     <div className={`archive-browser ${className}`}>
+      {/* Source Selector */}
+      {sources.length > 0 && (
+        <div className="archive-browser__sources">
+          {sources.map((source) => (
+            <button
+              key={source.sourceType}
+              className={`archive-browser__source ${selectedSource === source.sourceType ? 'archive-browser__source--active' : ''}`}
+              onClick={() => setSelectedSource(source.sourceType)}
+            >
+              <span className="archive-browser__source-icon">
+                {source.sourceType === 'chatgpt' ? '🤖' :
+                 source.sourceType === 'claude' ? '🎭' :
+                 source.sourceType === 'facebook' ? '👤' :
+                 source.sourceType === 'reddit' ? '🔴' :
+                 source.sourceType === 'substack' ? '📰' :
+                 source.sourceType === 'twitter' ? '🐦' : '📁'}
+              </span>
+              <span className="archive-browser__source-name">{source.sourceType}</span>
+              <span className="archive-browser__source-count">{source.count}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Search/Filter */}
       <div className="archive-search-input">
         <div className="archive-search-input__field">

@@ -146,6 +146,56 @@ export interface ClusterSummary {
   updatedAt: string;
 }
 
+// Archive types
+export interface ArchiveNode {
+  id: string;
+  uri: string;
+  text: string;
+  fullText?: string;
+  title?: string;
+  sourceType: string;
+  sourceAdapter?: string;
+  author?: string;
+  authorRole?: 'user' | 'assistant' | 'system';
+  parentNodeId?: string;
+  threadRootId?: string;
+  hierarchyLevel: number;
+  wordCount: number;
+  tags?: string[];
+  mediaRefs?: Array<{
+    id: string;
+    type: string;
+    mimeType?: string;
+    localPath?: string;
+  }>;
+  sourceCreatedAt?: number;
+  createdAt: number;
+}
+
+export interface ArchiveSource {
+  sourceType: string;
+  count: number;
+}
+
+export interface ArchiveThread {
+  id: string;
+  title: string;
+  sourceType: string;
+  author?: string;
+  wordCount: number;
+  sourceCreatedAt?: number;
+  createdAt: number;
+}
+
+export interface ArchiveStats {
+  totalNodes: number;
+  nodesBySourceType: Record<string, number>;
+  nodesByAdapter: Record<string, number>;
+  nodesWithEmbeddings: number;
+  totalLinks: number;
+  totalJobs: number;
+}
+
 export interface BookSummary {
   id: string;
   title: string;
@@ -470,6 +520,26 @@ export interface ApiClient {
     type: 'positive' | 'negative'
   ) => Promise<{ id: string; type: string }>;
 
+  // Archive (UCG browsing)
+  archive: {
+    browse: (options?: {
+      sourceType?: string;
+      threadRootId?: string;
+      parentNodeId?: string;
+      hierarchyLevel?: number;
+      authorRole?: 'user' | 'assistant' | 'system';
+      limit?: number;
+      offset?: number;
+      orderBy?: 'createdAt' | 'sourceCreatedAt' | 'importedAt' | 'wordCount';
+      orderDir?: 'asc' | 'desc';
+    }) => Promise<{ nodes: ArchiveNode[]; total: number; hasMore: boolean }>;
+    getSources: () => Promise<{ sources: ArchiveSource[]; total: number }>;
+    getThreads: (options?: { sourceType?: string; limit?: number; offset?: number }) => Promise<{ threads: ArchiveThread[]; total: number; hasMore: boolean }>;
+    getThread: (threadId: string) => Promise<{ threadId: string; nodes: ArchiveNode[]; count: number }>;
+    getNode: (nodeId: string) => Promise<{ node: ArchiveNode }>;
+    getStats: () => Promise<ArchiveStats>;
+  };
+
   // Clusters
   listClusters: (options?: { userId?: string; limit?: number }) => Promise<{ clusters: ClusterSummary[] }>;
   discoverClusters: (options?: {
@@ -651,6 +721,18 @@ export function ApiProvider({ baseUrl = 'http://localhost:3030', children }: Api
         client.post('search/similar', { json: { sessionId, text, ...options } }).json(),
       addAnchor: (sessionId, resultId, type) =>
         client.post('search/anchor', { json: { sessionId, resultId, type } }).json(),
+
+      // Archive (UCG browsing)
+      archive: {
+        browse: (options) =>
+          client.get('archive/browse', { searchParams: options as Record<string, string | number> ?? {} }).json(),
+        getSources: () => client.get('archive/sources').json(),
+        getThreads: (options) =>
+          client.get('archive/threads', { searchParams: options as Record<string, string | number> ?? {} }).json(),
+        getThread: (threadId) => client.get(`archive/thread/${threadId}`).json(),
+        getNode: (nodeId) => client.get(`archive/node/${nodeId}`).json(),
+        getStats: () => client.get('archive/stats').json(),
+      },
 
       // Clusters
       listClusters: (options) => client.get('clusters', { searchParams: options }).json(),
