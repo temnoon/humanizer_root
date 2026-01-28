@@ -216,6 +216,17 @@ export {
   type SensitivityPattern,
 } from './archive-subset-service.js';
 
+// Re-export transcription service
+export {
+  createTranscriptionMethods,
+  initTranscriptionMethods,
+  getTranscriptionMethods,
+  resetTranscriptionMethods,
+  type TranscriptionMethods,
+  type TranscriptionServiceDependencies,
+  type StartTranscriptionResult,
+} from './transcription.js';
+
 // Re-export subset exporter service
 export {
   SubsetExporterService,

@@ -154,6 +154,201 @@ CREATE TABLE IF NOT EXISTS aui_book_chapters (
 `;
 
 // ═══════════════════════════════════════════════════════════════════
+// TRANSCRIPTION TABLES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Transcription versions table - immutable transcription records
+ * Supports multiple versions per media item with model provenance tracking
+ *
+ * FIRST-CLASS CITIZEN: Transcripts are embedded into the universal content space
+ * and searchable alongside conversations, posts, and other content.
+ */
+export function createAuiTranscriptionVersionsTable(dimension: number): string {
+  return `
+CREATE TABLE IF NOT EXISTS aui_transcription_versions (
+  -- Identity
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  media_id TEXT NOT NULL,
+  archive_id UUID NOT NULL,
+
+  -- Transcription type
+  type TEXT NOT NULL CHECK (type IN (
+    'audio',       -- Audio transcription (Whisper, etc.)
+    'ocr',         -- Image text extraction
+    'caption',     -- Image/video description
+    'description', -- Detailed content description
+    'manual'       -- Human-entered transcription
+  )),
+
+  -- Status
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN (
+    'pending',     -- Requested but not started
+    'processing',  -- Currently transcribing
+    'completed',   -- Successfully completed
+    'failed',      -- Transcription failed
+    'cancelled'    -- User cancelled
+  )),
+
+  -- Content
+  text TEXT,                    -- Full transcription text
+  segments JSONB,               -- Timestamped segments for audio/video
+  error_message TEXT,           -- Error details if failed
+
+  -- ═══════════════════════════════════════════════════════════════════
+  -- EMBEDDING (First-class citizen in universal content space)
+  -- ═══════════════════════════════════════════════════════════════════
+  embedding vector(${dimension}),  -- Vector for semantic search
+  embedding_model TEXT,            -- Model that created the embedding
+  embedding_at TIMESTAMPTZ,        -- When embedding was created
+  embedding_text_hash TEXT,        -- Hash of text that was embedded (detect stale)
+
+  -- Model provenance (CRITICAL - never lose this data)
+  model_id TEXT NOT NULL,       -- e.g., 'whisper-large-v3', 'llava:13b'
+  model_provider TEXT NOT NULL, -- e.g., 'ollama', 'openai', 'google'
+  model_version TEXT,           -- Specific version if known
+  model_variant TEXT,           -- e.g., 'large-v3', 'turbo'
+
+  -- Quality metrics
+  confidence REAL,              -- Model confidence score (0-1)
+  word_count INTEGER,           -- Word count for analytics
+  segment_count INTEGER,        -- Number of segments
+  language TEXT,                -- Detected language code
+
+  -- Versioning (CRITICAL - immutable versions)
+  version_number INTEGER NOT NULL,
+  is_preferred BOOLEAN NOT NULL DEFAULT FALSE,
+  supersedes_version_id UUID REFERENCES aui_transcription_versions(id),
+
+  -- Source context (link back to original content)
+  source_node_id UUID,          -- content_node that contains the media
+  source_message_id TEXT,       -- Original message ID if from conversation
+  source_conversation_id TEXT,  -- Original conversation ID
+  source_created_at TIMESTAMPTZ, -- When the source media was created
+
+  -- Timing
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  processing_duration_ms INTEGER,
+
+  -- Audit
+  requested_by TEXT,            -- User who requested
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- Constraints
+  CONSTRAINT unique_version_per_media
+    UNIQUE (media_id, archive_id, version_number, type)
+);
+`;
+}
+
+/**
+ * Transcription jobs table - async job queue for transcription processing
+ */
+export const CREATE_AUI_TRANSCRIPTION_JOBS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_transcription_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  media_id TEXT NOT NULL,
+  archive_id UUID NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('audio', 'ocr', 'caption', 'description', 'manual')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'completed', 'failed', 'cancelled')),
+  progress INTEGER DEFAULT 0,
+  model_id TEXT,
+  priority TEXT NOT NULL DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high')),
+  queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  result_version_id UUID REFERENCES aui_transcription_versions(id),
+  error TEXT,
+  requested_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+/**
+ * Transcription indexes for efficient querying
+ */
+export const CREATE_AUI_TRANSCRIPTION_INDEXES = `
+-- Fast lookups by media and archive
+CREATE INDEX IF NOT EXISTS idx_transcription_media
+  ON aui_transcription_versions(media_id, archive_id);
+
+-- Only one preferred version per media+type
+CREATE UNIQUE INDEX IF NOT EXISTS idx_transcription_preferred
+  ON aui_transcription_versions (media_id, archive_id, type)
+  WHERE is_preferred = TRUE;
+
+-- Processing status for job monitoring
+CREATE INDEX IF NOT EXISTS idx_transcription_status
+  ON aui_transcription_versions(status)
+  WHERE status IN ('pending', 'processing');
+
+-- Model provenance queries
+CREATE INDEX IF NOT EXISTS idx_transcription_model
+  ON aui_transcription_versions(model_provider, model_id);
+
+-- Source context lookups (navigate from transcript to original content)
+CREATE INDEX IF NOT EXISTS idx_transcription_source_node
+  ON aui_transcription_versions(source_node_id)
+  WHERE source_node_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_transcription_source_conversation
+  ON aui_transcription_versions(source_conversation_id)
+  WHERE source_conversation_id IS NOT NULL;
+
+-- Embedding status (find transcripts needing embedding)
+CREATE INDEX IF NOT EXISTS idx_transcription_needs_embedding
+  ON aui_transcription_versions(status, embedding)
+  WHERE status = 'completed' AND embedding IS NULL;
+
+-- Job queue indexes
+CREATE INDEX IF NOT EXISTS idx_transcription_jobs_status
+  ON aui_transcription_jobs(status, priority DESC, queued_at ASC)
+  WHERE status IN ('pending', 'processing');
+
+CREATE INDEX IF NOT EXISTS idx_transcription_jobs_media
+  ON aui_transcription_jobs(media_id, archive_id);
+`;
+
+/**
+ * Vector index for transcript semantic search
+ * Separate because HNSW index creation can be slow
+ */
+export const CREATE_AUI_TRANSCRIPTION_VECTOR_INDEX = `
+CREATE INDEX IF NOT EXISTS idx_transcription_embedding
+  ON aui_transcription_versions
+  USING hnsw (embedding vector_cosine_ops)
+  WITH (m = 16, ef_construction = 64);
+`;
+
+/**
+ * Auto-increment version number trigger function
+ */
+export const CREATE_AUI_TRANSCRIPTION_VERSION_TRIGGER = `
+CREATE OR REPLACE FUNCTION set_transcription_version_number()
+RETURNS TRIGGER AS $$
+BEGIN
+  SELECT COALESCE(MAX(version_number), 0) + 1
+  INTO NEW.version_number
+  FROM aui_transcription_versions
+  WHERE media_id = NEW.media_id
+    AND archive_id = NEW.archive_id
+    AND type = NEW.type;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS transcription_version_number_trigger ON aui_transcription_versions;
+
+CREATE TRIGGER transcription_version_number_trigger
+  BEFORE INSERT ON aui_transcription_versions
+  FOR EACH ROW
+  WHEN (NEW.version_number IS NULL OR NEW.version_number = 0)
+  EXECUTE FUNCTION set_transcription_version_number();
+`;
+
+// ═══════════════════════════════════════════════════════════════════
 // CLUSTER CACHE TABLE
 // ═══════════════════════════════════════════════════════════════════
 
@@ -1528,6 +1723,12 @@ export async function runAuiMigration(
   await client.query(CREATE_AUI_BOOKS_TABLE);
   await client.query(CREATE_AUI_BOOK_CHAPTERS_TABLE);
 
+  // Create transcription tables (v11) - first-class citizens in universal content space
+  await client.query(createAuiTranscriptionVersionsTable(embeddingDimension));
+  await client.query(CREATE_AUI_TRANSCRIPTION_JOBS_TABLE);
+  await client.query(CREATE_AUI_TRANSCRIPTION_INDEXES);
+  await client.query(CREATE_AUI_TRANSCRIPTION_VERSION_TRIGGER);
+
   // Create clusters table (with vector column)
   await client.query(createAuiClustersTable(embeddingDimension));
 
@@ -1611,6 +1812,11 @@ export async function runAuiMigration(
       await client.query(CREATE_AUI_DISCOVERED_PATTERNS_VECTOR_INDEX);
     } catch (error) {
       console.warn('Could not create discovered patterns vector index:', error);
+    }
+    try {
+      await client.query(CREATE_AUI_TRANSCRIPTION_VECTOR_INDEX);
+    } catch (error) {
+      console.warn('Could not create transcription vector index:', error);
     }
   }
 }
@@ -3196,4 +3402,317 @@ UPDATE aui_email_verification_tokens SET used_at = NOW() WHERE id = $1
 export const CLEANUP_AUI_EMAIL_VERIFICATION_TOKENS = `
 DELETE FROM aui_email_verification_tokens
 WHERE expires_at < NOW() OR used_at IS NOT NULL
+`;
+
+// ═══════════════════════════════════════════════════════════════════
+// TRANSCRIPTION QUERY TEMPLATES
+// ═══════════════════════════════════════════════════════════════════
+
+// Insert transcription version
+export const INSERT_AUI_TRANSCRIPTION_VERSION = `
+INSERT INTO aui_transcription_versions (
+  id, media_id, archive_id, type, status,
+  text, segments, error_message,
+  model_id, model_provider, model_version, model_variant,
+  confidence, word_count, segment_count, language,
+  version_number, is_preferred, supersedes_version_id,
+  requested_at, started_at, completed_at, processing_duration_ms,
+  requested_by
+)
+VALUES (
+  $1, $2, $3, $4, $5,
+  $6, $7, $8,
+  $9, $10, $11, $12,
+  $13, $14, $15, $16,
+  $17, $18, $19,
+  $20, $21, $22, $23,
+  $24
+)
+RETURNING *
+`;
+
+// Get transcription version by ID
+export const GET_AUI_TRANSCRIPTION_VERSION = `
+SELECT * FROM aui_transcription_versions WHERE id = $1
+`;
+
+// Get transcription versions for a media item
+export const GET_AUI_TRANSCRIPTION_VERSIONS_FOR_MEDIA = `
+SELECT * FROM aui_transcription_versions
+WHERE media_id = $1 AND archive_id = $2
+ORDER BY type, version_number DESC
+`;
+
+// Get preferred transcription version for media+type
+export const GET_AUI_PREFERRED_TRANSCRIPTION = `
+SELECT * FROM aui_transcription_versions
+WHERE media_id = $1 AND archive_id = $2 AND type = $3 AND is_preferred = TRUE
+LIMIT 1
+`;
+
+// List transcription versions with filters
+export const LIST_AUI_TRANSCRIPTION_VERSIONS = `
+SELECT * FROM aui_transcription_versions
+WHERE ($1::text IS NULL OR media_id = $1)
+  AND ($2::uuid IS NULL OR archive_id = $2)
+  AND ($3::text IS NULL OR type = $3)
+  AND ($4::text IS NULL OR status = $4)
+  AND ($5::boolean IS NULL OR is_preferred = $5)
+ORDER BY created_at DESC
+LIMIT $6 OFFSET $7
+`;
+
+// Update transcription status (during processing)
+export const UPDATE_AUI_TRANSCRIPTION_STATUS = `
+UPDATE aui_transcription_versions SET
+  status = $2,
+  started_at = COALESCE($3, started_at),
+  completed_at = $4,
+  processing_duration_ms = $5,
+  error_message = $6
+WHERE id = $1
+RETURNING *
+`;
+
+// Update transcription content (on completion)
+export const UPDATE_AUI_TRANSCRIPTION_CONTENT = `
+UPDATE aui_transcription_versions SET
+  status = 'completed',
+  text = $2,
+  segments = $3,
+  confidence = $4,
+  word_count = $5,
+  segment_count = $6,
+  language = $7,
+  completed_at = NOW(),
+  processing_duration_ms = EXTRACT(EPOCH FROM (NOW() - started_at)) * 1000
+WHERE id = $1
+RETURNING *
+`;
+
+// Set preferred version (clears previous preferred for same media+type)
+export const CLEAR_AUI_PREFERRED_TRANSCRIPTION = `
+UPDATE aui_transcription_versions
+SET is_preferred = FALSE
+WHERE media_id = $1 AND archive_id = $2 AND type = $3 AND is_preferred = TRUE
+RETURNING id
+`;
+
+export const SET_AUI_PREFERRED_TRANSCRIPTION = `
+UPDATE aui_transcription_versions
+SET is_preferred = TRUE
+WHERE id = $1
+RETURNING *
+`;
+
+// Get transcription summary for a media item
+export const GET_AUI_TRANSCRIPTION_SUMMARY = `
+SELECT
+  media_id,
+  COUNT(*) as total_count,
+  jsonb_object_agg(type, type_count) as count_by_type,
+  jsonb_object_agg(type, preferred_id) FILTER (WHERE is_preferred) as preferred_by_type,
+  MAX(created_at) as latest_at
+FROM (
+  SELECT
+    media_id,
+    type,
+    COUNT(*) OVER (PARTITION BY type) as type_count,
+    CASE WHEN is_preferred THEN id END as preferred_id,
+    created_at,
+    is_preferred
+  FROM aui_transcription_versions
+  WHERE media_id = $1 AND archive_id = $2
+) sub
+GROUP BY media_id
+`;
+
+// Delete transcription version
+export const DELETE_AUI_TRANSCRIPTION_VERSION = `
+DELETE FROM aui_transcription_versions WHERE id = $1
+`;
+
+// Delete all transcriptions for a media item
+export const DELETE_AUI_TRANSCRIPTIONS_FOR_MEDIA = `
+DELETE FROM aui_transcription_versions
+WHERE media_id = $1 AND archive_id = $2
+`;
+
+// Transcription jobs
+export const INSERT_AUI_TRANSCRIPTION_JOB = `
+INSERT INTO aui_transcription_jobs (
+  id, media_id, archive_id, type, status, model_id, priority, requested_by
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING *
+`;
+
+export const GET_AUI_TRANSCRIPTION_JOB = `
+SELECT * FROM aui_transcription_jobs WHERE id = $1
+`;
+
+export const UPDATE_AUI_TRANSCRIPTION_JOB = `
+UPDATE aui_transcription_jobs SET
+  status = COALESCE($2, status),
+  progress = COALESCE($3, progress),
+  started_at = COALESCE($4, started_at),
+  completed_at = $5,
+  result_version_id = $6,
+  error = $7
+WHERE id = $1
+RETURNING *
+`;
+
+export const GET_AUI_PENDING_TRANSCRIPTION_JOBS = `
+SELECT * FROM aui_transcription_jobs
+WHERE status IN ('pending', 'processing')
+ORDER BY
+  CASE priority
+    WHEN 'high' THEN 1
+    WHEN 'normal' THEN 2
+    WHEN 'low' THEN 3
+  END,
+  queued_at ASC
+LIMIT $1
+`;
+
+export const GET_AUI_TRANSCRIPTION_JOBS_FOR_MEDIA = `
+SELECT * FROM aui_transcription_jobs
+WHERE media_id = $1 AND archive_id = $2
+ORDER BY created_at DESC
+`;
+
+export const DELETE_AUI_TRANSCRIPTION_JOB = `
+DELETE FROM aui_transcription_jobs WHERE id = $1
+`;
+
+export const CLEANUP_AUI_COMPLETED_TRANSCRIPTION_JOBS = `
+DELETE FROM aui_transcription_jobs
+WHERE status IN ('completed', 'failed', 'cancelled')
+  AND completed_at < NOW() - INTERVAL '7 days'
+`;
+
+// ═══════════════════════════════════════════════════════════════════
+// TRANSCRIPTION EMBEDDING QUERIES (First-class citizen support)
+// ═══════════════════════════════════════════════════════════════════
+
+// Update embedding for a transcription version
+export const UPDATE_AUI_TRANSCRIPTION_EMBEDDING = `
+UPDATE aui_transcription_versions
+SET embedding = $2,
+    embedding_model = $3,
+    embedding_at = NOW(),
+    embedding_text_hash = $4
+WHERE id = $1
+RETURNING *
+`;
+
+// Get transcriptions needing embedding
+export const GET_AUI_TRANSCRIPTIONS_NEEDING_EMBEDDING = `
+SELECT id, text, word_count
+FROM aui_transcription_versions
+WHERE status = 'completed'
+  AND text IS NOT NULL
+  AND embedding IS NULL
+ORDER BY created_at ASC
+LIMIT $1
+`;
+
+// Get transcriptions with stale embeddings (text changed)
+export const GET_AUI_TRANSCRIPTIONS_STALE_EMBEDDING = `
+SELECT id, text, word_count, embedding_text_hash
+FROM aui_transcription_versions
+WHERE status = 'completed'
+  AND text IS NOT NULL
+  AND embedding IS NOT NULL
+  AND embedding_text_hash != md5(text)
+ORDER BY created_at ASC
+LIMIT $1
+`;
+
+// Update source context for linking transcription to original content
+export const UPDATE_AUI_TRANSCRIPTION_SOURCE_CONTEXT = `
+UPDATE aui_transcription_versions
+SET source_node_id = COALESCE($2, source_node_id),
+    source_conversation_id = COALESCE($3, source_conversation_id),
+    source_created_at = COALESCE($4, source_created_at)
+WHERE id = $1
+RETURNING *
+`;
+
+// Vector similarity search on transcriptions
+export const VECTOR_SEARCH_AUI_TRANSCRIPTIONS = `
+SELECT
+  tv.id,
+  tv.media_id,
+  tv.archive_id,
+  tv.type,
+  tv.text,
+  tv.model_id,
+  tv.model_provider,
+  tv.source_node_id,
+  tv.source_conversation_id,
+  tv.source_created_at,
+  tv.created_at,
+  1 - (tv.embedding <=> $1::vector) as similarity
+FROM aui_transcription_versions tv
+WHERE tv.embedding IS NOT NULL
+  AND tv.status = 'completed'
+  AND tv.is_preferred = TRUE
+  AND ($2::uuid IS NULL OR tv.archive_id = $2)
+ORDER BY tv.embedding <=> $1::vector
+LIMIT $3
+`;
+
+// Combined search: transcriptions + content_nodes (unified search)
+// This allows searching transcripts alongside conversations/posts
+export const VECTOR_SEARCH_UNIFIED_CONTENT = `
+WITH transcript_results AS (
+  SELECT
+    tv.id,
+    'transcript' as content_type,
+    tv.text,
+    tv.media_id as source_id,
+    tv.source_conversation_id,
+    tv.source_created_at as created_at,
+    tv.type as transcript_type,
+    1 - (tv.embedding <=> $1::vector) as similarity
+  FROM aui_transcription_versions tv
+  WHERE tv.embedding IS NOT NULL
+    AND tv.status = 'completed'
+    AND tv.is_preferred = TRUE
+),
+node_results AS (
+  SELECT
+    cn.id,
+    'content_node' as content_type,
+    cn.text,
+    cn.source_original_id as source_id,
+    cn.thread_root_id::text as source_conversation_id,
+    cn.source_created_at as created_at,
+    cn.source_type as transcript_type,
+    1 - (cn.embedding <=> $1::vector) as similarity
+  FROM content_nodes cn
+  WHERE cn.embedding IS NOT NULL
+)
+SELECT * FROM (
+  SELECT * FROM transcript_results
+  UNION ALL
+  SELECT * FROM node_results
+) combined
+ORDER BY similarity DESC
+LIMIT $2
+`;
+
+// Get transcript with full source context
+export const GET_AUI_TRANSCRIPTION_WITH_CONTEXT = `
+SELECT
+  tv.*,
+  cn.title as source_title,
+  cn.author as source_author,
+  cn.source_created_at as source_date,
+  cn.tags as source_tags
+FROM aui_transcription_versions tv
+LEFT JOIN content_nodes cn ON tv.source_node_id = cn.id
+WHERE tv.id = $1
 `;

@@ -354,14 +354,24 @@ export const MAX_BUFFER_ITEMS = 10_000;
  * Tools that are considered destructive and require approval.
  */
 export const DESTRUCTIVE_TOOLS = [
+  // Buffer tools
   'buffer_delete',
   'buffer_rollback',
   'buffer_branch_delete',
   'buffer_merge',
+  // Admin tools
   'admin_config_set',
   'admin_tier_set',
   'admin_user_tier_set',
   'admin_prompt_set',
+  // Drafting tools
+  'draft_delete',
+  // Media/transcription tools
+  'transcription_delete',
+  'media_delete',
+  // Book tools
+  'book_delete',
+  'chapter_delete',
 ] as const;
 
 /**

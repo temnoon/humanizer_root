@@ -41,3 +41,6 @@ export * from './drafting-types.js';
 
 // Archive subset types
 export * from './subset-types.js';
+
+// Transcription types
+export * from './transcription-types.js';

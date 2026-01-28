@@ -1,0 +1,530 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   STUDIO PANEL LAYOUT
+   3-panel grid with responsive bottom sheets on mobile
+   Supports: Archive (left), Workspace (center), Tools (right)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Panel-specific Design Tokens (extend theme.css)
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  /* Panel widths */
+  --panel-archive-width: 280px;
+  --panel-archive-min: 200px;
+  --panel-archive-max: 400px;
+  --panel-tools-width: 320px;
+  --panel-tools-min: 280px;
+  --panel-tools-max: 480px;
+
+  /* Mobile sheet heights */
+  --sheet-peek-height: 60px;
+  --sheet-partial-height: 40vh;
+  --sheet-handle-height: 24px;
+
+  /* Z-index stack for sheets */
+  --z-sheet-archive: 998;
+  --z-sheet-tools: 999;
+  --z-sheet-overlay: 997;
+
+  /* Animation durations */
+  --panel-transition-duration: 200ms;
+  --sheet-transition-duration: 300ms;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   DESKTOP LAYOUT (>=768px)
+   ───────────────────────────────────────────────────────────────────────────── */
+.studio-layout {
+  display: grid;
+  grid-template-columns: var(--panel-archive-width) 1fr var(--panel-tools-width);
+  grid-template-rows: 1fr;
+  grid-template-areas: "archive workspace tools";
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--studio-bg);
+}
+
+/* Panel collapse states */
+.studio-layout--archive-collapsed {
+  grid-template-columns: 0 1fr var(--panel-tools-width);
+}
+
+.studio-layout--tools-collapsed {
+  grid-template-columns: var(--panel-archive-width) 1fr 0;
+}
+
+.studio-layout--both-collapsed {
+  grid-template-columns: 0 1fr 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PANELS (Base Styles)
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--studio-panel-bg);
+  overflow: hidden;
+  transition: width var(--panel-transition-duration) ease,
+              opacity var(--panel-transition-duration) ease;
+}
+
+.panel--archive {
+  grid-area: archive;
+  border-right: 1px solid var(--studio-border);
+  min-width: 0;
+}
+
+.panel--workspace {
+  grid-area: workspace;
+  min-width: 0;
+}
+
+.panel--tools {
+  grid-area: tools;
+  border-left: 1px solid var(--studio-border);
+  min-width: 0;
+}
+
+/* Collapsed state (desktop) */
+.panel--collapsed {
+  width: 0;
+  opacity: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PANEL HEADER
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--studio-border);
+  background: var(--studio-surface);
+  min-height: 48px;
+  flex-shrink: 0;
+}
+
+.panel__title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--studio-text);
+  margin: 0;
+}
+
+.panel__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PANEL TABS
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel__tabs {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--studio-border);
+  background: var(--studio-surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.panel__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.panel__tab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) var(--space-sm);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--studio-text-secondary);
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: var(--touch-target-min);
+  transition: all 150ms ease;
+}
+
+.panel__tab:hover {
+  background: var(--studio-hover);
+  color: var(--studio-text);
+}
+
+.panel__tab:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 2px;
+}
+
+.panel__tab--active {
+  background: var(--studio-accent);
+  color: var(--studio-accent-text);
+}
+
+.panel__tab--active:hover {
+  background: var(--studio-accent-hover);
+  color: var(--studio-accent-text);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PANEL CONTENT
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel__content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--studio-border) transparent;
+}
+
+.panel__content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.panel__content::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.panel__content::-webkit-scrollbar-thumb {
+  background: var(--studio-border);
+  border-radius: var(--radius-full);
+}
+
+.panel__content::-webkit-scrollbar-thumb:hover {
+  background: var(--studio-text-tertiary);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   RESIZE HANDLES (Desktop only)
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel__resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 150ms ease;
+  z-index: 10;
+}
+
+.panel__resize-handle:hover,
+.panel__resize-handle--dragging {
+  background: var(--studio-accent);
+}
+
+.panel--archive .panel__resize-handle {
+  right: -2px;
+}
+
+.panel--tools .panel__resize-handle {
+  left: -2px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   COLLAPSE BUTTONS
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel__collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: transparent;
+  border: 1px solid var(--studio-border);
+  border-radius: var(--radius-sm);
+  color: var(--studio-text-secondary);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.panel__collapse-btn:hover {
+  background: var(--studio-hover);
+  color: var(--studio-text);
+}
+
+.panel__collapse-btn:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 2px;
+}
+
+/* Edge toggle buttons (when panel is collapsed) */
+.panel-toggle {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 64px;
+  background: var(--studio-panel-bg);
+  border: 1px solid var(--studio-border);
+  color: var(--studio-text-secondary);
+  cursor: pointer;
+  z-index: 100;
+  transition: all 150ms ease;
+}
+
+.panel-toggle--archive {
+  left: 0;
+  border-left: none;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.panel-toggle--tools {
+  right: 0;
+  border-right: none;
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.panel-toggle:hover {
+  background: var(--studio-hover);
+  color: var(--studio-text);
+}
+
+.panel-toggle:focus-visible {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: 2px;
+}
+
+/* Hide edge toggles when panel is open */
+.studio-layout:not(.studio-layout--archive-collapsed):not(.studio-layout--both-collapsed) .panel-toggle--archive,
+.studio-layout:not(.studio-layout--tools-collapsed):not(.studio-layout--both-collapsed) .panel-toggle--tools {
+  display: none;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MOBILE LAYOUT (<768px)
+   Panels become bottom sheets
+   ───────────────────────────────────────────────────────────────────────────── */
+@media (max-width: 767px) {
+  .studio-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas: "workspace";
+  }
+
+  /* Hide desktop panels on mobile */
+  .panel--archive,
+  .panel--tools {
+    display: none;
+  }
+
+  /* Show mobile sheet versions */
+  .panel--archive.panel--mobile-sheet,
+  .panel--tools.panel--mobile-sheet {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    border: none;
+    border-top: 1px solid var(--studio-border);
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
+    transform: translateY(calc(100% - var(--sheet-peek-height)));
+    transition: transform var(--sheet-transition-duration) ease-out;
+    max-height: calc(100vh - 60px);
+  }
+
+  .panel--archive.panel--mobile-sheet {
+    z-index: var(--z-sheet-archive);
+  }
+
+  .panel--tools.panel--mobile-sheet {
+    z-index: var(--z-sheet-tools);
+  }
+
+  /* Sheet states */
+  .panel--sheet-partial {
+    transform: translateY(calc(100% - var(--sheet-partial-height)));
+  }
+
+  .panel--sheet-expanded {
+    transform: translateY(0);
+  }
+
+  /* Hide resize handles on mobile */
+  .panel__resize-handle {
+    display: none;
+  }
+
+  /* Hide desktop collapse buttons */
+  .panel__collapse-btn {
+    display: none;
+  }
+
+  /* Hide edge toggles on mobile */
+  .panel-toggle {
+    display: none;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SHEET HANDLE (Mobile)
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel__sheet-handle {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .panel__sheet-handle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-sm);
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .panel__sheet-handle:active {
+    cursor: grabbing;
+  }
+
+  .panel__sheet-handle-bar {
+    width: 36px;
+    height: 4px;
+    background: var(--studio-text-tertiary);
+    border-radius: var(--radius-full);
+    margin-bottom: var(--space-xs);
+  }
+
+  .panel__sheet-handle-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--studio-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SHEET BACKDROP (Mobile)
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel-backdrop {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .panel-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: var(--z-sheet-overlay);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--sheet-transition-duration) ease-out;
+  }
+
+  .panel-backdrop--visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   ACCESSIBILITY
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .panel,
+  .panel--archive.panel--mobile-sheet,
+  .panel--tools.panel--mobile-sheet,
+  .panel-backdrop {
+    transition: none;
+  }
+}
+
+/* Focus management */
+.panel[data-focused="true"] {
+  outline: 2px solid var(--studio-accent);
+  outline-offset: -2px;
+}
+
+/* Screen reader only */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   LOADING STATES
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  color: var(--studio-text-tertiary);
+}
+
+.panel__loading-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--studio-border);
+  border-top-color: var(--studio-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   EMPTY STATES
+   ───────────────────────────────────────────────────────────────────────────── */
+.panel__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xl);
+  text-align: center;
+  color: var(--studio-text-tertiary);
+}
+
+.panel__empty-icon {
+  font-size: 2rem;
+  margin-bottom: var(--space-md);
+  opacity: 0.5;
+}
+
+.panel__empty-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--studio-text-secondary);
+  margin-bottom: var(--space-xs);
+}
+
+.panel__empty-description {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}

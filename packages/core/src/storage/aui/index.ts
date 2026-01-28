@@ -21,6 +21,19 @@ import { createBookMethods, type BookStoreMethods } from './books.js';
 import { createClusterArtifactMethods, type ClusterArtifactStoreMethods } from './clusters-artifacts.js';
 import { createPersonaStyleMethods, type PersonaStyleStoreMethods } from './persona-style.js';
 import { createContentBufferMethods, type ContentBufferStoreMethods } from './content-buffers.js';
+import {
+  createTranscriptionMethods,
+  type TranscriptionStoreMethods,
+  type DbTranscriptionVersionRow,
+  type DbTranscriptionJobRow,
+  type DbTranscriptionNeedingEmbeddingRow,
+  type DbTranscriptionStaleEmbeddingRow,
+  type TranscriptionNeedingEmbedding,
+  type TranscriptionStaleEmbedding,
+  type TranscriptionSourceContext,
+  rowToTranscriptionVersion,
+  rowToTranscriptionJob,
+} from './transcriptions.js';
 import { type AuiPostgresStoreOptions, DEFAULT_STORE_OPTIONS } from './types.js';
 
 // Re-export method interfaces
@@ -32,7 +45,20 @@ export type {
   ClusterArtifactStoreMethods,
   PersonaStyleStoreMethods,
   ContentBufferStoreMethods,
+  TranscriptionStoreMethods,
 };
+
+// Re-export transcription types
+export type {
+  DbTranscriptionVersionRow,
+  DbTranscriptionJobRow,
+  DbTranscriptionNeedingEmbeddingRow,
+  DbTranscriptionStaleEmbeddingRow,
+  TranscriptionNeedingEmbedding,
+  TranscriptionStaleEmbedding,
+  TranscriptionSourceContext,
+};
+export { rowToTranscriptionVersion, rowToTranscriptionJob };
 
 // ═══════════════════════════════════════════════════════════════════
 // AUI POSTGRES STORE
@@ -60,7 +86,8 @@ export class AuiPostgresStore
     BookStoreMethods,
     ClusterArtifactStoreMethods,
     PersonaStyleStoreMethods,
-    ContentBufferStoreMethods
+    ContentBufferStoreMethods,
+    TranscriptionStoreMethods
 {
   private pool: Pool;
   private options: Required<AuiPostgresStoreOptions>;
@@ -73,6 +100,7 @@ export class AuiPostgresStore
   private clusterArtifactMethods: ClusterArtifactStoreMethods;
   private personaStyleMethods: PersonaStyleStoreMethods;
   private contentBufferMethods: ContentBufferStoreMethods;
+  private transcriptionMethods: TranscriptionStoreMethods;
 
   constructor(pool: Pool, options: AuiPostgresStoreOptions = {}) {
     this.pool = pool;
@@ -86,6 +114,7 @@ export class AuiPostgresStore
     this.clusterArtifactMethods = createClusterArtifactMethods(pool, this.options);
     this.personaStyleMethods = createPersonaStyleMethods(pool);
     this.contentBufferMethods = createContentBufferMethods(pool);
+    this.transcriptionMethods = createTranscriptionMethods(pool);
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -282,6 +311,56 @@ export class AuiPostgresStore
     this.contentBufferMethods.deleteBufferOperation(...args);
   loadFullProvenanceChain: ContentBufferStoreMethods['loadFullProvenanceChain'] = (...args) =>
     this.contentBufferMethods.loadFullProvenanceChain(...args);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // TRANSCRIPTION METHODS (delegated)
+  // ═══════════════════════════════════════════════════════════════════
+
+  createTranscriptionVersion: TranscriptionStoreMethods['createTranscriptionVersion'] = (...args) =>
+    this.transcriptionMethods.createTranscriptionVersion(...args);
+  getTranscriptionVersion: TranscriptionStoreMethods['getTranscriptionVersion'] = (...args) =>
+    this.transcriptionMethods.getTranscriptionVersion(...args);
+  getTranscriptionVersionsForMedia: TranscriptionStoreMethods['getTranscriptionVersionsForMedia'] = (...args) =>
+    this.transcriptionMethods.getTranscriptionVersionsForMedia(...args);
+  getPreferredTranscription: TranscriptionStoreMethods['getPreferredTranscription'] = (...args) =>
+    this.transcriptionMethods.getPreferredTranscription(...args);
+  listTranscriptionVersions: TranscriptionStoreMethods['listTranscriptionVersions'] = (...args) =>
+    this.transcriptionMethods.listTranscriptionVersions(...args);
+  setPreferredTranscriptionVersion: TranscriptionStoreMethods['setPreferredTranscriptionVersion'] = (...args) =>
+    this.transcriptionMethods.setPreferredTranscriptionVersion(...args);
+  deleteTranscriptionVersion: TranscriptionStoreMethods['deleteTranscriptionVersion'] = (...args) =>
+    this.transcriptionMethods.deleteTranscriptionVersion(...args);
+  deleteTranscriptionsForMedia: TranscriptionStoreMethods['deleteTranscriptionsForMedia'] = (...args) =>
+    this.transcriptionMethods.deleteTranscriptionsForMedia(...args);
+  updateTranscriptionStatus: TranscriptionStoreMethods['updateTranscriptionStatus'] = (...args) =>
+    this.transcriptionMethods.updateTranscriptionStatus(...args);
+  completeTranscription: TranscriptionStoreMethods['completeTranscription'] = (...args) =>
+    this.transcriptionMethods.completeTranscription(...args);
+  getTranscriptionSummary: TranscriptionStoreMethods['getTranscriptionSummary'] = (...args) =>
+    this.transcriptionMethods.getTranscriptionSummary(...args);
+  createTranscriptionJob: TranscriptionStoreMethods['createTranscriptionJob'] = (...args) =>
+    this.transcriptionMethods.createTranscriptionJob(...args);
+  getTranscriptionJob: TranscriptionStoreMethods['getTranscriptionJob'] = (...args) =>
+    this.transcriptionMethods.getTranscriptionJob(...args);
+  updateTranscriptionJob: TranscriptionStoreMethods['updateTranscriptionJob'] = (...args) =>
+    this.transcriptionMethods.updateTranscriptionJob(...args);
+  getPendingTranscriptionJobs: TranscriptionStoreMethods['getPendingTranscriptionJobs'] = (...args) =>
+    this.transcriptionMethods.getPendingTranscriptionJobs(...args);
+  getTranscriptionJobsForMedia: TranscriptionStoreMethods['getTranscriptionJobsForMedia'] = (...args) =>
+    this.transcriptionMethods.getTranscriptionJobsForMedia(...args);
+  deleteTranscriptionJob: TranscriptionStoreMethods['deleteTranscriptionJob'] = (...args) =>
+    this.transcriptionMethods.deleteTranscriptionJob(...args);
+  cleanupCompletedTranscriptionJobs: TranscriptionStoreMethods['cleanupCompletedTranscriptionJobs'] = (...args) =>
+    this.transcriptionMethods.cleanupCompletedTranscriptionJobs(...args);
+  // Embedding management (first-class citizen in universal content space)
+  updateTranscriptionEmbedding: TranscriptionStoreMethods['updateTranscriptionEmbedding'] = (...args) =>
+    this.transcriptionMethods.updateTranscriptionEmbedding(...args);
+  getTranscriptionsNeedingEmbedding: TranscriptionStoreMethods['getTranscriptionsNeedingEmbedding'] = (...args) =>
+    this.transcriptionMethods.getTranscriptionsNeedingEmbedding(...args);
+  getTranscriptionsWithStaleEmbedding: TranscriptionStoreMethods['getTranscriptionsWithStaleEmbedding'] = (...args) =>
+    this.transcriptionMethods.getTranscriptionsWithStaleEmbedding(...args);
+  updateSourceContext: TranscriptionStoreMethods['updateSourceContext'] = (...args) =>
+    this.transcriptionMethods.updateSourceContext(...args);
 
   // ═══════════════════════════════════════════════════════════════════
   // CLEANUP

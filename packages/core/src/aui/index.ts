@@ -514,3 +514,51 @@ export {
   getProviderConfigService,
   resetProviderConfigService,
 } from './service/provider-config-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOOL REGISTRY (Phase 7 - Agentic Loop Tools)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type ToolHandler,
+  type ToolRegistration,
+  type ToolRegistryDependencies,
+
+  // Registry class
+  ToolRegistry,
+  initToolRegistry,
+  getToolRegistry,
+  resetToolRegistry,
+  createToolExecutorFromRegistry,
+} from './tool-registry.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOOL DEFINITIONS (Phase 7 - Agentic Loop Tools)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Tool definitions by category
+  DRAFTING_TOOLS,
+  SEARCH_TOOLS,
+  MEDIA_TOOLS,
+  BOOK_TOOLS,
+  ALL_TOOL_DEFINITIONS,
+  TOOL_CATEGORIES,
+
+  // Helpers
+  getToolsByCategory,
+  getToolDefinition,
+  isDestructiveTool,
+} from './tool-definitions.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TOOL HANDLERS (Phase 7 - Agentic Loop Tools)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  createDraftingToolHandlers,
+  createSearchToolHandlers,
+  createMediaToolHandlers,
+  createBookToolHandlers,
+} from './tools/index.js';

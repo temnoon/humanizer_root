@@ -29,12 +29,16 @@
 @import './studio.css';
 @import './topbar.css';
 @import './workspace.css';
+@import './panels.css';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    FEATURES
    Feature-specific styles
    ═══════════════════════════════════════════════════════════════════════════ */
 @import './welcome.css';
+@import './archive-pane.css';
+@import './tools-pane.css';
+@import './media-gallery.css';
 
 /* ═══════════════════════════════════════════════════════════════════════════
    COMPONENTS
