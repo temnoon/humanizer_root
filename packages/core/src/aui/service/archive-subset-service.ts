@@ -32,6 +32,95 @@ import type {
 import type { StoredNode, QueryOptions, AuthorRole } from '../../storage/types';
 
 // ═══════════════════════════════════════════════════════════════════
+// TIER DEFINITIONS
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * User tier type for feature gating
+ */
+export type UserTier = 'free' | 'member' | 'pro' | 'premium' | 'admin';
+
+/**
+ * Tier hierarchy for comparison (higher = more access)
+ */
+const TIER_HIERARCHY: Record<UserTier, number> = {
+  free: 0,
+  member: 1,
+  pro: 2,
+  premium: 3,
+  admin: 4,
+};
+
+/**
+ * Feature requirements by tier
+ */
+export const SUBSET_TIER_LIMITS: Record<UserTier, {
+  maxSubsets: number;
+  maxNodesPerSubset: number;
+  allowedExportFormats: SubsetExportFormat[];
+  allowedDestinations: ('local' | 'cloudflare-r2' | 'google-drive')[];
+  canShare: boolean;
+  canRedact: boolean;
+}> = {
+  free: {
+    maxSubsets: 3,
+    maxNodesPerSubset: 100,
+    allowedExportFormats: ['json'],
+    allowedDestinations: ['local'],
+    canShare: false,
+    canRedact: false,
+  },
+  member: {
+    maxSubsets: 10,
+    maxNodesPerSubset: 1000,
+    allowedExportFormats: ['json', 'jsonl', 'markdown'],
+    allowedDestinations: ['local'],
+    canShare: false,
+    canRedact: true,
+  },
+  pro: {
+    maxSubsets: 50,
+    maxNodesPerSubset: 10000,
+    allowedExportFormats: ['json', 'jsonl', 'markdown', 'html'],
+    allowedDestinations: ['local', 'cloudflare-r2'],
+    canShare: true,
+    canRedact: true,
+  },
+  premium: {
+    maxSubsets: -1, // unlimited
+    maxNodesPerSubset: -1, // unlimited
+    allowedExportFormats: ['json', 'jsonl', 'markdown', 'html', 'sqlite', 'archive'],
+    allowedDestinations: ['local', 'cloudflare-r2', 'google-drive'],
+    canShare: true,
+    canRedact: true,
+  },
+  admin: {
+    maxSubsets: -1,
+    maxNodesPerSubset: -1,
+    allowedExportFormats: ['json', 'jsonl', 'markdown', 'html', 'sqlite', 'archive'],
+    allowedDestinations: ['local', 'cloudflare-r2', 'google-drive'],
+    canShare: true,
+    canRedact: true,
+  },
+};
+
+/**
+ * Check if user tier meets minimum requirement
+ */
+export function meetsMinimumTier(userTier: UserTier, requiredTier: UserTier): boolean {
+  return TIER_HIERARCHY[userTier] >= TIER_HIERARCHY[requiredTier];
+}
+
+/**
+ * Result of tier check
+ */
+export interface TierCheckResult {
+  allowed: boolean;
+  reason?: string;
+  requiredTier?: UserTier;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════
 
@@ -43,6 +132,8 @@ export interface CreateSubsetOptions {
   sharingMode?: SubsetSharingMode;
   cloudDestination?: CloudDestination;
   encryption?: SubsetEncryption;
+  /** User's tier for feature gating (defaults to 'free' if not provided) */
+  userTier?: UserTier;
 }
 
 export interface UpdateSubsetOptions {
@@ -100,8 +191,51 @@ export class ArchiveSubsetService {
 
   /**
    * Create a new archive subset
+   *
+   * @throws {Error} If user has reached their subset limit for their tier
+   * @throws {Error} If requested features exceed tier permissions
    */
   async createSubset(userId: string, options: CreateSubsetOptions): Promise<ArchiveSubset> {
+    const userTier = options.userTier ?? 'free';
+    const tierLimits = SUBSET_TIER_LIMITS[userTier];
+
+    // Check if user has reached their subset limit
+    if (tierLimits.maxSubsets !== -1) {
+      const existingCount = await this.getSubsetCount(userId);
+      if (existingCount >= tierLimits.maxSubsets) {
+        throw new Error(
+          `Subset limit reached. Your ${userTier} tier allows ${tierLimits.maxSubsets} subsets. ` +
+          `Upgrade to Pro for more subsets.`
+        );
+      }
+    }
+
+    // Check if sharing mode is allowed
+    if (options.sharingMode && options.sharingMode !== 'private' && !tierLimits.canShare) {
+      throw new Error(
+        `Sharing is not available for ${userTier} tier. Upgrade to Pro to share subsets.`
+      );
+    }
+
+    // Check if export format is allowed
+    if (options.exportFormat && !tierLimits.allowedExportFormats.includes(options.exportFormat)) {
+      throw new Error(
+        `Export format '${options.exportFormat}' is not available for ${userTier} tier. ` +
+        `Allowed formats: ${tierLimits.allowedExportFormats.join(', ')}.`
+      );
+    }
+
+    // Check if cloud destination is allowed
+    if (options.cloudDestination) {
+      const provider = options.cloudDestination.provider;
+      if (!tierLimits.allowedDestinations.includes(provider as 'local' | 'cloudflare-r2' | 'google-drive')) {
+        throw new Error(
+          `Cloud destination '${provider}' is not available for ${userTier} tier. ` +
+          `Upgrade to Pro for R2 storage.`
+        );
+      }
+    }
+
     const client = await this.pool.connect();
     try {
       const id = randomUUID();
@@ -219,6 +353,23 @@ export class ArchiveSubsetService {
         subsets: result.rows.map((row) => this.rowToSubset(row)),
         total,
       };
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Get count of subsets for a user (for tier limit checking)
+   */
+  async getSubsetCount(userId: string): Promise<number> {
+    const client = await this.pool.connect();
+    try {
+      const result = await client.query(
+        `SELECT COUNT(*) as count FROM aui_archive_subsets
+         WHERE tenant_id = $1 AND user_id = $2`,
+        [this.tenantId, userId]
+      );
+      return parseInt(result.rows[0].count, 10);
     } finally {
       client.release();
     }
@@ -766,8 +917,9 @@ export class ArchiveSubsetService {
   redactText(text: string, markers: SensitiveContentMarker[]): string {
     if (markers.length === 0) return text;
 
-    // Sort markers by position (descending to process from end)
-    const sorted = [...markers].sort((a, b) => b.start - a.start);
+    // Sort markers by END position (descending) to process from right to left
+    // This ensures overlapping markers are handled correctly
+    const sorted = [...markers].sort((a, b) => b.end - a.end);
 
     let result = text;
     for (const marker of sorted) {
@@ -784,6 +936,9 @@ export class ArchiveSubsetService {
 
   /**
    * Start an export job for a subset
+   *
+   * @throws {Error} If export format is not allowed for user's tier
+   * @throws {Error} If cloud destination is not allowed for user's tier
    */
   async startExport(
     subsetId: string,
@@ -791,8 +946,31 @@ export class ArchiveSubsetService {
     options: {
       format: SubsetExportFormat;
       destination: CloudDestination;
+      /** User's tier for feature gating (defaults to 'free' if not provided) */
+      userTier?: UserTier;
     }
   ): Promise<SubsetExportJob> {
+    const userTier = options.userTier ?? 'free';
+    const tierLimits = SUBSET_TIER_LIMITS[userTier];
+
+    // Check if export format is allowed for user's tier
+    if (!tierLimits.allowedExportFormats.includes(options.format)) {
+      throw new Error(
+        `Export format '${options.format}' is not available for ${userTier} tier. ` +
+        `Allowed formats: ${tierLimits.allowedExportFormats.join(', ')}. ` +
+        `Upgrade to Pro for more export options.`
+      );
+    }
+
+    // Check if cloud destination is allowed for user's tier
+    const provider = options.destination.provider;
+    if (!tierLimits.allowedDestinations.includes(provider as 'local' | 'cloudflare-r2' | 'google-drive')) {
+      throw new Error(
+        `Cloud destination '${provider}' is not available for ${userTier} tier. ` +
+        `Upgrade to Pro for R2 cloud storage.`
+      );
+    }
+
     const subset = await this.getSubset(subsetId, userId);
     if (!subset) {
       throw new Error(`Subset not found: ${subsetId}`);

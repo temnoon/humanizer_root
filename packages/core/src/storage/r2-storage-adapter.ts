@@ -75,6 +75,38 @@ export interface R2UploadOptions {
   cacheControl?: string;
   /** Content disposition (for downloads) */
   contentDisposition?: string;
+  /** Quota check function - if provided, called before upload to verify quota */
+  quotaCheck?: QuotaCheckFn;
+}
+
+/**
+ * Storage quota check function type
+ *
+ * @param userId - User attempting the upload
+ * @param sizeBytes - Size of content being uploaded
+ * @returns Promise resolving to quota check result
+ */
+export type QuotaCheckFn = (
+  userId: string,
+  sizeBytes: number
+) => Promise<StorageQuotaResult>;
+
+/**
+ * Storage quota check result
+ */
+export interface StorageQuotaResult {
+  /** Whether the upload is allowed */
+  allowed: boolean;
+  /** Reason for denial (if not allowed) */
+  reason?: string;
+  /** Current storage usage in bytes */
+  usedBytes: number;
+  /** Storage quota limit in bytes */
+  limitBytes: number;
+  /** Percentage of quota used */
+  percentUsed: number;
+  /** Remaining bytes available */
+  remainingBytes: number;
 }
 
 /**
@@ -319,11 +351,26 @@ export class R2S3Adapter implements R2StorageAdapter {
     content: Buffer | ReadableStream | string,
     options?: R2UploadOptions
   ): Promise<R2UploadResult> {
-    const client = await this.getClient() as { send: (cmd: unknown) => Promise<{ ETag?: string }> };
-    const { PutObjectCommand } = this.getS3Module();
-
     const body = typeof content === 'string' ? Buffer.from(content) : content;
     const size = Buffer.isBuffer(body) ? body.length : 0;
+
+    // Check quota before uploading if quota check function provided
+    if (options?.quotaCheck) {
+      // Extract userId from key pattern (e.g., "subsets/{userId}/..." or from metadata)
+      const userId = options.metadata?.userId ?? extractUserIdFromKey(key);
+      if (userId) {
+        const quotaResult = await options.quotaCheck(userId, size);
+        if (!quotaResult.allowed) {
+          throw new StorageQuotaExceededError(
+            quotaResult.reason ?? 'Storage quota exceeded',
+            quotaResult
+          );
+        }
+      }
+    }
+
+    const client = await this.getClient() as { send: (cmd: unknown) => Promise<{ ETag?: string }> };
+    const { PutObjectCommand } = this.getS3Module();
 
     const command = new PutObjectCommand({
       Bucket: this.config.bucketName,
@@ -628,22 +675,40 @@ export function isPolicyExpired(policy: R2AccessPolicy): boolean {
 
 /**
  * Check if user has access via policy
+ *
+ * @param policy - The access policy to check against
+ * @param options - Access check options
+ * @param options.userId - User ID for private/zero-trust access
+ * @param options.email - Email for zero-trust domain checking
+ * @param options.accessToken - Token for link-only access validation
  */
 export function checkPolicyAccess(
   policy: R2AccessPolicy,
-  userId?: string,
-  email?: string
+  options?: {
+    userId?: string;
+    email?: string;
+    accessToken?: string;
+  }
 ): boolean {
   // Check expiration
   if (isPolicyExpired(policy)) return false;
+
+  const { userId, email, accessToken } = options ?? {};
 
   switch (policy.mode) {
     case 'public':
       return true;
 
     case 'link-only':
-      // Link-only access is checked via token, not user
-      return true;
+      // SECURITY: Must validate the access token
+      if (!accessToken || !policy.accessToken) return false;
+      // Use constant-time comparison to prevent timing attacks
+      if (accessToken.length !== policy.accessToken.length) return false;
+      let mismatch = 0;
+      for (let i = 0; i < accessToken.length; i++) {
+        mismatch |= accessToken.charCodeAt(i) ^ policy.accessToken.charCodeAt(i);
+      }
+      return mismatch === 0;
 
     case 'private':
       // Must be in allowed users list
@@ -719,4 +784,309 @@ export function verifyContentHash(
 ): boolean {
   const actualHash = calculateContentHash(content);
   return actualHash === expectedHash;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ACCESS POLICY ENFORCEMENT
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Policy enforcement result
+ */
+export interface PolicyEnforcementResult {
+  allowed: boolean;
+  reason?: string;
+  policy?: R2AccessPolicy;
+}
+
+/**
+ * Policy lookup function type
+ */
+export type PolicyLookupFn = (resourceKey: string) => Promise<R2AccessPolicy | null>;
+
+/**
+ * Enforce access policy for a resource
+ *
+ * This function should be called in download/access routes to validate
+ * that the requester has permission to access the resource.
+ *
+ * @param resourceKey - The R2 object key being accessed
+ * @param lookupPolicy - Function to lookup policy from database
+ * @param accessOptions - The access credentials (userId, email, accessToken)
+ * @returns PolicyEnforcementResult with allowed status and reason
+ *
+ * @example
+ * ```typescript
+ * // In your download route handler:
+ * const result = await enforceAccessPolicy(
+ *   objectKey,
+ *   async (key) => {
+ *     const row = await db.query(
+ *       'SELECT * FROM aui_access_policies WHERE resource_pattern = $1',
+ *       [key]
+ *     );
+ *     return row ? rowToPolicy(row) : null;
+ *   },
+ *   { userId: req.userId, accessToken: req.query.token }
+ * );
+ *
+ * if (!result.allowed) {
+ *   return res.status(403).json({ error: result.reason });
+ * }
+ * ```
+ */
+export async function enforceAccessPolicy(
+  resourceKey: string,
+  lookupPolicy: PolicyLookupFn,
+  accessOptions?: {
+    userId?: string;
+    email?: string;
+    accessToken?: string;
+  }
+): Promise<PolicyEnforcementResult> {
+  // Look up policy for this resource
+  const policy = await lookupPolicy(resourceKey);
+
+  // No policy = private by default (deny access)
+  if (!policy) {
+    return {
+      allowed: false,
+      reason: 'No access policy found for resource',
+    };
+  }
+
+  // Check expiration
+  if (isPolicyExpired(policy)) {
+    return {
+      allowed: false,
+      reason: 'Access policy has expired',
+      policy,
+    };
+  }
+
+  // Check access based on policy mode
+  const hasAccess = checkPolicyAccess(policy, accessOptions);
+
+  if (!hasAccess) {
+    let reason: string;
+    switch (policy.mode) {
+      case 'link-only':
+        reason = 'Invalid or missing access token';
+        break;
+      case 'private':
+        reason = 'User not in allowed users list';
+        break;
+      case 'zero-trust':
+        reason = 'User ID or email domain not authorized';
+        break;
+      default:
+        reason = 'Access denied';
+    }
+    return {
+      allowed: false,
+      reason,
+      policy,
+    };
+  }
+
+  return {
+    allowed: true,
+    policy,
+  };
+}
+
+/**
+ * Match a resource key against a policy pattern
+ *
+ * Supports glob-style patterns:
+ * - `*` matches any characters except `/`
+ * - `**` matches any characters including `/`
+ *
+ * @example
+ * ```typescript
+ * matchesPattern('subsets/user123/subset456/export.json', 'subsets/user123/*') // true
+ * matchesPattern('subsets/user123/subset456/export.json', 'subsets/**') // true
+ * ```
+ */
+export function matchesResourcePattern(resourceKey: string, pattern: string): boolean {
+  // Exact match
+  if (resourceKey === pattern) return true;
+
+  // Convert glob pattern to regex
+  const regexPattern = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
+    .replace(/\*\*/g, '<<<GLOBSTAR>>>') // Temporarily replace **
+    .replace(/\*/g, '[^/]*') // * matches anything except /
+    .replace(/<<<GLOBSTAR>>>/g, '.*'); // ** matches anything
+
+  const regex = new RegExp(`^${regexPattern}$`);
+  return regex.test(resourceKey);
+}
+
+/**
+ * Find matching policy for a resource from a list of policies
+ *
+ * Returns the most specific matching policy (longest pattern match).
+ */
+export function findMatchingPolicy(
+  resourceKey: string,
+  policies: R2AccessPolicy[]
+): R2AccessPolicy | null {
+  let bestMatch: R2AccessPolicy | null = null;
+  let bestMatchLength = -1;
+
+  for (const policy of policies) {
+    if (matchesResourcePattern(resourceKey, policy.resourcePattern)) {
+      // Prefer more specific patterns (longer = more specific)
+      if (policy.resourcePattern.length > bestMatchLength) {
+        bestMatch = policy;
+        bestMatchLength = policy.resourcePattern.length;
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// STORAGE QUOTA
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Error thrown when storage quota is exceeded
+ */
+export class StorageQuotaExceededError extends Error {
+  public readonly quotaResult: StorageQuotaResult;
+
+  constructor(message: string, quotaResult: StorageQuotaResult) {
+    super(message);
+    this.name = 'StorageQuotaExceededError';
+    this.quotaResult = quotaResult;
+  }
+}
+
+/**
+ * Extract userId from R2 key patterns
+ *
+ * Supports patterns:
+ * - subsets/{userId}/{subsetId}/...
+ * - users/{userId}/...
+ * - shared/{token}/... (returns undefined)
+ */
+export function extractUserIdFromKey(key: string): string | undefined {
+  // Pattern: subsets/{userId}/...
+  const subsetsMatch = key.match(/^subsets\/([^/]+)\//);
+  if (subsetsMatch) {
+    return subsetsMatch[1];
+  }
+
+  // Pattern: users/{userId}/...
+  const usersMatch = key.match(/^users\/([^/]+)\//);
+  if (usersMatch) {
+    return usersMatch[1];
+  }
+
+  // Shared keys don't have a userId
+  if (key.startsWith('shared/')) {
+    return undefined;
+  }
+
+  return undefined;
+}
+
+/**
+ * Storage quota limits by tier (in bytes)
+ */
+export const STORAGE_QUOTA_LIMITS: Record<string, number> = {
+  free: 0, // No cloud storage for free tier
+  member: 100 * 1024 * 1024, // 100 MB
+  pro: 1024 * 1024 * 1024, // 1 GB
+  premium: 10 * 1024 * 1024 * 1024, // 10 GB
+  admin: -1, // Unlimited
+};
+
+/**
+ * Create a quota check function for a given tier and current usage
+ *
+ * @param userTier - User's subscription tier
+ * @param currentUsageBytes - Current storage usage in bytes
+ * @returns QuotaCheckFn that can be passed to upload options
+ *
+ * @example
+ * ```typescript
+ * const quotaCheck = createQuotaCheck('pro', await getUserStorageUsage(userId));
+ * await adapter.upload(key, content, { quotaCheck });
+ * ```
+ */
+export function createQuotaCheck(
+  userTier: string,
+  currentUsageBytes: number
+): QuotaCheckFn {
+  return async (userId: string, sizeBytes: number): Promise<StorageQuotaResult> => {
+    const limitBytes = STORAGE_QUOTA_LIMITS[userTier] ?? STORAGE_QUOTA_LIMITS.free;
+
+    // Unlimited storage
+    if (limitBytes === -1) {
+      return {
+        allowed: true,
+        usedBytes: currentUsageBytes,
+        limitBytes: -1,
+        percentUsed: 0,
+        remainingBytes: -1,
+      };
+    }
+
+    // No cloud storage allowed
+    if (limitBytes === 0) {
+      return {
+        allowed: false,
+        reason: `Cloud storage is not available for ${userTier} tier. Upgrade to Member for 100MB or Pro for 1GB.`,
+        usedBytes: currentUsageBytes,
+        limitBytes: 0,
+        percentUsed: 100,
+        remainingBytes: 0,
+      };
+    }
+
+    const projectedUsage = currentUsageBytes + sizeBytes;
+    const remainingBytes = Math.max(0, limitBytes - currentUsageBytes);
+    const percentUsed = (currentUsageBytes / limitBytes) * 100;
+
+    if (projectedUsage > limitBytes) {
+      return {
+        allowed: false,
+        reason: `Storage quota exceeded. ` +
+          `Current: ${formatBytes(currentUsageBytes)}, ` +
+          `Limit: ${formatBytes(limitBytes)}, ` +
+          `Requested: ${formatBytes(sizeBytes)}. ` +
+          `Upgrade your plan for more storage.`,
+        usedBytes: currentUsageBytes,
+        limitBytes,
+        percentUsed,
+        remainingBytes,
+      };
+    }
+
+    return {
+      allowed: true,
+      usedBytes: currentUsageBytes,
+      limitBytes,
+      percentUsed,
+      remainingBytes,
+    };
+  };
+}
+
+/**
+ * Format bytes to human-readable string
+ */
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  if (bytes === -1) return 'Unlimited';
+
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }

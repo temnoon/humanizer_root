@@ -147,6 +147,23 @@ export interface VettedModel {
 
   /** Extended privacy information for user awareness */
   privacyInfo?: PrivacyInfo;
+
+  // ─────────────────────────────────────────────────────────────────
+  // Monetization & Access Control
+  // ─────────────────────────────────────────────────────────────────
+
+  /**
+   * If true, this model can only be accessed via Humanizer's API key
+   * (not user's own third-party API keys). Used for Cloudflare Workers AI
+   * models that we want to monetize through subscription tiers.
+   */
+  requiresHumanizerApiKey?: boolean;
+
+  /**
+   * Minimum user tier required to use this model.
+   * Undefined means available to all tiers (including free).
+   */
+  minimumTier?: 'free' | 'member' | 'pro' | 'premium';
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -179,6 +196,7 @@ export type ModelProvider =
   | 'google'
   | 'voyage'
   | 'cohere'
+  | 'cloudflare'   // Cloudflare Workers AI
   | 'local'
   | 'custom';
 
