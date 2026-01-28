@@ -70,6 +70,86 @@ export {
 } from './default-model-registry.js';
 
 // ═══════════════════════════════════════════════════════════════════
+// DATABASE-AWARE REGISTRY
+// ═══════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type DatabaseModelRegistryOptions,
+  type ModelLookupContext,
+
+  // Class
+  DatabaseModelRegistry,
+
+  // Singleton
+  initDatabaseModelRegistry,
+  getDatabaseModelRegistry,
+  resetDatabaseModelRegistry,
+} from './database-model-registry.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// OLLAMA DISCOVERY
+// ═══════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type OllamaModelInfo,
+  type DiscoveredModel,
+  type OllamaDiscoveryResult,
+  type OllamaDiscoveryOptions,
+
+  // Service
+  OllamaDiscoveryService,
+  initOllamaDiscovery,
+  getOllamaDiscovery,
+  resetOllamaDiscovery,
+} from './ollama-discovery.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// PROVIDER VALIDATION
+// ═══════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type ApiKeyValidationResult,
+  type ApiKeyValidationOptions,
+
+  // Provider-specific validators
+  validateOpenAIKey,
+  validateAnthropicKey,
+  validateVoyageKey,
+  validateGoogleKey,
+  validateCohereKey,
+
+  // Unified validation
+  validateApiKey,
+  validateMultipleKeys,
+
+  // Format validation
+  providerRequiresApiKey,
+  getApiKeyFormat,
+  validateApiKeyFormat,
+} from './provider-validator.js';
+
+// ═══════════════════════════════════════════════════════════════════
+// PROVIDER HEALTH
+// ═══════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type ProviderHealthCheck,
+  type HealthCheckEvent,
+  type ProviderHealthServiceOptions,
+  type HealthCheckListener,
+
+  // Service
+  ProviderHealthService,
+  initProviderHealthService,
+  getProviderHealthService,
+  resetProviderHealthService,
+} from './provider-health.js';
+
+// ═══════════════════════════════════════════════════════════════════
 // EMBEDDING VERSIONING
 // ═══════════════════════════════════════════════════════════════════
 

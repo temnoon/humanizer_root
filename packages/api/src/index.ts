@@ -7,6 +7,9 @@
  * @module @humanizer/api
  */
 
+// Load environment variables from .env file
+import 'dotenv/config';
+
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -32,6 +35,12 @@ import {
   STORAGE_STATIC_DEFAULTS,
   SERVICE_CONFIG_KEYS,
   SERVICE_DEFAULTS,
+  // Model registry services
+  initProviderConfigService,
+  initOllamaDiscovery,
+  initProviderHealthService,
+  initDatabaseModelRegistry,
+  setModelRegistry,
 } from '@humanizer/core';
 import { OllamaAdapter } from '@humanizer/npe';
 
@@ -66,6 +75,8 @@ interface ServerConfig {
     password?: string;
   };
   corsOrigins?: string[];
+  /** Encryption key for provider API keys (32 bytes / 64 hex chars) */
+  providerKeyEncryptionKey?: string;
 }
 
 function getConfig(): ServerConfig {
@@ -81,6 +92,7 @@ function getConfig(): ServerConfig {
     },
     corsOrigins: process.env.CORS_ORIGINS?.split(',') ??
       (SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.CORS_DEV_ORIGINS] as string[]),
+    providerKeyEncryptionKey: process.env.PROVIDER_KEY_ENCRYPTION_KEY,
   };
 }
 
@@ -345,6 +357,65 @@ async function main(): Promise<void> {
         tokenExpiryHours: SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.TOKEN_EXPIRY_HOURS] as number,
       });
       console.log('UserService initialized');
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // MODEL REGISTRY SERVICES
+      // ═══════════════════════════════════════════════════════════════════════
+
+      const defaultTenantId = SERVICE_DEFAULTS[SERVICE_CONFIG_KEYS.DEFAULT_TENANT_ID] as string;
+
+      // Initialize DatabaseModelRegistry (wraps default registry with database-backed config)
+      // This creates its own ModelConfigService internally
+      const dbRegistry = await initDatabaseModelRegistry(pool, {
+        defaultTenantId,
+      });
+
+      // Replace the default model registry with the database-backed one
+      setModelRegistry(dbRegistry);
+      console.log('DatabaseModelRegistry initialized and set as default');
+
+      // Get the model config service from the registry for other services to use
+      const modelConfigService = dbRegistry.getConfigService();
+
+      // Initialize ProviderConfigService for BYOK API key management
+      if (config.providerKeyEncryptionKey) {
+        const providerConfigService = initProviderConfigService(pool, {
+          encryptionKey: config.providerKeyEncryptionKey,
+          defaultTenantId,
+        });
+        console.log('ProviderConfigService initialized');
+
+        // Initialize OllamaDiscoveryService for local model discovery
+        const ollamaDiscovery = initOllamaDiscovery({
+          baseUrl: ollamaUrl,
+          defaultTenantId,
+        });
+        ollamaDiscovery.setModelConfigService(modelConfigService);
+        ollamaDiscovery.setProviderConfigService(providerConfigService);
+        console.log('OllamaDiscoveryService initialized');
+
+        // Initialize ProviderHealthService for health monitoring
+        const providerHealthService = initProviderHealthService({
+          defaultTenantId,
+        });
+        providerHealthService.setProviderConfigService(providerConfigService);
+        providerHealthService.setOllamaDiscoveryService(ollamaDiscovery);
+        console.log('ProviderHealthService initialized');
+
+        // Run initial Ollama discovery in the background
+        ollamaDiscovery.discover().then(result => {
+          if (result.success) {
+            console.log(`Ollama discovery: found ${result.modelsFound} models, registered ${result.modelsRegistered}`);
+          } else {
+            console.warn(`Ollama discovery failed: ${result.error}`);
+          }
+        }).catch(err => {
+          console.warn('Ollama discovery error:', err);
+        });
+      } else {
+        console.warn('PROVIDER_KEY_ENCRYPTION_KEY not set - ProviderConfigService and related services not initialized');
+        console.warn('To enable BYOK (Bring Your Own Key) functionality, set PROVIDER_KEY_ENCRYPTION_KEY environment variable');
+      }
     } else {
       console.warn('Archive store not available - services not initialized');
     }

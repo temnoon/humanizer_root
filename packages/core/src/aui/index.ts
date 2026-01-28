@@ -107,6 +107,32 @@ export type {
   ArcChapter,
   Book,
   BookChapter,
+
+  // Drafting types
+  DraftSource,
+  AuiArchiveSource,
+  AuiClusterSource,
+  FilePathSource,
+  UrlSource,
+  DirectTextSource,
+  GatheredPassage,
+  GatherResult,
+  DraftingStatus,
+  DraftVersion,
+  UserFeedback,
+  DraftingSession,
+  NarratorPersona,
+  ExportFormat,
+  HtmlTheme,
+  ThemeColors,
+  SectionStyle,
+  ExportConfig,
+  ExportedArtifact,
+  StartDraftingOptions,
+  GenerateDraftOptions,
+  ReviseDraftOptions,
+  DraftingProgress,
+  DraftingProgressCallback,
 } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -194,6 +220,35 @@ export {
   type AuiArtifact,
   type CreateArtifactOptions,
 } from '../storage/aui-postgres-store.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRAFTING LOOP SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Methods
+  createDraftingMethods,
+  setDraftingMethods,
+  getDraftingMethods,
+  resetDraftingMethods,
+  type DraftingMethods,
+
+  // Default persona
+  DEFAULT_NARRATOR_PERSONA,
+
+  // Export templates
+  generateThemeCss,
+  generateHtmlDocument,
+  generateMarkdownDocument,
+  generateJsonDocument,
+  extractHeadings,
+  markdownToHtml,
+  generateTocHtml,
+  HUMANIZER_THEME,
+  HUMANIZER_LIGHT_COLORS,
+  HUMANIZER_DARK_COLORS,
+  DEFAULT_SECTION_STYLES,
+} from './service/index.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // BENCHMARK SUITE (Phase 4)
@@ -419,3 +474,43 @@ export {
   getUserService,
   resetUserService,
 } from './service/user-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODEL CONFIG SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type ModelConfig,
+  type ModelConfigWithSource,
+  type ModelConfigInput,
+  type ModelParameterOverrides,
+  type ModelAvailabilityStatus,
+  type ModelConfigServiceOptions,
+
+  // Service
+  ModelConfigService,
+  initModelConfigService,
+  getModelConfigService,
+  resetModelConfigService,
+} from './service/model-config-service.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROVIDER CONFIG SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+export {
+  // Types
+  type ProviderConfig,
+  type ProviderConfigWithSource,
+  type ProviderConfigInput,
+  type ProviderHealthStatus,
+  type ProviderConfigServiceOptions,
+  type DecryptedApiKey,
+
+  // Service
+  ProviderConfigService,
+  initProviderConfigService,
+  getProviderConfigService,
+  resetProviderConfigService,
+} from './service/provider-config-service.js';

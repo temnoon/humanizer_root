@@ -681,6 +681,94 @@ CREATE TABLE IF NOT EXISTS aui_provider_cost_rates (
 );
 `;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// MODEL CONFIGURATION TABLES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Provider configs table - user-provided API keys and endpoints
+ *
+ * Supports BYOK (Bring Your Own Key) for cloud providers.
+ * API keys are encrypted at rest. Only key_hint (last 4 chars) is stored plaintext.
+ * Endpoints allow custom Ollama instances or proxy servers.
+ */
+export const CREATE_AUI_PROVIDER_CONFIGS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_provider_configs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+  user_id TEXT,  -- NULL for system-wide config
+
+  provider TEXT NOT NULL,  -- 'openai', 'anthropic', 'ollama', 'voyage', etc.
+
+  -- API key (encrypted, NULL for local providers)
+  api_key_encrypted TEXT,
+  api_key_hint TEXT,  -- Last 4 chars for identification
+
+  -- Custom endpoint (for Ollama, proxies, etc.)
+  base_url TEXT,
+
+  -- Health status (cached)
+  health_status TEXT DEFAULT 'unknown' CHECK (health_status IN ('healthy', 'degraded', 'unhealthy', 'unknown')),
+  last_health_check TIMESTAMPTZ,
+  health_error TEXT,
+
+  -- Usage
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  priority INTEGER DEFAULT 100,  -- Lower = higher priority for fallback
+
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  -- System-wide configs have NULL user_id, user configs have user_id
+  UNIQUE(tenant_id, user_id, provider)
+);
+`;
+
+/**
+ * Model configs table - per-user model settings and overrides
+ *
+ * Allows users to:
+ * - Enable/disable specific models
+ * - Set default models per capability
+ * - Override model parameters (temperature, etc.)
+ * - Track model availability status
+ */
+export const CREATE_AUI_MODEL_CONFIGS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_model_configs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+  user_id TEXT,  -- NULL for system-wide config
+
+  model_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+
+  -- Enable/disable
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+
+  -- Default for capability (NULL = not default)
+  default_for_capability TEXT,  -- 'embedding', 'completion', 'chat', etc.
+
+  -- Overrides (merged with VettedModel defaults)
+  parameter_overrides JSONB DEFAULT '{}',  -- {temperature, topP, maxTokens, etc.}
+
+  -- Availability (discovered or manual)
+  availability_status TEXT DEFAULT 'unknown' CHECK (availability_status IN ('available', 'unavailable', 'unknown')),
+  last_availability_check TIMESTAMPTZ,
+  availability_error TEXT,
+
+  -- Display customization
+  display_name TEXT,
+  display_order INTEGER DEFAULT 100,
+
+  metadata JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE(tenant_id, user_id, model_id)
+);
+`;
+
 /**
  * Seed tier defaults with initial values
  */
@@ -1034,6 +1122,22 @@ CREATE INDEX IF NOT EXISTS idx_aui_user_preferences_tenant ON aui_user_preferenc
 -- Provider cost rates indexes
 CREATE INDEX IF NOT EXISTS idx_aui_provider_cost_rates_active ON aui_provider_cost_rates(provider, model_id) WHERE effective_until IS NULL;
 
+-- Provider configs indexes
+CREATE INDEX IF NOT EXISTS idx_aui_provider_configs_tenant ON aui_provider_configs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_provider_configs_user ON aui_provider_configs(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_provider_configs_provider ON aui_provider_configs(provider);
+CREATE INDEX IF NOT EXISTS idx_aui_provider_configs_enabled ON aui_provider_configs(tenant_id, is_enabled) WHERE is_enabled = TRUE;
+CREATE INDEX IF NOT EXISTS idx_aui_provider_configs_system ON aui_provider_configs(tenant_id, provider) WHERE user_id IS NULL;
+
+-- Model configs indexes
+CREATE INDEX IF NOT EXISTS idx_aui_model_configs_tenant ON aui_model_configs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_model_configs_user ON aui_model_configs(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_model_configs_model ON aui_model_configs(model_id);
+CREATE INDEX IF NOT EXISTS idx_aui_model_configs_provider ON aui_model_configs(provider);
+CREATE INDEX IF NOT EXISTS idx_aui_model_configs_enabled ON aui_model_configs(tenant_id, is_enabled) WHERE is_enabled = TRUE;
+CREATE INDEX IF NOT EXISTS idx_aui_model_configs_default ON aui_model_configs(tenant_id, user_id, default_for_capability) WHERE default_for_capability IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_aui_model_configs_system ON aui_model_configs(tenant_id, model_id) WHERE user_id IS NULL;
+
 -- Feature flags indexes
 CREATE INDEX IF NOT EXISTS idx_aui_feature_flags_tenant ON aui_feature_flags(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_aui_feature_flags_category ON aui_feature_flags(category);
@@ -1146,9 +1250,12 @@ CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_centroid
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Run AUI schema migration to version 5
+ * Run AUI schema migration to version 9
  *
  * Version 5 adds: User accounting system (usage events, API keys, tier defaults, preferences)
+ * Version 6 adds: Feature flags and audit events
+ * Version 8 adds: User authentication (users, password reset, email verification)
+ * Version 9 adds: Model configuration (provider configs, model configs)
  */
 export async function runAuiMigration(
   client: PoolClient,
@@ -1201,6 +1308,10 @@ export async function runAuiMigration(
   await client.query(CREATE_AUI_USER_QUOTA_OVERRIDES_TABLE);
   await client.query(CREATE_AUI_USER_PREFERENCES_TABLE);
   await client.query(CREATE_AUI_PROVIDER_COST_RATES_TABLE);
+
+  // Create model configuration tables (v9)
+  await client.query(CREATE_AUI_PROVIDER_CONFIGS_TABLE);
+  await client.query(CREATE_AUI_MODEL_CONFIGS_TABLE);
 
   // Create feature flags and audit tables (v6)
   await client.query(CREATE_AUI_FEATURE_FLAGS_TABLE);
@@ -2249,6 +2360,224 @@ WHERE provider = $1 AND model_id = $2 AND effective_until IS NULL
 `;
 
 // ═══════════════════════════════════════════════════════════════════════════
+// PROVIDER CONFIGS SQL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const INSERT_AUI_PROVIDER_CONFIG = `
+INSERT INTO aui_provider_configs (
+  tenant_id, user_id, provider, api_key_encrypted, api_key_hint,
+  base_url, health_status, is_enabled, priority, metadata
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+ON CONFLICT (tenant_id, user_id, provider)
+DO UPDATE SET
+  api_key_encrypted = COALESCE(EXCLUDED.api_key_encrypted, aui_provider_configs.api_key_encrypted),
+  api_key_hint = COALESCE(EXCLUDED.api_key_hint, aui_provider_configs.api_key_hint),
+  base_url = COALESCE(EXCLUDED.base_url, aui_provider_configs.base_url),
+  health_status = COALESCE(EXCLUDED.health_status, aui_provider_configs.health_status),
+  is_enabled = EXCLUDED.is_enabled,
+  priority = EXCLUDED.priority,
+  metadata = aui_provider_configs.metadata || EXCLUDED.metadata,
+  updated_at = NOW()
+RETURNING *
+`;
+
+export const GET_AUI_PROVIDER_CONFIG = `
+SELECT * FROM aui_provider_configs
+WHERE tenant_id = $1 AND (user_id = $2 OR user_id IS NULL) AND provider = $3
+ORDER BY user_id NULLS LAST
+LIMIT 1
+`;
+
+export const GET_AUI_PROVIDER_CONFIG_USER = `
+SELECT * FROM aui_provider_configs
+WHERE tenant_id = $1 AND user_id = $2 AND provider = $3
+`;
+
+export const GET_AUI_PROVIDER_CONFIG_SYSTEM = `
+SELECT * FROM aui_provider_configs
+WHERE tenant_id = $1 AND user_id IS NULL AND provider = $3
+`;
+
+export const LIST_AUI_PROVIDER_CONFIGS = `
+SELECT * FROM aui_provider_configs
+WHERE tenant_id = $1
+  AND ($2::text IS NULL OR user_id = $2 OR user_id IS NULL)
+  AND ($3::text IS NULL OR provider = $3)
+ORDER BY provider, user_id NULLS LAST
+`;
+
+export const LIST_AUI_PROVIDER_CONFIGS_FOR_USER = `
+SELECT
+  p.*,
+  CASE WHEN p.user_id IS NULL THEN 'system' ELSE 'user' END as config_source
+FROM aui_provider_configs p
+WHERE p.tenant_id = $1
+  AND (p.user_id = $2 OR p.user_id IS NULL)
+  AND p.is_enabled = TRUE
+ORDER BY p.provider, p.user_id NULLS LAST
+`;
+
+export const UPDATE_AUI_PROVIDER_CONFIG = `
+UPDATE aui_provider_configs SET
+  api_key_encrypted = COALESCE($4, api_key_encrypted),
+  api_key_hint = COALESCE($5, api_key_hint),
+  base_url = COALESCE($6, base_url),
+  is_enabled = COALESCE($7, is_enabled),
+  priority = COALESCE($8, priority),
+  metadata = metadata || COALESCE($9, '{}'::jsonb),
+  updated_at = NOW()
+WHERE tenant_id = $1 AND user_id = $2 AND provider = $3
+RETURNING *
+`;
+
+export const UPDATE_AUI_PROVIDER_CONFIG_HEALTH = `
+UPDATE aui_provider_configs SET
+  health_status = $4,
+  last_health_check = NOW(),
+  health_error = $5,
+  updated_at = NOW()
+WHERE tenant_id = $1 AND user_id = $2 AND provider = $3
+RETURNING *
+`;
+
+export const DELETE_AUI_PROVIDER_CONFIG = `
+DELETE FROM aui_provider_configs
+WHERE tenant_id = $1 AND user_id = $2 AND provider = $3
+`;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODEL CONFIGS SQL TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const INSERT_AUI_MODEL_CONFIG = `
+INSERT INTO aui_model_configs (
+  tenant_id, user_id, model_id, provider, is_enabled,
+  default_for_capability, parameter_overrides, availability_status,
+  display_name, display_order, metadata
+)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+ON CONFLICT (tenant_id, user_id, model_id)
+DO UPDATE SET
+  provider = EXCLUDED.provider,
+  is_enabled = EXCLUDED.is_enabled,
+  default_for_capability = EXCLUDED.default_for_capability,
+  parameter_overrides = aui_model_configs.parameter_overrides || EXCLUDED.parameter_overrides,
+  availability_status = COALESCE(EXCLUDED.availability_status, aui_model_configs.availability_status),
+  display_name = COALESCE(EXCLUDED.display_name, aui_model_configs.display_name),
+  display_order = COALESCE(EXCLUDED.display_order, aui_model_configs.display_order),
+  metadata = aui_model_configs.metadata || EXCLUDED.metadata,
+  updated_at = NOW()
+RETURNING *
+`;
+
+export const GET_AUI_MODEL_CONFIG = `
+SELECT * FROM aui_model_configs
+WHERE tenant_id = $1 AND (user_id = $2 OR user_id IS NULL) AND model_id = $3
+ORDER BY user_id NULLS LAST
+LIMIT 1
+`;
+
+export const GET_AUI_MODEL_CONFIG_USER = `
+SELECT * FROM aui_model_configs
+WHERE tenant_id = $1 AND user_id = $2 AND model_id = $3
+`;
+
+export const LIST_AUI_MODEL_CONFIGS = `
+SELECT * FROM aui_model_configs
+WHERE tenant_id = $1
+  AND ($2::text IS NULL OR user_id = $2 OR user_id IS NULL)
+  AND ($3::text IS NULL OR provider = $3)
+ORDER BY provider, display_order, model_id
+`;
+
+export const LIST_AUI_MODEL_CONFIGS_FOR_USER = `
+SELECT
+  m.*,
+  CASE WHEN m.user_id IS NULL THEN 'system' ELSE 'user' END as config_source
+FROM aui_model_configs m
+WHERE m.tenant_id = $1
+  AND (m.user_id = $2 OR m.user_id IS NULL)
+ORDER BY m.provider, m.display_order, m.model_id
+`;
+
+export const LIST_AUI_MODEL_CONFIGS_ENABLED = `
+SELECT
+  m.*,
+  CASE WHEN m.user_id IS NULL THEN 'system' ELSE 'user' END as config_source
+FROM aui_model_configs m
+WHERE m.tenant_id = $1
+  AND (m.user_id = $2 OR m.user_id IS NULL)
+  AND m.is_enabled = TRUE
+ORDER BY m.provider, m.display_order, m.model_id
+`;
+
+export const GET_AUI_DEFAULT_MODEL_FOR_CAPABILITY = `
+SELECT * FROM aui_model_configs
+WHERE tenant_id = $1
+  AND (user_id = $2 OR user_id IS NULL)
+  AND default_for_capability = $3
+  AND is_enabled = TRUE
+ORDER BY user_id NULLS LAST
+LIMIT 1
+`;
+
+export const UPDATE_AUI_MODEL_CONFIG = `
+UPDATE aui_model_configs SET
+  is_enabled = COALESCE($4, is_enabled),
+  default_for_capability = $5,
+  parameter_overrides = parameter_overrides || COALESCE($6, '{}'::jsonb),
+  display_name = COALESCE($7, display_name),
+  display_order = COALESCE($8, display_order),
+  metadata = metadata || COALESCE($9, '{}'::jsonb),
+  updated_at = NOW()
+WHERE tenant_id = $1 AND user_id = $2 AND model_id = $3
+RETURNING *
+`;
+
+export const UPDATE_AUI_MODEL_CONFIG_AVAILABILITY = `
+UPDATE aui_model_configs SET
+  availability_status = $4,
+  last_availability_check = NOW(),
+  availability_error = $5,
+  updated_at = NOW()
+WHERE tenant_id = $1 AND user_id = $2 AND model_id = $3
+RETURNING *
+`;
+
+export const CLEAR_AUI_MODEL_CONFIG_DEFAULT = `
+UPDATE aui_model_configs SET
+  default_for_capability = NULL,
+  updated_at = NOW()
+WHERE tenant_id = $1
+  AND (user_id = $2 OR ($2::text IS NULL AND user_id IS NULL))
+  AND default_for_capability = $3
+  AND model_id != $4
+`;
+
+export const DELETE_AUI_MODEL_CONFIG = `
+DELETE FROM aui_model_configs
+WHERE tenant_id = $1 AND user_id = $2 AND model_id = $3
+`;
+
+export const BATCH_UPDATE_AUI_MODEL_CONFIGS_AVAILABILITY = `
+UPDATE aui_model_configs SET
+  availability_status = data.status,
+  last_availability_check = NOW(),
+  availability_error = data.error,
+  updated_at = NOW()
+FROM (
+  SELECT unnest($4::text[]) as model_id,
+         unnest($5::text[]) as status,
+         unnest($6::text[]) as error
+) as data
+WHERE aui_model_configs.tenant_id = $1
+  AND (aui_model_configs.user_id = $2 OR ($2::text IS NULL AND aui_model_configs.user_id IS NULL))
+  AND aui_model_configs.provider = $3
+  AND aui_model_configs.model_id = data.model_id
+`;
+
+// ═══════════════════════════════════════════════════════════════════════════
 // ANALYTICS SQL TEMPLATES
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -2464,10 +2793,11 @@ SELECT * FROM aui_users WHERE email = $1 AND tenant_id = $2
 
 export const UPDATE_AUI_USER = `
 UPDATE aui_users SET
-  display_name = COALESCE($3, display_name),
-  avatar_url = COALESCE($4, avatar_url),
-  tier = COALESCE($5, tier),
-  metadata = COALESCE($6, metadata),
+  email = COALESCE($3, email),
+  display_name = COALESCE($4, display_name),
+  avatar_url = COALESCE($5, avatar_url),
+  tier = COALESCE($6, tier),
+  metadata = COALESCE($7, metadata),
   updated_at = NOW()
 WHERE id = $1 AND tenant_id = $2
 RETURNING *

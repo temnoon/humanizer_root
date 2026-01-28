@@ -24,16 +24,20 @@ interface Provider {
   id: string;
   name: string;
   type: 'local' | 'cloud';
-  status: 'connected' | 'disconnected' | 'error';
+  status: 'connected' | 'disconnected' | 'error' | 'healthy' | 'unhealthy' | 'unknown' | 'degraded';
   enabled: boolean;
   endpoint?: string;
   apiKeyConfigured: boolean;
+  apiKeyHint?: string;
   models: ProviderModel[];
+  healthStatus?: 'healthy' | 'unhealthy' | 'degraded' | 'unknown';
   lastHealthCheck?: string;
+  healthError?: string;
   errorMessage?: string;
   rateLimitRpm?: number;
   costPerMtokInput?: number;
   costPerMtokOutput?: number;
+  priority?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -131,6 +135,25 @@ export function AdminProviders() {
   const [editApiKey, setEditApiKey] = useState('');
   const [editRateLimit, setEditRateLimit] = useState('');
 
+  // API key validation state
+  const [validatingKey, setValidatingKey] = useState(false);
+  const [keyValidationResult, setKeyValidationResult] = useState<{
+    valid: boolean;
+    error?: string;
+    availableModels?: string[];
+  } | null>(null);
+
+  // Ollama discovery state
+  const [discoveringOllama, setDiscoveringOllama] = useState(false);
+  const [ollamaDiscoveryResult, setOllamaDiscoveryResult] = useState<{
+    success: boolean;
+    modelsFound: number;
+    error?: string;
+  } | null>(null);
+
+  // Health check state
+  const [checkingHealth, setCheckingHealth] = useState<string | null>(null);
+
   // ─────────────────────────────────────────────────────────────────────────
   // DATA FETCHING
   // ─────────────────────────────────────────────────────────────────────────
@@ -151,17 +174,21 @@ export function AdminProviders() {
         enabled: p.enabled,
         endpoint: p.endpoint,
         apiKeyConfigured: p.apiKeyConfigured,
+        apiKeyHint: p.apiKeyHint,
         models: p.models.map((m) => ({
           id: m.id,
           name: m.name,
           category: (m.type === 'embedding' ? 'embedding' : 'completion') as 'completion' | 'embedding',
           isDefault: false,
         })),
+        healthStatus: p.healthStatus,
         lastHealthCheck: p.lastHealthCheck,
-        errorMessage: p.errorMessage,
+        healthError: p.healthError,
+        errorMessage: p.errorMessage ?? p.healthError,
         rateLimitRpm: p.rateLimitRpm,
         costPerMtokInput: p.costPerMtokInput,
         costPerMtokOutput: p.costPerMtokOutput,
+        priority: p.priority,
       }));
 
       if (apiProviders.length > 0) {
@@ -192,6 +219,8 @@ export function AdminProviders() {
   const handleSelectProvider = (id: string) => {
     setSelectedProviderId(id);
     setEditMode(false);
+    setKeyValidationResult(null);
+    setOllamaDiscoveryResult(null);
     const provider = providers.find((p) => p.id === id);
     if (provider) {
       setEditEndpoint(provider.endpoint || '');
@@ -200,40 +229,167 @@ export function AdminProviders() {
     }
   };
 
-  const handleToggleEnabled = (id: string) => {
-    setProviders((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p))
-    );
+  const handleToggleEnabled = async (id: string) => {
+    const provider = providers.find((p) => p.id === id);
+    if (!provider) return;
+
+    try {
+      await api.admin.updateProvider(id, { enabled: !provider.enabled });
+      setProviders((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p))
+      );
+    } catch (err) {
+      console.error('Failed to toggle provider:', err);
+      // Fallback to local state update
+      setProviders((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, enabled: !p.enabled } : p))
+      );
+    }
   };
 
   const handleTestConnection = async (id: string) => {
-    // TODO: Implement real health check
-    console.log('Testing connection for:', id);
-    setProviders((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? { ...p, status: 'connected', lastHealthCheck: new Date().toISOString(), errorMessage: undefined }
-          : p
-      )
-    );
+    setCheckingHealth(id);
+    try {
+      const result = await api.admin.checkProviderHealth(id);
+      setProviders((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? {
+                ...p,
+                status: result.status as Provider['status'],
+                healthStatus: result.status as Provider['healthStatus'],
+                lastHealthCheck: result.checkedAt,
+                healthError: result.error,
+                errorMessage: result.error,
+              }
+            : p
+        )
+      );
+    } catch (err) {
+      console.error('Health check failed:', err);
+      setProviders((prev) =>
+        prev.map((p) =>
+          p.id === id
+            ? { ...p, status: 'error', errorMessage: 'Health check failed' }
+            : p
+        )
+      );
+    } finally {
+      setCheckingHealth(null);
+    }
   };
 
-  const handleSaveConfig = () => {
+  const handleValidateApiKey = async () => {
+    if (!selectedProviderId || !editApiKey) return;
+
+    setValidatingKey(true);
+    setKeyValidationResult(null);
+
+    try {
+      const result = await api.admin.validateProviderKey(selectedProviderId, editApiKey);
+      setKeyValidationResult({
+        valid: result.valid,
+        error: result.error,
+        availableModels: result.availableModels,
+      });
+    } catch (err) {
+      setKeyValidationResult({
+        valid: false,
+        error: err instanceof Error ? err.message : 'Validation failed',
+      });
+    } finally {
+      setValidatingKey(false);
+    }
+  };
+
+  const handleDiscoverOllamaModels = async () => {
+    setDiscoveringOllama(true);
+    setOllamaDiscoveryResult(null);
+
+    try {
+      const result = await api.admin.discoverOllamaModels();
+      setOllamaDiscoveryResult({
+        success: result.success,
+        modelsFound: result.modelsFound,
+        error: result.error,
+      });
+
+      // Refresh providers list to show new models
+      if (result.success) {
+        await fetchProviders();
+      }
+    } catch (err) {
+      setOllamaDiscoveryResult({
+        success: false,
+        modelsFound: 0,
+        error: err instanceof Error ? err.message : 'Discovery failed',
+      });
+    } finally {
+      setDiscoveringOllama(false);
+    }
+  };
+
+  const handleRemoveApiKey = async () => {
     if (!selectedProviderId) return;
 
-    setProviders((prev) =>
-      prev.map((p) =>
-        p.id === selectedProviderId
-          ? {
-              ...p,
-              endpoint: editEndpoint || p.endpoint,
-              rateLimitRpm: editRateLimit ? parseInt(editRateLimit, 10) : p.rateLimitRpm,
-              apiKeyConfigured: editApiKey ? true : p.apiKeyConfigured,
-            }
-          : p
-      )
-    );
-    setEditMode(false);
+    try {
+      await api.admin.removeProviderApiKey(selectedProviderId);
+      setProviders((prev) =>
+        prev.map((p) =>
+          p.id === selectedProviderId
+            ? { ...p, apiKeyConfigured: false, apiKeyHint: undefined }
+            : p
+        )
+      );
+      setEditApiKey('');
+      setKeyValidationResult(null);
+    } catch (err) {
+      console.error('Failed to remove API key:', err);
+    }
+  };
+
+  const handleSaveConfig = async () => {
+    if (!selectedProviderId) return;
+
+    try {
+      await api.admin.updateProvider(selectedProviderId, {
+        endpoint: editEndpoint || undefined,
+        apiKey: editApiKey || undefined,
+      });
+
+      setProviders((prev) =>
+        prev.map((p) =>
+          p.id === selectedProviderId
+            ? {
+                ...p,
+                endpoint: editEndpoint || p.endpoint,
+                rateLimitRpm: editRateLimit ? parseInt(editRateLimit, 10) : p.rateLimitRpm,
+                apiKeyConfigured: editApiKey ? true : p.apiKeyConfigured,
+                apiKeyHint: editApiKey ? `...${editApiKey.slice(-4)}` : p.apiKeyHint,
+              }
+            : p
+        )
+      );
+      setEditMode(false);
+      setEditApiKey('');
+      setKeyValidationResult(null);
+    } catch (err) {
+      console.error('Failed to save config:', err);
+      // Still update local state as fallback
+      setProviders((prev) =>
+        prev.map((p) =>
+          p.id === selectedProviderId
+            ? {
+                ...p,
+                endpoint: editEndpoint || p.endpoint,
+                rateLimitRpm: editRateLimit ? parseInt(editRateLimit, 10) : p.rateLimitRpm,
+                apiKeyConfigured: editApiKey ? true : p.apiKeyConfigured,
+              }
+            : p
+        )
+      );
+      setEditMode(false);
+    }
   };
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -243,13 +399,35 @@ export function AdminProviders() {
   const getStatusIcon = (status: Provider['status']) => {
     switch (status) {
       case 'connected':
+      case 'healthy':
         return '●';
       case 'disconnected':
+      case 'unhealthy':
         return '○';
       case 'error':
         return '!';
+      case 'degraded':
+        return '◐';
+      case 'unknown':
       default:
         return '?';
+    }
+  };
+
+  const getStatusClass = (status: Provider['status']) => {
+    switch (status) {
+      case 'connected':
+      case 'healthy':
+        return 'connected';
+      case 'disconnected':
+      case 'unhealthy':
+        return 'disconnected';
+      case 'error':
+        return 'error';
+      case 'degraded':
+        return 'error';
+      default:
+        return 'disconnected';
     }
   };
 
@@ -310,7 +488,7 @@ export function AdminProviders() {
                     <div className="admin-providers__item-header">
                       <span className="admin-providers__item-name">{provider.name}</span>
                       <span
-                        className={`admin-providers__item-status admin-providers__item-status--${provider.status}`}
+                        className={`admin-providers__item-status admin-providers__item-status--${getStatusClass(provider.status)}`}
                       >
                         {getStatusIcon(provider.status)}
                       </span>
@@ -366,6 +544,19 @@ export function AdminProviders() {
                 </div>
               )}
 
+              {ollamaDiscoveryResult && selectedProvider.id === 'ollama' && (
+                <div className={`admin-alert ${ollamaDiscoveryResult.success ? 'admin-alert--success' : 'admin-alert--error'}`}>
+                  <span className="admin-alert__icon">{ollamaDiscoveryResult.success ? '✓' : '!'}</span>
+                  <div className="admin-alert__content">
+                    <p className="admin-alert__message">
+                      {ollamaDiscoveryResult.success
+                        ? `Discovered ${ollamaDiscoveryResult.modelsFound} models from Ollama`
+                        : `Discovery failed: ${ollamaDiscoveryResult.error}`}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="admin-provider-detail__content">
                 {/* Connection */}
                 <div className="admin-provider-detail__section">
@@ -385,18 +576,63 @@ export function AdminProviders() {
                       {selectedProvider.type === 'cloud' && (
                         <div className="admin-form__group">
                           <label className="admin-form__label">
-                            API Key {selectedProvider.apiKeyConfigured && '(configured)'}
+                            API Key {selectedProvider.apiKeyConfigured && selectedProvider.apiKeyHint && `(${selectedProvider.apiKeyHint})`}
                           </label>
-                          <input
-                            type="password"
-                            className="admin-form__input"
-                            value={editApiKey}
-                            onChange={(e) => setEditApiKey(e.target.value)}
-                            placeholder="sk-••••••••••••"
-                          />
+                          <div className="admin-form__input-group">
+                            <input
+                              type="password"
+                              className="admin-form__input"
+                              value={editApiKey}
+                              onChange={(e) => {
+                                setEditApiKey(e.target.value);
+                                setKeyValidationResult(null);
+                              }}
+                              placeholder="sk-••••••••••••"
+                            />
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--sm"
+                              onClick={handleValidateApiKey}
+                              disabled={!editApiKey || validatingKey}
+                            >
+                              {validatingKey ? 'Validating...' : 'Validate'}
+                            </button>
+                          </div>
+                          {keyValidationResult && (
+                            <div className={`admin-form__validation ${keyValidationResult.valid ? 'admin-form__validation--success' : 'admin-form__validation--error'}`}>
+                              {keyValidationResult.valid ? (
+                                <>
+                                  <span className="admin-form__validation-icon">✓</span>
+                                  <span>Valid key</span>
+                                  {keyValidationResult.availableModels && (
+                                    <span className="admin-form__validation-detail">
+                                      ({keyValidationResult.availableModels.length} models available)
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <>
+                                  <span className="admin-form__validation-icon">✗</span>
+                                  <span>{keyValidationResult.error}</span>
+                                </>
+                              )}
+                            </div>
+                          )}
                           <span className="admin-form__hint">
-                            Leave blank to keep existing key
+                            {selectedProvider.apiKeyConfigured
+                              ? 'Enter new key to replace, or leave blank to keep existing'
+                              : 'Enter API key for this provider'}
                           </span>
+                          {selectedProvider.apiKeyConfigured && (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--sm btn--danger"
+                              onClick={handleRemoveApiKey}
+                              style={{ marginTop: 'var(--space-xs)' }}
+                            >
+                              Remove API Key
+                            </button>
+                          )}
                         </div>
                       )}
                       <div className="admin-form__group">
@@ -422,7 +658,9 @@ export function AdminProviders() {
                         <div className="admin-provider-detail__field">
                           <span className="admin-provider-detail__label">API Key</span>
                           <span className="admin-provider-detail__value">
-                            {selectedProvider.apiKeyConfigured ? 'Configured' : 'Not configured'}
+                            {selectedProvider.apiKeyConfigured
+                              ? `Configured ${selectedProvider.apiKeyHint ? `(${selectedProvider.apiKeyHint})` : ''}`
+                              : 'Not configured'}
                           </span>
                         </div>
                       )}
@@ -514,9 +752,19 @@ export function AdminProviders() {
                         <button
                           className="btn btn--ghost btn--sm"
                           onClick={() => handleTestConnection(selectedProvider.id)}
+                          disabled={checkingHealth === selectedProvider.id}
                         >
-                          Test Connection
+                          {checkingHealth === selectedProvider.id ? 'Checking...' : 'Test Connection'}
                         </button>
+                        {selectedProvider.id === 'ollama' && (
+                          <button
+                            className="btn btn--ghost btn--sm"
+                            onClick={handleDiscoverOllamaModels}
+                            disabled={discoveringOllama}
+                          >
+                            {discoveringOllama ? 'Discovering...' : 'Discover Models'}
+                          </button>
+                        )}
                         <button
                           className={`btn btn--ghost btn--sm ${
                             selectedProvider.enabled ? 'btn--danger' : ''

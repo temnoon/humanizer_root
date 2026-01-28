@@ -313,6 +313,30 @@ export {
   initUserService,
   getUserService,
   resetUserService,
+
+  // Model Config Service
+  type ModelConfig,
+  type ModelConfigWithSource,
+  type ModelConfigInput,
+  type ModelParameterOverrides,
+  type ModelAvailabilityStatus,
+  type ModelConfigServiceOptions,
+  ModelConfigService,
+  initModelConfigService,
+  getModelConfigService,
+  resetModelConfigService,
+
+  // Provider Config Service
+  type ProviderConfig,
+  type ProviderConfigWithSource,
+  type ProviderConfigInput,
+  type ProviderHealthStatus,
+  type ProviderConfigServiceOptions,
+  type DecryptedApiKey,
+  ProviderConfigService,
+  initProviderConfigService,
+  getProviderConfigService,
+  resetProviderConfigService,
 } from './aui/index.js';
 
 // ═══════════════════════════════════════════════════════════════════

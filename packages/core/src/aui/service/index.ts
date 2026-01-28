@@ -116,6 +116,22 @@ import {
   type StyleProfileMethods,
   type PersonaProfileMethods,
 } from './persona.js';
+import {
+  createDraftingMethods,
+  DEFAULT_NARRATOR_PERSONA,
+  type DraftingMethods,
+} from './drafting.js';
+import type {
+  DraftingSession,
+  DraftVersion,
+  StartDraftingOptions,
+  GenerateDraftOptions,
+  ReviseDraftOptions,
+  ExportConfig,
+  ExportedArtifact,
+  DraftingStatus,
+  DraftingProgressCallback,
+} from '../types/drafting-types.js';
 
 // Re-export types
 export type {
@@ -137,6 +153,59 @@ export {
   getUnifiedAui,
   resetUnifiedAui,
 } from './factory.js';
+
+// Re-export drafting service
+export {
+  createDraftingMethods,
+  setDraftingMethods,
+  getDraftingMethods,
+  resetDraftingMethods,
+  DEFAULT_NARRATOR_PERSONA,
+  type DraftingMethods,
+} from './drafting.js';
+
+// Re-export export templates
+export {
+  generateThemeCss,
+  generateHtmlDocument,
+  generateMarkdownDocument,
+  generateJsonDocument,
+  extractHeadings,
+  markdownToHtml,
+  generateTocHtml,
+  HUMANIZER_THEME,
+  HUMANIZER_LIGHT_COLORS,
+  HUMANIZER_DARK_COLORS,
+  DEFAULT_SECTION_STYLES,
+} from './export-templates.js';
+
+// Re-export model config service
+export {
+  ModelConfigService,
+  initModelConfigService,
+  getModelConfigService,
+  resetModelConfigService,
+  type ModelConfig,
+  type ModelConfigWithSource,
+  type ModelConfigInput,
+  type ModelParameterOverrides,
+  type ModelAvailabilityStatus,
+  type ModelConfigServiceOptions,
+} from './model-config-service.js';
+
+// Re-export provider config service
+export {
+  ProviderConfigService,
+  initProviderConfigService,
+  getProviderConfigService,
+  resetProviderConfigService,
+  type ProviderConfig,
+  type ProviderConfigWithSource,
+  type ProviderConfigInput,
+  type ProviderHealthStatus,
+  type ProviderConfigServiceOptions,
+  type DecryptedApiKey,
+} from './provider-config-service.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UNIFIED AUI SERVICE
@@ -183,6 +252,7 @@ export class UnifiedAuiService {
   private personaHarvestMethods!: PersonaHarvestMethods;
   private styleProfileMethods!: StyleProfileMethods;
   private personaProfileMethods!: PersonaProfileMethods;
+  private draftingMethods!: DraftingMethods;
 
   constructor(options?: UnifiedAuiServiceOptions) {
     this.options = options ?? {};
@@ -250,6 +320,9 @@ export class UnifiedAuiService {
     );
     this.styleProfileMethods = createStyleProfileMethods(deps);
     this.personaProfileMethods = createPersonaProfileMethods(deps);
+
+    // Create drafting methods
+    this.draftingMethods = createDraftingMethods(deps, this.clusteringMethods, this.bookMethods);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -625,6 +698,63 @@ export class UnifiedAuiService {
 
   setDefaultPersona = (userId: string, personaId: string): Promise<PersonaProfile> =>
     this.personaProfileMethods.setDefaultPersona(userId, personaId);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // DRAFTING LOOP METHODS - Delegated
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  startDrafting = (options: StartDraftingOptions): Promise<DraftingSession> =>
+    this.draftingMethods.startDrafting(options);
+
+  gatherMaterial = (
+    sessionId: string,
+    onProgress?: DraftingProgressCallback
+  ): Promise<import('../types/drafting-types.js').GatherResult> =>
+    this.draftingMethods.gatherMaterial(sessionId, onProgress);
+
+  generateDraft = (
+    sessionId: string,
+    options?: GenerateDraftOptions,
+    onProgress?: DraftingProgressCallback
+  ): Promise<DraftVersion> =>
+    this.draftingMethods.generateDraft(sessionId, options, onProgress);
+
+  reviseDraft = (
+    sessionId: string,
+    options: ReviseDraftOptions,
+    onProgress?: DraftingProgressCallback
+  ): Promise<DraftVersion> =>
+    this.draftingMethods.reviseDraft(sessionId, options, onProgress);
+
+  finalizeDraft = (
+    sessionId: string,
+    config?: ExportConfig,
+    onProgress?: DraftingProgressCallback
+  ): Promise<ExportedArtifact[]> =>
+    this.draftingMethods.finalizeDraft(sessionId, config, onProgress);
+
+  getDraftingSession = (sessionId: string): DraftingSession | undefined =>
+    this.draftingMethods.getDraftingSession(sessionId);
+
+  listDraftingSessions = (options?: {
+    userId?: string;
+    status?: DraftingStatus;
+    limit?: number;
+  }): DraftingSession[] =>
+    this.draftingMethods.listDraftingSessions(options);
+
+  deleteDraftingSession = (sessionId: string): boolean =>
+    this.draftingMethods.deleteDraftingSession(sessionId);
+
+  getDraftVersion = (sessionId: string, version: number): DraftVersion | undefined =>
+    this.draftingMethods.getDraftVersion(sessionId, version);
+
+  compareDraftVersions = (
+    sessionId: string,
+    fromVersion: number,
+    toVersion: number
+  ): { additions: string[]; removals: string[]; wordCountDiff: number } | undefined =>
+    this.draftingMethods.compareDraftVersions(sessionId, fromVersion, toVersion);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // CLEANUP

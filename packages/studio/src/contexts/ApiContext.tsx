@@ -254,16 +254,48 @@ export interface AdminProvider {
   id: string;
   name: string;
   type: 'local' | 'cloud';
-  status: 'connected' | 'disconnected' | 'error';
+  status: 'connected' | 'disconnected' | 'error' | 'healthy' | 'unhealthy' | 'unknown' | 'degraded';
   enabled: boolean;
   endpoint?: string;
   apiKeyConfigured: boolean;
+  apiKeyHint?: string;
   models: Array<{ id: string; name: string; type: string; enabled: boolean }>;
+  healthStatus?: 'healthy' | 'unhealthy' | 'degraded' | 'unknown';
   lastHealthCheck?: string;
+  healthError?: string;
   errorMessage?: string;
   rateLimitRpm?: number;
   costPerMtokInput?: number;
   costPerMtokOutput?: number;
+  priority?: number;
+}
+
+export interface AdminApiKeyValidationResult {
+  valid: boolean;
+  error?: string;
+  errorCode?: string;
+  type: 'format' | 'api' | 'success';
+  availableModels?: string[];
+  timestamp: string;
+}
+
+export interface AdminOllamaDiscoveryResult {
+  success: boolean;
+  modelsFound: number;
+  modelsRegistered: number;
+  models: Array<{
+    id: string;
+    name: string;
+    capabilities: string[];
+    dimensions?: number;
+    contextWindow?: number;
+    parameterSize?: string;
+    quantization?: string;
+    family?: string;
+    isKnown: boolean;
+  }>;
+  error?: string;
+  timestamp: string;
 }
 
 export interface AdminFeature {
@@ -461,8 +493,12 @@ export interface ApiClient {
     // Users
     listUsers: (params?: AdminUserListParams) => Promise<{ users: AdminUser[]; total: number }>;
     getUser: (userId: string) => Promise<AdminUser>;
+    createUser: (params: { email: string; password?: string; role?: string; displayName?: string }) => Promise<AdminUser>;
+    updateUser: (userId: string, params: { email?: string; displayName?: string }) => Promise<AdminUser>;
     updateUserRole: (userId: string, role: string, reason: string) => Promise<void>;
     banUser: (userId: string, reason: string, duration?: string) => Promise<void>;
+    unbanUser: (userId: string) => Promise<void>;
+    deleteUser: (userId: string) => Promise<void>;
 
     // Tiers
     listTiers: () => Promise<{ tiers: AdminTier[] }>;
@@ -483,8 +519,11 @@ export interface ApiClient {
 
     // Providers
     listProviders: () => Promise<{ providers: AdminProvider[] }>;
-    updateProvider: (providerId: string, params: Partial<AdminProvider>) => Promise<void>;
-    checkProviderHealth: (providerId: string) => Promise<{ status: string; latencyMs: number; checkedAt: string }>;
+    updateProvider: (providerId: string, params: { enabled?: boolean; endpoint?: string; apiKey?: string; priority?: number }) => Promise<void>;
+    checkProviderHealth: (providerId: string) => Promise<{ status: string; latencyMs: number; error?: string; consecutiveFailures?: number; checkedAt: string }>;
+    validateProviderKey: (providerId: string, apiKey: string) => Promise<AdminApiKeyValidationResult>;
+    removeProviderApiKey: (providerId: string) => Promise<{ providerId: string; apiKeyRemoved: boolean }>;
+    discoverOllamaModels: () => Promise<AdminOllamaDiscoveryResult>;
 
     // Features
     listFeatures: () => Promise<{ features: AdminFeature[] }>;
@@ -632,11 +671,19 @@ export function ApiProvider({ baseUrl = 'http://localhost:3030', children }: Api
         // Users
         listUsers: (params) => client.get('admin/users', { searchParams: params as Record<string, string | number> }).json(),
         getUser: (userId) => client.get(`admin/users/${userId}`).json(),
+        createUser: (params) => client.post('admin/users', { json: params }).json(),
+        updateUser: (userId, params) => client.put(`admin/users/${userId}`, { json: params }).json(),
         updateUserRole: async (userId, role, reason) => {
           await client.put(`admin/users/${userId}/role`, { json: { role, reason } });
         },
         banUser: async (userId, reason, duration) => {
           await client.post(`admin/users/${userId}/ban`, { json: { reason, duration } });
+        },
+        unbanUser: async (userId) => {
+          await client.post(`admin/users/${userId}/unban`);
+        },
+        deleteUser: async (userId) => {
+          await client.delete(`admin/users/${userId}`);
         },
 
         // Tiers
@@ -670,6 +717,12 @@ export function ApiProvider({ baseUrl = 'http://localhost:3030', children }: Api
           await client.put(`admin/providers/${providerId}`, { json: params });
         },
         checkProviderHealth: (providerId) => client.post(`admin/providers/${providerId}/health`).json(),
+        validateProviderKey: (providerId, apiKey) =>
+          client.post(`admin/providers/${providerId}/validate-key`, { json: { apiKey } }).json(),
+        removeProviderApiKey: (providerId) =>
+          client.delete(`admin/providers/${providerId}/api-key`).json(),
+        discoverOllamaModels: () =>
+          client.post('admin/providers/ollama/discover').json(),
 
         // Features
         listFeatures: () => client.get('admin/features').json(),

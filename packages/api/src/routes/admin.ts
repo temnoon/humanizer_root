@@ -17,8 +17,16 @@ import {
   getFeatureFlagService,
   getAuditService,
   getUserService,
+  getModelConfigService,
+  getProviderConfigService,
+  getOllamaDiscovery,
+  getProviderHealthService,
+  validateApiKey,
+  providerRequiresApiKey,
+  validateApiKeyFormat,
   EMBEDDING_CONFIG_KEYS,
   EMBEDDING_DEFAULTS,
+  type ModelProvider,
 } from '@humanizer/core';
 import type { AuiContextVariables } from '../middleware/aui-context.js';
 import { requireAuth, requireAdmin, getAuth, type AuthContext } from '../middleware/auth.js';
@@ -287,6 +295,139 @@ adminRouter.post('/users/:id/unban', async (c) => {
   }
 });
 
+/**
+ * POST /admin/users
+ * Create a new user (admin provisioning)
+ */
+adminRouter.post('/users', async (c) => {
+  const body = await c.req.json<{
+    email: string;
+    password?: string;
+    role?: string;
+    displayName?: string;
+  }>();
+
+  if (!body.email) {
+    return c.json({ error: 'Email is required' }, 400);
+  }
+
+  const userService = getUserService();
+
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
+  }
+
+  const validRoles = ['free', 'member', 'pro', 'premium', 'admin'];
+  if (body.role && !validRoles.includes(body.role)) {
+    return c.json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` }, 400);
+  }
+
+  try {
+    const user = await userService.createUser({
+      email: body.email,
+      password: body.password,
+      displayName: body.displayName,
+      tier: (body.role as 'free' | 'member' | 'pro' | 'premium' | 'admin') ?? 'free',
+    });
+
+    return c.json({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.tier,
+      createdAt: user.createdAt.toISOString(),
+    }, 201);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to create user';
+    if (message.includes('already exists') || message.includes('duplicate')) {
+      return c.json({ error: 'A user with this email already exists' }, 409);
+    }
+    return c.json({ error: message }, 500);
+  }
+});
+
+/**
+ * PUT /admin/users/:id
+ * Update user fields (email, displayName, etc.)
+ */
+adminRouter.put('/users/:id', async (c) => {
+  const userId = c.req.param('id');
+  const body = await c.req.json<{
+    email?: string;
+    displayName?: string;
+    avatarUrl?: string;
+  }>();
+
+  const userService = getUserService();
+
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
+  }
+
+  try {
+    const user = await userService.updateUser(userId, {
+      email: body.email,
+      displayName: body.displayName,
+      avatarUrl: body.avatarUrl,
+    });
+
+    return c.json({
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      avatarUrl: user.avatarUrl,
+      role: user.tier,
+      updatedAt: user.updatedAt.toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to update user';
+    if (message.includes('not found')) {
+      return c.json({ error: message }, 404);
+    }
+    if (message.includes('already exists') || message.includes('duplicate')) {
+      return c.json({ error: 'A user with this email already exists' }, 409);
+    }
+    return c.json({ error: message }, 500);
+  }
+});
+
+/**
+ * DELETE /admin/users/:id
+ * Delete a user
+ */
+adminRouter.delete('/users/:id', async (c) => {
+  const userId = c.req.param('id');
+  const auth = getAuth(c)!;
+
+  // Prevent self-deletion
+  if (userId === auth.userId) {
+    return c.json({ error: 'Cannot delete your own account' }, 400);
+  }
+
+  const userService = getUserService();
+
+  if (!userService) {
+    return c.json({ error: 'User service not initialized' }, 503);
+  }
+
+  try {
+    const deleted = await userService.deleteUser(userId);
+
+    if (!deleted) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    return c.json({
+      userId,
+      deleted: true,
+      deletedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to delete user';
+    return c.json({ error: message }, message.includes('not found') ? 404 : 500);
+  }
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TIER & QUOTA MANAGEMENT
 // ═══════════════════════════════════════════════════════════════════════════
@@ -302,10 +443,17 @@ adminRouter.get('/tiers', async (c) => {
 
     return c.json({
       tiers: tiers.map((t) => ({
-        id: t.id,
+        // Use 'tier' for compatibility with frontend AdminTier type
+        tier: t.id,
         name: t.name,
         description: t.description,
-        limits: t.limits,
+        // Flatten limits for frontend compatibility
+        tokensPerMonth: t.limits?.tokensPerMonth ?? 0,
+        requestsPerMonth: t.limits?.requestsPerMonth ?? 0,
+        costCentsPerMonth: t.limits?.costCentsPerMonth ?? 0,
+        requestsPerMinute: t.limits?.requestsPerMinute ?? 60,
+        maxApiKeys: t.limits?.maxApiKeys ?? 3,
+        // Keep additional fields
         features: t.features,
         priceMonthly: t.priceMonthly,
         priceAnnual: t.priceAnnual,
@@ -314,7 +462,15 @@ adminRouter.get('/tiers', async (c) => {
       })),
     });
   } catch (error) {
-    return c.json({ error: (error as Error).message }, 503);
+    // Return fallback tiers if service is not available
+    const fallbackTiers = [
+      { tier: 'free', tokensPerMonth: 10000, requestsPerMonth: 100, costCentsPerMonth: 0, requestsPerMinute: 10, maxApiKeys: 1 },
+      { tier: 'member', tokensPerMonth: 100000, requestsPerMonth: 1000, costCentsPerMonth: 500, requestsPerMinute: 30, maxApiKeys: 3 },
+      { tier: 'pro', tokensPerMonth: 500000, requestsPerMonth: 5000, costCentsPerMonth: 2000, requestsPerMinute: 60, maxApiKeys: 10 },
+      { tier: 'premium', tokensPerMonth: -1, requestsPerMonth: -1, costCentsPerMonth: 10000, requestsPerMinute: 120, maxApiKeys: 50 },
+      { tier: 'admin', tokensPerMonth: -1, requestsPerMonth: -1, costCentsPerMonth: -1, requestsPerMinute: -1, maxApiKeys: -1 },
+    ];
+    return c.json({ tiers: fallbackTiers });
   }
 });
 
@@ -914,8 +1070,81 @@ adminRouter.get('/status', async (c) => {
  * List all LLM providers with status
  */
 adminRouter.get('/providers', async (c) => {
-  // TODO: Get from database/config when provider management is implemented
-  // For now, return provider status based on environment
+  const providerConfigService = getProviderConfigService();
+  const healthService = getProviderHealthService();
+  const registry = getModelRegistry();
+
+  // Get all models grouped by provider
+  const allModels = await registry.listAllModels();
+  const modelsByProvider = allModels.reduce<Record<string, typeof allModels>>((acc, m) => {
+    if (!acc[m.provider]) acc[m.provider] = [];
+    acc[m.provider].push(m);
+    return acc;
+  }, {});
+
+  // If we have the config service, get database configs
+  if (providerConfigService) {
+    const configs = await providerConfigService.listConfigs(null);
+    const ollamaUrl = process.env.OLLAMA_URL ??
+      (EMBEDDING_DEFAULTS[EMBEDDING_CONFIG_KEYS.OLLAMA_URL] as string);
+
+    const providers = [];
+
+    // Add configured providers
+    for (const config of configs) {
+      const health = healthService?.getHealthStatus(config.provider);
+      const models = modelsByProvider[config.provider] ?? [];
+
+      providers.push({
+        id: config.provider,
+        name: getProviderDisplayName(config.provider),
+        type: config.provider === 'ollama' || config.provider === 'local' ? 'local' : 'cloud',
+        status: health?.status ?? config.healthStatus,
+        enabled: config.isEnabled,
+        endpoint: config.baseUrl ?? (config.provider === 'ollama' ? ollamaUrl : undefined),
+        apiKeyConfigured: config.hasApiKey,
+        apiKeyHint: config.apiKeyHint,
+        models: models.map(m => ({
+          id: m.id,
+          name: m.description ?? m.id,
+          type: m.capabilities.includes('embedding') ? 'embedding' : 'chat',
+          enabled: m.vettingStatus === 'approved',
+        })),
+        healthStatus: config.healthStatus,
+        lastHealthCheck: config.lastHealthCheck?.toISOString() ?? health?.timestamp.toISOString(),
+        healthError: config.healthError,
+        priority: config.priority,
+      });
+    }
+
+    // Add providers with models but no config
+    for (const [provider, models] of Object.entries(modelsByProvider)) {
+      if (!providers.find(p => p.id === provider)) {
+        const health = healthService?.getHealthStatus(provider as ModelProvider);
+        providers.push({
+          id: provider,
+          name: getProviderDisplayName(provider as ModelProvider),
+          type: provider === 'ollama' || provider === 'local' ? 'local' : 'cloud',
+          status: health?.status ?? 'unknown',
+          enabled: true,
+          endpoint: provider === 'ollama' ? ollamaUrl : undefined,
+          apiKeyConfigured: !!process.env[`${provider.toUpperCase()}_API_KEY`],
+          models: models.map(m => ({
+            id: m.id,
+            name: m.description ?? m.id,
+            type: m.capabilities.includes('embedding') ? 'embedding' : 'chat',
+            enabled: m.vettingStatus === 'approved',
+          })),
+          healthStatus: health?.status,
+          lastHealthCheck: health?.timestamp.toISOString(),
+        });
+      }
+    }
+
+    return c.json({ providers });
+  }
+
+  // Fallback: return provider status based on environment
   const ollamaUrl = process.env.OLLAMA_URL ??
     (EMBEDDING_DEFAULTS[EMBEDDING_CONFIG_KEYS.OLLAMA_URL] as string);
 
@@ -924,44 +1153,44 @@ adminRouter.get('/providers', async (c) => {
       id: 'ollama',
       name: 'Ollama',
       type: 'local' as const,
-      status: 'connected' as const, // Would check actual connection
+      status: 'unknown' as const,
       enabled: true,
       endpoint: ollamaUrl,
-      apiKeyConfigured: false, // Ollama doesn't need API key
-      models: [
-        { id: 'nomic-embed-text:latest', name: 'Nomic Embed', type: 'embedding', enabled: true },
-        { id: 'llama3.2:latest', name: 'Llama 3.2', type: 'chat', enabled: true },
-      ],
-      lastHealthCheck: new Date().toISOString(),
+      apiKeyConfigured: false,
+      models: (modelsByProvider['ollama'] ?? []).map(m => ({
+        id: m.id,
+        name: m.description ?? m.id,
+        type: m.capabilities.includes('embedding') ? 'embedding' : 'chat',
+        enabled: m.vettingStatus === 'approved',
+      })),
     },
     {
       id: 'anthropic',
       name: 'Anthropic',
       type: 'cloud' as const,
-      status: process.env.ANTHROPIC_API_KEY ? 'connected' as const : 'disconnected' as const,
+      status: process.env.ANTHROPIC_API_KEY ? 'unknown' as const : 'disconnected' as const,
       enabled: !!process.env.ANTHROPIC_API_KEY,
       apiKeyConfigured: !!process.env.ANTHROPIC_API_KEY,
-      models: [
-        { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', type: 'chat', enabled: true },
-        { id: 'claude-3-haiku-20240307', name: 'Claude 3 Haiku', type: 'chat', enabled: true },
-      ],
-      rateLimitRpm: 60,
-      costPerMtokInput: 3000, // $3/Mtok input
-      costPerMtokOutput: 15000, // $15/Mtok output
+      models: (modelsByProvider['anthropic'] ?? []).map(m => ({
+        id: m.id,
+        name: m.description ?? m.id,
+        type: m.capabilities.includes('embedding') ? 'embedding' : 'chat',
+        enabled: m.vettingStatus === 'approved',
+      })),
     },
     {
       id: 'openai',
       name: 'OpenAI',
       type: 'cloud' as const,
-      status: process.env.OPENAI_API_KEY ? 'connected' as const : 'disconnected' as const,
+      status: process.env.OPENAI_API_KEY ? 'unknown' as const : 'disconnected' as const,
       enabled: !!process.env.OPENAI_API_KEY,
       apiKeyConfigured: !!process.env.OPENAI_API_KEY,
-      models: [
-        { id: 'gpt-4-turbo-preview', name: 'GPT-4 Turbo', type: 'chat', enabled: true },
-        { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', type: 'chat', enabled: true },
-        { id: 'text-embedding-3-small', name: 'Embedding Small', type: 'embedding', enabled: true },
-      ],
-      rateLimitRpm: 60,
+      models: (modelsByProvider['openai'] ?? []).map(m => ({
+        id: m.id,
+        name: m.description ?? m.id,
+        type: m.capabilities.includes('embedding') ? 'embedding' : 'chat',
+        enabled: m.vettingStatus === 'approved',
+      })),
     },
   ];
 
@@ -973,22 +1202,45 @@ adminRouter.get('/providers', async (c) => {
  * Update provider configuration
  */
 adminRouter.put('/providers/:id', async (c) => {
-  const providerId = c.req.param('id');
+  const providerId = c.req.param('id') as ModelProvider;
   const body = await c.req.json<{
     enabled?: boolean;
     endpoint?: string;
-    rateLimitRpm?: number;
-    models?: Array<{ id: string; enabled: boolean }>;
+    apiKey?: string;
+    priority?: number;
   }>();
 
-  // TODO: Persist provider config to database
+  const providerConfigService = getProviderConfigService();
 
-  return c.json({
-    providerId,
-    updated: true,
-    changes: body,
-    message: 'Provider update endpoint - implementation pending database integration',
-  });
+  if (!providerConfigService) {
+    return c.json({ error: 'Provider config service not initialized' }, 503);
+  }
+
+  try {
+    const config = await providerConfigService.upsertSystemConfig(providerId, {
+      isEnabled: body.enabled,
+      baseUrl: body.endpoint,
+      apiKey: body.apiKey,
+      priority: body.priority,
+    });
+
+    return c.json({
+      providerId,
+      updated: true,
+      config: {
+        id: config.id,
+        provider: config.provider,
+        enabled: config.isEnabled,
+        endpoint: config.baseUrl,
+        apiKeyConfigured: config.hasApiKey,
+        apiKeyHint: config.apiKeyHint,
+        priority: config.priority,
+        healthStatus: config.healthStatus,
+      },
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 500);
+  }
 });
 
 /**
@@ -996,17 +1248,163 @@ adminRouter.put('/providers/:id', async (c) => {
  * Check provider health
  */
 adminRouter.post('/providers/:id/health', async (c) => {
-  const providerId = c.req.param('id');
+  const providerId = c.req.param('id') as ModelProvider;
 
-  // TODO: Actually ping the provider
+  const healthService = getProviderHealthService();
+
+  if (healthService) {
+    try {
+      const check = await healthService.checkProvider(providerId);
+      return c.json({
+        providerId,
+        status: check.status,
+        latencyMs: check.latencyMs,
+        error: check.error,
+        consecutiveFailures: check.consecutiveFailures,
+        checkedAt: check.timestamp.toISOString(),
+      });
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 500);
+    }
+  }
+
+  // Fallback: basic check
+  if (providerId === 'ollama') {
+    const ollamaDiscovery = getOllamaDiscovery();
+    if (ollamaDiscovery) {
+      const available = await ollamaDiscovery.isAvailable();
+      return c.json({
+        providerId,
+        status: available ? 'healthy' : 'unhealthy',
+        latencyMs: 0,
+        checkedAt: new Date().toISOString(),
+      });
+    }
+  }
 
   return c.json({
     providerId,
-    status: 'connected',
-    latencyMs: Math.floor(Math.random() * 100) + 20,
+    status: 'unknown',
     checkedAt: new Date().toISOString(),
+    message: 'Health service not initialized',
   });
 });
+
+/**
+ * POST /admin/providers/:id/validate-key
+ * Validate an API key without saving it
+ */
+adminRouter.post('/providers/:id/validate-key', async (c) => {
+  const providerId = c.req.param('id') as ModelProvider;
+  const body = await c.req.json<{ apiKey: string }>();
+
+  if (!body.apiKey) {
+    return c.json({ error: 'API key is required' }, 400);
+  }
+
+  // First check format
+  const formatCheck = validateApiKeyFormat(providerId, body.apiKey);
+  if (!formatCheck.valid) {
+    return c.json({
+      valid: false,
+      error: formatCheck.error,
+      type: 'format',
+    });
+  }
+
+  // Then validate with provider
+  const result = await validateApiKey(providerId, body.apiKey);
+
+  return c.json({
+    valid: result.valid,
+    error: result.error,
+    errorCode: result.errorCode,
+    type: result.valid ? 'success' : 'api',
+    availableModels: result.availableModels,
+    timestamp: result.timestamp.toISOString(),
+  });
+});
+
+/**
+ * DELETE /admin/providers/:id/api-key
+ * Remove API key from a provider
+ */
+adminRouter.delete('/providers/:id/api-key', async (c) => {
+  const providerId = c.req.param('id') as ModelProvider;
+
+  const providerConfigService = getProviderConfigService();
+
+  if (!providerConfigService) {
+    return c.json({ error: 'Provider config service not initialized' }, 503);
+  }
+
+  try {
+    const config = await providerConfigService.removeApiKey(providerId, null);
+
+    if (!config) {
+      return c.json({ error: 'Provider config not found' }, 404);
+    }
+
+    return c.json({
+      providerId,
+      apiKeyRemoved: true,
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 500);
+  }
+});
+
+/**
+ * POST /admin/providers/ollama/discover
+ * Discover models from Ollama
+ */
+adminRouter.post('/providers/ollama/discover', async (c) => {
+  const ollamaDiscovery = getOllamaDiscovery();
+
+  if (!ollamaDiscovery) {
+    return c.json({ error: 'Ollama discovery service not initialized' }, 503);
+  }
+
+  try {
+    const result = await ollamaDiscovery.discover();
+
+    return c.json({
+      success: result.success,
+      modelsFound: result.modelsFound,
+      modelsRegistered: result.modelsRegistered,
+      models: result.models.map(m => ({
+        id: m.id,
+        name: m.name,
+        capabilities: m.capabilities,
+        dimensions: m.dimensions,
+        contextWindow: m.contextWindow,
+        parameterSize: m.parameterSize,
+        quantization: m.quantization,
+        family: m.family,
+        isKnown: m.isKnown,
+      })),
+      error: result.error,
+      timestamp: result.timestamp.toISOString(),
+    });
+  } catch (error) {
+    return c.json({ error: (error as Error).message }, 500);
+  }
+});
+
+// Helper function for provider display names
+function getProviderDisplayName(provider: ModelProvider): string {
+  const names: Record<string, string> = {
+    ollama: 'Ollama',
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    google: 'Google (Gemini)',
+    voyage: 'Voyage AI',
+    cohere: 'Cohere',
+    local: 'Local',
+    custom: 'Custom',
+  };
+  return names[provider] ?? provider;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // FEATURE FLAGS
