@@ -18,6 +18,7 @@ import type { SearchResult } from '../contexts/ApiContext';
 interface CornerAssistantProps {
   onSelectResult?: (result: SearchResult) => void;
   sessionId?: string;
+  isConnected?: boolean;
 }
 
 interface ChatMessage {
@@ -27,7 +28,7 @@ interface ChatMessage {
   results?: SearchResult[];
 }
 
-export function CornerAssistant({ onSelectResult, sessionId }: CornerAssistantProps) {
+export function CornerAssistant({ onSelectResult, sessionId, isConnected = false }: CornerAssistantProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -281,7 +282,7 @@ export function CornerAssistant({ onSelectResult, sessionId }: CornerAssistantPr
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder={sessionId ? "Search archive..." : "Connecting to API..."}
+              placeholder={isConnected ? "Search archive..." : "Connecting to API..."}
               disabled={isLoading}
               rows={1}
               aria-label="Search input"

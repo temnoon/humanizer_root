@@ -13,6 +13,7 @@ import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { ApiProvider, useApi } from './contexts/ApiContext';
 import { AuthProvider, useAuth, useIsAdmin } from './contexts/AuthContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { BufferSyncProvider, useBufferSync } from './contexts/BufferSyncContext';
 import { MainWorkspace, type WorkspaceContent } from './components/workspace';
 import { CornerAssistant } from './components/CornerAssistant';
 import { LoginModal, UserMenu } from './components/auth';
@@ -25,22 +26,40 @@ import type { SearchResult } from './contexts/ApiContext';
 // ═══════════════════════════════════════════════════════════════════════════
 
 function StudioContent() {
-  const api = useApi();
   const { theme, setTheme } = useTheme();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const isAdmin = useIsAdmin();
   const navigate = useNavigate();
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [content, setContent] = useState<WorkspaceContent | null>(null);
   const [topbarVisible, setTopbarVisible] = useState(true);
   const [showLoginModal, setShowLoginModal] = useState(false);
 
-  // Create session on mount
-  useEffect(() => {
-    api.createSession({ name: 'Studio Session' })
-      .then((session) => setSessionId(session.id))
-      .catch(console.error);
-  }, [api]);
+  // Use BufferSync for session and content management
+  const {
+    sessionId,
+    isConnected,
+    workingContent,
+    importArchiveNode,
+  } = useBufferSync();
+
+  // Convert buffer content to workspace content for display
+  const content: WorkspaceContent | null = workingContent.length > 0
+    ? {
+        id: workingContent[0].id,
+        title: workingContent[0].metadata.source?.threadTitle ??
+               workingContent[0].metadata.source?.path?.[0] ??
+               'Content',
+        text: workingContent.map(item => item.text).join('\n\n'),
+        source: {
+          type: workingContent[0].metadata.source?.type ?? 'buffer',
+          path: workingContent[0].metadata.source?.path ?? ['Workspace'],
+        },
+        metadata: {
+          wordCount: workingContent.reduce((sum, item) =>
+            sum + (item.metadata.wordCount ?? 0), 0),
+          authorRole: workingContent[0].metadata.authorRole,
+        },
+      }
+    : null;
 
   // Auto-hide topbar after 3 seconds of no mouse movement
   useEffect(() => {
@@ -59,25 +78,19 @@ function StudioContent() {
   }, []);
 
   // Handle result selection from CornerAssistant
+  // Now uses buffer system instead of local state
   const handleSelectResult = useCallback((result: SearchResult) => {
-    const sourceType = result.provenance?.sourceType || result.source;
-    const threadTitle = result.provenance?.threadTitle;
-    const authorRole = result.provenance?.authorRole;
-
-    setContent({
+    importArchiveNode({
       id: result.id,
-      title: threadTitle || sourceType,
       text: result.text,
-      source: {
-        type: result.source,
-        path: [sourceType, threadTitle || 'Content'],
-      },
-      metadata: {
-        wordCount: result.wordCount,
-        authorRole,
-      },
+      type: 'search-result',
+      sourceType: result.provenance?.sourceType || result.source,
+      threadId: result.provenance?.threadRootId,
+      threadTitle: result.provenance?.threadTitle,
+      authorRole: result.provenance?.authorRole,
+      wordCount: result.wordCount,
     });
-  }, []);
+  }, [importArchiveNode]);
 
   // Handle "Find Similar" from workspace
   const handleFindSimilar = useCallback(async (text: string) => {
@@ -176,6 +189,7 @@ function StudioContent() {
       <CornerAssistant
         onSelectResult={handleSelectResult}
         sessionId={sessionId ?? undefined}
+        isConnected={isConnected}
       />
 
       {/* Login modal */}
@@ -319,7 +333,9 @@ export function App() {
       <ThemeProvider>
         <AuthProvider>
           <ApiProvider>
-            <AppRoutes />
+            <BufferSyncProvider>
+              <AppRoutes />
+            </BufferSyncProvider>
           </ApiProvider>
         </AuthProvider>
       </ThemeProvider>
