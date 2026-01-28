@@ -12,6 +12,8 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useApi } from '../../contexts/ApiContext';
+import { useBufferSync, type ArchiveNode } from '../../contexts/BufferSyncContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -53,35 +55,35 @@ export interface UnifiedSearchResult {
 type SearchFilter = 'all' | 'transcripts' | 'conversations' | 'media';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MOCK API (Replace with actual API calls)
+// API INTEGRATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function searchUnified(
-  query: string,
-  archiveId: string | undefined,
-  filter: SearchFilter,
-  limit: number
-): Promise<UnifiedSearchResult[]> {
-  // TODO: Replace with actual API call to VECTOR_SEARCH_UNIFIED_CONTENT
-  // This would call: POST /api/search/unified
-  // {
-  //   query,
-  //   archiveId,
-  //   filter,
-  //   limit
-  // }
-  return [];
-}
-
-async function searchBySimilarity(
-  embedding: number[],
-  archiveId: string | undefined,
-  similar: boolean,
-  limit: number
-): Promise<UnifiedSearchResult[]> {
-  // TODO: Replace with actual API call
-  // For dissimilar, we'd use 1 - similarity or filter by low similarity
-  return [];
+// Convert API search result to UnifiedSearchResult
+function convertToUnifiedResult(result: {
+  id: string;
+  text: string;
+  score: number;
+  source: string;
+  wordCount?: number;
+  hierarchyLevel?: number;
+  provenance?: {
+    sourceType?: string;
+    threadTitle?: string;
+    threadRootId?: string;
+    authorRole?: string;
+  };
+}): UnifiedSearchResult {
+  return {
+    id: result.id,
+    contentType: 'content',
+    text: result.text.substring(0, 300) + (result.text.length > 300 ? '...' : ''),
+    sourceId: result.id,
+    sourceConversationId: result.provenance?.threadRootId,
+    similarity: result.score,
+    // These would come from actual API response
+    hasTranscript: false,
+    transcriptCount: 0,
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

@@ -12,6 +12,7 @@
 
 import React, { useCallback } from 'react';
 import { usePanels, usePanelState } from '../../contexts/PanelContext';
+import { useBufferSync, type ArchiveNode } from '../../contexts/BufferSyncContext';
 import { ArchiveBrowser } from './ArchiveBrowser';
 import { ArchiveSearch } from './ArchiveSearch';
 import { ClusterBrowser } from './ClusterBrowser';
@@ -58,12 +59,45 @@ export function ArchivePane({
 }: ArchivePaneProps): React.ReactElement {
   const panelState = usePanelState();
   const { setArchiveTab, toggleArchive } = usePanels();
+  const { importArchiveNode, sessionId } = useBufferSync();
 
   const handleTabChange = useCallback(
     (tabId: typeof TABS[number]['id']) => {
       setArchiveTab(tabId);
     },
     [setArchiveTab]
+  );
+
+  // Handle content selection - import to buffer
+  const handleSelectContent = useCallback(
+    async (contentId: string, type: 'node' | 'transcript') => {
+      // If there's an external handler, call it first
+      onSelectContent?.(contentId, type);
+
+      // Import to buffer if we have a session
+      if (!sessionId) return;
+
+      try {
+        // Fetch the content from the API
+        // For now, we create a placeholder - real implementation would fetch from API
+        const node: ArchiveNode = {
+          id: contentId,
+          text: `Loading content ${contentId}...`, // Will be replaced by actual content
+          type: type,
+          sourceType: 'archive',
+        };
+
+        // Try to fetch actual content if API supports it
+        // This would be replaced with actual API call
+        // const result = await api.getArchiveNode(contentId);
+        // if (result) { node.text = result.text; ... }
+
+        await importArchiveNode(node);
+      } catch (error) {
+        console.error('[ArchivePane] Failed to import content to buffer:', error);
+      }
+    },
+    [onSelectContent, sessionId, importArchiveNode]
   );
 
   // Render tab content
@@ -73,7 +107,7 @@ export function ArchivePane({
         return (
           <ArchiveBrowser
             archiveId={archiveId}
-            onSelectContent={onSelectContent}
+            onSelectContent={handleSelectContent}
             onSearchSimilar={onSearchSimilar}
             onRequestTranscription={onRequestTranscription}
           />
@@ -82,7 +116,7 @@ export function ArchivePane({
         return (
           <ArchiveSearch
             archiveId={archiveId}
-            onSelectContent={onSelectContent}
+            onSelectContent={handleSelectContent}
             onSearchSimilar={onSearchSimilar}
             onSearchDissimilar={onSearchDissimilar}
             onRequestTranscription={onRequestTranscription}
