@@ -11,9 +11,10 @@
  * Shows WelcomeScreen when no content is active.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { MathMarkdown } from '../markdown';
 import { WelcomeScreen } from './WelcomeScreen';
+import { useBufferSync } from '../../contexts/BufferSyncContext';
 
 export interface WorkspaceContent {
   id: string;
@@ -37,10 +38,19 @@ export interface MainWorkspaceProps {
 export type ViewMode = 'read' | 'edit';
 
 export function MainWorkspace({ content, onFindSimilar }: MainWorkspaceProps) {
+  const { setContent, commit, isDirty, undo, redo, canUndo, canRedo } = useBufferSync();
+
   const [viewMode, setViewMode] = useState<ViewMode>('read');
   const [editContent, setEditContent] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Sync edit content when content changes
+  useEffect(() => {
+    if (content && viewMode === 'edit') {
+      setEditContent(content.text);
+    }
+  }, [content?.id]);
+
   const handleEnterEdit = useCallback(() => {
     if (content) {
       setEditContent(content.text);
@@ -48,9 +58,63 @@ export function MainWorkspace({ content, onFindSimilar }: MainWorkspaceProps) {
     setViewMode('edit');
   }, [content]);
 
+  // Apply edits by updating buffer content
+  const handleApplyChanges = useCallback(async () => {
+    if (!content) return;
+
+    setIsSaving(true);
+    try {
+      // Update the buffer with edited content
+      await setContent([{
+        id: content.id,
+        type: 'text',
+        text: editContent,
+        metadata: {
+          wordCount: editContent.split(/\s+/).filter(Boolean).length,
+          authorRole: (content.metadata?.authorRole as 'user' | 'assistant' | 'system' | undefined),
+        },
+      }]);
+
+      // Commit the changes
+      await commit('Edit in workspace');
+      setViewMode('read');
+    } catch (error) {
+      console.error('Failed to save changes:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [content, editContent, setContent, commit]);
+
   const handleCancelEdit = useCallback(() => {
     setViewMode('read');
   }, []);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        if (e.shiftKey) {
+          e.preventDefault();
+          if (canRedo) redo();
+        } else {
+          e.preventDefault();
+          if (canUndo) undo();
+        }
+      }
+      // Cmd+E to toggle edit mode
+      if ((e.metaKey || e.ctrlKey) && e.key === 'e') {
+        e.preventDefault();
+        if (viewMode === 'edit') {
+          handleCancelEdit();
+        } else if (content) {
+          handleEnterEdit();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [canUndo, canRedo, undo, redo, viewMode, content, handleCancelEdit, handleEnterEdit]);
 
   // Handle text selection for "Find Similar"
   const handleSelection = useCallback(() => {
@@ -100,6 +164,11 @@ export function MainWorkspace({ content, onFindSimilar }: MainWorkspaceProps) {
           <span className="workspace__view-hint" aria-hidden="true">
             Cmd+E
           </span>
+          {isDirty && (
+            <span className="workspace__dirty-indicator" title="Unsaved changes">
+              •
+            </span>
+          )}
         </div>
 
         <div className="workspace__actions">
@@ -167,19 +236,38 @@ export function MainWorkspace({ content, onFindSimilar }: MainWorkspaceProps) {
           <div className="workspace__editor-actions">
             <button
               className="workspace__editor-btn workspace__editor-btn--primary"
-              onClick={() => {
-                // Would commit to buffer here
-                setViewMode('read');
-              }}
+              onClick={handleApplyChanges}
+              disabled={isSaving}
             >
-              Apply Changes
+              {isSaving ? 'Saving...' : 'Apply Changes'}
             </button>
             <button
               className="workspace__editor-btn workspace__editor-btn--secondary"
               onClick={handleCancelEdit}
+              disabled={isSaving}
             >
               Cancel
             </button>
+            {canUndo && (
+              <button
+                className="workspace__editor-btn"
+                onClick={undo}
+                disabled={isSaving}
+                title="Undo (Cmd+Z)"
+              >
+                Undo
+              </button>
+            )}
+            {canRedo && (
+              <button
+                className="workspace__editor-btn"
+                onClick={redo}
+                disabled={isSaving}
+                title="Redo (Cmd+Shift+Z)"
+              >
+                Redo
+              </button>
+            )}
           </div>
         </div>
       )}

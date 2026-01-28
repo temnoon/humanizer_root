@@ -11,6 +11,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
+import { useBufferSync, type ContentItem } from '../../contexts/BufferSyncContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -99,6 +100,9 @@ export function TransformTool({
   onTransformApplied,
   className = '',
 }: TransformToolProps): React.ReactElement {
+  // Buffer context for reading/writing content
+  const { workingContent, setContent, commit } = useBufferSync();
+
   // State
   const [selectedTransform, setSelectedTransform] = useState<TransformOption | null>(null);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -106,17 +110,20 @@ export function TransformTool({
   const [status, setStatus] = useState<TransformStatus>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  // Check if content is selected
-  const hasSelection = selectedContentIds.length > 0;
-  const selectionCount = selectedContentIds.length;
+  // Check if content is available in buffer
+  const hasContent = workingContent.length > 0;
+  const contentText = useMemo(
+    () => workingContent.map((item) => item.text).join('\n\n'),
+    [workingContent]
+  );
 
   // Can run transformation?
   const canTransform = useMemo(() => {
-    if (!hasSelection) return false;
+    if (!hasContent) return false;
     if (!selectedTransform) return false;
     if (selectedTransform.id === 'custom' && !customPrompt.trim()) return false;
     return true;
-  }, [hasSelection, selectedTransform, customPrompt]);
+  }, [hasContent, selectedTransform, customPrompt]);
 
   // Handle transform selection
   const handleSelectTransform = useCallback((option: TransformOption) => {
@@ -147,7 +154,7 @@ export function TransformTool({
     }
   }, [canTransform, selectedTransform, customPrompt]);
 
-  // Apply transformation
+  // Apply transformation - writes to buffer
   const handleApply = useCallback(async () => {
     if (!canTransform || !selectedTransform || !preview) return;
 
@@ -155,10 +162,27 @@ export function TransformTool({
     setError(null);
 
     try {
-      // TODO: Wire to transformation service
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Create transformed content item
+      const transformedItem: ContentItem = {
+        id: crypto.randomUUID(),
+        type: 'transformed',
+        text: preview,
+        metadata: {
+          transformHistory: [{
+            type: selectedTransform.id,
+            timestamp: Date.now(),
+          }],
+          wordCount: preview.split(/\s+/).filter(Boolean).length,
+        },
+      };
 
-      // Notify parent
+      // Write to buffer
+      await setContent([transformedItem]);
+
+      // Commit the transformation
+      await commit(`Transform: ${selectedTransform.label}`);
+
+      // Notify parent (for backward compatibility)
       for (const contentId of selectedContentIds) {
         onTransformApplied?.(contentId, preview);
       }
@@ -172,7 +196,7 @@ export function TransformTool({
     } finally {
       setStatus('idle');
     }
-  }, [canTransform, selectedTransform, preview, selectedContentIds, onTransformApplied]);
+  }, [canTransform, selectedTransform, preview, selectedContentIds, onTransformApplied, setContent, commit]);
 
   // Cancel preview
   const handleCancel = useCallback(() => {
@@ -182,11 +206,12 @@ export function TransformTool({
 
   return (
     <div className={`transform-tool ${className}`}>
-      {/* Selection Status */}
+      {/* Selection Status - shows buffer content */}
       <div className="transform-tool__selection">
-        {hasSelection ? (
+        {hasContent ? (
           <span className="transform-tool__selection-count">
-            {selectionCount} item{selectionCount !== 1 ? 's' : ''} selected
+            {workingContent.length} item{workingContent.length !== 1 ? 's' : ''} in workspace
+            ({contentText.split(/\s+/).filter(Boolean).length} words)
           </span>
         ) : (
           <span className="transform-tool__selection-empty">
@@ -204,7 +229,7 @@ export function TransformTool({
               key={option.id}
               className={`transform-option ${selectedTransform?.id === option.id ? 'transform-option--selected' : ''}`}
               onClick={() => handleSelectTransform(option)}
-              disabled={!hasSelection}
+              disabled={!hasContent}
               role="option"
               aria-selected={selectedTransform?.id === option.id}
             >
@@ -295,13 +320,13 @@ export function TransformTool({
         )}
       </div>
 
-      {/* Placeholder when nothing selected */}
-      {!hasSelection && (
+      {/* Placeholder when no content in workspace */}
+      {!hasContent && (
         <div className="transform-tool__placeholder">
           <span aria-hidden="true">✨</span>
-          <p>Select content to transform</p>
+          <p>No content in workspace</p>
           <p className="transform-tool__placeholder-hint">
-            Use the archive browser or search to select content
+            Use the archive browser or search to add content to the workspace
           </p>
         </div>
       )}

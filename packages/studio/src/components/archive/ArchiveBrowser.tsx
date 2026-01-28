@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useBufferSync, type ArchiveNode } from '../../contexts/BufferSyncContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -74,6 +75,8 @@ export function ArchiveBrowser({
   onRequestTranscription,
   className = '',
 }: ArchiveBrowserProps): React.ReactElement {
+  const { importArchiveNode } = useBufferSync();
+
   const [tree, setTree] = useState<TreeNode[]>([]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -103,17 +106,26 @@ export function ArchiveBrowser({
     });
   }, []);
 
-  // Select node
+  // Select node and import to buffer
   const handleSelect = useCallback(
-    (node: TreeNode) => {
+    async (node: TreeNode) => {
       setSelectedId(node.id);
-      if (node.type === 'media' && node.hasTranscript) {
-        onSelectContent?.(node.id, 'transcript');
-      } else {
-        onSelectContent?.(node.id, 'node');
-      }
+
+      const contentType = node.type === 'media' && node.hasTranscript ? 'transcript' : 'node';
+      onSelectContent?.(node.id, contentType);
+
+      // Import to buffer for workspace display
+      const archiveNode: ArchiveNode = {
+        id: node.id,
+        text: node.label, // TODO: Fetch full content from API
+        type: node.type,
+        sourceType: node.source ?? 'archive',
+        threadId: node.type === 'conversation' ? node.id : undefined,
+        wordCount: node.contextMessage?.length ?? 0,
+      };
+      await importArchiveNode(archiveNode);
     },
-    [onSelectContent]
+    [onSelectContent, importArchiveNode]
   );
 
   // Handle similar search
@@ -215,9 +227,9 @@ export function ArchiveBrowser({
           aria-expanded={hasChildren ? isExpanded : undefined}
           aria-selected={isSelected}
           tabIndex={0}
-          onClick={() => handleSelect(node)}
+          onClick={() => void handleSelect(node)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') handleSelect(node);
+            if (e.key === 'Enter') void handleSelect(node);
             if (e.key === 'ArrowRight' && hasChildren && !isExpanded) toggleExpand(node.id);
             if (e.key === 'ArrowLeft' && isExpanded) toggleExpand(node.id);
           }}

@@ -11,6 +11,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
+import { useBufferSync, type ContentItem } from '../../contexts/BufferSyncContext';
 import type { HarvestedItem } from './ToolsPane';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -51,6 +52,9 @@ export function HarvestTool({
   onContentHarvested,
   className = '',
 }: HarvestToolProps): React.ReactElement {
+  // Buffer context for reading workspace content and exporting harvested items
+  const { workingContent, setContent, commit } = useBufferSync();
+
   // State
   const [baskets, setBaskets] = useState<HarvestBasket[]>([]);
   const [activeBasketId, setActiveBasketId] = useState<string | null>(null);
@@ -63,8 +67,8 @@ export function HarvestTool({
     [baskets, activeBasketId]
   );
 
-  // Check if content is selected
-  const hasSelection = selectedContentIds.length > 0;
+  // Check if content is in workspace (from buffer)
+  const hasWorkspaceContent = workingContent.length > 0;
 
   // Create new basket
   const handleCreateBasket = useCallback(() => {
@@ -83,16 +87,15 @@ export function HarvestTool({
     setIsCreatingBasket(false);
   }, [newBasketName]);
 
-  // Add selected content to basket
+  // Add workspace content to basket (reads from buffer)
   const handleAddToBasket = useCallback(async () => {
-    if (!activeBasket || !hasSelection) return;
+    if (!activeBasket || !hasWorkspaceContent) return;
 
-    // TODO: Fetch actual content for selected IDs
-    // For now, create placeholder items
-    const newItems: HarvestedItem[] = selectedContentIds.map((id) => ({
-      id,
-      content: `[Content from ${id}]`,
-      source: archiveId ?? 'unknown',
+    // Convert buffer content to harvested items
+    const newItems: HarvestedItem[] = workingContent.map((item) => ({
+      id: item.id,
+      content: item.text,
+      source: item.metadata.source?.type ?? archiveId ?? 'workspace',
       addedAt: new Date(),
     }));
 
@@ -105,7 +108,7 @@ export function HarvestTool({
     );
 
     onContentHarvested?.(newItems);
-  }, [activeBasket, hasSelection, selectedContentIds, archiveId, onContentHarvested]);
+  }, [activeBasket, hasWorkspaceContent, workingContent, archiveId, onContentHarvested]);
 
   // Remove item from basket
   const handleRemoveItem = useCallback((itemId: string) => {
@@ -128,14 +131,30 @@ export function HarvestTool({
     }
   }, [activeBasketId]);
 
-  // Export basket to drafting
-  const handleExportToDraft = useCallback(() => {
+  // Export basket to workspace (writes to buffer)
+  const handleExportToDraft = useCallback(async () => {
     if (!activeBasket || activeBasket.items.length === 0) return;
 
-    // TODO: Wire to drafting service
-    // For now, just log
-    console.log('Export to draft:', activeBasket);
-  }, [activeBasket]);
+    // Convert harvested items to content items for the buffer
+    const contentItems: ContentItem[] = activeBasket.items.map((item) => ({
+      id: item.id,
+      type: 'text',
+      text: item.content,
+      metadata: {
+        source: {
+          type: 'harvest',
+          path: [activeBasket.name],
+        },
+        timestamp: item.addedAt.getTime(),
+      },
+    }));
+
+    // Set content in the buffer
+    await setContent(contentItems);
+
+    // Commit the harvest export
+    await commit(`Harvest: ${activeBasket.name} (${activeBasket.items.length} items)`);
+  }, [activeBasket, setContent, commit]);
 
   // Clear basket
   const handleClearBasket = useCallback(() => {
@@ -238,14 +257,14 @@ export function HarvestTool({
             </span>
           </div>
 
-          {/* Add Selection Button */}
-          {hasSelection && (
+          {/* Add Workspace Content Button */}
+          {hasWorkspaceContent && (
             <button
               className="harvest-tool__btn harvest-tool__btn--add"
               onClick={handleAddToBasket}
             >
               <span aria-hidden="true">+</span>
-              Add {selectedContentIds.length} selected
+              Add {workingContent.length} from workspace
             </button>
           )}
 

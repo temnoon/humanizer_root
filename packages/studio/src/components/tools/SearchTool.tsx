@@ -11,6 +11,8 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useApi, type SearchResult as ApiSearchResult } from '../../contexts/ApiContext';
+import { useBufferSync, type ArchiveNode } from '../../contexts/BufferSyncContext';
 import type { SearchResult } from './ToolsPane';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -51,6 +53,10 @@ export function SearchTool({
   onSearchResults,
   className = '',
 }: SearchToolProps): React.ReactElement {
+  // API and buffer context
+  const api = useApi();
+  const { sessionId, importArchiveNode } = useBufferSync();
+
   // State
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<SearchMode>('semantic');
@@ -89,10 +95,15 @@ export function SearchTool({
     }
   }, []);
 
-  // Execute search
+  // Execute search using the real API
   const executeSearch = useCallback(async (searchQuery: string) => {
-    if (!searchQuery.trim() || !archiveId) {
+    if (!searchQuery.trim()) {
       setResults([]);
+      return;
+    }
+
+    if (!sessionId) {
+      setError('No active session. Please wait for connection.');
       return;
     }
 
@@ -100,19 +111,27 @@ export function SearchTool({
     setError(null);
 
     try {
-      // TODO: Wire to VECTOR_SEARCH_UNIFIED_CONTENT endpoint
-      // For now, simulate search with placeholder
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Use real API for search
+      const response = await api.search(sessionId, searchQuery, {
+        limit: 50,
+      });
 
-      // Placeholder results - will be replaced with real API call
-      const mockResults: SearchResult[] = [];
+      // Convert API results to tool-specific format
+      const searchResults: SearchResult[] = response.results.map((r) => ({
+        id: r.id,
+        type: r.source === 'archive' ? 'content' : 'transcript',
+        content: r.text.substring(0, 300) + (r.text.length > 300 ? '...' : ''),
+        score: r.score,
+        sourceId: r.provenance?.sourceOriginalId,
+        metadata: r.metadata,
+      }));
 
-      setResults(mockResults);
-      onSearchResults?.(mockResults);
+      setResults(searchResults);
+      onSearchResults?.(searchResults);
 
       // Add to history
       const newHistory: SearchHistoryItem[] = [
-        { query: searchQuery, timestamp: new Date(), resultCount: mockResults.length },
+        { query: searchQuery, timestamp: new Date(), resultCount: searchResults.length },
         ...history.filter((h) => h.query !== searchQuery),
       ].slice(0, MAX_HISTORY);
 
@@ -124,7 +143,7 @@ export function SearchTool({
     } finally {
       setIsSearching(false);
     }
-  }, [archiveId, history, onSearchResults, saveHistory]);
+  }, [sessionId, api, history, onSearchResults, saveHistory]);
 
   // Debounced search
   const handleQueryChange = useCallback(
@@ -186,6 +205,20 @@ export function SearchTool({
     if (score >= 0.4) return 'search-result__score--medium';
     return 'search-result__score--low';
   };
+
+  // Handle result selection - import to buffer
+  const handleResultClick = useCallback(
+    async (result: SearchResult) => {
+      const node: ArchiveNode = {
+        id: result.id,
+        text: result.content,
+        type: result.type === 'transcript' ? 'transcript' : 'search-result',
+        sourceType: result.type,
+      };
+      await importArchiveNode(node);
+    },
+    [importArchiveNode]
+  );
 
   return (
     <div className={`search-tool ${className}`}>
@@ -296,6 +329,10 @@ export function SearchTool({
               className={`search-result search-result--${result.type}`}
               role="option"
               tabIndex={0}
+              onClick={() => void handleResultClick(result)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void handleResultClick(result);
+              }}
             >
               <div className="search-result__header">
                 <span className="search-result__type">

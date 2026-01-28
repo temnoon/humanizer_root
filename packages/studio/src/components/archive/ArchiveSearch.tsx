@@ -12,7 +12,7 @@
  */
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useApi } from '../../contexts/ApiContext';
+import { useApi, type SearchResult } from '../../contexts/ApiContext';
 import { useBufferSync, type ArchiveNode } from '../../contexts/BufferSyncContext';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -98,6 +98,9 @@ export function ArchiveSearch({
   onRequestTranscription,
   className = '',
 }: ArchiveSearchProps): React.ReactElement {
+  const api = useApi();
+  const { sessionId, importArchiveNode } = useBufferSync();
+
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<SearchFilter>('all');
   const [results, setResults] = useState<UnifiedSearchResult[]>([]);
@@ -106,7 +109,7 @@ export function ArchiveSearch({
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Debounced search
+  // Debounced search using the real API
   const performSearch = useCallback(
     async (searchQuery: string) => {
       if (!searchQuery.trim()) {
@@ -114,12 +117,30 @@ export function ArchiveSearch({
         return;
       }
 
+      if (!sessionId) {
+        setError('No active session. Please wait for connection.');
+        return;
+      }
+
       setIsLoading(true);
       setError(null);
 
       try {
-        const searchResults = await searchUnified(searchQuery, archiveId, filter, 50);
-        setResults(searchResults);
+        // Map filter to sources for API
+        const sources: string[] | undefined =
+          filter === 'all' ? undefined :
+          filter === 'transcripts' ? ['transcripts'] :
+          filter === 'conversations' ? ['archive'] :
+          filter === 'media' ? ['media'] : undefined;
+
+        const response = await api.search(sessionId, searchQuery, {
+          sources,
+          limit: 50,
+        });
+
+        // Convert API results to unified format
+        const unifiedResults = response.results.map(convertToUnifiedResult);
+        setResults(unifiedResults);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Search failed');
         setResults([]);
@@ -127,7 +148,7 @@ export function ArchiveSearch({
         setIsLoading(false);
       }
     },
-    [archiveId, filter]
+    [sessionId, api, filter]
   );
 
   // Handle query change with debounce
@@ -305,12 +326,31 @@ export function ArchiveSearch({
               }`}
               role="option"
               tabIndex={0}
-              onClick={() =>
-                onSelectContent?.(result.id, result.contentType === 'transcript' ? 'transcript' : 'node')
-              }
-              onKeyDown={(e) => {
+              onClick={async () => {
+                // Notify parent callback
+                onSelectContent?.(result.id, result.contentType === 'transcript' ? 'transcript' : 'node');
+
+                // Import to buffer
+                const node: ArchiveNode = {
+                  id: result.id,
+                  text: result.text,
+                  type: result.contentType === 'transcript' ? 'transcript' : 'search-result',
+                  sourceType: result.contentType,
+                  threadId: result.sourceConversationId,
+                };
+                await importArchiveNode(node);
+              }}
+              onKeyDown={async (e) => {
                 if (e.key === 'Enter') {
                   onSelectContent?.(result.id, result.contentType === 'transcript' ? 'transcript' : 'node');
+                  const node: ArchiveNode = {
+                    id: result.id,
+                    text: result.text,
+                    type: result.contentType === 'transcript' ? 'transcript' : 'search-result',
+                    sourceType: result.contentType,
+                    threadId: result.sourceConversationId,
+                  };
+                  await importArchiveNode(node);
                 }
               }}
             >
