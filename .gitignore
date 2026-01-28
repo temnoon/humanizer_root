@@ -112,3 +112,9 @@ narrative-studio/release/
 # Generated Output
 output/
 **/output/
+
+# TypeScript build artifacts
+*.tsbuildinfo
+
+# Generated output
+packages/core/humanizer-output/
