@@ -9,13 +9,16 @@
  */
 
 import { Hono } from 'hono';
-import type { AuiContextVariables } from '../middleware/aui-context.js';
+import { auiMiddleware, type AuiContextVariables } from '../middleware/aui-context.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ROUTER
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const archiveRouter = new Hono<{ Variables: AuiContextVariables }>();
+
+// Apply AUI middleware to all archive routes
+archiveRouter.use('*', auiMiddleware);
 
 /**
  * GET /archive/browse
