@@ -46,6 +46,9 @@ export function AdminUsers() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showBanModal, setShowBanModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // ─────────────────────────────────────────────────────────────────────────
   // DATA FETCHING
@@ -137,6 +140,76 @@ export function AdminUsers() {
     }
   };
 
+  const handleUnbanUser = async () => {
+    if (!selectedUserId) return;
+
+    setActionLoading(true);
+    setActionError(null);
+
+    try {
+      await api.admin.unbanUser(selectedUserId);
+      fetchUsers();
+      fetchUserDetail(selectedUserId);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to unban user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCreateUser = async (data: { email: string; password?: string; role?: string; displayName?: string }) => {
+    setActionLoading(true);
+    setActionError(null);
+
+    try {
+      const newUser = await api.admin.createUser(data);
+      setShowCreateModal(false);
+      fetchUsers();
+      setSelectedUserId(newUser.id);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to create user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleEditUser = async (data: { email?: string; displayName?: string }) => {
+    if (!selectedUserId) return;
+
+    setActionLoading(true);
+    setActionError(null);
+
+    try {
+      await api.admin.updateUser(selectedUserId, data);
+      setShowEditModal(false);
+      fetchUsers();
+      fetchUserDetail(selectedUserId);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to update user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUserId) return;
+
+    setActionLoading(true);
+    setActionError(null);
+
+    try {
+      await api.admin.deleteUser(selectedUserId);
+      setShowDeleteModal(false);
+      setSelectedUserId(null);
+      setSelectedUser(null);
+      fetchUsers();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // HELPERS
   // ─────────────────────────────────────────────────────────────────────────
@@ -166,9 +239,19 @@ export function AdminUsers() {
     <div className="admin-users">
       {/* Header */}
       <div className="admin-users__header">
-        <h1 className="admin-users__title">User Management</h1>
-        <div className="admin-users__stats">
-          <span className="admin-users__stat">{total} users total</span>
+        <div className="admin-users__header-left">
+          <h1 className="admin-users__title">User Management</h1>
+          <div className="admin-users__stats">
+            <span className="admin-users__stat">{total} users total</span>
+          </div>
+        </div>
+        <div className="admin-users__header-right">
+          <button
+            className="btn btn--primary"
+            onClick={() => setShowCreateModal(true)}
+          >
+            + Create User
+          </button>
         </div>
       </div>
 
@@ -306,7 +389,11 @@ export function AdminUsers() {
                 user={selectedUser}
                 onChangeRole={() => setShowRoleModal(true)}
                 onBan={() => setShowBanModal(true)}
+                onUnban={handleUnbanUser}
+                onEdit={() => setShowEditModal(true)}
+                onDelete={() => setShowDeleteModal(true)}
                 onClose={() => setSelectedUserId(null)}
+                actionLoading={actionLoading}
               />
             ) : (
               <div className="admin-empty">
@@ -347,6 +434,38 @@ export function AdminUsers() {
           error={actionError}
         />
       )}
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <CreateUserModal
+          onConfirm={handleCreateUser}
+          onCancel={() => setShowCreateModal(false)}
+          loading={actionLoading}
+          error={actionError}
+        />
+      )}
+
+      {/* Edit User Modal */}
+      {showEditModal && selectedUser && (
+        <EditUserModal
+          user={selectedUser}
+          onConfirm={handleEditUser}
+          onCancel={() => setShowEditModal(false)}
+          loading={actionLoading}
+          error={actionError}
+        />
+      )}
+
+      {/* Delete User Modal */}
+      {showDeleteModal && selectedUser && (
+        <DeleteUserModal
+          userEmail={selectedUser.email}
+          onConfirm={handleDeleteUser}
+          onCancel={() => setShowDeleteModal(false)}
+          loading={actionLoading}
+          error={actionError}
+        />
+      )}
     </div>
   );
 }
@@ -359,10 +478,14 @@ interface UserDetailViewProps {
   user: AdminUser;
   onChangeRole: () => void;
   onBan: () => void;
+  onUnban: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
   onClose: () => void;
+  actionLoading?: boolean;
 }
 
-function UserDetailView({ user, onChangeRole, onBan, onClose }: UserDetailViewProps) {
+function UserDetailView({ user, onChangeRole, onBan, onUnban, onEdit, onDelete, onClose, actionLoading }: UserDetailViewProps) {
   const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return 'Never';
     return new Date(dateStr).toLocaleString();
@@ -460,11 +583,25 @@ function UserDetailView({ user, onChangeRole, onBan, onClose }: UserDetailViewPr
           <div className="btn-group">
             <button
               className="btn btn--secondary"
+              onClick={onEdit}
+            >
+              Edit User
+            </button>
+            <button
+              className="btn btn--secondary"
               onClick={onChangeRole}
             >
               Change Role
             </button>
-            {!user.bannedAt && (
+            {user.bannedAt ? (
+              <button
+                className="btn btn--success"
+                onClick={onUnban}
+                disabled={actionLoading}
+              >
+                {actionLoading ? 'Unbanning...' : 'Unban User'}
+              </button>
+            ) : (
               <button
                 className="btn btn--danger"
                 onClick={onBan}
@@ -472,6 +609,14 @@ function UserDetailView({ user, onChangeRole, onBan, onClose }: UserDetailViewPr
                 Ban User
               </button>
             )}
+          </div>
+          <div className="btn-group" style={{ marginTop: 'var(--space-md)' }}>
+            <button
+              className="btn btn--danger btn--outline"
+              onClick={onDelete}
+            >
+              Delete User
+            </button>
           </div>
         </div>
       </div>
@@ -666,6 +811,325 @@ function BanUserModal({ userEmail, onConfirm, onCancel, loading, error }: BanUse
               disabled={loading || !reason}
             >
               {loading ? 'Processing...' : 'Ban User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CREATE USER MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface CreateUserModalProps {
+  onConfirm: (data: { email: string; password?: string; role?: string; displayName?: string }) => void;
+  onCancel: () => void;
+  loading: boolean;
+  error: string | null;
+}
+
+function CreateUserModal({ onConfirm, onCancel, loading, error }: CreateUserModalProps) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [role, setRole] = useState('free');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (email) {
+      onConfirm({
+        email,
+        password: password || undefined,
+        displayName: displayName || undefined,
+        role,
+      });
+    }
+  };
+
+  return (
+    <div className="admin-modal__overlay" onClick={onCancel}>
+      <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="admin-modal__header">
+          <h2 className="admin-modal__title">Create User</h2>
+          <button
+            className="btn btn--ghost btn--icon btn--sm"
+            onClick={onCancel}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="admin-modal__content">
+            {error && (
+              <div className="admin-alert admin-alert--error">
+                <span className="admin-alert__icon">⚠️</span>
+                <div className="admin-alert__content">
+                  <p className="admin-alert__message">{error}</p>
+                </div>
+              </div>
+            )}
+            <div className="admin-form__group">
+              <label className="admin-form__label">Email *</label>
+              <input
+                type="email"
+                className="admin-form__input"
+                placeholder="user@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="admin-form__group">
+              <label className="admin-form__label">Display Name</label>
+              <input
+                type="text"
+                className="admin-form__input"
+                placeholder="John Doe"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
+            </div>
+            <div className="admin-form__group">
+              <label className="admin-form__label">Password (optional)</label>
+              <input
+                type="password"
+                className="admin-form__input"
+                placeholder="Leave blank for OAuth-only"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                minLength={8}
+              />
+              <p className="admin-form__hint">Leave blank if user will sign in via OAuth</p>
+            </div>
+            <div className="admin-form__group">
+              <label className="admin-form__label">Role</label>
+              <select
+                className="admin-form__input"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+              >
+                <option value="free">Free</option>
+                <option value="member">Member</option>
+                <option value="pro">Pro</option>
+                <option value="premium">Premium</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+          </div>
+          <div className="admin-modal__footer">
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={loading || !email}
+            >
+              {loading ? 'Creating...' : 'Create User'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// EDIT USER MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface EditUserModalProps {
+  user: AdminUser;
+  onConfirm: (data: { email?: string; displayName?: string }) => void;
+  onCancel: () => void;
+  loading: boolean;
+  error: string | null;
+}
+
+function EditUserModal({ user, onConfirm, onCancel, loading, error }: EditUserModalProps) {
+  const [email, setEmail] = useState(user.email);
+  const [displayName, setDisplayName] = useState((user as AdminUser & { displayName?: string }).displayName ?? '');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const changes: { email?: string; displayName?: string } = {};
+    if (email !== user.email) changes.email = email;
+    if (displayName !== ((user as AdminUser & { displayName?: string }).displayName ?? '')) {
+      changes.displayName = displayName || undefined;
+    }
+    onConfirm(changes);
+  };
+
+  const hasChanges =
+    email !== user.email ||
+    displayName !== ((user as AdminUser & { displayName?: string }).displayName ?? '');
+
+  return (
+    <div className="admin-modal__overlay" onClick={onCancel}>
+      <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="admin-modal__header">
+          <h2 className="admin-modal__title">Edit User</h2>
+          <button
+            className="btn btn--ghost btn--icon btn--sm"
+            onClick={onCancel}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="admin-modal__content">
+            {error && (
+              <div className="admin-alert admin-alert--error">
+                <span className="admin-alert__icon">⚠️</span>
+                <div className="admin-alert__content">
+                  <p className="admin-alert__message">{error}</p>
+                </div>
+              </div>
+            )}
+            <div className="admin-form__group">
+              <label className="admin-form__label">User ID</label>
+              <input
+                type="text"
+                className="admin-form__input"
+                value={user.id}
+                disabled
+              />
+            </div>
+            <div className="admin-form__group">
+              <label className="admin-form__label">Email</label>
+              <input
+                type="email"
+                className="admin-form__input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+            <div className="admin-form__group">
+              <label className="admin-form__label">Display Name</label>
+              <input
+                type="text"
+                className="admin-form__input"
+                placeholder="Display name"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="admin-modal__footer">
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={loading || !hasChanges}
+            >
+              {loading ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DELETE USER MODAL
+// ═══════════════════════════════════════════════════════════════════════════
+
+interface DeleteUserModalProps {
+  userEmail: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  loading: boolean;
+  error: string | null;
+}
+
+function DeleteUserModal({ userEmail, onConfirm, onCancel, loading, error }: DeleteUserModalProps) {
+  const [confirmText, setConfirmText] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (confirmText === 'DELETE') {
+      onConfirm();
+    }
+  };
+
+  return (
+    <div className="admin-modal__overlay" onClick={onCancel}>
+      <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="admin-modal__header">
+          <h2 className="admin-modal__title">Delete User</h2>
+          <button
+            className="btn btn--ghost btn--icon btn--sm"
+            onClick={onCancel}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="admin-modal__content">
+            <div className="admin-alert admin-alert--error">
+              <span className="admin-alert__icon">⚠️</span>
+              <div className="admin-alert__content">
+                <p className="admin-alert__message">
+                  You are about to <strong>permanently delete</strong> the user <strong>{userEmail}</strong>.
+                  This action cannot be undone. All user data, API keys, and usage history will be removed.
+                </p>
+              </div>
+            </div>
+            {error && (
+              <div className="admin-alert admin-alert--error">
+                <span className="admin-alert__icon">⚠️</span>
+                <div className="admin-alert__content">
+                  <p className="admin-alert__message">{error}</p>
+                </div>
+              </div>
+            )}
+            <div className="admin-form__group">
+              <label className="admin-form__label">
+                Type <strong>DELETE</strong> to confirm
+              </label>
+              <input
+                type="text"
+                className="admin-form__input"
+                placeholder="DELETE"
+                value={confirmText}
+                onChange={(e) => setConfirmText(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="admin-modal__footer">
+            <button
+              type="button"
+              className="btn btn--ghost"
+              onClick={onCancel}
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn btn--danger"
+              disabled={loading || confirmText !== 'DELETE'}
+            >
+              {loading ? 'Deleting...' : 'Delete User'}
             </button>
           </div>
         </form>

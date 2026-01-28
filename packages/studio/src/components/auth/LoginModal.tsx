@@ -208,8 +208,10 @@ export function LoginModal({ onClose }: LoginModalProps) {
               type="button"
               className="btn auth-oauth__btn"
               onClick={() => {
-                const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3030';
-                window.location.href = `${apiUrl}/auth/oauth/${provider.id}`;
+                const authApiUrl = import.meta.env.VITE_AUTH_API_URL ?? 'https://auth-api.tem-527.workers.dev';
+                const tenantId = import.meta.env.VITE_TENANT_ID ?? 'humanizer';
+                const redirectUrl = encodeURIComponent(window.location.origin);
+                window.location.href = `${authApiUrl}/auth/oauth/${provider.id}/login?tenant=${tenantId}&redirect=${redirectUrl}`;
               }}
               disabled={isLoading}
             >

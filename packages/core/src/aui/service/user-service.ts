@@ -100,6 +100,7 @@ export interface CreateUserInput {
  * User update input
  */
 export interface UpdateUserInput {
+  email?: string;
   displayName?: string;
   avatarUrl?: string;
   tier?: UserTier;
@@ -411,6 +412,7 @@ export class UserService {
     const result = await this.pool.query(UPDATE_AUI_USER, [
       userId,
       tenant,
+      input.email ?? null,
       input.displayName ?? null,
       input.avatarUrl ?? null,
       input.tier ?? null,

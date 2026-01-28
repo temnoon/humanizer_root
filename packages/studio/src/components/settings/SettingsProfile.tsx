@@ -93,84 +93,98 @@ export function SettingsProfile() {
           </div>
         </div>
 
-        {/* Password Change Card */}
-        <div className="settings-card">
-          <h3 className="settings-card__title">Password</h3>
-          <div className="settings-card__content">
-            {!showPasswordForm ? (
-              <button
-                className="btn btn--secondary"
-                onClick={() => setShowPasswordForm(true)}
-              >
-                Change Password
-              </button>
-            ) : (
-              <form onSubmit={handlePasswordChange} className="settings-form">
-                {passwordError && (
-                  <div className="settings-alert settings-alert--error">
-                    {passwordError}
-                  </div>
-                )}
-                {passwordSuccess && (
-                  <div className="settings-alert settings-alert--success">
-                    Password changed successfully
-                  </div>
-                )}
-                <div className="settings-form__field">
-                  <label htmlFor="currentPassword">Current Password</label>
-                  <input
-                    id="currentPassword"
-                    type="password"
-                    value={currentPassword}
-                    onChange={(e) => setCurrentPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="settings-form__field">
-                  <label htmlFor="newPassword">New Password</label>
-                  <input
-                    id="newPassword"
-                    type="password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    minLength={8}
-                    required
-                  />
-                </div>
-                <div className="settings-form__field">
-                  <label htmlFor="confirmPassword">Confirm New Password</label>
-                  <input
-                    id="confirmPassword"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    minLength={8}
-                    required
-                  />
-                </div>
-                <div className="settings-form__actions">
-                  <button
-                    type="button"
-                    className="btn btn--ghost"
-                    onClick={() => {
-                      setShowPasswordForm(false);
-                      setPasswordError(null);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn--primary"
-                    disabled={savingPassword}
-                  >
-                    {savingPassword ? 'Saving...' : 'Change Password'}
-                  </button>
-                </div>
-              </form>
-            )}
+        {/* Password Change Card - Only show for password-based auth */}
+        {user?.authMethod === 'oauth' ? (
+          <div className="settings-card">
+            <h3 className="settings-card__title">Password</h3>
+            <div className="settings-card__content">
+              <div className="settings-field">
+                <p className="settings-field__value">
+                  You signed in with an external provider (Google, GitHub, etc.).
+                  Password management is handled by your identity provider.
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="settings-card">
+            <h3 className="settings-card__title">Password</h3>
+            <div className="settings-card__content">
+              {!showPasswordForm ? (
+                <button
+                  className="btn btn--secondary"
+                  onClick={() => setShowPasswordForm(true)}
+                >
+                  Change Password
+                </button>
+              ) : (
+                <form onSubmit={handlePasswordChange} className="settings-form">
+                  {passwordError && (
+                    <div className="settings-alert settings-alert--error">
+                      {passwordError}
+                    </div>
+                  )}
+                  {passwordSuccess && (
+                    <div className="settings-alert settings-alert--success">
+                      Password changed successfully
+                    </div>
+                  )}
+                  <div className="settings-form__field">
+                    <label htmlFor="currentPassword">Current Password</label>
+                    <input
+                      id="currentPassword"
+                      type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="settings-form__field">
+                    <label htmlFor="newPassword">New Password</label>
+                    <input
+                      id="newPassword"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      minLength={8}
+                      required
+                    />
+                  </div>
+                  <div className="settings-form__field">
+                    <label htmlFor="confirmPassword">Confirm New Password</label>
+                    <input
+                      id="confirmPassword"
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      minLength={8}
+                      required
+                    />
+                  </div>
+                  <div className="settings-form__actions">
+                    <button
+                      type="button"
+                      className="btn btn--ghost"
+                      onClick={() => {
+                        setShowPasswordForm(false);
+                        setPasswordError(null);
+                      }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="btn btn--primary"
+                      disabled={savingPassword}
+                    >
+                      {savingPassword ? 'Saving...' : 'Change Password'}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Subscription Card */}
         <div className="settings-card">

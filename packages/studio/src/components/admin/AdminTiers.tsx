@@ -153,11 +153,12 @@ export function AdminTiers() {
     if (!selectedTierId) return;
 
     setSaving(true);
+    setError(null);
     try {
-      // TODO: Implement actual save via API
-      // await api.admin.updateTier(selectedTierId, editValues);
+      // Call API to persist the tier update
+      await api.admin.updateTier(selectedTierId, editValues);
 
-      // Optimistic update
+      // Update local state to reflect the change
       setTiers(prev => prev.map(t =>
         t.tier === selectedTierId
           ? { ...t, ...editValues }

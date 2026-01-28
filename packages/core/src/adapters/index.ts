@@ -84,6 +84,11 @@ export { DiscordAdapter, discordAdapter } from './providers/discord-adapter.js';
 export { LinkedInAdapter, linkedinAdapter } from './providers/linkedin-adapter.js';
 
 // ═══════════════════════════════════════════════════════════════════
+// ADAPTERS - Documents & Files
+// ═══════════════════════════════════════════════════════════════════
+export { MarkdownAdapter, markdownAdapter } from './providers/markdown-adapter.js';
+
+// ═══════════════════════════════════════════════════════════════════
 // DEFAULT REGISTRATION
 // ═══════════════════════════════════════════════════════════════════
 
@@ -103,6 +108,9 @@ import { redditAdapter } from './providers/reddit-adapter.js';
 import { tiktokAdapter } from './providers/tiktok-adapter.js';
 import { discordAdapter } from './providers/discord-adapter.js';
 import { linkedinAdapter } from './providers/linkedin-adapter.js';
+
+// Documents & Files
+import { markdownAdapter } from './providers/markdown-adapter.js';
 
 /**
  * Register all built-in adapters with the default registry
@@ -128,6 +136,9 @@ export function registerBuiltInAdapters(): void {
   registry.register(discordAdapter);
   registry.register(linkedinAdapter);
 
+  // Documents & Files
+  registry.register(markdownAdapter);
+
   console.info(`[Adapters] Registered ${registry.getAll().length} built-in adapters`);
 }
 
@@ -149,6 +160,8 @@ export function getBuiltInAdapters() {
     tiktok: tiktokAdapter,
     discord: discordAdapter,
     linkedin: linkedinAdapter,
+    // Documents & Files
+    markdown: markdownAdapter,
   } as const;
 }
 
@@ -169,6 +182,8 @@ export const BUILT_IN_ADAPTER_IDS = [
   'tiktok',
   'discord',
   'linkedin',
+  // Documents & Files
+  'markdown',
 ] as const;
 
 export type BuiltInAdapterId = typeof BUILT_IN_ADAPTER_IDS[number];
@@ -181,6 +196,7 @@ export const ADAPTER_CATEGORIES = {
   social: ['twitter', 'facebook', 'instagram', 'tiktok', 'reddit'] as const,
   professional: ['linkedin', 'substack'] as const,
   messaging: ['discord'] as const,
+  documents: ['markdown'] as const,
 } as const;
 
 export type AdapterCategory = keyof typeof ADAPTER_CATEGORIES;

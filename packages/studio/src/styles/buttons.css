@@ -96,6 +96,32 @@
   filter: brightness(1.1);
 }
 
+.btn--danger.btn--outline {
+  background: transparent;
+  color: var(--studio-error);
+  border: 1px solid var(--studio-error);
+}
+
+.btn--danger.btn--outline:hover:not(:disabled) {
+  background: var(--studio-error);
+  color: white;
+}
+
+/* ─────────────────────────────────────────────────────────────────────
+   SUCCESS BUTTON
+   For positive actions like unban, approve
+   ───────────────────────────────────────────────────────────────────── */
+
+.btn--success {
+  background: var(--studio-success);
+  color: white;
+}
+
+.btn--success:hover:not(:disabled) {
+  background: var(--studio-success);
+  filter: brightness(1.1);
+}
+
 /* ─────────────────────────────────────────────────────────────────────
    BUTTON SIZES
    ───────────────────────────────────────────────────────────────────── */

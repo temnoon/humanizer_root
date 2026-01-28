@@ -15,11 +15,14 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 
 export type UserRole = 'free' | 'member' | 'pro' | 'premium' | 'admin';
 
+export type AuthMethod = 'password' | 'oauth';
+
 export interface User {
   id: string;
   email: string;
   role: UserRole;
   tenantId: string;
+  authMethod?: AuthMethod; // How user logged in - undefined for backwards compat
 }
 
 export interface AuthState {
@@ -58,6 +61,9 @@ const USER_KEY = 'humanizer-auth-user';
 // Auth API URL - defaults to auth-api.tem-527.workers.dev
 // Can be overridden via environment variable
 const AUTH_API_URL = import.meta.env.VITE_AUTH_API_URL ?? 'https://auth-api.tem-527.workers.dev';
+
+// API URL for OAuth redirects (the main API that redirects to auth-api)
+const API_URL = import.meta.env.VITE_API_URL ?? 'https://auth-api.tem-527.workers.dev';
 
 // Tenant ID for this application
 const TENANT_ID = import.meta.env.VITE_TENANT_ID ?? 'humanizer';
@@ -158,6 +164,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         email: data.email,
         role: data.role,
         tenantId: data.tenantId,
+        authMethod: data.authMethod, // 'oauth' or 'password' if returned by auth-api
       };
     } catch {
       return null;
@@ -171,8 +178,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     async function init() {
       // Check for OAuth callback tokens in URL
+      // auth-api uses 'token', packages/api uses 'access_token'
       const urlParams = new URLSearchParams(window.location.search);
-      const oauthToken = urlParams.get('access_token');
+      const oauthToken = urlParams.get('token') ?? urlParams.get('access_token');
       const oauthError = urlParams.get('error');
 
       // Clear URL params after reading
@@ -192,7 +200,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       // Use OAuth token from URL or load from storage
-      const tokenToUse = oauthToken ?? loadAuth().token;
+      const storedAuth = loadAuth();
+      const tokenToUse = oauthToken ?? storedAuth.token;
+      const isOAuthLogin = !!oauthToken; // Fresh OAuth login from URL
 
       if (!tokenToUse) {
         setState(prev => ({ ...prev, isLoading: false }));
@@ -203,15 +213,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const validatedUser = await validateToken(tokenToUse);
 
       if (validatedUser) {
+        // Set authMethod based on how we got the token
+        // OAuth from URL = 'oauth', from storage = use stored value or fallback to what API says
+        const userWithAuth: User = {
+          ...validatedUser,
+          authMethod: isOAuthLogin ? 'oauth' : (storedAuth.user?.authMethod ?? validatedUser.authMethod),
+        };
+
         setState({
-          user: validatedUser,
+          user: userWithAuth,
           token: tokenToUse,
           isAuthenticated: true,
           isLoading: false,
           error: null,
         });
         // Save to storage (especially important for OAuth tokens)
-        saveAuth(tokenToUse, validatedUser);
+        saveAuth(tokenToUse, userWithAuth);
       } else {
         // Token expired or invalid
         clearAuth();
@@ -254,6 +271,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         email: data.user.email,
         role: data.user.role,
         tenantId: data.user.tenantId,
+        authMethod: 'password', // Email/password login
       };
 
       saveAuth(data.token, user);
@@ -298,6 +316,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         email: data.user.email,
         role: data.user.role,
         tenantId: data.user.tenantId,
+        authMethod: 'password', // Email/password registration
       };
 
       saveAuth(data.token, user);
