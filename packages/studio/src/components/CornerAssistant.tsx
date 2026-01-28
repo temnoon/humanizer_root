@@ -76,7 +76,7 @@ export function CornerAssistant({ onSelectResult, sessionId }: CornerAssistantPr
   }, []);
 
   const handleSend = async () => {
-    if (!input.trim() || isLoading || !sessionId) return;
+    if (!input.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -90,6 +90,18 @@ export function CornerAssistant({ onSelectResult, sessionId }: CornerAssistantPr
 
     if (inputRef.current) {
       inputRef.current.style.height = '40px';
+    }
+
+    // Check if session is available
+    if (!sessionId) {
+      const errorMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: 'assistant',
+        content: 'API not connected. Please ensure the backend is running.',
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+      setIsLoading(false);
+      return;
     }
 
     try {
@@ -269,15 +281,15 @@ export function CornerAssistant({ onSelectResult, sessionId }: CornerAssistantPr
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Search archive..."
-              disabled={isLoading || !sessionId}
+              placeholder={sessionId ? "Search archive..." : "Connecting to API..."}
+              disabled={isLoading}
               rows={1}
               aria-label="Search input"
             />
             <button
               className="corner-assistant__chat-send"
               onClick={handleSend}
-              disabled={!input.trim() || isLoading || !sessionId}
+              disabled={!input.trim() || isLoading}
               aria-label="Send"
             >
               &#8593;
