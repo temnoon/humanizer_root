@@ -138,9 +138,20 @@ export class ProviderConfigService {
         this.encryptionKey = scryptSync(this.options.encryptionKey, 'humanizer-salt', 32);
       }
     } else {
-      // Development fallback - NOT SECURE FOR PRODUCTION
-      console.warn('[ProviderConfigService] No encryption key provided. Using insecure fallback.');
-      this.encryptionKey = scryptSync('dev-only-key', 'humanizer-salt', 32);
+      // No encryption key provided - check environment
+      const isProduction = process.env.NODE_ENV === 'production';
+      if (isProduction) {
+        throw new Error(
+          '[ProviderConfigService] PROVIDER_KEY_ENCRYPTION_KEY is required in production. ' +
+          'Generate with: openssl rand -hex 32'
+        );
+      }
+      // Development/test fallback - logs warning
+      console.warn(
+        '[ProviderConfigService] ⚠️ No encryption key provided. Using insecure development fallback. ' +
+        'Set PROVIDER_KEY_ENCRYPTION_KEY for production.'
+      );
+      this.encryptionKey = scryptSync('dev-only-insecure-key', 'humanizer-dev-salt', 32);
     }
   }
 

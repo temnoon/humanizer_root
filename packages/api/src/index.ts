@@ -169,16 +169,43 @@ export function createApp(): Hono<{ Variables: AuiContextVariables }> {
   // 404 handler
   app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
-  // Error handler
+  // Error handler - sanitize error messages in production
   app.onError((err, c) => {
+    const isDev = process.env.NODE_ENV === 'development';
+
+    // Always log full error server-side
     console.error('Server error:', err);
-    return c.json(
-      {
-        error: err.message ?? 'Internal server error',
-        ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
-      },
-      500
-    );
+
+    // In development, return full error details
+    if (isDev) {
+      return c.json(
+        {
+          error: err.message ?? 'Internal server error',
+          stack: err.stack,
+        },
+        500
+      );
+    }
+
+    // In production, return sanitized error messages
+    // Map specific error types to safe messages
+    const errMsg = err.message?.toLowerCase() ?? '';
+
+    if (errMsg.includes('not found')) {
+      return c.json({ error: 'Resource not found' }, 404);
+    }
+    if (errMsg.includes('unauthorized')) {
+      return c.json({ error: 'Authentication required' }, 401);
+    }
+    if (errMsg.includes('forbidden')) {
+      return c.json({ error: 'Access denied' }, 403);
+    }
+    if (errMsg.includes('validation') || errMsg.includes('invalid')) {
+      return c.json({ error: 'Invalid request' }, 400);
+    }
+
+    // All other errors return generic 500
+    return c.json({ error: 'Internal server error' }, 500);
   });
 
   return app;

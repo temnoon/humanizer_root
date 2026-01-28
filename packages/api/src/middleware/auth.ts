@@ -112,17 +112,26 @@ export async function verifyApiKey(apiKey: string): Promise<AuthContext | null> 
 
 /**
  * Get JWT secret from environment.
- * Falls back to development secret for local testing.
+ * Falls back to development secret ONLY when explicitly in development mode.
  */
 function getJwtSecret(): string {
   const secret = process.env.JWT_SECRET;
   if (!secret) {
-    // Development fallback - NEVER use in production
-    if (process.env.NODE_ENV === 'development' || !process.env.NODE_ENV) {
-      console.warn('⚠️ Using development JWT_SECRET - not secure for production');
-      return 'dev-secret-do-not-use-in-production';
+    // Only allow fallback in explicit development mode
+    // Production requires JWT_SECRET - fail fast if missing
+    const isExplicitDev = process.env.NODE_ENV === 'development';
+    const isTest = process.env.NODE_ENV === 'test';
+
+    if (isExplicitDev || isTest) {
+      console.warn('⚠️ Using development JWT_SECRET - set JWT_SECRET for production');
+      return 'dev-jwt-secret-not-for-production';
     }
-    throw new Error('JWT_SECRET environment variable is required');
+
+    // Production or unknown environment - require the secret
+    throw new Error(
+      'JWT_SECRET environment variable is required. ' +
+      'Generate with: openssl rand -base64 32'
+    );
   }
   return secret;
 }
