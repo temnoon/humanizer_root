@@ -630,6 +630,14 @@ export type PlatformSourceType =
   | 'discord-message'
   | 'linkedin-post'
   | 'linkedin-message'
+  // Google Takeout
+  | 'google-chat-message'
+  | 'google-chat-conversation'
+  | 'google-keep-note'
+  | 'google-drive-file'
+  | 'youtube-watch-history'
+  | 'youtube-comment'
+  | 'google-activity'
   // Generic
   | 'document'
   | 'markdown'

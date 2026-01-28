@@ -294,6 +294,12 @@ export const DEFAULT_FALLBACK_CHAINS: FallbackChain[] = [
   {
     capability: 'vision',
     chain: [
+      // Local Ollama vision models first (privacy-preserving)
+      { modelId: 'llava:13b', conditions: { requiresLocal: true } },
+      { modelId: 'llava:7b', conditions: { requiresLocal: true } },
+      { modelId: 'bakllava:latest', conditions: { requiresLocal: true } },
+      { modelId: 'moondream:latest', conditions: { requiresLocal: true } },
+      // Cloud fallbacks
       { modelId: 'gpt-4o' },
       { modelId: 'claude-sonnet-4-20250514' },
     ],

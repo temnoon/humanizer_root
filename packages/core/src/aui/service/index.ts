@@ -207,6 +207,23 @@ export {
   type DecryptedApiKey,
 } from './provider-config-service.js';
 
+// Re-export archive subset service
+export {
+  ArchiveSubsetService,
+  type CreateSubsetOptions,
+  type UpdateSubsetOptions,
+  type EvaluateSubsetResult,
+  type SensitivityPattern,
+} from './archive-subset-service.js';
+
+// Re-export subset exporter service
+export {
+  SubsetExporterService,
+  type ExportOptions,
+  type ExportResult,
+  type FormatterOptions,
+} from './subset-exporter.js';
+
 // ═══════════════════════════════════════════════════════════════════════════
 // UNIFIED AUI SERVICE
 // ═══════════════════════════════════════════════════════════════════════════

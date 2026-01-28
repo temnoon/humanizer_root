@@ -38,3 +38,6 @@ export * from './book-types.js';
 
 // Drafting types
 export * from './drafting-types.js';
+
+// Archive subset types
+export * from './subset-types.js';

@@ -4,6 +4,40 @@
  * Provides audio/video transcription using Whisper models.
  * Supports both local (transformers.js) and remote (OpenAI API) backends.
  *
+ * ## Setup Requirements
+ *
+ * This service requires @xenova/transformers as an optional peer dependency:
+ *
+ * ```bash
+ * npm install @xenova/transformers
+ * ```
+ *
+ * ## Supported Audio/Video Formats
+ *
+ * - Audio: mp3, wav, m4a, ogg, flac, webm
+ * - Video: mp4, mov, avi, mkv (audio track extracted)
+ *
+ * ## Model Quality Guide
+ *
+ * | Model  | Memory | Speed | Quality | Use Case                       |
+ * |--------|--------|-------|---------|--------------------------------|
+ * | tiny   | 500MB  | Fast  | Low     | Quick testing, simple audio    |
+ * | base   | 800MB  | Fast  | Medium  | Voice memos, short recordings  |
+ * | small  | 1.5GB  | Med   | Good    | Podcasts, conversations        |
+ * | medium | 3GB    | Slow  | Best    | Professional, noisy audio      |
+ *
+ * ## Usage Example
+ *
+ * ```typescript
+ * import { TranscriptionService } from '@humanizer/core/services';
+ *
+ * const service = new TranscriptionService({ defaultModel: 'small' });
+ * await service.initialize();
+ *
+ * const result = await service.transcribe('audio.mp3');
+ * console.log(result.text);
+ * ```
+ *
  * @module @humanizer/core/services/transcription-service
  */
 
@@ -234,11 +268,30 @@ export class TranscriptionService {
 
   /**
    * Transcribe an audio file
+   *
+   * @param audioPath - Path to audio/video file
+   * @param options - Transcription options
+   * @throws Error if file not found, unsupported format, or transcription fails
    */
   async transcribe(
     audioPath: string,
     options: TranscriptionOptions = {}
   ): Promise<TranscriptionResult> {
+    // Validate file exists
+    const fs = await import('fs');
+    if (!fs.existsSync(audioPath)) {
+      throw new Error(`Audio file not found: ${audioPath}`);
+    }
+
+    // Validate file format
+    if (!TranscriptionService.isSupported(audioPath)) {
+      const ext = audioPath.split('.').pop()?.toLowerCase() || 'unknown';
+      throw new Error(
+        `Unsupported audio format: .${ext}. ` +
+        `Supported formats: ${TranscriptionService.getSupportedFormats().join(', ')}`
+      );
+    }
+
     if (!this.isReady()) {
       await this.initialize();
     }
@@ -264,12 +317,13 @@ export class TranscriptionService {
       chunks?: Array<{ text: string; timestamp: [number, number] }>;
     }>;
 
-    const result = await pipelineFn(audioPath, {
-      language: options.language ?? this.config.defaultLanguage,
-      return_timestamps: options.timestamps ?? this.config.timestamps,
-      chunk_length_s: 30, // Process in 30-second chunks
-      stride_length_s: 5, // 5-second overlap
-    });
+    try {
+      const result = await pipelineFn(audioPath, {
+        language: options.language ?? this.config.defaultLanguage,
+        return_timestamps: options.timestamps ?? this.config.timestamps,
+        chunk_length_s: 30, // Process in 30-second chunks
+        stride_length_s: 5, // 5-second overlap
+      });
 
     const processingTimeMs = Date.now() - startTime;
 
@@ -298,6 +352,29 @@ export class TranscriptionService {
       model: modelConfig.id,
       processingTimeMs,
     };
+    } catch (error) {
+      const errMsg = (error as Error).message || String(error);
+
+      // Handle common audio processing errors
+      if (errMsg.includes('ffmpeg') || errMsg.includes('audio')) {
+        throw new Error(
+          `Failed to process audio file: ${audioPath}. ` +
+          'Ensure the file is a valid audio/video format and not corrupted. ' +
+          `Original error: ${errMsg}`
+        );
+      }
+
+      // Handle memory errors
+      if (errMsg.includes('memory') || errMsg.includes('OOM')) {
+        throw new Error(
+          `Out of memory during transcription. ` +
+          `The ${modelSize} model requires ~${modelConfig.memoryMb}MB RAM. ` +
+          'Try using a smaller model (tiny or base).'
+        );
+      }
+
+      throw new Error(`Transcription failed: ${errMsg}`);
+    }
   }
 
   /**

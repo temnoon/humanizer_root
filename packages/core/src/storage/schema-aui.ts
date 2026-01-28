@@ -976,6 +976,220 @@ VALUES
 ON CONFLICT (provider, model_id, effective_from) DO NOTHING;
 `;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ARCHIVE SUBSET TABLES (v10)
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Archive subsets table - saved filter configurations for content
+ *
+ * Enables:
+ * - Creating filtered views of archive content
+ * - Sensitive content filtering for public sharing
+ * - Export configurations for cloud storage
+ * - Provenance tracking for subset lineage
+ */
+export const CREATE_AUI_ARCHIVE_SUBSETS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_archive_subsets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+  user_id TEXT,
+
+  -- Definition
+  name TEXT NOT NULL,
+  description TEXT,
+  criteria JSONB NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'exporting', 'exported', 'archived')),
+
+  -- Export configuration
+  export_format TEXT CHECK (export_format IN ('json', 'jsonl', 'markdown', 'html', 'sqlite', 'archive')),
+  cloud_destination JSONB,
+  sharing_mode TEXT DEFAULT 'private' CHECK (sharing_mode IN ('private', 'zero-trust', 'link-only', 'public')),
+  encryption JSONB DEFAULT '{"enabled": false}',
+
+  -- Computed stats (updated on evaluate)
+  node_count INTEGER DEFAULT 0,
+  total_word_count INTEGER DEFAULT 0,
+  date_range JSONB,
+  source_distribution JSONB DEFAULT '{}',
+  sensitivity_distribution JSONB DEFAULT '{}',
+
+  -- Timestamps
+  last_exported_at TIMESTAMPTZ,
+  last_evaluated_at TIMESTAMPTZ,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE(tenant_id, user_id, name)
+);
+`;
+
+/**
+ * Subset node mappings table - tracks which nodes belong to which subsets
+ *
+ * Stores:
+ * - Node membership in subsets
+ * - Sensitivity markers and redaction status
+ * - User overrides for inclusion/exclusion
+ */
+export const CREATE_AUI_SUBSET_NODE_MAPPINGS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_subset_node_mappings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subset_id UUID NOT NULL REFERENCES aui_archive_subsets(id) ON DELETE CASCADE,
+  node_id TEXT NOT NULL,
+
+  -- Ordering
+  position INTEGER,
+
+  -- Sensitivity analysis
+  sensitivity_markers JSONB DEFAULT '[]',
+  sensitivity_level TEXT NOT NULL DEFAULT 'public' CHECK (sensitivity_level IN ('public', 'internal', 'private', 'sensitive')),
+
+  -- Redaction
+  redacted BOOLEAN NOT NULL DEFAULT FALSE,
+  redacted_content_hash TEXT,
+
+  -- User overrides
+  user_override TEXT CHECK (user_override IN ('include', 'exclude')),
+  override_reason TEXT,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE(subset_id, node_id)
+);
+`;
+
+/**
+ * Subset export jobs table - tracks export operations
+ *
+ * Records:
+ * - Export progress and status
+ * - Output location and size
+ * - Error details if failed
+ */
+export const CREATE_AUI_SUBSET_EXPORT_JOBS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_subset_export_jobs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subset_id UUID NOT NULL REFERENCES aui_archive_subsets(id) ON DELETE CASCADE,
+  user_id TEXT,
+
+  -- Configuration
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'scanning', 'exporting', 'uploading', 'completed', 'failed', 'cancelled')),
+  format TEXT NOT NULL CHECK (format IN ('json', 'jsonl', 'markdown', 'html', 'sqlite', 'archive')),
+  destination JSONB NOT NULL,
+
+  -- Progress
+  total_nodes INTEGER DEFAULT 0,
+  exported_nodes INTEGER DEFAULT 0,
+  failed_nodes INTEGER DEFAULT 0,
+  redacted_nodes INTEGER DEFAULT 0,
+
+  -- Timing
+  started_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  estimated_completion_at TIMESTAMPTZ,
+
+  -- Result
+  output_path TEXT,
+  output_size_bytes BIGINT,
+  error TEXT,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+/**
+ * Access policies table - sharing access control for exported resources
+ *
+ * Tracks access policies for shared subset exports:
+ * - Private: Owner only
+ * - Zero Trust: Cloudflare Access protected
+ * - Link-only: Anyone with token
+ * - Public: Publicly accessible
+ */
+export const CREATE_AUI_ACCESS_POLICIES_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_access_policies (
+  id UUID PRIMARY KEY,
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+
+  resource_pattern TEXT NOT NULL,
+  mode TEXT NOT NULL CHECK (mode IN ('private', 'zero-trust', 'link-only', 'public')),
+
+  -- Access control
+  allowed_users JSONB DEFAULT '[]',
+  allowed_domains JSONB DEFAULT '[]',
+  access_application_id TEXT,  -- Cloudflare Access app ID
+  access_token TEXT,  -- For link-only sharing
+
+  -- Expiration
+  expires_at TIMESTAMPTZ,
+
+  -- Audit
+  created_by TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+`;
+
+/**
+ * Sensitivity patterns table - custom sensitive content detection patterns
+ *
+ * Allows users to define custom regex patterns for sensitive content detection.
+ * System patterns are stored with user_id = NULL.
+ */
+export const CREATE_AUI_SENSITIVITY_PATTERNS_TABLE = `
+CREATE TABLE IF NOT EXISTS aui_sensitivity_patterns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tenant_id TEXT NOT NULL DEFAULT 'humanizer',
+  user_id TEXT,  -- NULL for system patterns
+
+  name TEXT NOT NULL,
+  description TEXT,
+  pattern TEXT NOT NULL,  -- Regex pattern
+  content_type TEXT NOT NULL CHECK (content_type IN (
+    'full_name', 'email_address', 'phone_number', 'physical_address',
+    'date_of_birth', 'government_id', 'credit_card', 'bank_account',
+    'financial_amount', 'api_key', 'password', 'secret_token',
+    'private_key', 'connection_string', 'health_info',
+    'relationship_detail', 'location_history', 'workplace_detail',
+    'custom_pattern'
+  )),
+  sensitivity_level TEXT NOT NULL DEFAULT 'private' CHECK (sensitivity_level IN ('public', 'internal', 'private', 'sensitive')),
+
+  -- Pattern metadata
+  is_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  is_system BOOLEAN NOT NULL DEFAULT FALSE,
+  priority INTEGER DEFAULT 100,  -- Lower = higher priority
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+  UNIQUE(tenant_id, user_id, name)
+);
+`;
+
+/**
+ * Seed default sensitivity patterns
+ */
+export const SEED_AUI_SENSITIVITY_PATTERNS = `
+INSERT INTO aui_sensitivity_patterns (tenant_id, user_id, name, description, pattern, content_type, sensitivity_level, is_system, priority)
+VALUES
+  -- Identity patterns
+  ('humanizer', NULL, 'Email Address', 'Detects email addresses', '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}', 'email_address', 'internal', true, 10),
+  ('humanizer', NULL, 'Phone Number (US)', 'Detects US phone numbers', '\\(?\\d{3}\\)?[-.]?\\d{3}[-.]?\\d{4}', 'phone_number', 'private', true, 20),
+  ('humanizer', NULL, 'SSN', 'Detects US Social Security Numbers', '\\d{3}-\\d{2}-\\d{4}', 'government_id', 'sensitive', true, 5),
+
+  -- Financial patterns
+  ('humanizer', NULL, 'Credit Card', 'Detects credit card numbers', '\\d{4}[-\\s]?\\d{4}[-\\s]?\\d{4}[-\\s]?\\d{4}', 'credit_card', 'sensitive', true, 5),
+
+  -- Technical patterns
+  ('humanizer', NULL, 'API Key Generic', 'Detects common API key formats', '(api[_-]?key|apikey)[=:\\s]+[a-zA-Z0-9_-]{20,}', 'api_key', 'sensitive', true, 5),
+  ('humanizer', NULL, 'AWS Access Key', 'Detects AWS access keys', 'AKIA[0-9A-Z]{16}', 'api_key', 'sensitive', true, 3),
+  ('humanizer', NULL, 'Private Key Header', 'Detects private key headers', '-----BEGIN (RSA |EC )?PRIVATE KEY-----', 'private_key', 'sensitive', true, 1),
+  ('humanizer', NULL, 'Connection String', 'Detects database connection strings', '(mongodb|postgres|mysql|redis)://[^\\s]+', 'connection_string', 'sensitive', true, 5)
+ON CONFLICT (tenant_id, user_id, name) DO NOTHING;
+`;
+
 // ═══════════════════════════════════════════════════════════════════
 // INDEXES
 // ═══════════════════════════════════════════════════════════════════
@@ -1166,6 +1380,42 @@ CREATE INDEX IF NOT EXISTS idx_aui_password_reset_expires ON aui_password_reset_
 -- Email verification tokens indexes
 CREATE INDEX IF NOT EXISTS idx_aui_email_verify_user ON aui_email_verification_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_aui_email_verify_expires ON aui_email_verification_tokens(expires_at);
+
+-- Archive subsets indexes
+CREATE INDEX IF NOT EXISTS idx_aui_archive_subsets_user ON aui_archive_subsets(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_archive_subsets_tenant ON aui_archive_subsets(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_archive_subsets_status ON aui_archive_subsets(status);
+CREATE INDEX IF NOT EXISTS idx_aui_archive_subsets_sharing ON aui_archive_subsets(sharing_mode);
+CREATE INDEX IF NOT EXISTS idx_aui_archive_subsets_created ON aui_archive_subsets(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aui_archive_subsets_updated ON aui_archive_subsets(updated_at DESC);
+
+-- Subset node mappings indexes
+CREATE INDEX IF NOT EXISTS idx_aui_subset_mappings_subset ON aui_subset_node_mappings(subset_id);
+CREATE INDEX IF NOT EXISTS idx_aui_subset_mappings_node ON aui_subset_node_mappings(node_id);
+CREATE INDEX IF NOT EXISTS idx_aui_subset_mappings_sensitivity ON aui_subset_node_mappings(sensitivity_level);
+CREATE INDEX IF NOT EXISTS idx_aui_subset_mappings_redacted ON aui_subset_node_mappings(subset_id, redacted) WHERE redacted = TRUE;
+CREATE INDEX IF NOT EXISTS idx_aui_subset_mappings_override ON aui_subset_node_mappings(subset_id, user_override) WHERE user_override IS NOT NULL;
+
+-- Subset export jobs indexes
+CREATE INDEX IF NOT EXISTS idx_aui_subset_exports_subset ON aui_subset_export_jobs(subset_id);
+CREATE INDEX IF NOT EXISTS idx_aui_subset_exports_user ON aui_subset_export_jobs(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_subset_exports_status ON aui_subset_export_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_aui_subset_exports_created ON aui_subset_export_jobs(created_at DESC);
+
+-- Sensitivity patterns indexes
+CREATE INDEX IF NOT EXISTS idx_aui_sensitivity_patterns_tenant ON aui_sensitivity_patterns(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_sensitivity_patterns_user ON aui_sensitivity_patterns(user_id);
+CREATE INDEX IF NOT EXISTS idx_aui_sensitivity_patterns_type ON aui_sensitivity_patterns(content_type);
+CREATE INDEX IF NOT EXISTS idx_aui_sensitivity_patterns_enabled ON aui_sensitivity_patterns(tenant_id, is_enabled) WHERE is_enabled = TRUE;
+CREATE INDEX IF NOT EXISTS idx_aui_sensitivity_patterns_system ON aui_sensitivity_patterns(tenant_id) WHERE is_system = TRUE;
+
+-- Access policies indexes
+CREATE INDEX IF NOT EXISTS idx_aui_access_policies_tenant ON aui_access_policies(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_aui_access_policies_resource ON aui_access_policies(resource_pattern);
+CREATE INDEX IF NOT EXISTS idx_aui_access_policies_mode ON aui_access_policies(mode);
+CREATE INDEX IF NOT EXISTS idx_aui_access_policies_token ON aui_access_policies(access_token) WHERE access_token IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_aui_access_policies_expires ON aui_access_policies(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_aui_access_policies_created ON aui_access_policies(created_at DESC);
 `;
 
 /**
@@ -1250,12 +1500,13 @@ CREATE INDEX IF NOT EXISTS idx_aui_discovered_patterns_centroid
 // ═══════════════════════════════════════════════════════════════════
 
 /**
- * Run AUI schema migration to version 9
+ * Run AUI schema migration to version 10
  *
  * Version 5 adds: User accounting system (usage events, API keys, tier defaults, preferences)
  * Version 6 adds: Feature flags and audit events
  * Version 8 adds: User authentication (users, password reset, email verification)
  * Version 9 adds: Model configuration (provider configs, model configs)
+ * Version 10 adds: Archive subsets (filtered content exports, sensitivity detection)
  */
 export async function runAuiMigration(
   client: PoolClient,
@@ -1322,13 +1573,21 @@ export async function runAuiMigration(
   await client.query(CREATE_AUI_PASSWORD_RESET_TOKENS_TABLE);
   await client.query(CREATE_AUI_EMAIL_VERIFICATION_TOKENS_TABLE);
 
+  // Create archive subset tables (v10)
+  await client.query(CREATE_AUI_ARCHIVE_SUBSETS_TABLE);
+  await client.query(CREATE_AUI_SUBSET_NODE_MAPPINGS_TABLE);
+  await client.query(CREATE_AUI_SUBSET_EXPORT_JOBS_TABLE);
+  await client.query(CREATE_AUI_SENSITIVITY_PATTERNS_TABLE);
+  await client.query(CREATE_AUI_ACCESS_POLICIES_TABLE);
+
   // Create indexes
   await client.query(CREATE_AUI_INDEXES);
 
-  // Seed tier defaults, cost rates, and feature flags
+  // Seed tier defaults, cost rates, feature flags, and sensitivity patterns
   await client.query(SEED_AUI_TIER_DEFAULTS);
   await client.query(SEED_AUI_PROVIDER_COST_RATES);
   await client.query(SEED_AUI_FEATURE_FLAGS);
+  await client.query(SEED_AUI_SENSITIVITY_PATTERNS);
 
   // Create vector indexes if enabled
   if (enableVec) {

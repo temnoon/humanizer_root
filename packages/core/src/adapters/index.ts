@@ -16,6 +16,7 @@
  * - TikTok (GDPR data export)
  * - Discord (data export)
  * - LinkedIn (data export)
+ * - Google Takeout (Chat, Keep, YouTube, Activity)
  */
 
 // ═══════════════════════════════════════════════════════════════════
@@ -84,6 +85,11 @@ export { DiscordAdapter, discordAdapter } from './providers/discord-adapter.js';
 export { LinkedInAdapter, linkedinAdapter } from './providers/linkedin-adapter.js';
 
 // ═══════════════════════════════════════════════════════════════════
+// ADAPTERS - Google Services
+// ═══════════════════════════════════════════════════════════════════
+export { GoogleTakeoutAdapter, googleTakeoutAdapter } from './providers/google-takeout-adapter.js';
+
+// ═══════════════════════════════════════════════════════════════════
 // ADAPTERS - Documents & Files
 // ═══════════════════════════════════════════════════════════════════
 export { MarkdownAdapter, markdownAdapter } from './providers/markdown-adapter.js';
@@ -108,6 +114,9 @@ import { redditAdapter } from './providers/reddit-adapter.js';
 import { tiktokAdapter } from './providers/tiktok-adapter.js';
 import { discordAdapter } from './providers/discord-adapter.js';
 import { linkedinAdapter } from './providers/linkedin-adapter.js';
+
+// Google Services
+import { googleTakeoutAdapter } from './providers/google-takeout-adapter.js';
 
 // Documents & Files
 import { markdownAdapter } from './providers/markdown-adapter.js';
@@ -136,6 +145,9 @@ export function registerBuiltInAdapters(): void {
   registry.register(discordAdapter);
   registry.register(linkedinAdapter);
 
+  // Google Services
+  registry.register(googleTakeoutAdapter);
+
   // Documents & Files
   registry.register(markdownAdapter);
 
@@ -160,6 +172,8 @@ export function getBuiltInAdapters() {
     tiktok: tiktokAdapter,
     discord: discordAdapter,
     linkedin: linkedinAdapter,
+    // Google Services
+    'google-takeout': googleTakeoutAdapter,
     // Documents & Files
     markdown: markdownAdapter,
   } as const;
@@ -182,6 +196,8 @@ export const BUILT_IN_ADAPTER_IDS = [
   'tiktok',
   'discord',
   'linkedin',
+  // Google Services
+  'google-takeout',
   // Documents & Files
   'markdown',
 ] as const;
@@ -196,6 +212,7 @@ export const ADAPTER_CATEGORIES = {
   social: ['twitter', 'facebook', 'instagram', 'tiktok', 'reddit'] as const,
   professional: ['linkedin', 'substack'] as const,
   messaging: ['discord'] as const,
+  google: ['google-takeout'] as const,
   documents: ['markdown'] as const,
 } as const;
 

@@ -326,3 +326,18 @@ export {
   getServiceDefault,
   seedServiceDefaults,
 } from './service-config.js';
+
+// Subset Configuration (Archive Subsets, Sensitivity, Export)
+export {
+  SUBSET_CONFIG_KEYS,
+  SUBSET_DEFAULTS,
+  VALID_SENSITIVITY_LEVELS,
+  VALID_EXPORT_FORMATS,
+  VALID_SHARING_MODES,
+  SENSITIVITY_ORDER,
+  getSubsetDefault,
+  isValidSensitivityLevel,
+  isValidExportFormat,
+  isValidSharingMode,
+  compareSensitivity,
+} from './subset-config.js';

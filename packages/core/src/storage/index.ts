@@ -164,6 +164,43 @@ export {
   type PatternDimension,
 } from './pattern-store.js';
 
+// R2 Storage Adapter (Cloudflare R2 / S3-compatible storage)
+export {
+  R2S3Adapter,
+  generateSubsetExportKey,
+  generateSharedKey,
+  generateAccessToken,
+  createAccessPolicy,
+  isPolicyExpired,
+  checkPolicyAccess,
+  generateShareableUrl,
+  calculateContentHash,
+  verifyContentHash,
+  type R2StorageConfig,
+  type R2AccessPolicy,
+  type R2UploadOptions,
+  type R2UploadResult,
+  type R2DownloadResult,
+  type R2ListResult,
+  type R2ObjectInfo,
+  type SignedUrlOptions,
+  type R2StorageAdapter,
+} from './r2-storage-adapter.js';
+
+// Google Drive Storage Adapter
+export {
+  GoogleDriveAdapter,
+  GOOGLE_DRIVE_CONFIG_KEYS,
+  GOOGLE_DRIVE_DEFAULTS,
+  type GoogleDriveConfig,
+  type GoogleDriveTokens,
+  type DriveFileMetadata,
+  type DriveUploadOptions,
+  type DriveUploadResult,
+  type DriveListOptions,
+  type DriveListResult,
+} from './google-drive-adapter.js';
+
 // Legacy SQLite exports (DEPRECATED - kept for reference only)
 // NOTE: The old content-store.ts and schema.ts files are kept in the repo
 // for reference but are no longer used. They will be removed in a future version.

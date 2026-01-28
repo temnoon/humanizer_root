@@ -24,3 +24,22 @@ export {
   getTranscriptionService,
   resetTranscriptionService,
 } from './transcription-service.js';
+
+export {
+  // Types
+  type TextExtractionResult,
+  type ImageDescriptionResult,
+  type ImageAnalysisResult,
+  type ImageAnalysisOptions,
+  type ImageAnalysisServiceConfig,
+  // Constants
+  SUPPORTED_IMAGE_FORMATS,
+  IMAGE_ANALYSIS_CONFIG_KEYS,
+  IMAGE_ANALYSIS_DEFAULTS,
+  // Service
+  ImageAnalysisService,
+  // Singleton
+  initImageAnalysisService,
+  getImageAnalysisService,
+  resetImageAnalysisService,
+} from './image-analysis-service.js';
