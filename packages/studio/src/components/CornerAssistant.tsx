@@ -11,8 +11,9 @@
  * - Action-driven: search results display in main workspace
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useApi } from '../contexts/ApiContext';
+import { useBufferSync } from '../contexts/BufferSyncContext';
 import type { SearchResult } from '../contexts/ApiContext';
 
 interface CornerAssistantProps {
@@ -35,8 +36,31 @@ export function CornerAssistant({ onSelectResult, sessionId, isConnected = false
   const [isLoading, setIsLoading] = useState(false);
 
   const api = useApi();
+  const { workingContent, activeBufferName, importArchiveNode } = useBufferSync();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Compute workspace context for AUI system prompt
+  const workspaceContext = useMemo(() => {
+    if (workingContent.length === 0) {
+      return null;
+    }
+    const totalWords = workingContent.reduce(
+      (sum, item) => sum + (item.metadata.wordCount ?? 0),
+      0
+    );
+    const preview = workingContent
+      .slice(0, 2)
+      .map((item) => item.text.substring(0, 50) + (item.text.length > 50 ? '...' : ''))
+      .join(' | ');
+
+    return {
+      bufferName: activeBufferName,
+      itemCount: workingContent.length,
+      wordCount: totalWords,
+      preview,
+    };
+  }, [workingContent, activeBufferName]);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -149,9 +173,23 @@ export function CornerAssistant({ onSelectResult, sessionId, isConnected = false
     setMessages([]);
   };
 
-  const handleResultClick = (result: SearchResult) => {
+  // Handle result click - imports to buffer and notifies parent
+  const handleResultClick = useCallback(async (result: SearchResult) => {
+    // Import to buffer via BufferSyncContext
+    await importArchiveNode({
+      id: result.id,
+      text: result.text,
+      type: 'search-result',
+      sourceType: result.provenance?.sourceType || result.source,
+      threadId: result.provenance?.threadRootId,
+      threadTitle: result.provenance?.threadTitle,
+      authorRole: result.provenance?.authorRole,
+      wordCount: result.wordCount,
+    });
+
+    // Also notify parent for backward compatibility
     onSelectResult?.(result);
-  };
+  }, [importArchiveNode, onSelectResult]);
 
   return (
     <>
@@ -213,6 +251,18 @@ export function CornerAssistant({ onSelectResult, sessionId, isConnected = false
                 <p className="corner-assistant__chat-hint">
                   Try: "philosophy of mind" or "conversations about music"
                 </p>
+                {/* Workspace context indicator */}
+                {workspaceContext && (
+                  <div className="corner-assistant__workspace-context">
+                    <span className="corner-assistant__workspace-label">Workspace:</span>
+                    <span className="corner-assistant__workspace-info">
+                      {workspaceContext.itemCount} item{workspaceContext.itemCount !== 1 ? 's' : ''} • {workspaceContext.wordCount} words
+                    </span>
+                    <span className="corner-assistant__workspace-preview">
+                      {workspaceContext.preview}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
             {messages.map((msg) => (
