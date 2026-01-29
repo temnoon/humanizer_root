@@ -34,7 +34,7 @@ import React, {
 export type ArchiveTab = 'browser' | 'search' | 'clusters' | 'import';
 
 /** Tools pane tabs */
-export type ToolsTab = 'search' | 'transform' | 'harvest' | 'transcribe';
+export type ToolsTab = 'analyze' | 'transform' | 'harvest' | 'transcribe';
 
 /** Mobile sheet state */
 export type SheetState = 'collapsed' | 'partial' | 'expanded';
@@ -130,7 +130,7 @@ const defaultState: PanelState = {
   archiveOpen: true,
   toolsOpen: true,
   archiveTab: 'browser',
-  toolsTab: 'search',
+  toolsTab: 'analyze',
   archiveSheetState: 'collapsed',
   toolsSheetState: 'collapsed',
   focusedPanel: null,

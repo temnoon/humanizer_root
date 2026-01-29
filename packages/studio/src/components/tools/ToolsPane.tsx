@@ -2,7 +2,7 @@
  * ToolsPane - Tools Panel Container
  *
  * Container component for the tools panel with tabs:
- * - Search: Agentic search interface
+ * - Analyze: Content analysis tools
  * - Transform: AI transformation tools
  * - Harvest: Content extraction
  * - Transcribe: Media transcription launcher
@@ -12,7 +12,7 @@
 
 import React, { useCallback } from 'react';
 import { usePanels, usePanelState } from '../../contexts/PanelContext';
-import { SearchTool } from './SearchTool';
+import { AnalyzeTool } from './AnalyzeTool';
 import { TransformTool } from './TransformTool';
 import { HarvestTool } from './HarvestTool';
 import { TranscribeTool } from './TranscribeTool';
@@ -61,7 +61,7 @@ export type TranscriptionType = 'audio' | 'ocr' | 'caption' | 'description' | 'm
 
 // Tab configuration
 const TABS = [
-  { id: 'search', label: 'Search', icon: '🔍' },
+  { id: 'analyze', label: 'Analyze', icon: '🔬' },
   { id: 'transform', label: 'Transform', icon: '✨' },
   { id: 'harvest', label: 'Harvest', icon: '🌾' },
   { id: 'transcribe', label: 'Transcribe', icon: '🎙️' },
@@ -93,12 +93,9 @@ export function ToolsPane({
   // Render tab content
   const renderTabContent = () => {
     switch (panelState.toolsTab) {
-      case 'search':
+      case 'analyze':
         return (
-          <SearchTool
-            archiveId={archiveId}
-            onSearchResults={onSearchResults}
-          />
+          <AnalyzeTool />
         );
       case 'transform':
         return (
